@@ -20,9 +20,13 @@ from utils.status_updater import StatusUpdater  # noqa: E402
 
 
 def main() -> int:
+    import gc
+    # Lightweight heartbeat for repeated agent work: minimal memory footprint
+    gc.collect()
     # Update status.html only (local dev tree + source/OneDrive for remote check)
     update_project_status(heartbeat=True)
     StatusUpdater().update(is_heartbeat=True)
+    gc.collect()
     return 0
 
 

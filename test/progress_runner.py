@@ -21,6 +21,11 @@ _SOURCE_WATCH_PATHS = (
 )
 _STATUS_HTML_PATH = os.path.join(_ROOT_DIR, 'status.html')
 _CURRENT_TASK_PATH = os.path.join(_ROOT_DIR, 'CURRENT_TASK.txt')
+_FEATURES_DONE_PATH = os.path.join(_ROOT_DIR, 'FEATURES_DONE.txt')
+_CORPUS_RUNNABLE_PATH = os.path.join(_ROOT_DIR, 'CORPUS_RUNNABLE.txt')
+_LOG_PATH = os.path.join(_ROOT_DIR, '_run_progress.log')
+_RSS_HISTORY_PATH = os.path.join(_ROOT_DIR, '.progress_rss_history.json')
+_WORK_LOG_PATH = os.path.join(_ROOT_DIR, 'WORK_LOG.txt')
 
 # Stubs for removed phone / multi-file progress efforts
 def _atomic_write_phone(*a, **k): pass
@@ -724,6 +729,32 @@ def _status_update_kwargs(
     stamp: str,
     heartbeat: bool,
 ) -> Dict[str, object]:
+    # Lightweight path for heartbeat / repeated agent work to keep small footprint
+    if heartbeat:
+        task = _load_current_task_line() or ''
+        program = _extract_program_from_task(task) or 'None'
+        focus = task or 'No active focus'
+        # Skip heavy loads (todos, logs, corpus) on pure heartbeat
+        return {
+            'current_program': program,
+            'focus': focus,
+            'todos': [],
+            'confirmed': [],
+            'pending': [],
+            'recent_log': [],
+            'issues': [],
+            'extra_info': 'heartbeat (lightweight)',
+            'workload_report': None,
+            'user_approval': None,
+            'debug_step': None,
+            'heartbeat_id': heartbeat_id,
+            'sync_id': sync_id,
+            'stamp': stamp,
+            'started': '',
+            'confirmed_more': 0,
+            'is_heartbeat': True,
+        }
+
     task = _load_current_task_line() or ''
     all_todos = _load_todo_items()
     current_todos, pending_todos = _split_dashboard_todos(task, all_todos)

@@ -1,0 +1,14 @@
+# Agent resource alert 2026-07-09 11:47:17
+level critical
+agent_action STOP heavy work — lightweight status/heartbeat only
+reduce_workload true
+stop_work true
+CRITICAL: recent crash: memory allocation of 296812544 bytes failed (296812544 bytes); peak RSS 283 MB >= 280 MB (peak 283 MB, CPU ~10%) [AGENT: STOP heavy work]
+recommendations:
+- STOP heavy agent work for 30 minutes after allocation failure
+- single-program probes only; display="none"
+- no parallel subagents or full corpus audits
+policy:
+- read AGENT_RESOURCE_ALERT.txt before starting heavy agent tasks
+- python verify_resources.py (exit 2 = stop, exit 1 = reduce)
+- python verify_resources.py --record-crash after allocation failures
