@@ -1,8 +1,10 @@
 # mini_basic Runtime.py Version History (Cleaned)
 
+**Note on agent resource improvements:** To keep repeated agent work light on memory (avoiding ~283MB peaks and 296MB alloc crashes recorded in .resource_crash.json), shift comparisons and history to **git diffs/versions** instead of loading full files. See DEVELOPMENT_GIT_USAGE.md for details and commands like `git diff`, `git show`, `git log`.
+
 **Focus:** Successful progression only. Back-and-forth unsuccessful experiments (files named with "problem", "failed", "bad", "try", "implied_failed", "plusequalbad", "counter_try", "next problem", "window_flash", "phone", etc.) have been ignored as requested.
 
-**Source:** Timestamped backup files in `C:\Users\Tony\mini_basic`.
+**Source:** Timestamped backup files in `C:\Users\Tony\mini_basic` (future: derive from git).
 
 **Current Production Version:** `mini_basic\runtime.py` (500,154 bytes, 2026-07-09 00:34:07)
 

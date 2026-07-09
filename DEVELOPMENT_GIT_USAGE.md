@@ -263,4 +263,69 @@ This process replaces the old loose-file backup habit while preserving (and impr
 
 Always reference the `DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md` in commit messages when touching the status/agent system.
 
+## Improving Agent Resource Use with Git Diffs and Versions
+
+The agent (and repeated work) has hit memory limits (~283MB peak RSS leading to alloc failures of ~296MB, as recorded in .resource_crash.json and .resource_peak.json in both local and OneDrive trees).
+
+**Shift to git for comparisons and history to keep light footprint:**
+
+- Instead of loading full large files (e.g., entire runtime.py or multiple backups) into memory for diffing/comparison (which bloats RSS), use git commands:
+  ```powershell
+  # Diff between versions (small output)
+  git diff HEAD~1 -- mini_basic/runtime.py | Select-String -Pattern '^\+|^-' | Select -First 20
+
+  # Show specific version without full load
+  git show HEAD~3:mini_basic/runtime.py | Select-String -Pattern 'def _split' -Context 5
+
+  # History of changes (no full file read)
+  git log --oneline -10 -- mini_basic/runtime.py
+
+  # For runtime version history, rely on git tags/branches instead of loose backup files
+  git tag runtime-before-rem-fix
+  git tag runtime-after-bare-numbers
+  ```
+
+- In agent/LLM sessions: Prefer subprocess calls to git for targeted info. Avoid reading full files unless necessary. Use `git diff --name-only`, `git show`, etc.
+
+- Update RUNTIME_VERSION_HISTORY.md from git:
+  ```powershell
+  git log --pretty=format:"%ad %h %s" --date=short -- mini_basic/runtime.py > RUNTIME_VERSION_HISTORY.txt
+  ```
+
+- Benefits for repeated agent work:
+  - Much smaller memory footprint (diffs are KB, not MB).
+  - Faster (no full parse).
+  - Better history (git is the source of truth).
+  - Aligns with "light footprint": combine with display=none, gc.collect(), single-process, verify_resources.py before heavy.
+
+- In code/tools (e.g. progress_runner, agent_resource): When comparing or auditing, add git-based paths. E.g., use git for runtime changes instead of full text compares.
+
+- For independent fixes: Work on branches, use git diff against master for reviews. This prevents accumulating large in-memory states.
+
+See also AGENT_RESOURCE_ALERT.txt for current memory policy (STOP at crit, lightweight status only).
+
+This change reduces resource use significantly for ongoing agent sessions.
+
 This setup allows both local lightweight work and full OneDrive-synced development while keeping documentation (including this git guide and the pipeline guide) in sync across both locations.
+
+
+## Memory Safeguards and Light Footprint for Repeated Agent Work
+
+From crash records in .resource_crash.json (both local and OneDrive):
+
+- Recent failures: "memory allocation of 296812544 bytes failed (~283 MB)"
+- Peak RSS ~283 MB, system ~93% used.
+- Thresholds: warn 220MB process, crit 280MB; system crit 384MB avail / 92% used.
+
+**Improvements made:**
+- Heartbeat/status now uses lightweight path: skips loading todos, work logs, corpus summaries when heartbeat=True (reduces RSS during repeated status updates).
+- gc.collect() before and after status update in progress_heartbeat.py.
+- Status update only (phone/RSS removed).
+- Always call python scripts/verify_resources.py before heavy agent work (corpus, full tests).
+- In agent loops: display="none", gc after each program, no parallel.
+
+See AGENT_RESOURCE_ALERT.txt, RESOURCE_CHECK.txt, .resource_crash.json for live state.
+Update thresholds in utils/agent_resource.py if needed (e.g. lower crit to 250MB for safety).
+
+In independent git fixes: keep branches lightweight; test with regression only when RSS low.
+
