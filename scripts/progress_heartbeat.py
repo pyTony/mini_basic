@@ -15,11 +15,14 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from test.progress_runner import write_phone_summary  # noqa: E402
+from test.progress_runner import update_project_status  # noqa: E402
+from utils.status_updater import StatusUpdater  # noqa: E402
 
 
 def main() -> int:
-    write_phone_summary(heartbeat=True)
+    # Update status.html only (local dev tree + source/OneDrive for remote check)
+    update_project_status(heartbeat=True)
+    StatusUpdater().update(is_heartbeat=True)
     return 0
 
 
