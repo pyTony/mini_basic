@@ -2,6 +2,10 @@
 
 This document explains how to use git in the mini_basic development workflow, especially in the context of the local dev tree vs. the OneDrive-synced full source.
 
+**Quick start**: See `GIT_QUICKSTART.md` (root) for the 5-minute version.
+
+**Advanced independent fixes**: See `docs/git/INDEPENDENT_FIXES.md` for the full process, branching strategy, and LLM/agent checklist.
+
 ## Repository Setup
 
 There are typically two related git repositories:
