@@ -145,6 +145,110 @@ dev_text_part*.txt
 Thumbs.db
 ```
 
+## Independent Fixes with Git (Following the Same Agent/LLM Process)
+
+In the past, fixes were often done by creating loose files like `runtime_fixed_xxx.py`, `runtime_final_yyy.py`, or `runtime_problem_zzz.py`. This created noisy back-and-forth history that was hard to follow (as seen in the runtime backup analysis).
+
+**Going forward, always use git branches for independent fixes.** This keeps a clean, queryable record in `git log`, replaces the old loose-file habit, and works perfectly with the existing autonomous process in `AGENT_POLICY.txt` and `DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md`.
+
+### Recommended Workflow for an Independent Fix
+
+1. **Start fresh and read the rules** (mandatory at the beginning of every session):
+   ```powershell
+   cd C:\Users\Tony\Programming\mini_basic
+   git checkout master
+   git pull origin master 2>$null   # if remote exists
+   git status
+
+   # Read the operating rules
+   Get-Content AGENT_POLICY.txt -TotalCount 80
+   Get-Content DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md -TotalCount 50
+   ```
+
+2. **Identify the single focus** (from `CURRENT_TASK.txt`, `FEATURES_DONE.txt` lines starting with `--`, or `CORPUS_AUDIT.txt`).
+
+3. **Create a focused branch** (use a short, descriptive name):
+   ```powershell
+   git checkout -b fix/rem-clean-handling
+   # or
+   git checkout -b fix/bare-numbered-lines
+   # or
+   git checkout -b fix/goto-unwind
+   ```
+
+4. **Do the work following the exact same process**:
+   - Single focus only (never touch another program until this one is user-approved).
+   - Run targeted tests: `python test/run_regression.py -v`, `test/verify_*.py`, etc.
+   - Before heavy work: `python scripts/verify_resources.py`
+   - After meaningful progress: update status files and call `update_project_status()`
+   - Record work: update `CURRENT_TASK.txt`, `DEBUG_STEP.txt`, `WORK_LOG.txt`, `FEATURES_DONE.txt` as appropriate.
+   - For programs: use `verify_program.py` (agent-only) then wait for user to run via `run_program.py` and confirm.
+
+5. **Commit frequently with clear messages** (aligns with pipeline):
+   ```powershell
+   git add mini_basic/runtime.py
+   git add CURRENT_TASK.txt DEBUG_STEP.txt FEATURES_DONE.txt
+   git commit -m "fix: clean REM handling for whole-line comments and colon statements
+
+   - Adopt explicit early return for REM-only lines (from July 6 final_clean_rem)
+   - Update _split_colon_statements and _is_rem_only_statement
+   - Passes regression and targeted REM tests
+   - Single focus: rem-clean-handling (see AGENT_POLICY)
+   - Refs: DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md"
+   ```
+
+6. **When the fix is ready for user final check**:
+   - Push the branch if you have a remote (for visibility):
+     ```powershell
+     git push -u origin fix/rem-clean-handling
+     ```
+   - Update `USER_APPROVAL_AGENT.txt` (via the helper scripts).
+   - Tell the user the branch name and the exact command to test (`python run_program.py ...`).
+
+7. **After user final approval**:
+   - Merge cleanly to master:
+     ```powershell
+     git checkout master
+     git pull
+     git merge --no-ff fix/rem-clean-handling -m "merge: fix/rem-clean-handling (user approved)"
+     git tag fix-rem-clean-handling-2026-07-09   # optional but recommended for history
+     git branch -d fix/rem-clean-handling
+     git push origin master --tags
+     ```
+   - Delete the local branch.
+   - Update `RUNTIME_VERSION_HISTORY.md` (or let it be derived from `git log` in future).
+
+### Benefits of This Process
+
+- Git history **becomes** the version record (no more loose `runtime_fixed_*.py` files).
+- Easy to see what was changed for each focused fix (`git log --oneline --graph`).
+- Bisecting and reverting become possible.
+- Multiple independent fixes can be worked on in parallel (different branches) without polluting master.
+- Fully compatible with the existing single-focus rule, status heartbeat, and user-approval gate.
+- The `RUNTIME_VERSION_HISTORY.md` can be kept as a human-readable summary, but the real source of truth is `git log`.
+
+### For LLM / Agent Sessions (Autonomous Mode)
+
+At the very start of every session:
+```powershell
+git branch --show-current
+if ((git branch --show-current) -eq "master") {
+    $focus = (Get-Content CURRENT_TASK.txt | Select-String -NotMatch '^#').Trim() -replace '\s+', '-'
+    git checkout -b "fix/$focus"
+}
+```
+
+Never commit directly to master during a fix session. Only merge after user approval.
+
+### Future Record Keeping
+
+- Use `git log --since="2026-07-01" -- mini_basic/runtime.py` instead of grepping dozens of backup files.
+- Tag important states: `git tag before-rem-fix`, `git tag after-bare-numbers`.
+- The July 6 "fix sprint" style work should now live as a short-lived branch with multiple small commits.
+- When generating text archives or dev installs, the git history travels with the code.
+
+This process replaces the old loose-file backup habit while preserving (and improving) the autonomous agent workflow.
+
 ## When to Commit
 
 - New documentation (pipeline guides, git usage, feature matrices updates)
