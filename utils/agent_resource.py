@@ -16,13 +16,14 @@ _AGENT_ALERT_PATH = _PROJECT_ROOT / 'AGENT_RESOURCE_ALERT.txt'
 _PEAK_STATE_PATH = _PROJECT_ROOT / '.resource_peak.json'
 _CRASH_STATE_PATH = _PROJECT_ROOT / '.resource_crash.json'
 
-# Stay below the ~283 MB Rust/Python allocation failure the user hit.
-WARN_PROCESS_RSS_MB = 220
-CRIT_PROCESS_RSS_MB = 280
-WARN_SYSTEM_AVAILABLE_MB = 768
-CRIT_SYSTEM_AVAILABLE_MB = 384
-WARN_SYSTEM_USED_PERCENT = 85.0
-CRIT_SYSTEM_USED_PERCENT = 92.0
+# Stay below the ~283 MB Rust/Python allocation failure the user hit (see .resource_crash.json in OneDrive/local).
+# For repeated agent work, keep very light footprint: prefer heartbeat minimal path, gc, display=none.
+WARN_PROCESS_RSS_MB = 200  # lowered for proactive safeguard on repeated sessions
+CRIT_PROCESS_RSS_MB = 260  # lowered from 280; crash observed at ~283MB
+WARN_SYSTEM_AVAILABLE_MB = 1024
+CRIT_SYSTEM_AVAILABLE_MB = 512
+WARN_SYSTEM_USED_PERCENT = 80.0
+CRIT_SYSTEM_USED_PERCENT = 90.0
 
 ResourceLevel = Literal['ok', 'warn', 'critical']
 
