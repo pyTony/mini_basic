@@ -2,6 +2,13 @@
 and composition with expressions/DEFs.
 
 Phase 1 priority: solid foundation before graphics. Non-stuck by design.
+
+Generative loop exit verification (revised):
+All hypothesis-generated loops use small fixed bounds (e.g. FOR ... TO 2,
+WHILE counter < 3 with counter +=1 inside) + explicit exit conditions.
+Tests now assert not only "no ?" but that the program reached the
+statements *after* the loops (proving the exit paths were taken and
+the interpreter did not hang in an infinite loop).
 """
 
 from __future__ import annotations
@@ -62,6 +69,12 @@ def distinct_vars(draw, count=2):
 def nested_while_for_if(draw):
     """Bounded WHILE + FOR + IF composition + FN call in condition/assign.
     Exercises _execute for while/for/if, _eval_condition, array/FN expr.
+
+    Revised for loop exit verification: always uses explicit progress counter 'v'
+    that is incremented inside the WHILE. The loop condition and final PRINT
+    of 'v' allow the test to assert that the loop *did* exit (v reached bound)
+    rather than hanging or skipping the exit path. Small hard bounds guarantee
+    termination; no UNTIL FALSE or non-progressing loops are generated.
     """
     v, a = distinct_vars(draw, 2)
     lines = [
@@ -76,7 +89,7 @@ def nested_while_for_if(draw):
         "  NEXT",
         f"  {v}={v}+1",
         "WEND",
-        f"PRINT {a}(0); {a}(1)",
+        f"PRINT {a}(0); {a}(1); \"EXIT_V=\"; {v}",
     ]
     return "\n".join(lines)
 
@@ -98,6 +111,9 @@ class TestControlFlowComposition(unittest.TestCase):
         out = buf.getvalue()
         self.assertNotIn("?", out, f"prog:\n{prog}\nout:\n{out}")
         self.assertRegex(out.strip(), r'\d')
+        # Revised: explicitly verify the WHILE loop had an exit (counter reached bound)
+        # The generator always produces v<3 with v+=1 inside, so final v must be 3.
+        self.assertIn("EXIT_V=3", out, f"WHILE loop did not reach exit condition:\n{prog}\nout:\n{out}")
 
 
 @st.composite
@@ -134,6 +150,13 @@ class TestRepeatExit(unittest.TestCase):
         out = buf.getvalue()
         self.assertNotIn("?", out)
         self.assertTrue(len(out.strip()) > 0)
+        # The generator always produces a REPEAT that exits via the UNTIL after increment;
+        # verify we reached the final PRINT (normal loop exit path exercised).
+        self.assertRegex(out.strip(), r'\d')
+        # Stronger exit verification: counter v starts 0, +1 inside REPEAT, UNTIL v>=2
+        # so after normal exit the printed v must be >=2 (and data printed).
+        # Note: ; in PRINT concatenates, so output like '7992' for 7;99;2
+        self.assertRegex(out, r'7.*99.*[2-9]')  # data values + final counter >=2 after exit
 
 
 @st.composite
@@ -458,6 +481,40 @@ class TestOnErrorInControl(unittest.TestCase):
         self.assertTrue(len(out.strip()) > 0)
         # Note: full inline handler stmt exec is still basic in runtime;
         # this exercises the trap set + BasicRuntimeError catch + resume path.
+
+
+@st.composite
+def on_error_inside_proc(draw):
+    """ON ERROR + RESUME set inside PROC, error inside it.
+    Verifies RESUME works in PROC/DEF context (Phase 1 TODO).
+    """
+    lines = [
+        "DEF PROCbad",
+        "ON ERROR PRINT \"E\"; : RESUME NEXT",
+        "PRINT 1/0",
+        "PRINT \"AI\"",
+        "ENDPROC",
+        "PROCbad",
+        "PRINT \"done\"",
+    ]
+    return "\n".join(lines)
+
+
+class TestOnErrorInProc(unittest.TestCase):
+    @given(prog=on_error_inside_proc())
+    @settings(max_examples=2, deadline=3000)
+    def test_on_error_resume_in_proc(self, prog: str):
+        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            for i, line in enumerate(prog.splitlines(), 10):
+                interp.set_program_line(i * 10, line)
+            interp.run()
+        out = buf.getvalue()
+        self.assertNotIn("?", out)
+        self.assertIn("E", out)
+        self.assertIn("AI", out)  # RESUME NEXT continued inside proc
+        self.assertIn("done", out)
 
 
 if __name__ == "__main__":

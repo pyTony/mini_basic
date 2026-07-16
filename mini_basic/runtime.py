@@ -161,6 +161,17 @@ class BASICInterpreter:
         'SOUND': 'SOUND (audio synthesis)',
         'ENVELOPE': 'ENVELOPE (audio)',
     }
+
+    # Statements that are recognized in BBC dialect / detokenizer but not (yet) implemented.
+    # These give a clear "? Not implemented: ..." instead of generic "Unknown statement".
+    # This makes the limitation obvious rather than silent or confusing.
+    # Reasonable for core missing graphics/language features (see feature_matrices deferred + implementation status).
+    # Gfxlib PROC stubs (gfx*) are intentionally different: they are silent shims for BBCSDL corpus compat.
+    _NOT_IMPLEMENTED_STATEMENTS = {
+        'ELLIPSE': 'ELLIPSE (and ELLIPSE FILL)',
+        'FLOOD': 'FLOOD (flood fill)',
+        # Add others as identified (e.g. some advanced VDU, VOICE etc. if top-level)
+    }
     _MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE'})
     _MINI_ONLY_FUNCS = frozenset({
         'ARG', 'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
@@ -4889,6 +4900,12 @@ class BASICInterpreter:
         saved_if_stack = self.if_stack
         saved_array_aliases = dict(self._array_aliases)
         saved_local_stack = list(self._local_save_stack)
+        # Save error handling state so ON ERROR/RESUME set inside PROC is isolated
+        # and outer traps can correctly catch errors from inside PROC (or be restored).
+        saved_error_trap_line = self.error_trap_line
+        saved_error_trap_gosub = self.error_trap_gosub
+        saved_error_resume_at = self.error_resume_at
+        saved_resume_at = self.resume_at
         self.stack = []
         self.if_stack = []
         self._in_proc_body = True
@@ -4915,6 +4932,11 @@ class BASICInterpreter:
                     raise ValueError('END inside PROC')
                 if target is not None:
                     if target not in body_line_index:
+                        # Outer trap serviced from inside proc: let error propagate
+                        # so the call site unwinds and outer context can handle the trap.
+                        if (self._error_trap_enabled() and
+                                target == self.error_trap_line):
+                            raise BasicRuntimeError()
                         raise ValueError('PROC jump outside body')
                     idx = body_line_index[target]
                 else:
@@ -4926,6 +4948,11 @@ class BASICInterpreter:
             self._local_save_stack = saved_local_stack
             self.stack = saved_stack
             self.if_stack = saved_if_stack
+            # Restore error state on proc exit (isolation for traps set inside PROC)
+            self.error_trap_line = saved_error_trap_line
+            self.error_trap_gosub = saved_error_trap_gosub
+            self.error_resume_at = saved_error_resume_at
+            self.resume_at = saved_resume_at
             self._in_proc_body = False
 
     def _call_procedure(self, proc: UserProcedure, args: List[str]) -> None:
@@ -4959,6 +4986,10 @@ class BASICInterpreter:
             self._run_procedure_body(proc)
         except ProcReturn:
             pass
+        except BasicRuntimeError:
+            # Let outer error trap / RESUME handling deal with it (e.g. trap was set
+            # outside the PROC). Do not turn it into a generic PROC error.
+            raise
         finally:
             saved_outer = self.proc_stack.pop()
             self._restore_fn_param_bindings(saved_outer)
@@ -9241,6 +9272,11 @@ class BASICInterpreter:
         cmd, rest = self._parse_command(line)
         self.dprint(f"CMD={cmd!r} REST={rest!r}")
         
+        if cmd in self._NOT_IMPLEMENTED_STATEMENTS:
+            detail = self._NOT_IMPLEMENTED_STATEMENTS[cmd]
+            self._runtime_error(f'? Not implemented: {detail}', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
         if cmd == 'REM':
             return None
 
@@ -9720,6 +9756,10 @@ class BASICInterpreter:
                         return None
                     raise ValueError(f'unknown procedure PROC{name}')
                 self._call_procedure(proc, args)
+            except BasicRuntimeError:
+                # Propagate so outer ON ERROR / RESUME can handle errors originating
+                # inside the PROC (see changes in _run_procedure_body).
+                raise
             except Exception:
                 self._runtime_error('? PROC error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
