@@ -1,0 +1,8 @@
+=== DATA / READ ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  DATA numeric literal         stored at parse        yes    yes     existing READ tests
+  DATA expr at READ            deferred eval          yes    yes     test_data_deferred_*
+  DATA quoted string           literal str            yes    yes     test_read_string_data
+  READ multi-var               comma vars             yes    yes     soccerball DATA lines
+  RESTORE +n                   relative offset        yes    partial  animal.txt uses

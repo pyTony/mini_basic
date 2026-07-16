@@ -1,0 +1,106 @@
+=== Dialect structure compatibility ===
+  mits=ELIZA  commodore=C64  tiny=1975  bbc=BETH  mini=superset
+
+  Feature                          mits  com tiny  bbc  mini
+  -------------------------------- ----  --- ----  ---  ----
+  Numbered lines                    +     +   +     -    +  
+  Unnumbered lines                  -     -   -     +    +  
+  GOTO / GOSUB / RETURN             +     +   +     +    +  
+  IF ... GOTO nn                    +     +   -     -    +  
+  IF ... THEN nn (implicit GOTO)    +     +   -     +    +  
+  ON GOTO / ON GOSUB                +     +   +     +    +  
+  ON ERROR GOTO/GOSUB / RESUME      +     +   +     +    +  
+  IF/ENDIF / ELSEIF                 -     -   -     +    +  
+  WHILE / WEND                      -     -   -     +    +  
+  REPEAT / UNTIL                    -     -   -     +    +  
+  EXIT FOR/WHILE/REPEAT             -     -   -     +    +  
+  PROC / DEF PROC / ENDPROC         -     -   -     +    +  
+  BREAK / CONTINUE (mini ext)       -     -   -     -    +  
+  INSTR                             -     -   -     +    +  
+  DEF FN one-line                   +     +   +     +    +  
+  DEF FN ... END DEF                -     -   -     ~    +  
+  ? shorthand (PRINT)               +     +   +     +    +  
+  TRUE/FALSE (-1/0)                 +     +   +     +    +  
+  ARG / CLI args                    -     -   -     -    +  
+  FG$ / BG$ / ANSI colors           -     -   -     -    +  
+  TIME (centisecond clock)          +     +   +     +    +  
+  Case-sensitive names              -     -   -     -    +  
+  LIST/SAVE detokenize              +     +   +     +    -  
+
+  + = yes   - = rejected in strict dialect   ~ = extension
+
+=== Trigonometry units ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  SIN/COS/TAN argument         degrees (BB4W)         degrees   yes     test_math_trig_and_pi
+  SINRAD/COSRAD/TANRAD         radians (BB4W/SDL)     radians   yes     test_sinrad_cosrad_radians
+  ASN/ACS/ATN result           radians                radians   partial  no dedicated test yet
+  DEG/RAD functions            convert units (math.degrees/radians) yes    yes     test_math_trig_and_pi + runtime builtin
+  PI function                  no-arg builtin         yes    yes     test_math_trig_and_pi
+
+=== Graphics statements ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  CIRCLE x,y,r                 outline (BB4W ch.3)    PLOT 149   yes     pixel outline count test
+  CIRCLE FILL x,y,r            filled disc            MOVE+plot 156   yes     pi*r^2 area test
+  CIRCLEFILL alias             one word               normalized   yes     test_circlefill_alias
+  RECTANGLE FILL               BBC SDL                yes    yes     prior corpus tests
+  MOVE / DRAW / PLOT           BBC graphics           yes    yes     bbc_graphics_demo
+  MODE 8 OS scaling            2x pixel scale         yes    yes     circle tests use x_scale
+  ORIGIN / bottom-left Y       BB4W ch.3 coords       yes    yes     test_wheel_spokes_cluster
+  GCOL action 0-7              plot/OR/AND/XOR/invert yes    yes     test_gcol_xor_mode_erases
+  OFF                          hide text cursor       yes    yes     VDU 23,1,0
+  COLOR RGB                    physical colour        yes    partial  wheel PROCbow
+  @ispal% guard                0=high color           stub=0   yes     test_ispal_percent_stub
+  ELLIPSE / FLOOD              BB4W graphics          missing   no      deferred until CIRCLE stable
+
+=== Array / matrix ops ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  b() = v1, v2, ...            row-major init (BB4W)  yes    yes     test_matrix_comma_fill
+  c() = a() . b()              matrix multiply        yes    yes     in-place dest fix
+  SUM(a())                     whole 1D array         yes    partial  1D only
+  SUM(a(i TO j))               slice                  yes    yes     test_sum_array_slice
+  a() = b() copy               whole array            yes    yes     test_whole_array_copy
+  a() = scalar fill            broadcast              yes    yes     binary literal fill test
+  scalar + array same name     b and b()              coexist   yes     soccerball pattern
+  array slicing assign         a() = b(i TO j)        missing   no      deferred
+
+=== DATA / READ ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  DATA numeric literal         stored at parse        yes    yes     existing READ tests
+  DATA expr at READ            deferred eval          yes    yes     test_data_deferred_*
+  DATA quoted string           literal str            yes    yes     test_read_string_data
+  READ multi-var               comma vars             yes    yes     soccerball DATA lines
+  RESTORE +n                   relative offset        yes    partial  animal.txt uses
+
+=== Implementation status (user verify) ===
+  Feature                      Target                 mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  soccerball.txt               graphics corpus        runs 0 errors   yes     rotation tmp vs xyz
+  wheel.txt                    graphics corpus        runs 0 errors   yes     spoke coords verified
+  PRINT array subscript        PRINT a(i)             not expanded   no      use ; or separate PRINT
+  Corpus ALL runnable 24       audit list             auditing   partial  corpus_audit_probe
+
+=== Deferred feature sets (intentionally not in scope yet) ===
+  Complete corpus + core BBC language first; revisit when stable.
+
+  Area                 Feature                          reason
+  -------------------- -------------------------------- ------
+  RISC OS WIMP         MENU / ATTACH / DETACH           desktop GUI toolkit
+  RISC OS WIMP         ICON / WINDOW / WIMP_*           sprite icons and window ops
+  RISC OS WIMP         MOUSE click handlers ON MOUSE    event-driven UI
+  Inline ASM           OSASM / [ / ] assembler          ARM/x86 inline assembly
+  Inline ASM           CALL / USR machine code          register ABI and memory model
+  Inline ASM           OPT FN / assembler labels        low-level linking
+  OS integration       SYS Windows API calls            foreign function interface
+  OS integration       INSTALL libraries                tokenised library load
+  Structures           DIM struct{} / TYPE              user-defined record types
+  Structures           structure arrays and tags        RETURN struct from FN
+  Pointers             ? ! $ $$ indirection             byte/word/string pointers
+  Sound                SOUND / ENVELOPE / ADVAL audio   multi-channel synthesis
+  Teletext             MODE 7 / VDU teletext codes      SAA5050 mosaic mode
+  Physics              FN_b2* Box2D bindings            corpus physics tier
+  Network              URL fetch / Ceefax remote        needs HTTP client
+  Compiler             BBC BASIC compiler / Crunch      not interpreter scope

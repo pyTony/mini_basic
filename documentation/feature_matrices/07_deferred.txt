@@ -1,0 +1,21 @@
+=== Deferred feature sets (intentionally not in scope yet) ===
+  Complete corpus + core BBC language first; revisit when stable.
+
+  Area                 Feature                          reason
+  -------------------- -------------------------------- ------
+  RISC OS WIMP         MENU / ATTACH / DETACH           desktop GUI toolkit
+  RISC OS WIMP         ICON / WINDOW / WIMP_*           sprite icons and window ops
+  RISC OS WIMP         MOUSE click handlers ON MOUSE    event-driven UI
+  Inline ASM           OSASM / [ / ] assembler          ARM/x86 inline assembly
+  Inline ASM           CALL / USR machine code          register ABI and memory model
+  Inline ASM           OPT FN / assembler labels        low-level linking
+  OS integration       SYS Windows API calls            foreign function interface
+  OS integration       INSTALL libraries                tokenised library load
+  Structures           DIM struct{} / TYPE              user-defined record types
+  Structures           structure arrays and tags        RETURN struct from FN
+  Pointers             ? ! $ $$ indirection             byte/word/string pointers
+  Sound                SOUND / ENVELOPE / ADVAL audio   multi-channel synthesis
+  Teletext             MODE 7 / VDU teletext codes      SAA5050 mosaic mode
+  Physics              FN_b2* Box2D bindings            corpus physics tier
+  Network              URL fetch / Ceefax remote        needs HTTP client
+  Compiler             BBC BASIC compiler / Crunch      not interpreter scope

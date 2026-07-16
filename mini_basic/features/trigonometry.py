@@ -1,0 +1,15 @@
+from __future__ import annotations
+
+from typing import List
+
+from .types import TopicRow
+
+
+def trigonometry_rows() -> List[TopicRow]:
+    return [
+        ('SIN/COS/TAN argument', 'degrees (BB4W)', 'degrees', 'yes', 'test_math_trig_and_pi'),
+        ('SINRAD/COSRAD/TANRAD', 'radians (BB4W/SDL)', 'radians', 'yes', 'test_sinrad_cosrad_radians'),
+        ('ASN/ACS/ATN result', 'radians', 'radians', 'partial', 'no dedicated test yet'),
+        ('DEG/RAD functions', 'convert units (math.degrees/radians)', 'yes', 'yes', 'test_math_trig_and_pi + runtime builtin'),
+        ('PI function', 'no-arg builtin', 'yes', 'yes', 'test_math_trig_and_pi'),
+    ]
