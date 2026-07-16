@@ -10,6 +10,7 @@ import sys
 
 # Heartbeat must never open SDL/pygame windows if any import chain touches display code.
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:

@@ -1583,6 +1583,8 @@ def ensure_no_pygame_leftovers() -> None:
     a window open via hold_display_open; this should not be called until
     the user has confirmed they are done.
     """
+    import os as _os
+    _os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
     try:
         import pygame  # type: ignore
         if pygame.get_init():

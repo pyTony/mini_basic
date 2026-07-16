@@ -30,6 +30,8 @@ import sys
 import unittest
 
 # Ensure no stray pygame windows at start of any regression (per AGENT_POLICY §8)
+os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
+os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 try:
     from mini_basic.display import ensure_no_pygame_leftovers
     ensure_no_pygame_leftovers()
