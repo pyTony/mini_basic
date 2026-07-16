@@ -1,0 +1,8 @@
+Test hygiene + Phase 1 markers (first slice)
+- Remove pygame/graphics/interactive tests from test_mini_basic.py
+- Strengthen stuck_tests.txt
+- Add pytest phase1/non_gfx markers to focused test files
+- Create pytest.ini for -m phase1 filtering
+- Verify focused tests + regression
+
+Next single focus after this: extend ON ERROR + RESUME in PROC/DEF (per status TODO)

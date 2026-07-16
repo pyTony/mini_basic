@@ -37,33 +37,50 @@
 </head>
 <body>
 <h1>mini_basic Progress Dashboard</h1>
-<p class="meta">heartbeat #1 • Updated: 2026-07-09 12:17:12</p>
+<p class="meta">work sync #4 • Updated: 2026-07-16 10:31:16</p>
 
 <section class="current">
     <h2> Currently Working On</h2>
-    <div class="line active">Program: <strong>None</strong></div>
-    <div class="line">No active focus</div>
-    <div class="line stamp">Started: 2026-07-09 12:17</div>
+    <div class="line active">Program: <strong>test-hygiene</strong></div>
+    <div class="line">Move graphics from god file + pytest phase1 markers</div>
+    <div class="line stamp">Started: </div>
 
     <h3>TODOs for this program</h3>
     <ul>
-        <li class="muted">(none)</li>
+        <li class="todo">verify no breakage in phase1 tests</li>
+        <li class="todo">document in README if needed</li>
+        <li class="todo">next: ON ERROR in PROC</li>
     </ul>
 </section>
 
 <section class="workload-warn">
     <h2> Agent Workload</h2>
-    <div class="line">Resource checker unavailable.</div>
+    <div class="workload-action workload-reduce">REDUCE workload — one small step, display=none, no parallel audits</div>
+    <div class="line">Level: <strong>WARN</strong> • checked 2026-07-16 10:31:16</div>
+    <div class="line">RSS 30 MB • peak 283 MB • system free 21905 MB • load 32% • CPU ~4%</div>
+    <div class="line">peak RSS 283 MB &gt;= 260 MB</div>
+</section>
+
+<section class="approval">
+    <h2> User Final Approval (whole programs)</h2>
+    <div class="line">Focus: <strong>None</strong> • 0 program(s) ready for your OK • 0 still agent-side</div>
+    <div class="line muted">Approve whole programs only. Run the program yourself (mini_basic.py) with varied inputs; verify_program.py is agent-only. Reply OK in chat; agent marks [x] in USER_APPROVAL.txt</div>
+    <div class="line muted">No whole program ready for your OK yet.</div>
 </section>
 
 <section class="success">
     <h2>✅ Confirmed Working</h2>
-    <div class="line">No confirmed items logged yet.</div>
+    <div class="line done">Phase 1 testing foundation started (test_control_flow + test_compositional)</div>
 </section>
 
 <section class="pending">
     <h2>⏳ Pending / Not Yet Confirmed</h2>
-    <div class="line">Nothing pending.</div>
+    <div class="line">Test hygiene: move stuck/poor tests out of god file (test_mini_basic.py) + introduce pytest phase markers</div>
+    <div class="line">ON ERROR variants + RESUME inside PROC/DEF contexts</div>
+    <div class="line">Deeper nesting (4+) + file I/O + control composition</div>
+    <div class="line">Full run_regression + broader Phase-1 coverage + matrix updates (DEG/RAD etc.)</div>
+    <div class="line">Refresh CORPUS_AUDIT and continue BBCSDL parity for more programs</div>
+    <div class="line">16 deferred features (WIMP, ASM, SYS...)</div>
 </section>
 
 <section>
@@ -73,8 +90,12 @@
 
 <section>
     <h2>⚠️ Issues / Error Reports</h2>
-    <div class="line">No blocking issues right now.</div>
+    <div class="line todo">Tests not all pass: see test/_run_progress.log</div>
+    <div class="line todo">Resource watch — agent reduce workload: peak RSS 283 MB &gt;= 260 MB</div>
+
 </section>
+
+<div class="line muted">status work pending tests not all pass 5 todo items · resources warn: RSS 30 MB (peak 283) reduce workload</div>
 
 </body>
 </html>

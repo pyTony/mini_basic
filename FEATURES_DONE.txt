@@ -1,0 +1,8 @@
+P - 2026-07-12 1DLIFE.BAS + Phase 1 non-gfx control flow + DIM fixes (legacy mits GOTO-NEXT, bbc text-only)
+OK Phase 1 testing foundation started (test_control_flow + test_compositional)
+
+-- Test hygiene: move stuck/poor tests out of god file (test_mini_basic.py) + introduce pytest phase markers
+-- ON ERROR variants + RESUME inside PROC/DEF contexts
+-- Deeper nesting (4+) + file I/O + control composition
+-- Full run_regression + broader Phase-1 coverage + matrix updates (DEG/RAD etc.)
+-- Refresh CORPUS_AUDIT and continue BBCSDL parity for more programs
