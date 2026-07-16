@@ -23,10 +23,21 @@ def main() -> int:
     import gc
     # Lightweight heartbeat for repeated agent work: minimal memory footprint
     gc.collect()
+    # Pygame safety per AGENT_POLICY §8 — never leave windows in autonomous scheduled runs.
+    try:
+        from mini_basic.display import ensure_no_pygame_leftovers
+        ensure_no_pygame_leftovers()
+    except Exception:
+        pass
     # Update status.html only (local dev tree + source/OneDrive for remote check)
     update_project_status(heartbeat=True)
     StatusUpdater().update(is_heartbeat=True)
     gc.collect()
+    try:
+        from mini_basic.display import ensure_no_pygame_leftovers
+        ensure_no_pygame_leftovers()
+    except Exception:
+        pass
     return 0
 
 

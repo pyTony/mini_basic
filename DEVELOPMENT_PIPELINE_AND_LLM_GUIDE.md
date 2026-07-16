@@ -154,12 +154,14 @@ Correctly listed here and reflected in the status files (as of latest):
 ## 4. How to Continue Work (Task-by-Task or Autonomously) as LLM
 
 **Startup checklist for any LLM/agent (read these first):**
-1. AGENT_POLICY.txt (core rules — single focus, resource awareness, user approves whole programs only, etc.)
+1. AGENT_POLICY.txt (core rules — single focus, resource awareness, user approves whole programs only, **pygame/display safety + no leftover windows (section 8)**, etc.)
 2. CURRENT_TASK.txt
 3. FEATURES_DONE.txt (scan for -- TODOs)
 4. STATUS.txt / PROGRESS.txt + status.html
 5. USER_APPROVAL.txt + USER_APPROVAL_AGENT.txt + CORPUS_AUDIT.txt
 6. This DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md
+
+**Pygame rule reminder:** In autonomous mode always `display='none'` / `SDL_VIDEODRIVER=dummy` + force `ensure_no_pygame_leftovers()`. Real windows only via user-cooperative runs (user executes the command and reports). See AGENT_POLICY section 8.
 
 **Autonomous loop (no user needed until final approval):**
 ```bash

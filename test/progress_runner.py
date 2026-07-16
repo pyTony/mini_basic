@@ -13,6 +13,13 @@ from email.utils import formatdate
 from typing import Dict, List, Optional, TextIO, Tuple
 from xml.sax.saxutils import escape
 
+# Pygame safety: autonomous status/heartbeat work must never leave windows.
+try:
+    from mini_basic.display import ensure_no_pygame_leftovers
+    ensure_no_pygame_leftovers()
+except Exception:
+    pass
+
 _TEST_DIR = os.path.dirname(os.path.abspath(__file__))
 _ROOT_DIR = os.path.dirname(_TEST_DIR)
 _SOURCE_WATCH_PATHS = (
@@ -36,8 +43,9 @@ def _write_phone_files(*a, **k):
         StatusUpdater().update()
     except: pass
 _PHONE_PATH = None
-_LOG_PATH = None
-_WORK_LOG_PATH = None
+# (do not clobber the real paths below - they are still used by updater and log functions)
+_LOG_PATH = os.path.join(_ROOT_DIR, '_run_progress.log')
+_WORK_LOG_PATH = os.path.join(_ROOT_DIR, 'WORK_LOG.txt')
 
 # Feature labels kept only for status.html summary
 _FEATURE_LABELS = {
@@ -1226,17 +1234,33 @@ class ProgressLoggingRunner(unittest.TextTestRunner):
         sys.stderr.flush()
         return result
 
+import concurrent.futures   # add this import near the top if not present
 
 def run_discover(
     start_dir: Optional[str] = None,
     pattern: str = 'test_*.py',
     *,
     verbosity: int = 1,
+    timeout: Optional[float] = 180,   # ← NEW: 3 minutes default total timeout
 ) -> int:
     if start_dir is None:
         start_dir = _TEST_DIR
+
     loader = unittest.TestLoader()
     suite = loader.discover(start_dir=start_dir, pattern=pattern)
     runner = ProgressLoggingRunner(verbosity=verbosity)
-    result = runner.run(suite)
+
+    if timeout and timeout > 0:
+        print(f"[progress_runner] Starting with overall timeout of {timeout} seconds")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+            future = ex.submit(runner.run, suite)
+            try:
+                result = future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                print(f"\n*** OVERALL TIMEOUT after {timeout} seconds ***")
+                print("Run was terminated. Check the latest log in test/logs/ for details.")
+                return 1
+    else:
+        result = runner.run(suite)
+
     return 0 if result.wasSuccessful() else 1
