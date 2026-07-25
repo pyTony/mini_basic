@@ -52,3 +52,5 @@ OK glued NOTX / A%AND1 / DIV / INKEY(n) expression normalize (saucer + welcome p
 OK BBC dialect line glue: MODE5 GCOL0 VDU23 PLOT MOVE FOR DEFPROC REPEATUNTIL PRINTCHR$
 OK jclock + filters corpus re-probe OK; saucer smoke OK after NOTX
 OK test_glued_bbc_syntax.py
+OK BBCSDL leading-underscore user vars/arrays (_BOX,_LINE); system _* only if in SYSTEM_VAR_SPEC
+OK flier corpus smoke OK (WAIT/REPEAT only stripped)

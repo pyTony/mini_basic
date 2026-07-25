@@ -2,7 +2,7 @@
 # Full 24-program re-probe still optional; notes from targeted probes.
 # display=none, loops shortened where noted.
 
-OK (19)
+OK (20)
 soccerball.txt graphics
 tier_a_poem.txt samples
 illusion.txt graphics
@@ -22,10 +22,10 @@ hanoi.txt games
 jclock.txt graphics
 filters.txt general
 saucer.txt graphics  # NOTX glue fix 2026-07-26; full FOR is long (expected)
+flier.txt graphics   # leading _ identifiers (_BOX/_LINE) 2026-07-26
 
-FAIL (5)
-flier.txt graphics :: ? DIM error; ? DRAW error: name '_BOX' is not defined
+FAIL (4)
 welcome.txt general :: partial — MODE/GCOL/NOT/A%AND glue improved; ENVELOPE unimplemented; remaining IF/PLOT edge cases
-piechart.txt graphics :: ? DIM error; ? GCOL error: name 'Colour' is not defined
+piechart.txt graphics :: DIM Colour&() byte arrays / SUM / array fill / COSa glue — deferred
 polly.txt sounds :: ? Expression error: name REPEAT is not defined; ? OSCLI error
 poem.txt general :: ? audit timeout (20s) / long run

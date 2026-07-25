@@ -8,6 +8,15 @@ from mini_basic import BASICInterpreter, InterpreterConfig
 
 
 class GluedBbcSyntaxTests(unittest.TestCase):
+    def test_underscore_array_dim(self):
+        """BBCSDL flier uses DIM _BOX / _LINE (leading underscore)."""
+        i = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        i.program[10] = "DIM _BOX(4,2):_BOX(1,1)=700:PRINT _BOX(1,1):END"
+        buf = StringIO()
+        with redirect_stdout(buf), redirect_stderr(StringIO()):
+            i.run()
+        self.assertIn("700", buf.getvalue())
+
     def test_notx_unary(self):
         i = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
         i.variables["X"] = 5.0

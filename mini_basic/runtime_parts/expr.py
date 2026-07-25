@@ -819,8 +819,8 @@ class RuntimeExprMixin:
             print('  '.join(parts))
 
     def _validate_var_base(self, name: str) -> str:
-        if name.startswith('_'):
-            raise ValueError('names starting with _ are reserved for system variables')
+        # Leading _ allowed for BBCSDL user names (_BOX, _LINE, …). Known
+        # mini_basic system vars remain reserved via _canonical_system_var_name.
         if not name or not re.fullmatch(self._VAR_BASE_PATTERN, name):
             raise ValueError('invalid variable name')
         if len(name) > self._VAR_MAX_LEN:
