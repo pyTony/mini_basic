@@ -1,17 +1,11 @@
-Focus: animal — re-test after animal.bbc restore (git 4e79a60)
+Focus: pick next demo (animal user-approved)
 
-User approved: hanoi, soccerball, wheel
+User final approval:
+[x] hanoi.txt (games)
+[x] soccerball.txt (graphics)
+[x] wheel.txt (graphics)
+[x] animal.txt (games) — confirmed 2026-07-26
 
-Animal timeline (git backtrace):
-1. N? = corrupt ~/animal.dat from STR$ pad under @%=&90A
-2. Binary patch of tokenized animal.bbc broke line lengths → load 1 line → instant exit
-3. Restored animal.bbc as UTF-8 listing from corpus (@%=0); binary kept as
-   examples/games/animal.bbc.broken_binary_2026-07-26
-4. Commit: 4e79a60 fix(animal,hanoi): N? tree corruption, VDU wrap ghosts, restore animal.bbc
+Git: 4e79a60 animal/hanoi fixes; animal approval this session.
 
-User re-test NOW:
-  python mini_basic.py --dialect bbc examples/games/animal.bbc
-  (or examples/games/animal.bas — same text)
-  Expect title + Play Guess the Animal; not silent exit.
-
-Also committed: hanoi VDU wrap fix (io.py), approvals, verify steps.
+Next candidates (optional): ELIZA/BETH, 1DLIFE, poem, CORPUS re-probe

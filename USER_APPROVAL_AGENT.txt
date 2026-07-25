@@ -5,4 +5,4 @@
 OK hanoi.txt (games) :: user confirmed 2026-07-26; VDU wrap + colour fix; middle-peg finish intentional
 OK soccerball.txt :: all 3 snippet checks passed; user confirmed 2026-07-26
 OK wheel.txt :: user confirmed 2026-07-26 (agent spoke SINRAD/COSRAD snippet still FAIL — user OK overrides)
-OK animal.txt :: all 7 verify_animal_step checks passed 2026-07-26 (FN name case fix in verifier)
+OK animal.txt :: user confirmed 2026-07-26; verify_animal_step 7/7; N?/@% fix; animal.bbc restored as UTF-8
