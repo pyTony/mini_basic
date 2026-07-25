@@ -1,22 +1,17 @@
-Focus: animal.txt — N? bug fixed; re-check by user when awake
+Focus: animal — re-test after animal.bbc restore (git 4e79a60)
 
 User approved: hanoi, soccerball, wheel
 
-Animal N? (2026-07-26):
-Root cause: @%=&90A made STR$(index) space-pad → PROCnew wrote
-  \QN\N        69\Y        68\  and leaf \An
-→ PROCquestion prompt became \"N\" → display \"N?\"
-Corrupt file was %USERPROFILE%\animal.dat (OPENIN prefers @usr$)
+Animal timeline (git backtrace):
+1. N? = corrupt ~/animal.dat from STR$ pad under @%=&90A
+2. Binary patch of tokenized animal.bbc broke line lengths → load 1 line → instant exit
+3. Restored animal.bbc as UTF-8 listing from corpus (@%=0); binary kept as
+   examples/games/animal.bbc.broken_binary_2026-07-26
+4. Commit: 4e79a60 fix(animal,hanoi): N? tree corruption, VDU wrap ghosts, restore animal.bbc
 
-Fixes:
-- examples/games/animal.bbc: @%=&90A → @%=0
-- corpus animal.txt: same
-- Backed up corrupt dat → %USERPROFILE%\animal.dat.corrupt_2026-07-26
-- Replaced with clean examples/games/animal.dat
-
-User re-test:
+User re-test NOW:
   python mini_basic.py --dialect bbc examples/games/animal.bbc
-  All-N path should end \"Is it a worm?\" not \"N?\"
-  Then teach a new animal; tree should stay healthy
+  (or examples/games/animal.bas — same text)
+  Expect title + Play Guess the Animal; not silent exit.
 
-LLM/resource: keep focused; system CPU OK.
+Also committed: hanoi VDU wrap fix (io.py), approvals, verify steps.
