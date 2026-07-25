@@ -1,8 +1,50 @@
 P - 2026-07-12 1DLIFE.BAS + Phase 1 non-gfx control flow + DIM fixes (legacy mits GOTO-NEXT, bbc text-only)
 OK Phase 1 testing foundation started (test_control_flow + test_compositional)
 
--- Test hygiene: move stuck/poor tests out of god file (test_mini_basic.py) + introduce pytest phase markers
--- ON ERROR variants + RESUME inside PROC/DEF contexts
--- Deeper nesting (4+) + file I/O + control composition
--- Full run_regression + broader Phase-1 coverage + matrix updates (DEG/RAD etc.)
--- Refresh CORPUS_AUDIT and continue BBCSDL parity for more programs
+OK Test hygiene + pytest phase markers (gfx tests moved, markers, stubs awareness improved)
+
+OK stubs audited + documented (gfxlib shims are intentional silent for corpus compat; core missing use "Not implemented" or "Unknown"; comments added in runtime; see _NOT_IMPLEMENTED_STATEMENTS)
+OK ON ERROR + RESUME now supported inside PROC (trap isolation via save/restore, propagation for outer traps, inner recovery+RESUME works; test added)
+OK deeper DEF FN composition (nested string FN chains evaluate; array index exprs like b(i%+1) in single-line DEF; FN+PROC+file deep nest + recursive FN in FOR; TestDeeperDefFnComposition)
+OK Deeper nesting (4+) + file I/O + control composition (explicit tests + generative WHILE/REPEAT/FOR/FN/PROC)
+OK matrix updates (DEG/RAD functions marked implemented 'yes' + regen via feature_matrices)
+OK fix test_mini_basic.py collection IndentationError (orphaned pygame remnant after Phase1 hygiene)
+OK same-line REPEAT: body: UNTIL (was re-entering REPEAT forever, never ran body / printed nothing)
+OK INKEY$(n) timeout in centiseconds (bare INKEY$ expand no longer swallows INKEY$(n))
+OK interactive same-line REPEAT+PRINT TAB+INKEY$: present terminal each iter; INKEY reads pygame+console; flush before wait
+OK RACE/ROADRACE playable: INKEY$(0) non-blocking poll; IF THEN GOTO allowed in bbc; CLS flushes print buffer (was swallowing results)
+OK examples/games/roadrace.bbc + basics/ROADRACE.BAS with instructions screen first
+OK CORPUS_AUDIT refreshed (CORPUS_RUNNABLE restored; probe OK 11 / FAIL 15; probe timeout hang fixed)
+OK restored functional monorepo runtime from backup/runtime_old.py after incomplete modular split
+-- BBCSDL parity: re-probe CORPUS_AUDIT (filters, jclock, piechart, welcome, …); hanoi demo path fixed 2026-07-26
+-- PRINT array subscript expansion (known gap)
+OK modular runtime: BASICInterpreter = 8 mixins under runtime_parts/* + facade runtime.py (~50KB); monorepo archived backup/runtime_monolith.py; regenerator tools/split_runtime_mixins.py; phase1 green
+OK error diagnostics to stderr + config.errors_dual_stdout for tests; richer OPEN/IF/etc detail
+OK museum ELIZA/BETH under examples/museum; compact IF THEN glue; LEN vs MID$ typing
+OK ON CLOSE general handler + QUIT/BYE parse; window-close teardown
+OK empty-body REPEAT/UNTIL TIME trap-loop exemption + brief sleep
+OK EDIT/REPL ignore C0 controls (Ctrl+S U+0013 broke >=)
+OK pygame mark_closed + _ensure_display reopen after X/Escape (program + REPL)
+OK animal.bbc load path: REPEAT header-body; INPUT# arrays; A$() string compare; PRINT '
+OK status.html poll-on-change from .txt sources (utils/status_sources.py); light heartbeat every 5 min; agents write CURRENT_TASK/FEATURES_DONE only
+OK EOF# peeks char (not text tell cookies) — animal.dat full tree load
+OK OPENIN allows empty files; CR-separated multi INPUT# test
+OK array FIR: out() = in(i TO j) . lpf() 1D slice dot product
+OK DEF PROC trailing body (PROCHANOI… IF A=0 ENDPROC); RUN statement; PRINTTAB
+OK INPUT "prompt"var glue (no comma); STR$~TINT / TINT builtin
+OK COLOUR n,r,g,b on terminal display (no AttributeError _gfx); wheel/pygame path
+OK pytest regression path (removed run_regression.py; testpaths=test; phase1 green)
+OK README/pytest docs for dialect notes + pytest-first testing
+OK CORPUS_AUDIT re-probe 2026-07-22: OK 15 / FAIL 9 (animal/spectrum/scarab/doodle now OK)
+OK CASE TRUE WHEN cond: body colon split (jclock); SINRADT/COSRADT + VALMID$ glued rewrites
+OK hanoi corpus path OK after POS-prefix bare-func regression fix
+OK recovery 2026-07-25: modular runtime facade restored; TerminalDisplay restored (streaming)
+OK hanoi floating remnant: VDU 17 pairs not counted in PRINT wrap (_print_emit / visible width)
+OK hanoi disc 7 vs 8 colours: example formula 128+DISC+(DISC>7) (8+ flash; 7 solid white)
+OK hanoi.bbc + corpus hanoi.txt colour/wrap; test_hanoi_vdu_wrap; middle-peg finish is original
+OK USER APPROVAL hanoi.txt (games) — user confirmed 2026-07-26
+OK USER APPROVAL soccerball.txt (graphics) — user confirmed 2026-07-26
+OK USER APPROVAL wheel.txt (graphics) — user confirmed 2026-07-26
+OK animal agent prep: verify_animal_step all 7 OK; FN lookup case-insensitive (was KeyError STRIP/ART/QUERY)
+OK animal N? fix: @%=&90A → @%=0 so STR$ indices unpadded; corrupt ~/animal.dat replaced (backup .corrupt_2026-07-26)
+-- animal.txt: re-verify with user (was not passing; N? path fixed)

@@ -1,0 +1,38 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. "THE TOWERS OF HANOI"
+      REM. R.T.RUSSELL, 08-08-1982: BBC BASIC
+      :
+      DIM DISC$(13),SIZE(3)
+      FOR DISC=1 TO 13
+        DISC$(DISC)=STRING$(DISC," ")+STR$DISC+STRING$(DISC," ")
+        IF DISC>=10 DISC$(DISC)=MID$(DISC$(DISC),2)
+        REM Disc 8+ use flash colours so 7 (white) and 8 are distinct
+        DISC$(DISC)=CHR$17+CHR$(128+DISC+(DISC>7))+DISC$(DISC)+CHR$17+CHR$128
+      NEXT DISC
+      :
+      MODE 3
+      INPUT "Number of discs (1-13): "F
+      IF F>13 RUN
+      FOR N=F TO 1 STEP -1:PROCPUT(N,1):NEXT
+      PRINT TAB(0,1)"Press SPACE to start":A=GET:PRINT TAB(0,1)STRING$(20," ")
+      OFF
+      PROCHANOI(F,1,2,3)
+      PRINTTAB(0,22);
+      REPEAT WAIT 1 : UNTIL FALSE
+      ;
+      DEF PROCHANOI(A,B,C,D) IF A=0 ENDPROC
+      PROCHANOI(A-1,B,D,C)
+      PROCTAKE(A,B):PROCPUT(A,C):*REFRESH
+      PROCHANOI(A-1,D,C,B)
+      ENDPROC
+      ;
+      DEF PROCPUT(DISC,PILE)
+      PRINTTAB(13+26*(PILE-1)-DISC,20-SIZE(PILE))DISC$(DISC);
+      SIZE(PILE)=SIZE(PILE)+1
+      ENDPROC
+      ;
+      DEF PROCTAKE(DISC,PILE)
+      SIZE(PILE)=SIZE(PILE)-1
+      PRINTTAB(13+26*(PILE-1)-DISC,20-SIZE(PILE))STRING$(2*DISC+1," ");
+      ENDPROC

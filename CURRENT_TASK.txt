@@ -1,8 +1,22 @@
-Test hygiene + Phase 1 markers (first slice)
-- Remove pygame/graphics/interactive tests from test_mini_basic.py
-- Strengthen stuck_tests.txt
-- Add pytest phase1/non_gfx markers to focused test files
-- Create pytest.ini for -m phase1 filtering
-- Verify focused tests + regression
+Focus: animal.txt — N? bug fixed; re-check by user when awake
 
-Next single focus after this: extend ON ERROR + RESUME in PROC/DEF (per status TODO)
+User approved: hanoi, soccerball, wheel
+
+Animal N? (2026-07-26):
+Root cause: @%=&90A made STR$(index) space-pad → PROCnew wrote
+  \QN\N        69\Y        68\  and leaf \An
+→ PROCquestion prompt became \"N\" → display \"N?\"
+Corrupt file was %USERPROFILE%\animal.dat (OPENIN prefers @usr$)
+
+Fixes:
+- examples/games/animal.bbc: @%=&90A → @%=0
+- corpus animal.txt: same
+- Backed up corrupt dat → %USERPROFILE%\animal.dat.corrupt_2026-07-26
+- Replaced with clean examples/games/animal.dat
+
+User re-test:
+  python mini_basic.py --dialect bbc examples/games/animal.bbc
+  All-N path should end \"Is it a worm?\" not \"N?\"
+  Then teach a new animal; tree should stay healthy
+
+LLM/resource: keep focused; system CPU OK.

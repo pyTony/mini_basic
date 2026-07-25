@@ -1,0 +1,10 @@
+# Whole-program user final approval (user confirms in chat; agent marks [x])
+# Format: [x] or [ ] then label matching corpus / demo name
+# Updated 2026-07-26
+
+[x] hanoi.txt (games) — user confirmed 2026-07-26 (VDU wrap, colours 7/8, mid-peg original OK)
+[x] soccerball.txt (graphics) — user confirmed 2026-07-26
+[x] wheel.txt (graphics) — user confirmed 2026-07-26
+
+# Ready for user run / OK (agent prep done)
+[ ] animal.txt (games) — agent OK 2026-07-26; user: delete corrupt %USERPROFILE%\animal.dat if needed; run examples\games\animal.bbc

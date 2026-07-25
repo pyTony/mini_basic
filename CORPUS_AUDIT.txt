@@ -1,0 +1,29 @@
+# Corpus audit 2026-07-22 13:37:30
+# Probed 24 programs from ALL runnable section (display=none, gc after each)
+# Note: hanoi moved OK 2026-07-26 by user confirmation (full re-probe still pending)
+OK (16)
+soccerball.txt graphics
+tier_a_poem.txt samples
+illusion.txt graphics
+sine.txt graphics
+scarab.txt graphics
+squares.txt graphics
+persian.txt graphics
+polygon.txt graphics
+doodle.txt graphics
+polydots.txt graphics
+mmap.txt tools
+fern.txt graphics
+wheel.txt graphics
+spectrum.txt graphics
+animal.txt games
+hanoi.txt games
+FAIL (8)
+saucer.txt graphics :: ? IF error; ? LET error: name 'S' is not defined
+filters.txt general :: ? Syntax error: invalid syntax (<string>, line 1); ? Syntax error: subscript out of range
+flier.txt graphics :: ? DIM error; ? DRAW error: name '_BOX' is not defined
+welcome.txt general :: ? Expression error: invalid syntax (<string>, line 1); ? IF error
+jclock.txt graphics :: ? CASE error; ? ENDCASE without CASE
+piechart.txt graphics :: ? DIM error; ? GCOL error: name 'Colour' is not defined
+polly.txt sounds :: ? Expression error: name REPEAT is not defined; ? OSCLI error
+poem.txt general :: ? audit timeout (20s)

@@ -1,0 +1,8 @@
+# Whole-program agent verification (user approves programs only)
+# Updated 2026-07-26
+# Only OK programs appear in status.html user approval section
+
+OK hanoi.txt (games) :: user confirmed 2026-07-26; VDU wrap + colour fix; middle-peg finish intentional
+OK soccerball.txt :: all 3 snippet checks passed; user confirmed 2026-07-26
+OK wheel.txt :: user confirmed 2026-07-26 (agent spoke SINRAD/COSRAD snippet still FAIL — user OK overrides)
+OK animal.txt :: all 7 verify_animal_step checks passed 2026-07-26 (FN name case fix in verifier)
