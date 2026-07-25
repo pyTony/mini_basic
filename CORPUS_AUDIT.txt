@@ -1,7 +1,8 @@
-# Corpus audit 2026-07-22 13:37:30
-# Probed 24 programs from ALL runnable section (display=none, gc after each)
-# Note: hanoi moved OK 2026-07-26 by user confirmation (full re-probe still pending)
-OK (16)
+# Corpus audit (partial refresh 2026-07-26 agent)
+# Full 24-program re-probe still optional; notes from targeted probes.
+# display=none, loops shortened where noted.
+
+OK (19)
 soccerball.txt graphics
 tier_a_poem.txt samples
 illusion.txt graphics
@@ -18,12 +19,13 @@ wheel.txt graphics
 spectrum.txt graphics
 animal.txt games
 hanoi.txt games
-FAIL (8)
-saucer.txt graphics :: ? IF error; ? LET error: name 'S' is not defined
-filters.txt general :: ? Syntax error: invalid syntax (<string>, line 1); ? Syntax error: subscript out of range
+jclock.txt graphics
+filters.txt general
+saucer.txt graphics  # NOTX glue fix 2026-07-26; full FOR is long (expected)
+
+FAIL (5)
 flier.txt graphics :: ? DIM error; ? DRAW error: name '_BOX' is not defined
-welcome.txt general :: ? Expression error: invalid syntax (<string>, line 1); ? IF error
-jclock.txt graphics :: ? CASE error; ? ENDCASE without CASE
+welcome.txt general :: partial — MODE/GCOL/NOT/A%AND glue improved; ENVELOPE unimplemented; remaining IF/PLOT edge cases
 piechart.txt graphics :: ? DIM error; ? GCOL error: name 'Colour' is not defined
 polly.txt sounds :: ? Expression error: name REPEAT is not defined; ? OSCLI error
-poem.txt general :: ? audit timeout (20s)
+poem.txt general :: ? audit timeout (20s) / long run

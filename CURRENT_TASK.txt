@@ -1,11 +1,11 @@
-Focus: pick next demo (animal user-approved)
+Focus: corpus glue fixes (saucer NOTX, welcome crunched keywords)
 
-User final approval:
-[x] hanoi.txt (games)
-[x] soccerball.txt (graphics)
-[x] wheel.txt (graphics)
-[x] animal.txt (games) — confirmed 2026-07-26
+User approved: hanoi, soccerball, wheel, animal
 
-Git: 4e79a60 animal/hanoi fixes; animal approval this session.
+Agent 2026-07-26 (moderate):
+- Re-probed FAIL list: jclock OK, filters OK
+- saucer: NOTX → NOT X (was hang/mis-parse); small-A smoke OK
+- welcome: MODE5/GCOL0/INKEY1/A%AND1/DEFPROC glue — partial (ENVELOPE still stub)
+- Branch: fix/hanoi-animal-demo-approvals
 
-Next candidates (optional): ELIZA/BETH, 1DLIFE, poem, CORPUS re-probe
+Next: welcome finish / piechart Colour / flier _BOX / poem timeout / ELIZA user prep

@@ -48,3 +48,7 @@ OK USER APPROVAL wheel.txt (graphics) — user confirmed 2026-07-26
 OK animal agent prep: verify_animal_step all 7 OK; FN lookup case-insensitive (was KeyError STRIP/ART/QUERY)
 OK animal N? fix: @%=&90A → @%=0 so STR$ indices unpadded; corrupt ~/animal.dat replaced (backup .corrupt_2026-07-26)
 OK USER APPROVAL animal.txt (games) — user confirmed 2026-07-26 (seems fine after N? fix + bbc restore)
+OK glued NOTX / A%AND1 / DIV / INKEY(n) expression normalize (saucer + welcome pack)
+OK BBC dialect line glue: MODE5 GCOL0 VDU23 PLOT MOVE FOR DEFPROC REPEATUNTIL PRINTCHR$
+OK jclock + filters corpus re-probe OK; saucer smoke OK after NOTX
+OK test_glued_bbc_syntax.py
