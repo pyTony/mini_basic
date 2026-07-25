@@ -1,11 +1,11 @@
-Focus: corpus glue fixes (saucer NOTX, welcome crunched keywords)
+Focus: piechart Colour& / welcome ENVELOPE / poem (optional)
 
 User approved: hanoi, soccerball, wheel, animal
 
-Agent 2026-07-26 (moderate):
-- Re-probed FAIL list: jclock OK, filters OK
-- saucer: NOTX → NOT X (was hang/mis-parse); small-A smoke OK
-- welcome: MODE5/GCOL0/INKEY1/A%AND1/DEFPROC glue — partial (ENVELOPE still stub)
-- Branch: fix/hanoi-animal-demo-approvals
+Agent 2026-07-26:
+- jclock, filters, saucer, flier → corpus OK notes
+- Commits: 579296e (glue), 63d8e98 (underscore _BOX)
+- piechart still needs byte arrays Colour& / SUM / array fill
+- welcome partial (ENVELOPE)
 
-Next: welcome finish / piechart Colour / flier _BOX / poem timeout / ELIZA user prep
+Branch: fix/hanoi-animal-demo-approvals
