@@ -13,3 +13,4 @@
 2026-07-26 03:00:00 WORK corpus notes: jclock filters saucer flier OK; piechart/welcome/poem remain
 2026-07-26 03:05:00 WORK restore WORK_LOG.txt loader (was stubbed empty) for status Recent Work Log
 2026-07-26 12:10:38 WORK Ready-for-approval list: jclock filters saucer flier (agent OK)
+2026-07-26 12:16:58 WORK jclock: SINRADT → SIN(RAD(T)) degree fix (was radians jumble)

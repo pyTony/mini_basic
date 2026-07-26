@@ -1582,10 +1582,12 @@ class RuntimeExprMixin:
     def _expand_numeric_builtin_calls(self, expr: str) -> str:
         # Always match builtin function names case-insensitively (EVAL, SIN, etc. are keywords).
         # Variable identifier case-sensitivity is handled separately in substitution.
-        # BBC glued bare-arg forms (jclock SINRADT / VALMID$(s,i)) before general match.
+        # BBC glued bare-arg forms before general match.
+        # jclock: SINRADT with T in *degrees* (I%*30) means SIN(RAD(T)), not SINRAD(T).
+        # Parenthesized SINRAD(x) still means sin(x radians) via the SINRAD builtin.
         expr = re.sub(
-            r'(?<![A-Za-z0-9_])(SINRAD|COSRAD|TANRAD)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$])',
-            r'\1(\2)',
+            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
+            r'\1(RAD(\2))',
             expr,
             flags=re.IGNORECASE,
         )
