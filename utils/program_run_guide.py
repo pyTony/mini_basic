@@ -112,14 +112,10 @@ PROGRAM_USER_RUN: Dict[str, ProgramRunGuide] = {
 
 def _program_key(program: str) -> str:
     """Map 'jclock.txt (graphics)' or bare name to PROGRAM_USER_RUN key."""
-    text = program.strip().lower()
-    # Drop trailing " — notes"
-    text = text.split('—')[0].split('-')[0].strip() if '—' in program else text
     text = program.strip().split('—')[0].strip()
-    # Drop " (folder)" suffix
     if '(' in text:
         text = text[: text.index('(')].strip()
-    return text.lower() if text.endswith('.txt') or text.endswith('.bbc') else text
+    return text.lower()
 
 
 def run_command_for(program: str) -> str:
