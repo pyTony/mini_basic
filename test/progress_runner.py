@@ -669,12 +669,24 @@ def _minimal_status_lines(
 
 
 def _extract_program_from_task(task: str) -> str:
-    match = re.search(r'(\w+\.txt)', task, re.IGNORECASE)
+    match = re.search(r'([\w.-]+\.(?:txt|bbc|bas))\b', task, re.IGNORECASE)
     if match:
         return match.group(1)
     lower = task.lower()
     if 'corpus' in lower:
         return 'corpus audit'
+    # Approval queue with no single program in the Focus line: first [ ] ready item
+    if 'approval' in lower or 'ready' in lower:
+        try:
+            from utils.user_approval import load_user_approval_labels
+
+            pending, _approved = load_user_approval_labels()
+            if pending:
+                # "jclock.txt (graphics)" → jclock.txt
+                name = pending[0].split('(')[0].strip().split('—')[0].strip()
+                return name
+        except Exception:
+            pass
     return ''
 
 

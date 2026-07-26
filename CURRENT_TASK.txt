@@ -1,24 +1,17 @@
-Focus: user approval queue — 4 programs ready for your OK
+Focus: jclock.txt — user verifying mouse-following clock (approval queue)
 
-User approved:
-[x] hanoi, soccerball, wheel, animal
-
-Ready for your approval (agent: no blocking errors in probe):
-[ ] jclock.txt (graphics)
+Ready for your OK (agent probe clean; please visual-check):
+[ ] jclock.txt (graphics) — unusual particle clock; 1–12 on a ring, dots=hands, TIME$ digits float
 [ ] filters.txt (general)
 [ ] saucer.txt (graphics) — draw is intentionally slow
 [ ] flier.txt (graphics)
 
-Not ready (blocked):
-welcome — ENVELOPE / residual IF-PLOT
-piechart — Colour& / SUM / array fill
-polly — REPEAT / OSCLI
-poem — timeout
+Already approved: hanoi, soccerball, wheel, animal
 
-Run (examples):
+Not ready: welcome (ENVELOPE), piechart (Colour&), polly, poem
+
+jclock run:
   python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/jclock.txt
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/general/filters.txt
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/saucer.txt
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/flier.txt
-
-Reply: OK jclock  (etc.) when each looks good.
+  or: examples/graphics/jclock.bbc
+  Move the mouse — numbers should spring toward a clock around the pointer.
+  Not a static drawn circle; TIME$ characters orbit outside (by design).
