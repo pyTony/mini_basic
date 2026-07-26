@@ -1,17 +1,15 @@
-Focus: jclock.txt — user verifying mouse-following clock (approval queue)
+Focus: jclock.txt — re-check mouse tracking after MOUSE live-sample fix
 
-Ready for your OK (agent probe clean; please visual-check):
-[ ] jclock.txt (graphics) — unusual particle clock; 1–12 on a ring, dots=hands, TIME$ digits float
+Ready for your OK:
+[ ] jclock.txt (graphics) — fix: MOUSE now samples pointer (was stuck 0,0 → lower-left)
 [ ] filters.txt (general)
-[ ] saucer.txt (graphics) — draw is intentionally slow
+[ ] saucer.txt (graphics)
 [ ] flier.txt (graphics)
 
-Already approved: hanoi, soccerball, wheel, animal
+Approved: hanoi, soccerball, wheel, animal
 
-Not ready: welcome (ENVELOPE), piechart (Colour&), polly, poem
-
-jclock run:
+jclock:
   python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/jclock.txt
-  or: examples/graphics/jclock.bbc
-  Move the mouse — numbers should spring toward a clock around the pointer.
-  Not a static drawn circle; TIME$ characters orbit outside (by design).
+  With mouse at window centre, clock cloud should sit near centre (slight -250 offset).
+  Move mouse — cloud should follow. 1–12 ring + dotted hands + orbiting TIME$ digits.
+
