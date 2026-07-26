@@ -22,3 +22,4 @@
 2026-07-26 12:59:23 WORK Process: mid-agentic work will check user input queue; jclock approved; piechart in progress
 2026-07-26 13:00:41 WORK filters: Original not ORIGIN al (glue outside strings); user OK visual
 2026-07-26 13:01:28 USER USER APPROVAL flier.txt (auto-rotate ship; no user input in listing)
+2026-07-26 13:05:11 WORK POLICY: agentic BEGIN/END status script + tick todos (§3b); interrupt §6b

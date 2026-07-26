@@ -19,10 +19,56 @@
   - CORPUS_AUDIT.txt or USER_APPROVAL*.txt
 
 ## 3. Status & Communication
-- Only use status.html for progress reporting.
-- After meaningful work: update relevant status files + call update_project_status()
-- Use test/progress_runner.py or direct StatusUpdater when needed.
+- **Source of truth = project .txt files**, not status.html:
+  - CURRENT_TASK.txt (active focus)
+  - FEATURES_DONE.txt (`OK …` done, `-- …` TODO)
+  - CORPUS_AUDIT.txt, USER_APPROVAL*.txt, DEBUG_STEP.txt, WORK_LOG.txt, etc.
+- After meaningful work: **update those .txt files**. That is required.
+- **status.html is generated** by polling those files:
+  - Scheduled: `scripts/progress_heartbeat.py` (via register_progress_task.ps1)
+    rebuilds status.html **only when source fingerprints change**.
+  - Optional immediate rebuild: `python -c "from test.progress_runner import update_project_status; update_project_status()"`
+    or `python scripts/progress_heartbeat.py --force`
+- Do **not** rely on a frequent empty "heartbeat rewrite" of status.html.
+  Heartbeat is light: poll .txt change + rare check that agents still touch
+  CURRENT_TASK / FEATURES_DONE (staleness warning if idle too long).
+- Only use status.html for progress *display* (phone/OneDrive).
 - Never use phone summaries, RSS, or other channels (they have been removed).
+
+## 3b. MUST-FOLLOW: Agentic Job Status Script (BEGIN + END)
+Every agentic **job** (a coherent focus unit: one program fix, one approval batch
+handler, one probe+patch cycle) **must** run status bookkeeping at **start and end**.
+Skipping either end is a policy violation.
+
+### BEGIN job (before first code edit or long probe)
+1. Read `CURRENT_TASK.txt`, `FEATURES_DONE.txt` (`--` todos), `USER_APPROVAL*.txt`,
+   `AGENT_RESOURCE_ALERT.txt` / `python scripts/verify_resources.py`.
+2. Set **single focus** in `CURRENT_TASK.txt` first line:
+   `Focus: <program-or-task> — <one-line goal>`
+   so status "Currently Working On" is never stale `None` unless truly idle.
+3. Create/update in-session todos (todo tool or FEATURES_DONE `--` lines) for the job.
+4. Log start:  
+   `python -c "from test.progress_runner import log_work_event, update_project_status; log_work_event('BEGIN <focus>: <goal>', kind='WORK'); update_project_status()"`
+5. Only then start probes/edits.
+
+### DURING job (midpoints)
+- After each meaningful probe/fix/commit: check user input queue (see §6b).
+- Optionally `log_work_event` for milestones; keep CURRENT_TASK focus accurate.
+
+### END job (before stopping or switching focus)
+1. **Tick out todos** that are actually done:
+   - Session todo tool → `completed` (not left `in_progress`/`pending` if finished).
+   - FEATURES_DONE: move `-- item` → `OK item` when the item is done; leave `--` only for remaining work.
+2. Update `CURRENT_TASK.txt`: either next focus, or idle note if waiting on user.
+3. Update approval/corpus files if the job changed readiness (`USER_APPROVAL*`, `CORPUS_AUDIT`).
+4. Log end + rebuild status:  
+   `python -c "from test.progress_runner import log_work_event, update_project_status; log_work_event('END <focus>: <result>', kind='WORK'); update_project_status()"`
+5. Commit policy-relevant file updates when code changed (branch workflow §4).
+
+### Idle / waiting on user
+- If the only remaining work is user playtesting ready `[ ]` programs: set focus to the
+  first ready program name (or explicit "waiting on user: saucer") so Program is not `None`.
+- Do **not** leave todos marked in_progress when the agent has stopped.
 
 ## 4. Git Workflow (for all code changes)
 - Never commit directly to master.
@@ -41,6 +87,34 @@
 - Only the user can finally approve a whole program.
 - After fixes: ask user to run and confirm.
 - Update USER_APPROVAL*.txt and FEATURES_DONE.txt only after real user confirmation.
+- Maintain three lists in USER_APPROVAL.txt:
+  - `[x]` user-approved
+  - `[ ]` ready for user OK (agent found no blocking errors)
+  - comments for agent-blocked programs (not ready)
+
+## 6b. User Interaction During Agentic Work (INTERRUPT POLICY)
+User chat **always preempts** long autonomous runs. This is not optional.
+
+### When a user message arrives mid-agentic work
+1. **Stop** the current autonomous step at the next safe boundary (end of probe, end of one fix, end of one commit). Do not start a new heavy job until the user is handled.
+2. **Read and answer** the user message first (approval, bug report, screenshot, question).
+3. **Record** outcomes immediately:
+   - Approvals → `USER_APPROVAL.txt` + `USER_APPROVAL_AGENT.txt` + `WORK_LOG.txt`
+   - Bug reports → fix or note in `CURRENT_TASK.txt` / `FEATURES_DONE.txt`
+4. **Refresh status**: update `CURRENT_TASK.txt` focus if needed; regenerate `status.html` so "Currently Working On" is not stale `None`.
+5. **Resume** agentic TODO only after the interrupt is handled:
+   - Prefer returning to the interrupted focus (e.g. piechart) unless the user redirected.
+   - If the user approved a ready program, do not reopen it; pick next agent-blocked item.
+6. **Do not** treat user testing of *ready* programs as a conflict with single-focus agent work on a *different* blocked program (e.g. user tests saucer while agent works piechart). Parallel user-play is allowed; parallel *agent* coding on two programs is not.
+
+### Workload when interrupted
+- After user interrupt: re-check `scripts/verify_resources.py` / `AGENT_RESOURCE_ALERT.txt` before restarting heavy probes.
+- Prefer one small resume step over restarting a full corpus audit.
+- Log a short `WORK_LOG` line: `USER interrupt handled; resume <focus>`.
+
+### Queue check habit
+- At natural midpoints of agentic work (after each probe, fix, or commit), **check for new user input** before continuing the next step.
+- Never assume silence means "keep burning resources" without updating status.
 
 ## 7. General Rules
 - Update this file and the pipeline guide when priorities change.

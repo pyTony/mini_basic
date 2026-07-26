@@ -28,34 +28,31 @@ Core components:
     - `write_phone_summary(heartbeat=True/False)` — produces compact PHONE_PROGRESS.txt, SYNC_STAMP.txt, status.html updates, RSS if needed.
     - Helpers: `_load_todo_items()` (from FEATURES_DONE.txt lines starting `-- `), `_load_current_task_line()`, `_last_test_run_info()`, corpus audit summary, etc.
 
-- **Autonomous heartbeat**:
-  - `scripts/progress_heartbeat.py` (one-shot, exits immediately).
-  - Scheduled via Windows Task Scheduler (see `scripts/ps1/register_progress_task.ps1`): runs every 1 minute using `pythonw.exe` (no console, battery-friendly).
-  - Sets `SDL_VIDEODRIVER=dummy` to avoid display side-effects.
-  - Calls `write_phone_summary(heartbeat=True)`.
-  - Updates counters (`.heartbeat_counter`, `.sync_counter`), stamps, idle/work status, without any user or long-running process.
-
-- **Other status files** (source of truth, human + LLM readable):
-  - `STATUS.txt` / `PROGRESS.txt`: Compact phone status (updated by heartbeat + explicit calls).
+- **Source-of-truth .txt files** (human + LLM; agents write these):
   - `CURRENT_TASK.txt`: What the agent is actively working on (free-form, updated on real work).
-  - `WORK_LOG.txt`: Chronological work events.
-  - `FEATURES_DONE.txt`: Phone-readable changelog. Lines `OK ...` = done. Lines `-- ...` = TODO/pending (parsed as TODO items).
-  - `CORPUS_AUDIT.txt`: Current audit of "ALL runnable" programs (OK/FAIL counts + reasons).
-  - `DEBUG_STEP.txt`: While debugging a specific program/step (for status.html).
-  - `USER_APPROVAL.txt`: User final sign-off list (`[ ]` / `[x]`). Only whole programs.
-  - `USER_APPROVAL_AGENT.txt`: Agent snippet results (updated by agent, shown only after ready).
-  - `USER_VERIFY_SNIPPETS.txt`: Agent diagnostics.
+  - `FEATURES_DONE.txt`: Changelog. Lines `OK ...` = done. Lines `-- ...` = TODO (parsed as dashboard TODOs).
+  - `CORPUS_AUDIT.txt`, `DEBUG_STEP.txt`, `USER_APPROVAL*.txt`, `WORK_LOG.txt`, `COMPARE_REPORT.txt`, etc.
   - `AGENT_POLICY.txt`: Rules the agent/LLM **must** follow.
   - `AGENT_RESOURCE_ALERT.txt`, `RESOURCE_CHECK.txt`: Resource guards.
-  - `COMPARE_REPORT.txt`: BBCSDL parity work.
+
+- **status.html is derived** (do not hand-edit for progress):
+  - Built by `utils/status_updater.py` via `test/progress_runner.update_project_status()`.
+  - **Poll-on-change** (primary): `utils/status_sources.py` fingerprints the .txt sources;
+    `scripts/progress_heartbeat.py` rebuilds status.html **only when fingerprints change**.
+  - Stamp file: `.status_sources_stamp.json` (last seen fingerprints).
+  - **Agent-staleness check** (less frequent, default every ~30 min if sources unchanged):
+    if CURRENT_TASK / FEATURES_DONE / etc. have not been touched for 6h, rebuild once
+    with a dashboard issue so monitors notice idle agents.
+  - Scheduled task: `scripts/ps1/register_progress_task.ps1` → every **5 minutes**,
+    `pythonw scripts/progress_heartbeat.py --quiet` (exits immediately; no daemon).
 
 - **Update flow (autonomous)**:
-  1. Heartbeat (scheduled) or explicit `python test/progress_runner.py` or `python -c "from test.progress_runner import update_project_status; update_project_status()"` refreshes status.html + phone files.
-  2. After meaningful work: agent calls `update_project_status(current_program=..., focus=..., todos=...)` or uses StatusUpdater directly.
-  3. `log_work_event(...)` (stubbed in current progress_runner for phone focus; previously appended to WORK_LOG).
-  4. Resource checks: `python scripts/verify_resources.py` (or in utils/agent_resource.py).
+  1. Agent finishes a step → writes/updates CURRENT_TASK.txt, FEATURES_DONE.txt, etc.
+  2. Next poll (or `python scripts/progress_heartbeat.py`) sees fingerprint change → full `update_project_status()`.
+  3. Optional immediate rebuild after big edits: `update_project_status(...)` or `progress_heartbeat.py --force`.
+  4. Resource checks: `python scripts/verify_resources.py`.
 
-No long-running daemons except the Windows scheduled task (which is fire-and-forget per minute).
+No long-running daemons except the Windows scheduled task (fire-and-forget every 5 minutes).
 
 ## 2. Pipeline of Jobs from TODO (Autonomous Flow)
 
@@ -69,53 +66,41 @@ TODOs originate primarily from:
 
 **Autonomous / no-user-interaction pipeline** (LLM/agent/script can run this loop):
 
-1. **Read policy & state at start of every session** (mandatory per AGENT_POLICY):
-   - AGENT_POLICY.txt
-   - CURRENT_TASK.txt
-   - STATUS.txt / PROGRESS.txt
-   - FEATURES_DONE.txt (for -- TODOs)
-   - USER_APPROVAL.txt + USER_APPROVAL_AGENT.txt
-   - CORPUS_AUDIT.txt
-   - DEBUG_STEP.txt
-   - WORK_LOG.txt (recent)
-   - RESOURCE_CHECK.txt / AGENT_RESOURCE_ALERT.txt (before heavy work)
+**MUST follow AGENT_POLICY §3b (BEGIN/END status script) and §6b (user interrupt) on every job.**
 
-2. **Determine single focus** (Single Focus Rule — never work on >1 program at once):
+1. **BEGIN job** (mandatory — see AGENT_POLICY §3b):
+   - Read AGENT_POLICY, CURRENT_TASK, FEATURES_DONE (`--` todos), USER_APPROVAL*, CORPUS_AUDIT, WORK_LOG, resources.
+   - Set `CURRENT_TASK.txt` Focus line to the single program/task (never leave Program: None while working).
+   - Open session todos; `log_work_event('BEGIN …')` + `update_project_status()`.
+
+2. **Determine single focus** (Single Focus Rule — never agent-code two programs at once):
    - Highest priority blocking issue for current program.
    - Or next from priority list / CURRENT_TASK.
-   - Hierarchy: current program's blockers > next logical program > deferred (07_deferred.txt).
+   - Hierarchy: current program's blockers > next logical program > deferred.
+   - User may *playtest* other ready programs in parallel; agent does not code them in parallel.
 
-3. **Do work autonomously**:
-   - Use `verify_*.py` (e.g. `test/verify_animal_step.py`) or `verify_program.py <name>` for agent-only snippet checks.
-   - Run targeted tests: `python test/run_regression.py -v`, specific `test/test_*.py`, or `python -m unittest ...`.
-   - Use `scripts/compare_bbc_outputs.py`, `test/corpus_audit_probe.py`, `scripts/run_program.py` (but user runs for final).
-   - Edit code (runtime.py, etc.), re-test.
-   - For resources: call `scripts/verify_resources.py` before/after heavy.
+3. **Do work autonomously** (check user input at midpoints — §6b):
+   - Use `verify_*.py` / `verify_program.py <name>` for agent-only snippet checks.
+   - Targeted pytest / probes with `display='none'` / dummy SDL in autonomous mode.
+   - Edit, re-test; `verify_resources.py` before/after heavy work.
    - Never claim "all pass" — only per-item after individual confirmation.
 
-4. **Record & update status (autonomous)**:
-   - After fix/verify/queue: `update_project_status(current_program=..., focus=..., todos=[...])`
-   - Or direct `StatusUpdater().update(...)`
-   - Heartbeat will pick up changes on next tick.
-   - For programs: after snippets pass → `utils/user_approval.py` helpers → write USER_APPROVAL_AGENT.txt.
-   - Update CORPUS_AUDIT.txt, FEATURES_DONE.txt (move -- to OK when appropriate), CURRENT_TASK.txt, DEBUG_STEP.txt as needed.
-   - Use `python scripts/force_sync_stamp.py` or similar if needed.
+4. **END job** (mandatory — §3b):
+   - **Tick out** finished todos (`completed`; FEATURES_DONE `--` → `OK`).
+   - Update USER_APPROVAL* / CORPUS_AUDIT if readiness changed.
+   - `log_work_event('END …')` + `update_project_status()`.
+   - Commit on feature branch when code changed.
 
 5. **User gate (only for final approval)**:
-   - Agent marks snippets OK in AGENT file.
-   - **User** must:
-     - Run `python run_program.py <prog.txt>` (prints the exact `mini_basic.py` command + tips).
-     - Execute the command themselves (interactive/visual verification).
-     - Try varied inputs, confirm behavior.
-   - User confirms in chat / marks or tells agent to mark `[x]` in USER_APPROVAL.txt.
-   - Agent only marks `[x]` after explicit user confirmation. Never auto-approve whole programs.
+   - Ready programs: `[ ]` in USER_APPROVAL + `OK` in USER_APPROVAL_AGENT.
+   - **User** runs the program, confirms in chat; agent then marks `[x]`.
+   - Never auto-approve whole programs.
 
 6. **Loop / next**:
-   - Refresh state.
-   - If current program fully user-approved, advance TODO (update FEATURES_DONE, CURRENT_TASK).
-   - Heartbeat keeps the dashboard live even when idle.
+   - Refresh state; if waiting on user, Focus names the ready program or "waiting on user: …".
+   - Heartbeat keeps the dashboard live when idle.
 
-This ensures continuous progress on TODO pipeline with zero user interaction for agent work, testing, status, resource management, and heartbeats. User interaction is deliberately gated to final whole-program sign-off.
+User chat always preempts agentic work (§6b): handle interrupt, update status, then resume.
 
 ## 3. List of Things Next Requiring User Final Check
 
@@ -170,7 +155,7 @@ cd mini_basic
 python scripts/verify_resources.py          # before heavy work
 # ... do work on current focus (one program) ...
 python test/verify_XXX_step.py              # agent snippets
-python test/run_regression.py -v            # safe regression
+python -m pytest -q -m "phase1 and not slow" --timeout=20   # safe regression
 python -m unittest test.test_bbc_dialect_sdl -v   # targeted
 python scripts/compare_bbc_outputs.py ...
 python test/corpus_audit_probe.py ...
