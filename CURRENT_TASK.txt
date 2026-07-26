@@ -1,11 +1,24 @@
-Focus: piechart Colour& / welcome ENVELOPE / poem (optional)
+Focus: user approval queue — 4 programs ready for your OK
 
-User approved: hanoi, soccerball, wheel, animal
+User approved:
+[x] hanoi, soccerball, wheel, animal
 
-Agent 2026-07-26:
-- jclock, filters, saucer, flier → corpus OK notes
-- Commits: 579296e (glue), 63d8e98 (underscore _BOX)
-- piechart still needs byte arrays Colour& / SUM / array fill
-- welcome partial (ENVELOPE)
+Ready for your approval (agent: no blocking errors in probe):
+[ ] jclock.txt (graphics)
+[ ] filters.txt (general)
+[ ] saucer.txt (graphics) — draw is intentionally slow
+[ ] flier.txt (graphics)
 
-Branch: fix/hanoi-animal-demo-approvals
+Not ready (blocked):
+welcome — ENVELOPE / residual IF-PLOT
+piechart — Colour& / SUM / array fill
+polly — REPEAT / OSCLI
+poem — timeout
+
+Run (examples):
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/jclock.txt
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/general/filters.txt
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/saucer.txt
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/flier.txt
+
+Reply: OK jclock  (etc.) when each looks good.

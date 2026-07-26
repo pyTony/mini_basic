@@ -37,13 +37,13 @@
 </head>
 <body>
 <h1>mini_basic Progress Dashboard</h1>
-<p class="meta">work sync #33 • Updated: 2026-07-26 12:06:23</p>
+<p class="meta">work sync #35 • Updated: 2026-07-26 12:11:12</p>
 
 <section class="current">
     <h2> Currently Working On</h2>
     <div class="line active">Program: <strong>None</strong></div>
-    <div class="line">Focus: piechart Colour&amp; / welcome ENVELOPE / poem (optional)</div>
-    <div class="line stamp">Started: 2026-07-26 03:05</div>
+    <div class="line">Focus: user approval queue - 4 programs ready for your OK</div>
+    <div class="line stamp">Started: 2026-07-26 12:10</div>
 
     <h3>TODOs for this program</h3>
     <ul>
@@ -55,21 +55,27 @@
 <section class="workload-warn">
     <h2> Agent Workload</h2>
     <div class="workload-action workload-reduce">REDUCE workload — one small step, display=none, no parallel audits</div>
-    <div class="line">Level: <strong>WARN</strong> • checked 2026-07-26 12:06:23</div>
-    <div class="line">RSS 37 MB • peak 283 MB • system free 20004 MB • load 38% • CPU ~7%</div>
+    <div class="line">Level: <strong>WARN</strong> • checked 2026-07-26 12:11:12</div>
+    <div class="line">RSS 37 MB • peak 283 MB • system free 20239 MB • load 38% • CPU ~7%</div>
     <div class="line">peak RSS 283 MB &gt;= 260 MB</div>
 </section>
 
 <section class="approval">
     <h2> User Final Approval (whole programs)</h2>
-    <div class="line">Focus: <strong>None</strong> • 0 program(s) ready for your OK • 0 still agent-side</div>
+    <div class="line">Focus: <strong>None</strong> • 4 program(s) ready for your OK • 0 still agent-side</div>
     <div class="line muted">Approve whole programs only. Run the program yourself (mini_basic.py) with varied inputs; verify_program.py is agent-only. Reply OK in chat; agent marks [x] in USER_APPROVAL.txt</div>
-    <div class="line muted">No whole program ready for your OK yet.</div>
+    <h3>Ready for your approval</h3>
+    <ul>
+        <li class="approval-pending">[ ] jclock.txt (graphics)</li>
+        <li class="approval-pending">[ ] filters.txt (general)</li>
+        <li class="approval-pending">[ ] saucer.txt (graphics)</li>
+        <li class="approval-pending">[ ] flier.txt (graphics)</li>
+    </ul>
     <h3>Recently approved</h3>
-    <div class="line approval-done">[x] hanoi.txt (games) — user confirmed 2026-07-26 (VDU wrap, colours 7/8, mid-peg original OK)</div>
+    <div class="line approval-done">[x] hanoi.txt (games) — user confirmed 2026-07-26</div>
     <div class="line approval-done">[x] soccerball.txt (graphics) — user confirmed 2026-07-26</div>
     <div class="line approval-done">[x] wheel.txt (graphics) — user confirmed 2026-07-26</div>
-    <div class="line approval-done">[x] animal.txt (games) — user confirmed 2026-07-26 (N? fixed; animal.bbc UTF-8 restore OK)</div>
+    <div class="line approval-done">[x] animal.txt (games) — user confirmed 2026-07-26</div>
 </section>
 
 <section class="success">
@@ -93,6 +99,7 @@
 
 <section>
     <h2> Recent Work Log</h2>
+    <div class="line stamp">2026-07-26 12:10:38 — Ready-for-approval list: jclock filters saucer flier (agent OK)</div>
     <div class="line stamp">2026-07-26 03:05:00 — restore WORK_LOG.txt loader (was stubbed empty) for status Recent Work Log</div>
     <div class="line stamp">2026-07-26 03:00:00 — corpus notes: jclock filters saucer flier OK; piechart/welcome/poem remain</div>
     <div class="line stamp">2026-07-26 02:55:00 — BBCSDL leading underscore names _BOX/_LINE (flier) 63d8e98</div>
@@ -100,7 +107,6 @@
     <div class="line stamp">2026-07-26 02:40:00 — APPROVAL animal.txt (games) confirmed play OK</div>
     <div class="line stamp">2026-07-26 02:30:00 — git 4e79a60 fix(animal,hanoi); branch rename fix/hanoi-animal-demo-approvals</div>
     <div class="line stamp">2026-07-26 02:20:00 — animal.bbc: broken tokenized file restored as UTF-8 listing</div>
-    <div class="line stamp">2026-07-26 02:00:00 — animal: N? root cause STR$ pad under @%=&amp;90A; clean animal.dat</div>
 </section>
 
 <section>
@@ -113,7 +119,7 @@
 
 </section>
 
-<div class="line muted">last work 2026-07-26 03:05:00 · status work pending tests not all pass 2 todo items · resources warn: RSS 37 MB (peak 283) reduce workload</div>
+<div class="line muted">last work 2026-07-26 12:10:38 · status work pending tests not all pass 2 todo items · resources warn: RSS 37 MB (peak 283) reduce workload</div>
 
 </body>
 </html>
