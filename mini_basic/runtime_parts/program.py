@@ -554,25 +554,68 @@ class RuntimeProgramMixin:
         # 0TO20 / 0STEP2 — only after digit/%/) so TOTAL is not split
         line = re.sub(r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])', ' TO ', line, flags=re.IGNORECASE)
         line = re.sub(r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])', ' STEP ', line, flags=re.IGNORECASE)
-        # Welcome-pack style: MODE5, GCOL0, VDU23, PLOT69, MOVEI%, DRAWI%+56, FORI%=…
-        for kw in (
-            'MODE', 'GCOL', 'VDU', 'PLOT', 'MOVE', 'DRAW', 'COLOUR', 'COLOR',
-            'ORIGIN', 'SOUND', 'ENVELOPE', 'CLG', 'CLS', 'FOR', 'NEXT', 'RESTORE',
-            'UNTIL', 'PRINT', 'INPUT',
-        ):
-            line = re.sub(
-                rf'\b{kw}(?=[0-9A-Za-z$%(])',
-                rf'{kw} ',
-                line,
-                flags=re.IGNORECASE,
-            )
-        # PROC calls: PROCSWOOSH( → PROC SWOOSH( — protect ENDPROC first
-        line = re.sub(r'\bENDPROC\b', '\x00ENDPROC\x00', line, flags=re.IGNORECASE)
-        line = re.sub(r'\bPROC(?=[A-Za-z])', 'PROC ', line, flags=re.IGNORECASE)
-        line = line.replace('\x00ENDPROC\x00', 'ENDPROC')
-        # INKEY1 / INKEY2 (wait in cs, no parens) → INKEY(1)
-        line = re.sub(r'\bINKEY(\d+)\b', r'INKEY(\1)', line, flags=re.IGNORECASE)
-        return line
+        # Crunched keywords — only outside string literals (filters: "Original"
+        # must not become ORIGIN al).
+        def _glue_outside_strings(text: str) -> str:
+            parts: List[str] = []
+            i = 0
+            n = len(text)
+            while i < n:
+                if text[i] == '"':
+                    j = i + 1
+                    while j < n:
+                        if text[j] == '"':
+                            if j + 1 < n and text[j + 1] == '"':
+                                j += 2
+                                continue
+                            j += 1
+                            break
+                        j += 1
+                    parts.append(text[i:j])
+                    i = j
+                    continue
+                j = i
+                while j < n and text[j] != '"':
+                    j += 1
+                chunk = text[i:j]
+                # Digits/parens only — ORIGIN0, SOUND1 (never "Original")
+                for kw in (
+                    'ORIGIN', 'SOUND', 'ENVELOPE', 'CLG', 'CLS', 'RESTORE',
+                    'UNTIL', 'COLOUR', 'COLOR',
+                ):
+                    chunk = re.sub(
+                        rf'\b{kw}(?=[0-9(])',
+                        rf'{kw} ',
+                        chunk,
+                        flags=re.IGNORECASE,
+                    )
+                # May glue onto idents: MODE5, MOVEI%, FORI%=, GCOL0, PLOT69
+                for kw in (
+                    'MODE', 'GCOL', 'VDU', 'PLOT', 'MOVE', 'DRAW',
+                    'FOR', 'NEXT', 'PRINT', 'INPUT',
+                ):
+                    chunk = re.sub(
+                        rf'\b{kw}(?=[0-9A-Za-z$%(])',
+                        rf'{kw} ',
+                        chunk,
+                        flags=re.IGNORECASE,
+                    )
+                # PROC calls: PROCSWOOSH( — protect ENDPROC
+                chunk = re.sub(
+                    r'\bENDPROC\b', '\x00ENDPROC\x00', chunk, flags=re.IGNORECASE,
+                )
+                chunk = re.sub(
+                    r'\bPROC(?=[A-Za-z])', 'PROC ', chunk, flags=re.IGNORECASE,
+                )
+                chunk = chunk.replace('\x00ENDPROC\x00', 'ENDPROC')
+                chunk = re.sub(
+                    r'\bINKEY(\d+)\b', r'INKEY(\1)', chunk, flags=re.IGNORECASE,
+                )
+                parts.append(chunk)
+                i = j
+            return ''.join(parts)
+
+        return _glue_outside_strings(line)
 
     @staticmethod
     def _normalize_two_word_closers(line: str) -> str:
@@ -732,6 +775,9 @@ class RuntimeProgramMixin:
             return self._validate_var_base(token[:-2]) + '%%', 'int'
         if token.endswith('%'):
             return self._validate_var_base(token[:-1]), 'int'
+        # BBCSDL byte scalar/array type suffix
+        if token.endswith('&'):
+            return self._validate_var_base(token[:-1]), 'int'
         if token.endswith('!') or token.endswith('#'):
             return self._validate_var_base(token[:-1]), 'float'
         base = self._validate_var_base(token)
@@ -740,20 +786,20 @@ class RuntimeProgramMixin:
     def _parse_param_token(self, token: str) -> Tuple[str, VarKind, bool]:
         token = token.strip()
         match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})(%%|%|\$|!|#)?\s*\(\s*\)\s*$',
+            rf'^({self._VAR_BASE_PATTERN})(%%|%|\$|!|#|&)?\s*\(\s*\)\s*$',
             token,
             flags=re.IGNORECASE,
         )
         if match:
             base = self._validate_var_base(match.group(1))
-            return base, self._array_kind_from_suffix(match.group(2)), True
+            return base, self._array_kind_from_suffix(match.group(2) or ''), True
         name, kind = self._parse_var_token(token)
         return name, kind, False
 
     def _parse_array_ref(self, token: str) -> Tuple[str, VarKind]:
         token = token.strip()
         match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})(%%|%|\$|!|#)?\s*\(\s*\)\s*$',
+            rf'^({self._VAR_BASE_PATTERN})(%%|%|\$|!|#|&)?\s*\(\s*\)\s*$',
             token,
             flags=re.IGNORECASE,
         )
@@ -765,7 +811,7 @@ class RuntimeProgramMixin:
     def _parse_array_lvalue(self, token: str) -> Optional[Tuple[str, VarKind, str]]:
         token = token.strip()
         match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})([%$!#]?)\s*\((.*)\)\s*$',
+            rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)\s*\((.*)\)\s*$',
             token,
         )
         if not match:
@@ -775,7 +821,7 @@ class RuntimeProgramMixin:
         kind: VarKind = 'float'
         if suffix == '$':
             kind = 'str'
-        elif suffix == '%':
+        elif suffix in ('%', '&'):
             kind = 'int'
         return base, kind, match.group(3).strip()
 

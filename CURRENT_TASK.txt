@@ -1,11 +1,10 @@
-Focus: piechart.txt — Colour& byte arrays / SUM / array ops (agent)
+Focus: piechart.txt — Colour& / COSa / @vdu%! / OSCLI stubs (agent)
 
 User testing next (ready for OK):
-[ ] filters.txt (general)
 [ ] saucer.txt (graphics)
 [ ] flier.txt (graphics)
 
-User approved: hanoi, soccerball, wheel, animal, jclock
+User approved: hanoi, soccerball, wheel, animal, jclock, filters
 
 Agent queue:
 1. piechart Colour& / SUM / Label$() fill / COSa
