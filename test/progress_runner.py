@@ -308,15 +308,46 @@ def _load_corpus_runnable_lines() -> List[str]:
 
 
 def log_work_event(message: str, *, kind: str = 'WORK') -> None:
-    pass  # removed; only status.html kept
+    """Append one event to WORK_LOG.txt (status.html Recent Work Log).
+
+    Line format: ``YYYY-MM-DD HH:MM:SS KIND message``
+    """
+    text = ' '.join(str(message).split())
+    if not text:
+        return
+    kind_token = re.sub(r'\W+', '', str(kind or 'WORK').upper()) or 'WORK'
+    stamp = time.strftime('%Y-%m-%d %H:%M:%S')
+    line = f'{stamp} {kind_token} {text}\n'
+    try:
+        with open(_WORK_LOG_PATH, 'a', encoding='utf-8', newline='\n') as handle:
+            handle.write(line)
+    except OSError:
+        pass
 
 
 def _load_work_log_entries() -> List[str]:
-    return []
+    """Chronological work-log lines (oldest first), without blanks/comments."""
+    if not os.path.isfile(_WORK_LOG_PATH):
+        return []
+    entries: List[str] = []
+    try:
+        with open(_WORK_LOG_PATH, encoding='utf-8') as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line or line.startswith('#'):
+                    continue
+                entries.append(line)
+    except OSError:
+        return []
+    return entries
 
 
 def _load_work_log_recent(limit: int = 20) -> List[str]:
-    return []
+    """Newest-first slice for status dashboard / phone views."""
+    entries = _load_work_log_entries()
+    if limit <= 0:
+        return list(reversed(entries))
+    return list(reversed(entries[-limit:]))
 
 
 def _last_work_log_stamp() -> Optional[str]:
@@ -933,9 +964,15 @@ def write_phone_summary(
     update_rss: Optional[bool] = None,
     extra_lines: Optional[List[str]] = None,
 ) -> None:
-    """Update status.html (only approach kept; phone/RSS removed for simplicity)."""
-    # Only status.html is produced now for independent/local + remote (OneDrive) check
-    update_project_status(heartbeat=heartbeat)
+    """Refresh status.html from source .txt poll (or full rebuild if not heartbeat)."""
+    del test_line, progress_line, update_rss, extra_lines
+    if heartbeat:
+        # Scheduled / light path: rebuild only when CURRENT_TASK etc. changed.
+        from utils.status_sources import heartbeat_poll
+
+        heartbeat_poll()
+        return
+    update_project_status(heartbeat=False)
 
 
 def write_follow_progress(

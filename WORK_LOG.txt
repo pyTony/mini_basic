@@ -1,0 +1,14 @@
+# mini_basic work log (newest entries appended; status.html shows newest first)
+# Format: YYYY-MM-DD HH:MM:SS KIND message
+
+2026-07-26 01:00:00 WORK hanoi: VDU 17 PRINT wrap fix (floating green remnant)
+2026-07-26 01:15:00 WORK hanoi: disc 7/8 colours via 128+DISC+(DISC>7); middle peg original OK
+2026-07-26 01:30:00 USER APPROVAL hanoi.txt soccerball.txt wheel.txt
+2026-07-26 02:00:00 WORK animal: N? root cause STR$ pad under @%=&90A; clean animal.dat
+2026-07-26 02:20:00 WORK animal.bbc: broken tokenized file restored as UTF-8 listing
+2026-07-26 02:30:00 WORK git 4e79a60 fix(animal,hanoi); branch rename fix/hanoi-animal-demo-approvals
+2026-07-26 02:40:00 USER APPROVAL animal.txt (games) confirmed play OK
+2026-07-26 02:50:00 WORK glued BBC: NOTX A%AND1 MODE5 GCOL DEFPROC (saucer welcome) 579296e
+2026-07-26 02:55:00 WORK BBCSDL leading underscore names _BOX/_LINE (flier) 63d8e98
+2026-07-26 03:00:00 WORK corpus notes: jclock filters saucer flier OK; piechart/welcome/poem remain
+2026-07-26 03:05:00 WORK restore WORK_LOG.txt loader (was stubbed empty) for status Recent Work Log
