@@ -1,10 +1,9 @@
 Focus: piechart.txt — Colour& / COSa / @vdu%! / OSCLI stubs (agent)
 
 User testing next (ready for OK):
-[ ] saucer.txt (graphics)
-[ ] flier.txt (graphics)
+[ ] saucer.txt (graphics) — long nested FOR draw, not interactive
 
-User approved: hanoi, soccerball, wheel, animal, jclock, filters
+User approved: hanoi, soccerball, wheel, animal, jclock, filters, flier
 
 Agent queue:
 1. piechart Colour& / SUM / Label$() fill / COSa

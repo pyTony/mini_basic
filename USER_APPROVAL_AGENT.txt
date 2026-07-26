@@ -7,9 +7,9 @@ OK wheel.txt (graphics) :: user confirmed 2026-07-26
 OK animal.txt (games) :: user confirmed 2026-07-26
 OK jclock.txt (graphics) :: user confirmed 2026-07-26
 OK filters.txt (general) :: user confirmed 2026-07-26; Original-string glue fix
+OK flier.txt (graphics) :: user confirmed 2026-07-26; auto-rotate only (no INPUT/MOUSE)
 
 OK saucer.txt (graphics) :: NOTX + scales; ready (long draw)
-OK flier.txt (graphics) :: underscore arrays; ready for user
 
 FAIL welcome.txt (general) :: ENVELOPE unimplemented; residual edges
 FAIL piechart.txt (graphics) :: Colour& / SUM / array fill / COSa

@@ -9,10 +9,10 @@
 [x] animal.txt (games) — user confirmed 2026-07-26
 [x] jclock.txt (graphics) — user confirmed 2026-07-26 (TIME$, SINRADT, MOUSE, scales)
 [x] filters.txt (general) — user confirmed 2026-07-26 (waveforms OK; ORIGIN al text fix)
+[x] flier.txt (graphics) — user confirmed 2026-07-26 (rotating ship; no interactive input by design)
 
 # --- Ready for your approval (agent probe clean) ---
 [ ] saucer.txt (graphics)
-[ ] flier.txt (graphics)
 # note: saucer nested FOR is intentionally slow (not a hang)
 
 # --- Not ready (agent blockers) ---
