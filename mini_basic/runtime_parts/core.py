@@ -1271,9 +1271,14 @@ class RuntimeCoreMixin:
         self.time_set_at = time.perf_counter()
 
     def _time_string(self) -> str:
-        """Return current system time as HH:MM:SS (BBC BASIC TIME$ format)."""
+        """BBC BASIC TIME$ — 24 characters: ``Day,dd Mon yyyy.hh:mm:ss``.
+
+        jclock (and other demos) use ``VALMID$(Time$,17/20/23)`` for H/M/S.
+        A short ``HH:MM:SS`` made those VAL 0 → all hands stacked at 12 o'clock.
+        """
         import time
-        return time.strftime("%H:%M:%S")
+        # %a=Sun, %d=01..31, %b=Jan, %Y=2026, %H:%M:%S → 24 chars in C locale.
+        return time.strftime('%a,%d %b %Y.%H:%M:%S')
 
     def _canonical_system_var_name(self, token: str) -> Optional[str]:
         """Map known mini_basic system vars (_case_sensitive, …).

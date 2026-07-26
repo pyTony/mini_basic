@@ -17,3 +17,4 @@
 2026-07-26 12:29:46 WORK status: Focus jclock for approval; document unusual clock design
 2026-07-26 12:35:52 WORK jclock: MOUSE samples live pointer before read (was 0,0 → lower-left)
 2026-07-26 12:39:41 WORK mouse_click_letter.bas + uniform OS scales for 640x480 (jclock elongate)
+2026-07-26 12:46:43 WORK TIME\$ full BBC 24-char Day,dd Mon yyyy.hh:mm:ss (jclock hands)
