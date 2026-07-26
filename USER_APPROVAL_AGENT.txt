@@ -1,19 +1,17 @@
-# Whole-program agent verification
-# Labels must match USER_APPROVAL.txt pending/approved names (before " — " notes).
-# OK = ready for user; FAIL = blocked; PENDING = not checked
+# Whole-program agent verification — labels match USER_APPROVAL names
 # Updated 2026-07-26
 
 OK hanoi.txt (games) :: user confirmed 2026-07-26
-OK soccerball.txt (graphics) :: user confirmed 2026-07-26; agent snippets OK
+OK soccerball.txt (graphics) :: user confirmed 2026-07-26
 OK wheel.txt (graphics) :: user confirmed 2026-07-26
-OK animal.txt (games) :: user confirmed 2026-07-26; verify_animal_step 7/7
+OK animal.txt (games) :: user confirmed 2026-07-26
+OK jclock.txt (graphics) :: user confirmed 2026-07-26
 
-OK jclock.txt (graphics) :: CASE TRUE probe clean; display=none no ?errors
-OK filters.txt (general) :: probe clean; display=none no ?errors
-OK saucer.txt (graphics) :: NOTX fix; probe OK (full nested FOR is intentionally slow)
-OK flier.txt (graphics) :: leading-_ arrays; probe OK with WAIT/REPEAT only stripped
+OK filters.txt (general) :: probe clean; ready for user
+OK saucer.txt (graphics) :: NOTX + scales; ready (long draw)
+OK flier.txt (graphics) :: underscore arrays; ready for user
 
-FAIL welcome.txt (general) :: ENVELOPE unimplemented; residual IF/PLOT under full run
-FAIL piechart.txt (graphics) :: Colour&() / SUM / array fill / COSa / @vdu — not supported end-to-end
-FAIL polly.txt (sounds) :: REPEAT parse / OSCLI
-FAIL poem.txt (general) :: timeboxed audit timeout
+FAIL welcome.txt (general) :: ENVELOPE unimplemented; residual edges
+FAIL piechart.txt (graphics) :: Colour& / SUM / array fill / COSa
+FAIL polly.txt (sounds) :: REPEAT / OSCLI
+FAIL poem.txt (general) :: audit timeout

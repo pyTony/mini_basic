@@ -1,15 +1,18 @@
-Focus: jclock.txt — re-check mouse tracking after MOUSE live-sample fix
+Focus: piechart.txt — Colour& byte arrays / SUM / array ops (agent)
 
-Ready for your OK:
-[ ] jclock.txt (graphics) — fix: MOUSE now samples pointer (was stuck 0,0 → lower-left)
+User testing next (ready for OK):
 [ ] filters.txt (general)
 [ ] saucer.txt (graphics)
 [ ] flier.txt (graphics)
 
-Approved: hanoi, soccerball, wheel, animal
+User approved: hanoi, soccerball, wheel, animal, jclock
 
-jclock:
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/jclock.txt
-  With mouse at window centre, clock cloud should sit near centre (slight -250 offset).
-  Move mouse — cloud should follow. 1–12 ring + dotted hands + orbiting TIME$ digits.
+Agent queue:
+1. piechart Colour& / SUM / Label$() fill / COSa
+2. welcome ENVELOPE stub + residual
+3. poem timeout / polly
 
+Run guides for user:
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/general/filters.txt
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/saucer.txt
+  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/flier.txt

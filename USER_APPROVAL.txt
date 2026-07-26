@@ -1,6 +1,5 @@
 # Whole-program user final approval
-# Format: [x] approved | [ ] ready for your OK (agent found no blocking errors)
-# Agent marks [x] only after you confirm in chat.
+# Format: [x] approved | [ ] ready for your OK (agent: no blocking errors)
 # Updated 2026-07-26
 
 # --- User approved ---
@@ -8,16 +7,16 @@
 [x] soccerball.txt (graphics) — user confirmed 2026-07-26
 [x] wheel.txt (graphics) — user confirmed 2026-07-26
 [x] animal.txt (games) — user confirmed 2026-07-26
+[x] jclock.txt (graphics) — user confirmed 2026-07-26 (TIME$, SINRADT, MOUSE, scales)
 
-# --- Ready for your approval (agent: no blocking ?errors / unimplemented in probe) ---
-# Run from mini_basic root; reply OK <name> in chat when satisfied.
-[ ] jclock.txt (graphics)
+# --- Ready for your approval (agent probe clean) ---
 [ ] filters.txt (general)
 [ ] saucer.txt (graphics)
 [ ] flier.txt (graphics)
+# note: saucer nested FOR is intentionally slow (not a hang)
 
-# --- Not ready (agent blockers; do not approve yet) ---
-# welcome.txt (general) — ENVELOPE unimplemented; residual IF/PLOT
-# piechart.txt (graphics) — Colour& byte arrays, SUM, array fill, COSa
-# polly.txt (sounds) — REPEAT / OSCLI
-# poem.txt (general) — audit timeout / long run
+# --- Not ready (agent blockers) ---
+# welcome.txt — ENVELOPE; residual IF/PLOT
+# piechart.txt — Colour& byte arrays / SUM / array fill / COSa
+# polly.txt — REPEAT / OSCLI
+# poem.txt — audit timeout
