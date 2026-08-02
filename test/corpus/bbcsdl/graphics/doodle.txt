@@ -1,0 +1,14 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Very simple program to illustrate doodling with the mouse
+      VDU 23,22,640;512;8,16,16,128
+      ORIGIN 640,512
+      MOUSE ON 3
+      b% = 0
+      REPEAT
+        a% = b%
+        MOUSE x%, y%, b%
+        GCOL b%
+        IF a% AND b% DRAW x%,y% ELSE MOVE x%,y%
+        WAIT 0
+      UNTIL FALSE

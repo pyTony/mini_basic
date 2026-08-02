@@ -351,13 +351,6 @@ class RuntimeIoMixin:
                 raise ProgramExit()
         return line
 
-    def dprint(self, *args, **kwargs):
-        if self.config.DEBUG:
-            filt = self.config.DEBUG_FILTER or ""
-            if not filt or any(filt in str(d) for d in args):
-                with open("mini_basic.log", "a", encoding="utf-8") as f:
-                        f.write(args[0]+"\n")
-
     def _restore_console(self) -> None:
         """Reset host terminal modes without wiping program output.
 
@@ -428,15 +421,26 @@ class RuntimeIoMixin:
                 pass
 
     def _flush_display(self, force: bool = False) -> None:
+        self._check_user_interrupt()
         self._ensure_display()
         if self._display_enabled():
             self._update_mouse_from_display()
             if force or self._refresh_enabled:
                 now = time.monotonic()
-                if force or (
-                    now - self._last_present_time
-                ) >= self._present_min_interval:
-                    self._display.present(force=force)
+                # Dense PLOT loops (saucer): still show progress, but present less
+                # often so CPU spends time plotting. Patch present keeps it smooth.
+                interval = self._present_min_interval
+                gfx = getattr(self._display, '_gfx', None)
+                plots = int(getattr(gfx, 'plot_count', 0) or 0) if gfx is not None else 0
+                if not force and plots >= 64:
+                    # ~8–12 Hz during plot storms (was 20 Hz full-frame uploads).
+                    interval = max(interval, 1.0 / 10.0)
+                # Grid PRINT in graphics modes sets compose_full; the dirty-rect
+                # patch path skips text. Never rate-limit that compose, or hands
+                # (Clock) present first and digital/title text never appears.
+                compose_full = bool(getattr(self._display, '_compose_full', False))
+                if force or compose_full or (now - self._last_present_time) >= interval:
+                    self._display.present(force=force or compose_full)
                     self._last_present_time = now
                     if (
                         not self._input_active
@@ -1644,13 +1648,16 @@ class RuntimeIoMixin:
         return self._format_expression(stmt)
 
     def format_list_line(self, statement: str) -> str:
+        from mini_basic.format.save_case import glue_bbc_proc_fn_names
+
         fold = self._detokenize_fold()
         if fold is not None:
             return _format_program_line_save_case(statement, fold)
         parts = self._split_colon_statements(statement)
         formatted = ': '.join(self._format_statement_part(part) for part in parts)
         formatted = re.sub(r'=\s*(["\'])', r'= \1', formatted)
-        return formatted
+        # Always glue PROC/FN names — required for Archimedes / RISC OS paste.
+        return glue_bbc_proc_fn_names(formatted)
 
     def _format_line_number(
         self,

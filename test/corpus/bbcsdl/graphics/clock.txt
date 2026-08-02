@@ -1,0 +1,76 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Realistic analogue clock
+      REM. Richard Russell, 16-Oct-2010
+      
+      IF @ispal% THEN
+        PRINT "This program needs a 'High Color' display (32768 colours or more)"
+        END
+      ENDIF
+      
+      clock$ = @dir$ + "clock.bmp"
+      F% = OPENIN(clock$) : DIM clock%% EXT#F% : CLOSE #F%
+      
+      VDU 23,22,444;380;16,20,16,0
+      ORIGIN 438,380
+      OFF
+      PRINT "Please wait..."
+      Time$ = ""
+      *HEX 64
+      REPEAT
+        *REFRESH
+        REPEAT
+          WAIT 10
+        UNTIL Time$<>TIME$
+        Time$ = TIME$
+        hour% = VALMID$(Time$,17,2) MOD 12
+        minute% = VALMID$(Time$,20,2)
+        second% = VALMID$(Time$,23,2)
+        OSCLI "LOAD """ + clock$ + """ " + STR$~clock%%
+        PROChand(clock%%, @dir$+"hour.bmp",(hour%*3600+minute%*60+second%)/21600*PI)
+        PROChand(clock%%, @dir$+"minute.bmp",(minute%*60+second%)/1800*PI)
+        OSCLI "MDISPLAY " + STR$~clock%% + " -438,-380"
+      UNTIL FALSE
+      END
+      
+      DEF PROChand(k%%, hand$,angle)
+      LOCAL A%, B%, C%, D%, F%, H%, o%%, Q%, R%, U%, V%, W%, X%, Y%, p%%, s, c, v
+      
+      F% = OPENIN(hand$) : DIM p%% LOCAL EXT#F%
+      OSCLI "LOAD """ + hand$ + """ " + STR$~p%% + " +" + STR$~EXT#F%
+      CLOSE #F%
+      
+      W% = p%%!18
+      H% = p%%!22
+      B% = (W% * 3 + 3) AND -4
+      p%% += 54
+      R% = B% DIV W%
+      IF R% = 2 D% = 31 ELSE D% = 255
+      
+      A% = (k%%!18 * 3 + 3) AND -4
+      Q% = A% DIV k%%!18
+      k%% += 54
+      
+      GCOL 1
+      s = SIN(angle)*2.4
+      c = COS(angle)*2.4
+      FOR Y% = -185+135*SGNc TO 185+135*SGNc STEP 2
+        FOR X% = -185+135*SGNs TO 185+135*SGNs STEP 2
+          V% = X%*c - Y%*s + 108
+          IF V% >=0 IF V% < H% THEN
+            U% = X%*s + Y%*c + 64
+            IF U% >=0 IF U% < W% THEN
+              v = (p%%?(V%*B% + U%*R%) AND D%)/D%
+              IF v < 1 THEN
+                o%% = k%% + (X%+438)DIV2*Q% + (Y%+380)DIV2*A%
+                o%%?0 *= v : o%%?1 *= v : o%%?2 *= v
+                v = (v+3)/4
+                o%% = k%% + (X%+450)DIV2*Q% + (Y%+368)DIV2*A%
+                o%%?0 *= v : o%%?1 *= v : o%%?2 *= v
+              ENDIF
+            ENDIF
+          ENDIF
+        NEXT
+      NEXT
+      ENDPROC
+      

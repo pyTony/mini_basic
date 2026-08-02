@@ -1,0 +1,22 @@
+from __future__ import annotations
+
+from typing import List
+
+from .types import TopicRow
+
+
+def graphics_rows() -> List[TopicRow]:
+    return [
+        ('CIRCLE x,y,r', 'outline (BB4W ch.3)', 'PLOT 149', 'yes', 'pixel outline count test'),
+        ('CIRCLE FILL x,y,r', 'filled disc', 'MOVE+plot 156', 'yes', 'pi*r^2 area test'),
+        ('CIRCLEFILL alias', 'one word', 'normalized', 'yes', 'test_circlefill_alias'),
+        ('RECTANGLE FILL', 'BBC SDL', 'yes', 'yes', 'prior corpus tests'),
+        ('MOVE / DRAW / PLOT', 'BBC graphics', 'yes', 'yes', 'bbc_graphics_demo'),
+        ('MODE 8 OS scaling', '2x pixel scale', 'yes', 'yes', 'circle tests use x_scale'),
+        ('ORIGIN / bottom-left Y', 'BB4W ch.3 coords', 'yes', 'yes', 'test_wheel_spokes_cluster'),
+        ('GCOL action 0-7', 'plot/OR/AND/XOR/invert', 'yes', 'yes', 'test_gcol_xor_mode_erases'),
+        ('OFF', 'hide text cursor', 'yes', 'yes', 'VDU 23,1,0'),
+        ('COLOR RGB', 'physical colour', 'yes', 'partial', 'wheel PROCbow'),
+        ('@ispal% guard', '0=high color', 'stub=0', 'yes', 'test_ispal_percent_stub'),
+        ('ELLIPSE / FLOOD', 'BB4W graphics', 'missing', 'no', 'deferred until CIRCLE stable'),
+    ]

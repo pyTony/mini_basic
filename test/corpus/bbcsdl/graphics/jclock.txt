@@ -1,0 +1,36 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. An unusual mouse-following clock, based on a Javascript program
+      REM. R.T.Russell, 22-May-2005
+      
+      VDU 23,22,640;480;8,16,16,128
+      DIM C$(50),X%(50),Y%(50)
+      VDU 5
+      *REFRESH OFF
+      REPEAT
+        CLS
+        MOUSE X%,Y%,B%
+        Time$ = TIME$
+        H% = VALMID$(Time$,17)
+        M% = VALMID$(Time$,20)
+        S% = VALMID$(Time$,23)
+        FOR I% = 1 TO 50
+          MOVE X%(I%),Y%(I%) : PRINT C$(I%);
+          CASE TRUE OF
+            WHEN I%<13: R=200 : T=I%*30 : C$(I%)=STR$I%
+            WHEN I%>12 AND I%<16: R=(I%-12)*36 : T=H%*30+M%/2 : C$(I%)="."
+            WHEN I%>15 AND I%<20: R=(I%-15)*36 : T=M%*6+S%/10 : C$(I%)="."
+            WHEN I%>19 AND I%<26: R=(I%-20)*36 : T=S%*6 : C$(I%)="."
+            WHEN I%>25:R=300:T=I%*14-(TIME/4)MOD360:C$(I%)=MID$(Time$,I%-25,1)
+          ENDCASE
+          REM Spring steps x4: same formula as BBCSDL; mini is slower so without
+          REM extra steps the date ring (large T → weak spring) stays spiral while
+          REM TIME advances. Substeps ≈ more frames per TIME tick (mouse still).
+          FOR Z%=1 TO 4
+            X%(I%) += (X%+R*SINRADT-X%(I%)-250)/(1+T/60)
+            Y%(I%) += (Y%+R*COSRADT-Y%(I%)-250)/(1+T/60)
+          NEXT Z%
+        NEXT
+        *REFRESH
+        D% = INKEY(4)
+      UNTIL FALSE

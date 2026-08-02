@@ -1,0 +1,74 @@
+      REM Multiple sprite 'stress test' for 'BBC BASIC for SDL 2.0'
+      REM (C) R.T.Russell, http://www.rtrussell.co.uk/, 16-Apr-2020
+      
+      NALIENS = 80
+      TURNSPD = 0.1
+      VDU 23,22,640;480;32,32,16,128,5
+      
+      INSTALL @lib$+"imglib"
+      PROC_imgInit
+      
+      Bkgnd%% = FN_imgLoad(@dir$ + "voronoi.png")
+      IF Bkgnd%% = 0 ERROR 100, "Couldn't load voronoi.png"
+      Alien%% = FN_imgLoad(@dir$ + "alien.png")
+      Shadow%% = FN_imgLoad(@dir$ + "alien.png")
+      IF Alien%% = 0 OR Shadow%% = 0 ERROR 100, "Couldn't load alien.png"
+      PROC_imgMult(Shadow%%, 0, 0, 0, 0.5)
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$ + "../examples/tools/touchide" ELSE MODE 3 : REPORT : END
+      
+      DIM alien{(NALIENS) t%%, s%%, w, h, x, y, v, a}, ft%(99)
+      FOR I% = 1 TO NALIENS
+        s = 2 + 3 * RND(1)
+        alien{(I%)}.t%% = Alien%%
+        alien{(I%)}.s%% = Shadow%%
+        alien{(I%)}.w = 148 / s
+        alien{(I%)}.h = 162 / s
+        alien{(I%)}.x = 40 + 560 * RND(1)
+        alien{(I%)}.y = 40 + 400 * RND(1)
+        alien{(I%)}.v = 1 + 2 * RND(1)
+        alien{(I%)}.a = 2 * PI * RND(1)
+      NEXT
+      
+      frame% = 0
+      ft%() = 3
+      @% = 3
+      *REFRESH OFF
+      ref% = TIME
+      REPEAT
+        PROC_imgPlot(Bkgnd%%, @size.x%, @size.y%, 1.0, 1.0, 0.0)
+        
+        FOR I% = 1 TO NALIENS
+          PROCalien(alien{(I%)})
+        NEXT
+        
+        VDU 30 : PRINT NALIENS " aliens  " INT(10000/SUM(ft%()) + 0.5) " fps";
+        *REFRESH
+        
+        new% = TIME
+        ft%(frame% MOD 100) = new% - ref%
+        ref% = new%
+        frame% += 1
+      UNTIL FALSE
+      
+      DEF PROCalien(a{})
+      LOCAL dx, dy
+      PROC_imgPlot(a.s%%, a.x*2 + 20, a.y*2 - 20, a.w/148, a.h/162, DEGa.a)
+      PROC_imgPlot(a.t%%, a.x*2,      a.y*2,      a.w/148, a.h/162, DEGa.a)
+      dx = SINa.a : a.x += a.v * dx
+      dy = COSa.a : a.y += a.v * dy
+      IF a.x > @size.x% - a.w / 2 a.a = FNatan2(dx - TURNSPD, dy)
+      IF a.x < a.w / 2            a.a = FNatan2(dx + TURNSPD, dy)
+      IF a.y > @size.y% - a.h / 2 a.a = FNatan2(dx, dy - TURNSPD)
+      IF a.y < a.h / 2            a.a = FNatan2(dx, dy + TURNSPD)
+      ENDPROC
+      
+      DEF PROCcleanup
+      @% = &90A
+      *REFRESH ON
+      PROC_imgExit
+      ENDPROC
+      
+      DEF FNatan2(y,x) : ON ERROR LOCAL = SGN(y)*PI/2
+      IF x>0 THEN = ATN(y/x) ELSE IF y>0 THEN = ATN(y/x)+PI ELSE = ATN(y/x)-PI

@@ -1,0 +1,608 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Welcome to the game of Turned Triples: a match-3 game by David Marples
+      REM Your objective is to make lines of 3 or more (horizontally or vertically) of the same type of object
+      REM To do this, you can swap adjacent pairs of items, as long as you complete at least
+      REM one line each time. You can click and drag one object into the place of an adjacent one,
+      REM or click on one and then the other. Swaps can only be made horizontally or vertically.
+      
+      INSTALL @lib$+"nowait"     :REM Allows us to use ON TIME to play music in the background
+      
+      REM Links for pictures of round wooden things
+      DIM PicName$(7),PicCols$(7),PicAddr%%(7)
+      PicCols$()=",000000",",FF0000",",00FF00",",FFFF00",",0000FF",",FF00FF",",00FFFF",",FFFFFF"
+      
+      PicName$(1)=@dir$+".Images/"+"bowl1_red.bmp"
+      PicName$(2)=@dir$+".Images/"+"box1_green.bmp"
+      PicName$(3)=@dir$+".Images/"+"segmented_yellow.bmp"
+      PicName$(4)=@dir$+".Images/"+"furniture_blue.bmp"
+      PicName$(5)=@dir$+".Images/"+"egg_magenta.bmp"
+      PicName$(6)=@dir$+".Images/"+"cryptex_cyan.bmp"
+      PicName$(7)=@dir$+".Images/"+"seashell_white.bmp"
+      
+      *HEX 64
+      FOR I% = 1 TO DIM(PicName$(),1)
+        DIM PicAddr%%(I%) 12342
+        OSCLI "LOAD """ + PicName$(I%) + """ " + STR$~PicAddr%%(I%)
+      NEXT
+      
+      REM  Here are some strings for the music player
+      m1$="C1D5O2cgegcgegdg#fgdg#fgca#faca#fada#fada#faO3cO2g%bgO3cO2g%bgO3cO2f%bfO3cO2fae"
+      m2$="C2D20O1cedcc#fd#fggfe"
+      m3$="C3D40O4cO3baO4#fgdO3cO2baO3#fgd"
+      REM m4 and m5 are alternatives for m1 and m2: they get swapped in and out to limit direct repetition
+      m4$="C1D5O2cegecegedg#fgde#fgac#fcac#fada#fada#faO3cO2g%bgO3cO2g%bgO3cO2f%bfO3cO2fae"
+      m5$="C2D20O1cgdgc#fd#fcgfe"
+      m1%=0                  :REM Keeps track of repeats, to control swaps of music strings
+      REM Strings for game sounds
+      wm$="C0D3O3fgD5O4cF"   :REM Sound for when a line has been completed
+      mm$="C0D5O1gfcF"       :REM Sound for invalid moves.
+      REM Setting TEMPO to more than 128 makes channel 0 into a tone channel (rather than noise)
+      *TEMPO 133
+      REM You can set your preferred starting conditions here
+      MusicOn%=FALSE
+      SoundOn%=TRUE
+      
+      DIM B&(7,7) :REM This is the game board. It holds byte values indicating the type of piece
+      R%=64  :REM This is the size of the images (in pixels)
+      Delay%=50  :REM You can alter this to change how fast the game plays
+      Keyboard%=FALSE
+      PROCinitialise(R%)
+      
+      REM Show splash screen, and wait for a click of the mouse
+      OSCLI "DISPLAY """+@dir$+".Images/tt_splash_8.bmp"+""" "+STR$(xRes%-600)+","+STR$(yRes%-449)
+      REPEAT
+        MOUSE x%,y%,z%
+        PROCwait(1)
+      UNTIL z%>0 OR INKEY(0)<>-1
+      IF z%=0 Keyboard%=TRUE
+      REM clear any extra entries in the mouse buffer
+      REPEAT
+        MOUSE x%,y%,z%
+      UNTIL z%=0
+      *REFRESH OFF
+      PROCDrawBoard(B&())
+      ON TIME  PROCPlayMusic:RETURN
+      REM Here's the game's main loop
+      REPEAT
+        FirstSelected%=FALSE
+        q%=TRUE
+        x1%=4:y1%=3
+        REPEAT
+          x2%=-1:y2%=-1
+          IF q%=TRUE q%=FNinkey(2)
+          IF q%<>TRUE Keyboard%=TRUE
+          CASE q% OF
+            WHEN 77,109: MusicOn%=NOT MusicOn%:PROCDrawBoard(B&())
+            WHEN 83,115: SoundOn%=NOT SoundOn%:PROCDrawBoard(B&())
+            WHEN 13:
+              IF  x1%>=0 AND x1%<8 AND y1%>=0 AND y1%<8 THEN
+                FirstSelected%=TRUE
+              ELSE
+                IF x1%>7 AND x1%<11 THEN
+                  IF y1%=0 THEN MusicOn%=NOT MusicOn%:PROCDrawBoard(B&())
+                  IF y1%=1 THEN SoundOn%=NOT SoundOn%:PROCDrawBoard(B&())
+                ENDIF
+              ENDIF
+            WHEN 136:IF FirstSelected% THEN x2%=x1%-1:y2%=y1% ELSE IF x1%>0  x1%-=1 ELSE *FX 15,1
+            WHEN 137:IF FirstSelected% THEN x2%=x1%+1:y2%=y1% ELSE IF x1%<10 x1%+=1 ELSE *FX 15,1
+            WHEN 138:IF FirstSelected% THEN y2%=y1%-1:x2%=x1% ELSE IF y1%>0  y1%-=1 ELSE *FX 15,1
+            WHEN 139:IF FirstSelected% THEN y2%=y1%+1:x2%=x1% ELSE IF y1%<7  y1%+=1 ELSE *FX 15,1
+          ENDCASE
+          q%=TRUE
+          IF Keyboard% IF NOT FirstSelected% IF x1%>=0 IF x1%<11 IF y1%>=0 IF y1%<8 THEN
+            PROCDrawBoard(B&())
+            q%=FNinkey(20)
+            GCOL 4,1
+            RECTANGLE 2*R%*x1%,2*R%*y1%,2*R%-2
+            RECTANGLE 2*R%*x1%+2,2*R%*y1%+2,2*R%-6
+            *REFRESH
+            IF q%=TRUE q%=FNinkey(20)
+          ENDIF
+          MOUSE x%,y%,z%
+          IF z%>0 THEN
+            Keyboard%=FALSE
+            x0%=x%
+            y0%=y%
+            x1%=x% DIV D% + (x% < 0)
+            y1%=y% DIV D% + (y% < 0)
+            IF x1%>7 AND x1%<11 THEN
+              IF y1%=0 THEN MusicOn%=NOT MusicOn%:PROCDrawBoard(B&())
+              IF y1%=1 THEN SoundOn%=NOT SoundOn%:PROCDrawBoard(B&())
+              REPEAT MOUSE x%,y%,z% UNTIL z%=0
+              x2%=0:y2%=0
+            ELSE IF x1%>=0 AND x1%<8 AND y1%>=0 AND y1%<8 THEN
+                REPEAT
+                  MOUSE x%,y%,z%
+                  PROCDrag(B&(),x1%,y1%,x%-x0%,y%-y0%)
+                UNTIL z%=0
+                x2%=x% DIV D% + (x% < 0)
+                y2%=y% DIV D% + (y% < 0)
+                IF x2%=x1% AND y2%=y1% THEN
+                  PROCDrawBoard(B&())
+                  GCOL 4,1
+                  RECTANGLE 2*R%*x1%,2*R%*y1%,2*R%-2
+                  RECTANGLE 2*R%*x1%+2,2*R%*y1%+2,2*R%-6
+                  *REFRESH
+                  REPEAT
+                    MOUSE x%,y%,z%
+                  UNTIL z%>0
+                  x2%=x% DIV D% + (x% < 0)
+                  y2%=y% DIV D% + (y% < 0)
+                  RECTANGLE 2*R%*x1%,2*R%*y1%,2*R%-2
+                  RECTANGLE 2*R%*x1%+2,2*R%*y1%+2,2*R%-6
+                  *REFRESH
+                  GCOL 0,15
+                  REPEAT
+                    MOUSE x%,y%,z%
+                  UNTIL z%=0
+                ENDIF
+              ENDIF
+            ENDIF
+            IF x1%>=0 AND x2%>=0 AND x1%<8 AND x2%<8 AND y1%>=0 AND y2%>=0 AND y1%<8 AND y2%<8 THEN
+              FirstSelected%=FALSE
+              IF (ABS(x2%-x1%)=1 AND ABS(y2%-y1%)=0) OR (ABS(x2%-x1%)=0 AND ABS(y2%-y1%)=1) THEN
+                REM We've identified two adjacent items: swap them and test
+                SWAP B&(x1%,y1%),B&(x2%,y2%)
+                PROCDrawBoard(B&())
+                Bonuses%=-10   :REM No bonus for the first line identified - after that they mount up!
+                pts%=(FNscore(x1%,y1%)+FNscore(x2%,y2%))
+                IF pts%=0 THEN
+                  REM Swap them back: invalid move
+                  losesound%=FNplay(mm$,0)
+                  SWAP B&(x1%,y1%),B&(x2%,y2%)
+                  PROCDrawBoard(B&())
+                ELSE
+                  REM Add on score, and refill board, looking for any cascading lines
+                  Score%+=Mult*pts%
+                  winsound%=FNplay(wm$,0)
+                  PROCwait(Delay%)
+                  PROCDrawBoard(B&())
+                  REPEAT
+                    pts%=0
+                    PROCRefill
+                    PROCDrawBoard(B&())
+                    pts%=FNTestAll
+                    Score%+=Mult*pts%
+                    IF pts%>0 THEN winsound%=FNplay(wm$,0):PROCwait(Delay%/2)
+                  UNTIL pts%=0
+                ENDIF
+              ELSE
+                losesound%=FNplay(mm$,0)
+                PROCDrawBoard(B&())
+              ENDIF
+            ENDIF
+            IF Score%>=Target% THEN
+              PROCMessageBox("Level complete! Welcome to level "+STR$(Level%+1))
+              Level%+=1
+              Mult=(Level%+1)/2
+              Target%=Score%+500*Level%*Mult
+              BaseLine%=Score%
+              PROCFillBoard
+              PROCDrawBoard(B&())
+            ENDIF
+          ENDIF
+        UNTIL FNnomoremoves
+        PROCMessageBox("No more moves! Your final score was "+STR$(Score%))
+        PROCinitialise(R%)
+      UNTIL FALSE
+      VDU 4
+      REPEAT WAIT 10 : UNTIL FALSE
+      :
+      DEFPROCinitialise(R%)
+      REM R% gives the radius of items, on which everything else is scaled
+      D%=2*R%                                 :REM Diameter
+      BarWidth%=8                             :REM Thickness of progress bar at the bottom
+      FontSize%=R% DIV 4                      :REM Size of font (in points) for score etc
+      xRes%=D%*4+12*FontSize%                 :REM Width of window in pixels: space for items and also for scores etc
+      yRes%=D%*4+BarWidth%                   :REM Height of window in pixels: enough for items plus progress bar
+      
+      VDU 23,22,xRes%;yRes%;8,16,16,0         :REM Set a custom mode to the required characteristics
+      IF INKEY(-256)=&57 THEN
+        REM Running in BB4W
+        OSCLI "FONT Arial,"+STR$(FontSize%)
+      ELSE
+        REM Running in BBCSDL
+        OSCLI "FONT """ + @lib$ + "DejaVuSans"""+STR$(FontSize%)
+      ENDIF
+      COLOR 1,255,0,0
+      COLOR 2,0,255,0
+      COLOR 3,255,255,0
+      COLOR 4,0,0,255
+      COLOR 5,255,0,255
+      COLOR 6,0,255,255
+      COLOR 7,255,255,255
+      
+      ORIGIN 0,BarWidth%*2
+      Score%=0
+      Level%=1
+      Mult=1
+      BaseLine%=0
+      Target%=500
+      PROCFillBoard
+      PROCDrawBoard(B&())
+      ENDPROC
+      :
+      DEFPROCFillBoard
+      LOCAL x%,y%,lyne%
+      FOR x%=0 TO 7
+        FOR y%=0 TO 7
+          REPEAT
+            lyne%=FALSE
+            B&(x%,y%)=RND(7)
+            IF x%>1 THEN
+              IF B&(x%-1,y%)=B&(x%,y%) AND B&(x%-2,y%)=B&(x%,y%) THEN lyne%=TRUE
+            ENDIF
+            IF y%>1 THEN
+              IF B&(x%,y%-1)=B&(x%,y%) AND B&(x%,y%-2)=B&(x%,y%) THEN lyne%=TRUE
+            ENDIF
+          UNTIL lyne%=FALSE
+        NEXT y%
+      NEXT x%
+      ENDPROC
+      :
+      DEFPROCDrawBoard(b&())
+      LOCAL x%,y%
+      *REFRESH OFF
+      CLS
+      VDU 5
+      GCOL 15
+      COLOR 15,150,150,150
+      LINE 0,0,2*xRes%,0
+      LINE D%*8,0,D%*8,2*yRes%-BarWidth%
+      COLOR 15,255,255,255
+      LINE 0,-2,2*xRes%,-2
+      LINE D%*8+2,0,D%*8+2,2*yRes%-BarWidth%
+      COLOR 15,120,120,120
+      LINE 0,-4,2*xRes%,-4
+      LINE D%*8+4,0,D%*8+4,2*yRes%-BarWidth%
+      COLOR 15,255,255,255
+      RECTANGLE D%*8,0,2*xRes%-D%*8,D%
+      MOVE D%*8+16,D%*3/4
+      IF MusicOn% THEN PRINT"Turn music off" ELSE PRINT "Turn music on"
+      RECTANGLE D%*8,D%,2*xRes%-D%*8,D%
+      MOVE D%*8+16,D%*7/4
+      IF SoundOn% THEN PRINT"Turn sounds off" ELSE PRINT "Turn sounds on"
+      GCOL 9
+      RECTANGLE FILL 0,-6,(Score%-BaseLine%)*xRes%*2/(500*Level%*Mult),-(2*BarWidth%-6)
+      GCOL 2
+      MOVE D%*8+16,2*yRes%-BarWidth%*2.5
+      PRINT "Score:  "STR$(Score%)
+      MOVE D%*8+16,2*yRes%-BarWidth%*2.5-3*FontSize%
+      PRINT "Level:  "STR$(Level%)
+      MOVE D%*8+16,2*yRes%-BarWidth%*2.5-6*FontSize%
+      PRINT "Target: "STR$(Target%)
+      FOR x%=0 TO 7
+        FOR y%=0 TO 7
+          CASE b&(x%,y%) OF
+            WHEN 0: GCOL 15:RECTANGLE FILL 2*R%*x%,2*R%*y%,D%
+            WHEN 1,2,3,4,5,6,7:OSCLI "MDISPLAY "+STR$~PicAddr%%(b&(x%,y%))+" "+STR$(2*R%*x%)+","+STR$(2*R%*y%)
+          ENDCASE
+        NEXT y%
+      NEXT x%
+      *REFRESH ON
+      ENDPROC
+      :
+      DEF PROCDrag(b&(),x%,y%,dx%,dy%)
+      LOCAL X%,Y%
+      PRIVATE x,y
+      IF ABS(dx%)>ABS(dy%) THEN dy%=0 ELSE dx%=0
+      *REFRESH OFF
+      FOR X%=0 TO 7
+        FOR Y%=0 TO 7
+          IF ABS(x-X%) < 1 AND ABS(y-Y%) < 1 THEN
+            OSCLI "MDISPLAY "+STR$~PicAddr%%(b&(X%,Y%))+" "+STR$(2*R%*X%)+","+STR$(2*R%*Y%)
+          ENDIF
+        NEXT
+      NEXT X%
+      backcol$=PicCols$(b&(x%,y%))
+      GCOL b&(x%,y%)
+      RECTANGLE FILL D%*x%,D%*y%,D%
+      x = x%+dx%/D%
+      y = y%+dy%/D%
+      OSCLI "MDISPLAY "+STR$~PicAddr%%(b&(x%,y%))+" "+STR$(D%*x%+dx%)+","+STR$(D%*y%+dy%)+backcol$
+      *REFRESH ON
+      *REFRESH
+      ENDPROC
+      :
+      DEFPROCtestH(b&(),x1%,y1%,RETURN xt%,RETURN l%)
+      LOCAL x%
+      l%=1
+      xt%=x1%
+      IF x1%>0 THEN
+        x%=x1%
+        REPEAT
+          x%-=1
+          IF b&(x%,y1%)=b&(x1%,y1%) THEN l%+=1:xt%-=1
+        UNTIL x%=0 OR b&(x%,y1%)<>b&(x1%,y1%)
+      ENDIF
+      IF x1%<7 THEN
+        x%=x1%
+        REPEAT
+          x%+=1
+          IF b&(x%,y1%)=b&(x1%,y1%) THEN l%+=1
+        UNTIL x%=7 OR b&(x%,y1%)<>b&(x1%,y1%)
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCtestV(b&(),x1%,y1%,RETURN yt%,RETURN l%)
+      LOCAL y%
+      l%=1
+      yt%=y1%
+      IF y1%>0 THEN
+        y%=y1%
+        REPEAT
+          y%-=1
+          IF b&(x1%,y%)=b&(x1%,y1%) THEN l%+=1:yt%-=1
+        UNTIL y%=0 OR b&(x1%,y%)<>b&(x1%,y1%)
+      ENDIF
+      IF y1%<7 THEN
+        y%=y1%
+        REPEAT
+          y%+=1
+          IF b&(x1%,y%)=b&(x1%,y1%) THEN l%+=1
+        UNTIL y%=7 OR b&(x1%,y%)<>b&(x1%,y1%)
+      ENDIF
+      ENDPROC
+      :
+      DEFFNscoreline(l%)
+      LOCAL pts%
+      CASE l% OF
+        WHEN 1,2:pts%=0:Bonuses%+=0
+        WHEN 3:pts%=10:Bonuses%+=10
+        WHEN 4:pts%=20:Bonuses%+=20
+        WHEN 5:pts%=30:Bonuses%+=30
+        WHEN 6:pts%=40:Bonuses%+=40
+        WHEN 7:pts%=50:Bonuses%+=50
+        WHEN 8:pts%=60:Bonuses%+=60
+      ENDCASE
+      IF l%>2 THEN pts%+=Bonuses%
+      =pts%
+      :
+      DEFFNscore(x1%,y1%)
+      LOCAL x%,lx%,ly%,pts%,tx%,ty%,tpx%,tpy%
+      PROCtestH(B&(),x1%,y1%,tx%,lx%)
+      tpx%=FNscoreline(lx%)
+      pts%+=tpx%
+      REM Now let's look for vertical lines
+      PROCtestV(B&(),x1%,y1%,ty%,ly%)
+      tpy%=FNscoreline(ly%)
+      pts%+=tpy%
+      GCOL 15 EOR B&(x1%,y1%)
+      REM Clear any items that have been used in lines
+      IF lx%>2 THEN RECTANGLE 2*R%*tx%,2*R%*y1%,2*R%*lx%,2*R%:MOVE 2*R%*tx%+R%,2*R%*y1%+2*R%: PRINT STR$(tpx%*Mult):FOR x%=tx% TO tx%+lx%-1:B&(x%,y1%)=0:NEXT x%
+      IF ly%>2 THEN RECTANGLE 2*R%*x1%,2*R%*ty%,2*R%,2*R%*ly%:MOVE 2*R%*x1%,2*R%*ty%+R%*ly%:PRINT STR$(tpy%*Mult):FOR x%=ty% TO ty%+ly%-1:B&(x1%,x%)=0:NEXT x%
+      =pts%
+      :
+      DEFFNnomoremoves
+      LOCAL x%,y%,tx%,lx%,t&()
+      DIM t&(7,7)
+      t&()=B&()
+      REM Look for possible lines with horizontal swaps
+      FOR y%=0 TO 7
+        FOR x%=0 TO 6
+          SWAP t&(x%,y%),t&(x%+1,y%)
+          PROCtestH(t&(),x%,y%,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          PROCtestH(t&(),x%+1,y%,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          PROCtestV(t&(),x%,y%,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          PROCtestV(t&(),x%+1,y%,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          SWAP t&(x%,y%),t&(x%+1,y%)
+        NEXT x%
+      NEXT y%
+      REM Look for possible lines with vertical swaps
+      FOR x%=0 TO 7
+        FOR y%=0 TO 6
+          SWAP t&(x%,y%),t&(x%,y%+1)
+          PROCtestH(t&(),x%,y%,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          PROCtestV(t&(),x%,y%,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          PROCtestH(t&(),x%,y%+1,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          PROCtestV(t&(),x%,y%+1,tx%,lx%)
+          IF lx%>2 THEN =FALSE
+          SWAP t&(x%,y%),t&(x%,y%+1)
+        NEXT y%
+      NEXT x%
+      =TRUE
+      :
+      DEFPROCRefill
+      LOCAL x%,y%,ty%
+      FOR x%=0 TO 7
+        y%=0
+        REPEAT
+          IF B&(x%,y%)>0 THEN
+            y%+=1
+          ELSE
+            ty%=y%+1
+            IF ty%<8 THEN
+              REPEAT
+                IF B&(x%,ty%)>0 THEN
+                  SWAP B&(x%,y%),B&(x%,ty%)
+                ELSE
+                  ty%+=1
+                ENDIF
+              UNTIL B&(x%,y%)>0 OR ty%=8
+            ENDIF
+            IF B&(x%,y%)=0 THEN
+              FOR ty%=y% TO 7
+                B&(x%,ty%)=RND(7)
+              NEXT ty%
+              y%=8
+            ELSE
+              y%+=1
+            ENDIF
+          ENDIF
+        UNTIL y%>7
+      NEXT x%
+      ENDPROC
+      :
+      DEFFNTestAll
+      LOCAL x%,y%,t%,l%,pts%,tp%,lynes%(),nl%
+      DIM lynes%(50,3):REM x and y position of start of line, then 0 for horizontal or 1 for vertical, then length
+      REM Test for horizontal lines
+      FOR y%=0 TO 7
+        x%=0
+        t%=1
+        REPEAT
+          t%=x%+1
+          l%=1
+          WHILE t%<8
+            IF B&(t%,y%)=B&(x%,y%) THEN l%+=1:t%+=1 ELSE t%=8
+          ENDWHILE
+          IF l%>2 THEN
+            tp%=FNscoreline(l%)
+            pts%+=tp%
+            nl%+=1
+            lynes%(nl%,0)=x%
+            lynes%(nl%,1)=y%
+            lynes%(nl%,2)=0
+            lynes%(nl%,3)=l%
+            GCOL 15 EOR B&(x%,y%)
+            RECTANGLE 2*R%*x%,2*R%*y%,2*R%*l%,2*R%
+            MOVE 2*R%*x%+R%,2*R%*y%+2*R%
+            PRINT STR$(tp%*Mult)
+            x%+=l%
+          ELSE
+            x%+=1
+          ENDIF
+        UNTIL x%>5
+      NEXT y%
+      REM Test for vertical lines
+      FOR x%=0 TO 7
+        y%=0
+        t%=1
+        REPEAT
+          t%=y%+1
+          l%=1
+          WHILE t%<8
+            IF B&(x%,t%)=B&(x%,y%) THEN l%+=1:t%+=1 ELSE t%=8
+          ENDWHILE
+          IF l%>2 THEN
+            tp%=FNscoreline(l%)
+            pts%+=tp%
+            nl%+=1
+            lynes%(nl%,0)=x%
+            lynes%(nl%,1)=y%
+            lynes%(nl%,2)=1
+            lynes%(nl%,3)=l%
+            GCOL 15 EOR B&(x%,y%)
+            RECTANGLE 2*R%*x%,2*R%*y%,2*R%,2*R%*l%
+            MOVE 2*R%*x%,2*R%*y%+R%*l%
+            PRINT STR$(tp%*Mult)
+            y%+=l%
+          ELSE
+            y%+=1
+          ENDIF
+        UNTIL y%>5
+      NEXT x%
+      
+      REM Now we need to clear any squares involved in any lines
+      IF nl%>0 THEN
+        FOR l%=1 TO nl%
+          IF lynes%(l%,2)=0 THEN
+            y%=lynes%(l%,1)
+            FOR x%=lynes%(l%,0) TO lynes%(l%,0)+lynes%(l%,3)-1:B&(x%,y%)=0:NEXT x%
+          ELSE
+            x%=lynes%(l%,0)
+            FOR y%=lynes%(l%,1) TO lynes%(l%,1)+lynes%(l%,3)-1:B&(x%,y%)=0:NEXT y%
+          ENDIF
+        NEXT l%
+      ENDIF
+      
+      IF pts%>0 THEN PROCwait(Delay%)
+      PROCDrawBoard(B&())
+      =pts%
+      :
+      DEFPROCMessageBox(m$)
+      LOCAL x%,y%,z%
+      GCOL 0
+      RECTANGLE FILL xRes%/4,yRes%/2,xRes%*3/2,yRes%
+      GCOL 15
+      RECTANGLE xRes%/4,yRes%/2,xRes%*3/2,yRes%
+      VDU 5
+      MOVE xRes%/4+10,yRes%+2*@vdu%!220
+      PRINT m$
+      MOVE xRes%/4+10,yRes%/2+2*@vdu%!220
+      PRINT "Click/Tap to continue"
+      REPEAT
+        MOUSE x%,y%,z%
+        PROCwait(1)
+      UNTIL z%>0 OR INKEY(0)<>-1
+      REPEAT
+        MOUSE x%,y%,z%
+      UNTIL z%=0
+      VDU 4
+      ENDPROC
+      :
+      DEFFNplay(m$,channel%)
+      REM Routine to read in musical notes and play them
+      REM Note names indicated by lower case letter
+      REM sharps indicated by preceding note by #, flats by preceding with %
+      REM To set duration use D followed by 1-99
+      REM to set volume, use V followed by 0 to 15
+      REM To set octave, use O followed by 0 TO 5 (only c and d in octave 5)
+      PRIVATE flag%,n%,acc%,amp%(),dur%(),c$,x%(),oct%(),nowtes%()
+      IF flag%=0 THEN
+        flag%=1
+        DIM x%(3),dur%(3),amp%(3),oct%(3),nowtes%(6)
+        nowtes%()=4,12,20,24,32,40,48
+        dur%()=2
+        amp%()=8
+        x%()=1
+        oct%()=3
+      ENDIF
+      LOCAL finished%
+      finished%=FALSE
+      IF channel%=0 AND SoundOn%=FALSE THEN =FALSE
+      IF m$="F" THEN SOUND channel%+&10,0,4,1:x%(channel%)=1:finished%=TRUE:=finished%
+      WHILE ADVAL(-5-channel%)>0
+        c$=MID$(m$,x%(channel%),1)
+        acc%=0
+        CASE c$ OF
+          WHEN "#":acc%=4
+          WHEN "%":acc%=-4
+          WHEN "O":
+            oct%(channel%)=VAL(MID$(m$,x%(channel%)+1,1))
+            x%(channel%)+=1
+          WHEN "D":
+            dur%(channel%)=VAL(MID$(m$,x%(channel%)+1))
+            x%(channel%)+=1
+            IF dur%(channel%)>9 THEN x%(channel%)+=1
+          WHEN "C":
+            channel%=VAL(MID$(m$,x%(channel%)+1,1))
+            x%(channel%)+=1
+          WHEN "V":
+            amp%(channel%)=VAL(MID$(m$,x%(channel%)+1))
+            x%(channel%)+=1
+            IF amp%(channel%)>9 THEN x%(channel%)+=1
+          WHEN "F":
+            SOUND channel%+&10,0,4,1:x%(channel%)=1:finished%=TRUE
+          WHEN "a","b"
+            n%=5 +ASC(c$)-ASC("a")
+            PROCsound(channel%,amp%(channel%)*-1,nowtes%(n%)+acc%+48*oct%(channel%),dur%(channel%))
+          WHEN "c","d","d","e","f","g"
+            n%= ASC(c$)-ASC("c")
+            PROCsound(channel%,amp%(channel%)*-1,nowtes%(n%)+acc%+48*oct%(channel%),dur%(channel%))
+        ENDCASE
+        x%(channel%)+=1
+        IF x%(channel%)>LEN(m$) THEN x%(channel%)=1:finished%=TRUE
+      ENDWHILE
+      =finished%
+      :
+      DEFPROCPlayMusic
+      LOCAL t%
+      IF MusicOn% THEN
+        IF FNplay(m1$,1) THEN SWAP m1$,m4$:m1%+=1
+        IF FNplay(m2$,2) AND (m1% MOD 3=0) THEN SWAP m2$,m5$
+        t%=FNplay(m3$,3)
+      ELSE
+        t%=FNplay("F",1)
+        t%=FNplay("F",2)
+        t%=FNplay("F",3)
+      ENDIF
+      ENDPROC

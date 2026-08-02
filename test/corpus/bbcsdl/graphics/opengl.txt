@@ -1,0 +1,185 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM OpenGL Demo program translated into BBC BASIC for SDL 2.0
+      REM Richard Russell, 13-Apr-2022
+      
+      MODE 8
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : CLEAR
+      VDU 26
+      
+      GL_DEPTH_TEST=&0B71
+      GL_MODELVIEW=&1700
+      GL_PROJECTION=&1701
+      GL_DEPTH_BUFFER_BIT=&0100
+      GL_COLOR_BUFFER_BIT=&4000
+      GL_VERTEX_ARRAY=&8074
+      GL_FLOAT=&1406
+      GL_LINES = 1
+      GL_TRIANGLES=4
+      
+      REM Force fullscreen mode (iOS only):
+      IF (@platform% AND 7) = 4 SYS "SDL_SetWindowFullscreen", @hwnd%, &1001, @memhdc%
+      
+      *REFRESH OFF
+      SYS "SDL_GL_GetCurrentContext", @memhdc% TO origContext%%
+      SYS "SDL_GL_CreateContext", @hwnd%, @memhdc% TO glContext%%
+      
+      REM InitializeGL:
+      IF @platform% AND &40 THEN
+        SYS "glClearColor", FN_fd(0), FN_fd(0), FN_fd(0), FN_fd(0), @memhdc%
+      ELSE
+        SYS "glClearColor", 0, 0, 0, 0, @memhdc%
+      ENDIF
+      
+      CASE @platform% AND &47 OF
+        WHEN &00,&01,&02:  SYS "glClearDepth", FN_dl(1.0), FN_dh(1.0), @memhdc%
+        WHEN &03,&04:      SYS "glClearDepthf", FN_f4(1.0), @memhdc%
+        WHEN &40,&41,&42:  SYS "glClearDepth", FN_nz(1.0), @memhdc%
+        WHEN &43,&44:      SYS "glClearDepthf", FN_fd(1.0), @memhdc%
+      ENDCASE
+      SYS "glEnable", GL_DEPTH_TEST, @memhdc%
+      SYS "glMatrixMode", GL_PROJECTION, @memhdc%
+      
+      IF POS REM SDL thread sync
+      SYS "glViewport", 0, 0, @vdu%!208, @vdu%!212, @memhdc%
+      zn = 3.0 : zf = 7.0 : ar = @vdu%!208/@vdu%!212
+      IF ar > 1 fv = 2.5 * ATN(1/3) ELSE fv = 2.5 * ATN(1/3/ar)
+      fh = TAN(fv/2) * zn : fw = fh * ar
+      SYS "glLoadIdentity",@memhdc%
+      CASE @platform% AND &47 OF
+        WHEN &00,&01,&02:
+          SYS "glFrustum",FN_dl(-fw),FN_dh(-fw),FN_dl(fw),FN_dh(fw),\
+          \               FN_dl(-fh),FN_dh(-fh),FN_dl(fh),FN_dh(fh),\
+          \               FN_dl(zn), FN_dh(zn), FN_dl(zf),FN_dh(zf),@memhdc%
+        WHEN &03,&04:
+          SYS "glFrustumf",FN_f4(-fw),FN_f4(fw),FN_f4(-fh),FN_f4(fh),FN_f4(zn),FN_f4(zf),@memhdc%
+        WHEN &40,&41,&42:
+          SYS "glFrustum", FN_nz(-fw),FN_nz(fw),FN_nz(-fh),FN_nz(fh),FN_nz(zn),FN_nz(zf),@memhdc%
+        WHEN &43,&44:
+          SYS "glFrustumf",FN_fd(-fw),FN_fd(fw),FN_fd(-fh),FN_fd(fh),FN_fd(zn),FN_fd(zf),@memhdc%
+      ENDCASE
+      
+      lat = 0.0
+      long = 0.0
+      latinc = 0.5
+      longinc = 0.5
+      
+      DIM globe%(1343,2)
+      globevertices% = FNshape(globe%(), -1.5, +1.5, FNglobe(), 20, 16, 2)
+      DIM cylinder%(383,2)
+      cylvertices% = FNshape(cylinder%(), -0.3, +0.3, FNcylinder(), 3, 16, 3)
+      DIM cone%(383,2)
+      conevertices% = FNshape(cone%(), -0.3, +0.3, FNcone(), 3, 16, 3)
+      
+      REM Draw scene:
+      OFF
+      REPEAT
+        K% = INKEY(1)
+        CASE K% OF
+          WHEN 136:longinc += 0.5
+          WHEN 137:longinc -= 0.5
+          WHEN 139:latinc += 0.5
+          WHEN 138:latinc -= 0.5
+        ENDCASE
+        SYS "glClear", GL_COLOR_BUFFER_BIT OR GL_DEPTH_BUFFER_BIT, @memhdc%
+        
+        lat += latinc
+        long += longinc
+        SYS "glPushMatrix", @memhdc%
+        IF @platform% AND &40 THEN
+          SYS "glTranslatef", FN_fd(0.0), FN_fd(0.0), FN_fd(-4.5), @memhdc%
+          SYS "glRotatef", FN_fd(-lat), FN_fd(1.0), FN_fd(0.0), FN_fd(0.0), @memhdc%
+          SYS "glRotatef", FN_fd(long), FN_fd(0.0), FN_fd(0.0), FN_fd(1.0), @memhdc%
+        ELSE
+          SYS "glTranslatef", FN_f4(0.0), FN_f4(0.0), FN_f4(-4.5), @memhdc%
+          SYS "glRotatef", FN_f4(-lat), FN_f4(1.0), FN_f4(0.0), FN_f4(0.0), @memhdc%
+          SYS "glRotatef", FN_f4(long), FN_f4(0.0), FN_f4(0.0), FN_f4(1.0), @memhdc%
+        ENDIF
+        SYS "glEnableClientState", GL_VERTEX_ARRAY, @memhdc%
+        SYS "glVertexPointer", 3, GL_FLOAT, 0, ^globe%(0,0), @memhdc%
+        SYS "glColor4ub", 0, 160, 255, 255, @memhdc%
+        SYS "glDrawArrays", GL_LINES, 0, globevertices%, @memhdc%
+        SYS "glVertexPointer", 3, GL_FLOAT, 0, ^cone%(0,0), @memhdc%
+        SYS "glColor4ub", 255, 0, 0, 255, @memhdc%
+        SYS "glDrawArrays", GL_TRIANGLES, 0, conevertices%, @memhdc%
+        
+        SYS "glPushMatrix", @memhdc%
+        IF @platform% AND &40 THEN
+          SYS "glTranslatef", FN_fd(0.4), FN_fd(-0.6), FN_fd(0.0), @memhdc%
+          SYS "glRotatef", FN_fd(30.0), FN_fd(1.0), FN_fd(0.5), FN_fd(1.0), @memhdc%
+        ELSE
+          SYS "glTranslatef", FN_f4(0.4), FN_f4(-0.6), FN_f4(0.0), @memhdc%
+          SYS "glRotatef", FN_f4(30.0), FN_f4(1.0), FN_f4(0.5), FN_f4(1.0), @memhdc%
+        ENDIF
+        SYS "glVertexPointer", 3, GL_FLOAT, 0, ^cylinder%(0,0), @memhdc%
+        SYS "glColor4ub", 0, 255, 0, 255, @memhdc%
+        SYS "glDrawArrays", GL_TRIANGLES, 0, cylvertices%, @memhdc%
+        SYS "glPopMatrix", @memhdc%
+        SYS "glDisableClientState", GL_VERTEX_ARRAY, @memhdc%
+        
+        SYS "glPopMatrix", @memhdc%
+        
+        SYS "SDL_GL_SwapWindow", @hwnd%, @memhdc%
+      UNTILFALSE
+      END
+      
+      DEF FNshape(v%(), zmin, zmax, RETURN fz%%, s%, n%, t%)
+      LOCAL I%, J%, K%, a, o, p, r, s, z
+      s = 2 * PI / n%
+      z = zmin
+      r = FN(^fz%%)(z)
+      FOR J% = 1 TO s%
+        p = z
+        o = r
+        z = zmin + (zmax - zmin) * (SIN(PI * J% / s% - PI / 2) + 1) / 2
+        r = FN(^fz%%)(z)
+        a = 0
+        FOR K% = 0 TO n%-1
+          v%(I%,0) = FN_f4(o*COS(a)) : v%(I%,1) = FN_f4(o*SIN(a)) : v%(I%,2)=FN_f4(p) : I% += 1
+          v%(I%,0) = FN_f4(r*COS(a)) : v%(I%,1) = FN_f4(r*SIN(a)) : v%(I%,2)=FN_f4(z) : I% += 1
+          IF t% = 2 THEN
+            v%(I%,0) = FN_f4(r*COS(a)) : v%(I%,1) = FN_f4(r*SIN(a)) : v%(I%,2)=FN_f4(z) : I% += 1
+          ENDIF
+          a += s
+          v%(I%,0) = FN_f4(r*COS(a)) : v%(I%,1) = FN_f4(r*SIN(a)) : v%(I%,2)=FN_f4(z) : I% += 1
+          IF t% = 3 THEN
+            v%(I%,0) = FN_f4(r*COS(a)) : v%(I%,1) = FN_f4(r*SIN(a)) : v%(I%,2)=FN_f4(z) : I% += 1
+            v%(I%,0) = FN_f4(o*COS(a)) : v%(I%,1) = FN_f4(o*SIN(a)) : v%(I%,2)=FN_f4(p) : I% += 1
+            a -= s
+            v%(I%,0) = FN_f4(o*COS(a)) : v%(I%,1) = FN_f4(o*SIN(a)) : v%(I%,2)=FN_f4(p) : I% += 1
+            a += s
+          ENDIF
+        NEXT
+      NEXT
+      = I%
+      
+      DEF FNglobe(z) = SQR(1.5^2 - z^2)
+      DEF FNcylinder(z) = 0.3
+      DEF FNcone(z) = (0.2999 - z) / 2
+      
+      DEFPROCcleanup
+      glContext%% += 0 : IF glContext%% = 0 ENDPROC
+      IF (@platform% AND 7) = 4 SYS "SDL_GL_DeleteContext", glContext%% : REM iOS
+      SYS "SDL_GL_MakeCurrent", @hwnd%, origContext%%, @memhdc%
+      *REFRESH ON
+      glContext%% = 0
+      ENDPROC
+      
+      REM Convert to 4-byte float
+      DEF FN_f4(a#)LOCALp%%:p%%=^a#:IFABSa#<1E-38THEN=FALSE
+      = p%%!4ANDNOT&7FFFFFFFOR(p%%!4-&38000000<<3OR!p%%>>29AND7)+(!p%%>>28AND1)
+      
+      REM Convert to 8-byte double (low 4 bytes)
+      DEF FN_dl(a#)=!^a#
+      
+      REM Convert to 8-byte double (high 4 bytes)
+      DEF FN_dh(a#)=!(^a#+4)
+      
+      REM Return a non-integer variant:
+      DEF FN_nz(a) a *= 1.0 : IF a=0 ?(^a+9) = &80
+      = a
+      
+      DEF FN_fd(a#) !^a# = FN_f4(a#) : ?(^a#+7) OR= &80 : = a#

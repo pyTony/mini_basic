@@ -1,0 +1,146 @@
+      REM "Disco"
+      REM by David Williams
+      REM Version 1.0 (21-Feb-2019)
+      REM Demonstrates one use of RECTANGLE SWAP
+      
+      ON ERROR PROCError( REPORT$ + " at line " + STR$ERL )
+      
+      BB4W% = (INKEY(-256) == &57)
+      
+      MODE 8 : OFF
+      
+      IF POS
+      
+      ScrW% = @vdu%!208
+      ScrH% = @vdu%!212
+      BoxSz% = 64
+      BoxesX% = ScrW% DIV BoxSz%
+      BoxesY% = ScrH% DIV BoxSz%
+      
+      F% = FALSE
+      
+      REPEAT
+        IF F% THEN PROCDrawGrid( TRUE )
+        PROCDrawGrid( FALSE )
+        FOR I% = 1 TO 250
+          PROCSwapSquares
+          WAIT 10
+        NEXT I%
+        F% = TRUE
+      UNTIL FALSE
+      END
+      :
+      :
+      :
+      :
+      DEF PROCSwapSquares
+      LOCAL xA1%, yA1%, xA2%, yA2%
+      LOCAL xB1%, yB1%, xB2%, yB2%
+      LOCAL xC1%, yC1%, xC2%, yC2%
+      LOCAL xD1%, yD1%, xD2%, yD2%
+      xA1% = BoxSz% * (RND(BoxesX% DIV 2)-1)
+      yA1% = BoxSz% * (RND(BoxesY% DIV 2)-1)
+      REPEAT
+        xA2% = BoxSz% * (RND(BoxesX% DIV 2)-1)
+        yA2% = BoxSz% * (RND(BoxesY% DIV 2)-1)
+      UNTIL xA2%<>xA1% AND yA2%<>yA1%
+      xB1% = xA1%
+      yB1% = ScrH% - yA1% - BoxSz%
+      xB2% = xA2%
+      yB2% = ScrH% - yA2% - BoxSz%
+      xC1% = ScrW% - xA1% - BoxSz%
+      yC1% = ScrH% - yA1% - BoxSz%
+      xC2% = ScrW% - xA2% - BoxSz%
+      yC2% = ScrH% - yA2% - BoxSz%
+      xD1% = ScrW% - xA1% - BoxSz%
+      yD1% = yA1%
+      xD2% = ScrW% - xA2% - BoxSz%
+      yD2% = yA2%
+      RECTANGLE SWAP 2*xA1%, 2*yA1%, 2*BoxSz%-1, 2*BoxSz%-1 TO 2*xA2%, 2*yA2%
+      RECTANGLE SWAP 2*xB1%, 2*yB1%, 2*BoxSz%-1, 2*BoxSz%-1 TO 2*xB2%, 2*yB2%
+      RECTANGLE SWAP 2*xC1%, 2*yC1%, 2*BoxSz%-1, 2*BoxSz%-1 TO 2*xC2%, 2*yC2%
+      RECTANGLE SWAP 2*xD1%, 2*yD1%, 2*BoxSz%-1, 2*BoxSz%-1 TO 2*xD2%, 2*yD2%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROCDrawGrid( black% )
+      LOCAL X%, Y%, i1%, i2%, rgb1%, rgb2%
+      FOR Y% = 0 TO (BoxesY% DIV 2)-1
+        FOR X% = 0 TO (BoxesX% DIV 2)-1
+          IF NOT black% THEN
+            i1% = RND(15) : REPEAT i2%=RND(15) UNTIL i2%<>i1%
+            rgb1% = FNGetColour(i1%)
+            rgb2% = FNGetColour(i2%)
+          ELSE
+            rgb1% = &000000
+            rgb2% = &000000
+          ENDIF
+          PROCDrawSquare( BoxSz%*X%, BoxSz%*Y%, BoxSz%,                             rgb1%, rgb2% )
+          PROCDrawSquare( BoxSz%*(BoxesX%-X%-1)-1, BoxSz%*Y%, BoxSz%,               rgb1%, rgb2% )
+          PROCDrawSquare( BoxSz%*X%, BoxSz%*(BoxesY%-Y%-1)-1, BoxSz%,               rgb1%, rgb2% )
+          PROCDrawSquare( BoxSz%*(BoxesX%-X%-1)-1, BoxSz%*(BoxesY%-Y%-1)-1, BoxSz%, rgb1%, rgb2% )
+        NEXT X%
+      NEXT Y%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROCDrawSquare( X%, Y%, S%, A%, B% ) : REM X%=xpos, Y%=ypos, S%=size, A%=rgb1, B%=rgb2
+      LOCAL I%, r1&, g1&, b1&, r2&, g2&, b2&, r&, g&, b&, f
+      r1& = A% >> 16
+      g1& = A% >> 8
+      b1& = A%
+      r2& = B% >> 16
+      g2& = B% >> 8
+      b2& = B%
+      GCOL 1
+      FOR I% = S% TO 1 STEP -1
+        f = (I%-1)/(S%-1)
+        r& = r1& + f*(r2& - r1&)
+        g& = g1& + f*(g2& - g1&)
+        b& = b1& + f*(b2& - b1&)
+        COLOR 1, r&, g&, b&
+        RECTANGLE 2*(X%+(BoxSz%-I%)/2), 2*(Y%+(BoxSz%-I%)/2), 2*I%, 2*I%
+      NEXT I%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF FNGetColour(I%)
+      LOCAL C%
+      CASE I% OF
+        WHEN  1 : C% = &FF0000
+        WHEN  2 : C% = &00FF00
+        WHEN  3 : C% = &0000FF
+        WHEN  4 : C% = &FFFF00
+        WHEN  5 : C% = &FF00FF
+        WHEN  6 : C% = &00FFFF
+        WHEN  7 : C% = &FF8000
+        WHEN  8 : C% = &FF0080
+        WHEN  9 : C% = &00FF80
+        WHEN 10 : C% = &80FF00
+        WHEN 11 : C% = &0080FF
+        WHEN 12 : C% = &8000FF
+        WHEN 13 : C% = &FF8080
+        WHEN 14 : C% = &80FF80
+        WHEN 15 : C% = &8080FF
+      ENDCASE
+      = C%
+      :
+      :
+      :
+      :
+      DEF PROCError( s$ )
+      IF NOT BB4W% THEN
+        IF ERR=17 CHAIN @lib$+"../examples/tools/touchide"
+      ENDIF
+      CLS : ON : VDU 7
+      PRINT '" "+s$;
+      REPEAT
+        WAIT 10
+      UNTIL FALSE
+      ENDPROC

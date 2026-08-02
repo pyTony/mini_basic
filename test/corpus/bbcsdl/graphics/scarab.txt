@@ -1,0 +1,22 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM An interesting scarab pattern arising from the properties of sines and cosines
+      REM The pattern is exquisitely sensitive to numeric accuracy and will appear quite
+      REM different if 80-bit floating-point numbers are used instead of 64-bit doubles.
+      
+      VDU 23,22,600;600;8,8,16,0
+      ORIGIN 600,200
+      GCOL 1
+      OFF
+      
+      FOR Z% = 0 TO 200000
+        z# += 3.14
+        x# -= COS(z# * z#)
+        y# -= SIN(z# * z#)
+        C% = Z% AND 255
+        COLOR 1, C%, C%, C%
+        PLOT 2*x#,2*y#
+        PLOT -2*x#,2*y#
+      NEXT
+      
+      REPEAT WAIT 10 : UNTIL FALSE

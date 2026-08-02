@@ -1,0 +1,95 @@
+      REM A very simple text server to demonstrate the use of 'socklib'
+      REM This version supports up to eight concurrent connections.
+      REM v1.0, 14-Nov-2032, Richard Russell http://www.rtrussell.co.uk/
+      
+      MAX_CONNECT = 8
+      BUFLEN = 256
+      
+      VDU 23,22,1024;580;8,20,16,128
+      
+      INSTALL @lib$ + "socklib"
+      PROC_initsockets
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR ON ERROR OFF : PROCcleanup : PRINT REPORT$ : END
+      
+      REM Create an array of structures to hold the 'state' associated with each connection:
+      DIM state{(MAX_CONNECT-1) socket%, xcaret%, ycaret%, viewport$, buffer&(BUFLEN)}
+      
+      REM. Get local IP address:
+      myip% = FN_sethost(FN_gethostname)
+      
+      REM. Create a 'listening socket':
+      listen% = FN_tcplisten(FN_gethostname, "50343")
+      IF listen% <= 0 PRINT "Couldn't open listening socket" : END
+      
+      PRINT "Waiting for client connections (maximum "; MAX_CONNECT ") to ";
+      PRINT ;myip% AND &FF;".";(myip% >> 8) AND &FF;".";(myip% >> 16) AND &FF;".";myip% >>> 24
+      
+      REM Set some pastel background colours:
+      FOR I% = 8 TO 15
+        COLOR I%, 216+24*(I%AND1), 216+12*(I%AND2), 216+6*(I%AND4)
+      NEXT
+      
+      REM Initialise the viewports and background colours for each connection:
+      state{(0)}.viewport$ = CHR$28 + CHR$00 + CHR$14 + CHR$31  + CHR$01 + CHR$17 + CHR$136
+      state{(1)}.viewport$ = CHR$28 + CHR$32 + CHR$14 + CHR$63  + CHR$01 + CHR$17 + CHR$137
+      state{(2)}.viewport$ = CHR$28 + CHR$64 + CHR$14 + CHR$95  + CHR$01 + CHR$17 + CHR$138
+      state{(3)}.viewport$ = CHR$28 + CHR$96 + CHR$14 + CHR$127 + CHR$01 + CHR$17 + CHR$139
+      state{(4)}.viewport$ = CHR$28 + CHR$00 + CHR$28 + CHR$31  + CHR$15 + CHR$17 + CHR$140
+      state{(5)}.viewport$ = CHR$28 + CHR$32 + CHR$28 + CHR$63  + CHR$15 + CHR$17 + CHR$141
+      state{(6)}.viewport$ = CHR$28 + CHR$64 + CHR$28 + CHR$95  + CHR$15 + CHR$17 + CHR$142
+      state{(7)}.viewport$ = CHR$28 + CHR$96 + CHR$28 + CHR$127 + CHR$15 + CHR$17 + CHR$143
+      
+      REM Main polling loop, checking for new connections and incoming data from open connections:
+      REPEAT
+        REM Check for new connection:
+        connect% = FN_check_connectionM(listen%)
+        IF connect% THEN
+          FOR I% = 0 TO MAX_CONNECT-1
+            IF FNconnected(connect%, state{(I%)}) EXIT FOR
+          NEXT
+          IF I% >= MAX_CONNECT PROC_closesocket(connect%)
+        ENDIF
+        
+        REM Check for data received on open connections:
+        active% = FALSE
+        FOR I% = 0 TO MAX_CONNECT-1
+          active% OR= FNreceived(state{(I%)})
+        NEXT
+        
+        IF NOT active% WAIT 1
+      UNTIL FALSE
+      END
+      
+      DEF FNconnected(S%, s{})
+      IF s.socket% THEN = FALSE
+      s.socket% = S%
+      PRINT s.viewport$ CHR$12;
+      PRINT "Connected to " + FN_getpeername(S%)
+      s.xcaret% = POS : s.ycaret% = VPOS
+      = TRUE
+      
+      DEF FNreceived(s{})
+      LOCAL N%, reply$
+      IF s.socket% = 0 THEN = FALSE
+      N% = FN_readsocket(s.socket%, ^s.buffer&(0), BUFLEN)
+      IF N% = 0 THEN = FALSE
+      IF N% > 0 THEN
+        s.buffer&(N%) = 0
+        PRINT s.viewport$ TAB(s.xcaret%, s.ycaret%);
+        PRINT s.buffer&();
+        s.xcaret% = POS : s.ycaret% = VPOS
+        reply$ = "Received." + CHR$&D + CHR$&A
+        N% = FN_writesocket(s.socket%, PTR(reply$), LEN(reply$))
+      ELSE
+        PRINT s.viewport$ TAB(s.xcaret%, s.ycaret%);
+        PRINT "Client closed connection."
+        PROC_closesocket(s.socket%)
+        s.socket% = 0
+      ENDIF
+      = TRUE
+      
+      DEF PROCcleanup
+      PROC_exitsockets
+      ENDPROC

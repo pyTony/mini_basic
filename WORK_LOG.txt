@@ -23,3 +23,28 @@
 2026-07-26 13:00:41 WORK filters: Original not ORIGIN al (glue outside strings); user OK visual
 2026-07-26 13:01:28 USER USER APPROVAL flier.txt (auto-rotate ship; no user input in listing)
 2026-07-26 13:05:11 WORK POLICY: agentic BEGIN/END status script + tick todos (§3b); interrupt §6b
+2026-07-26 13:14:33 WORK BEGIN saucer: match reference disc+dome (nested FOR re-init)
+2026-07-26 13:17:31 WORK test_control_flow: TestForSameLineBody (saucer FOR trailing body re-entry)
+2026-07-26 13:27:18 WORK END control tests: IF/FOR/WHILE multi-stmt suite + README regression list; IF false colon-skip + WHILE same-line
+2026-07-26 13:31:35 WORK FOR normalize: case-sensitive to/to0 ids; unskip nested FOR hypothesis; TestForCaseSensitiveToVar
+2026-07-26 13:47:33 WORK plot UX: dirty-rect present + optional numpy FB; coalesce flush in plot storms
+2026-07-26 18:21:03 WORK POLICY §5b: probe_agent_python + verify_resources orphan scan (regular Grok Python leftovers)
+2026-07-26 18:44:15 USER USER APPROVAL saucer.txt (shape OK; slow draw noted earlier)
+2026-07-26 18:55:43 WORK fix ERR/ERL in compiled IF (piechart ON ERROR NameError)
+2026-07-30 16:09:56 INFO status-html-register-test-marker-7f3a
+2026-08-02 19:25:34 WORK BEGIN welcome.txt: fix INKEY/LET for Phase D corpus
+2026-08-02 19:30:04 WORK END welcome.txt: ENVELOPE no-op + AND/DIV glue; no longer MODE 7 trap
+2026-08-02 22:10:24 WORK test_fps4.bas sensible spoked wheel; Phase D polly/poem deferred explicit
+2026-08-02 22:20:00 USER APPROVAL welcome.txt (general) graphics match SDL+Archimedes
+2026-08-02 23:10:00 WORK test_fps4 OK (user); status idle after welcome approval
+2026-08-02 23:10:03 WORK BEGIN piechart re-probe corpus FAIL
+2026-08-02 23:14:41 WORK BEGIN corpus re-probe: piechart + timeout FAIL list
+2026-08-02 23:26:56 WORK BEGIN corpus re-probe: piechart+saucer+squares+flier after piechart text fix
+2026-08-02 23:27:38 WORK END corpus re-probe: piechart/saucer/squares/flier all OK; CORPUS_AUDIT OK22 FAIL2 polly+poem DEFER
+2026-08-02 23:31:40 WORK BEGIN squares.bbc: fix assert font None on VDU 23,22 custom size
+2026-08-02 23:33:02 WORK END squares.bbc: VDU 23,22 char size + text grid; no more font assert on present
+2026-08-02 23:50:00 WORK BEGIN squares.bbc speed: approach SDL <5s
+2026-08-02 23:58:29 WORK END squares.bbc speed: bitwise compile + nested FOR kernel; ~1s full 512 (SDL-class)
+2026-08-03 00:01:37 USER USER APPROVAL squares.txt (graphics) — look OK + speed OK after nested-FOR/kernel
+2026-08-03 00:06:28 WORK BEGIN 1.00 language features document
+2026-08-03 00:07:28 WORK END docs/LANGUAGE_FEATURES_1.00.md: clean 1.00 language features + ship qualification

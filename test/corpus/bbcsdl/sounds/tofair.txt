@@ -1,0 +1,116 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      tune% = OPENIN(@dir$+"tofair.tun")
+      
+      REM Set tempo to 4 and enable 4-voice mode:
+      *TEMPO 130
+      
+      DIM snd{(3,50)a&,p&,d&}, p%(3), q%(3), vol%(3)
+      DIM cmajor&(7), scale%(7), acc%(7), flat&(7), sharp&(7)
+      
+      cmajor&() = 88,96,52,60,68,72,80
+      flat&() = 0, &02, &12, &13, &1B, &5B, &5F, &7F
+      sharp&() = 0, &A0, &A4, &E4, &EC, &ED, &FD, &FF
+      vol%() = 1, 1, 2, 2
+      tempo% = 24 : dur% = 24
+      
+      ENVELOPE 1, 1, 0, 0, 0, 0, 0, 0, 32, 0, 0, -32, 112, 112
+      
+      REPEAT
+        INPUT #tune%,T$
+        IF ASCT$ = 10 T$ = MID$(T$,2)
+        
+        acc%() = scale%()
+        clef% = 48 : voice% = 1
+        p%() = 0 : q%() = 0
+        WHILE T$<>""
+          I% = 1 : WHILE INSTR("0123456789",MID$(T$,I%,1)) I% += 1 : ENDWHILE
+          IF I% > 1 dur% = VALLEFT$(T$,I%-1) : T$ = MID$(T$,I%)
+          C$ = LEFT$(T$,1) : T$=MID$(T$,2)
+          CASE C$ OF
+            WHEN " ","":
+            WHEN "[": PRINT T$ : T$ = ""
+            WHEN ";","P","R": T$ = "" : EXIT WHILE
+            WHEN "=": tempo% = VAL(T$) : WHILE ASC(T$)>=&30 AND ASC(T$)<=&39 T$ = MID$(T$,2) : ENDWHILE
+            WHEN "T": acc%() = scale%() : clef% = 48
+            WHEN "S": acc%() = scale%() : clef% = 0
+            WHEN "V": acc%() = scale%() : voice% = ASC(T$) - &30 : T$=MID$(T$,2)
+              voice% AND= 3 : REM Delete for 3-voices
+            WHEN "W": wave% = VAL(T$) : T$ = MID$(T$,2)
+              WHILE ADVAL(-5-voice%)<12 WAIT 0:ENDWHILE
+              OSCLI "voice " + STR$voice% + "," + STR$(wave%)
+            WHEN "K": key% = ASC(T$) - &30 : T$=MID$(T$,2)
+              scale%() = 0
+              IF key% THEN
+                key$ = LEFT$(T$,1) : T$=MID$(T$,2)
+                CASE key$ OF
+                  WHEN "#": key& = sharp&(key%)
+                  WHEN "b","&": key& = flat&(key%)
+                ENDCASE
+                FOR I% = 0 TO 6
+                  IF key& AND (2^I%) scale%(I%) = -4 : IF key& AND &80 scale%(I%) = +4
+                NEXT
+              ENDIF
+              acc%() = scale%()
+            OTHERWISE
+              Note% = INSTR("ABCDEFG$",C$)-1
+              IF Note% < 0 ERROR 100, "Unrecognised command "+C$
+              octave% = 0
+              staccato% = FALSE
+              REPEAT
+                ok% = FALSE
+                CASE LEFT$(T$,1) OF
+                  WHEN "#": acc%(Note%) = 4 : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "%": acc%(Note%) = 0 : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "&","b": acc%(Note%) =-4 : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "+": octave% += 48   : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "-": octave% -= 48   : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN ",": T$=MID$(T$,2) : staccato% = TRUE : ok% = TRUE
+                ENDCASE
+              UNTIL NOT ok%
+              lngth% = dur% * 2/3
+              IF LEFT$(T$,1)="." lngth% = dur% * 2/3 * 3/2 : T$=MID$(T$,2)
+              IF LEFT$(T$,1)=":" lngth% = dur% * 2/3 * 2/3 : T$=MID$(T$,2)
+              pitch% = cmajor&(Note%) + acc%(Note%) + clef% + octave%
+              IF pitch% < 0 pitch% += 48
+              IF Note% = 7 pitch% = 0
+              IF pitch% < 0 OR pitch% > 255 ERROR 100, "Pitch out of range: "+STR$pitch%
+              IF lngth% < 0 OR lngth% > 254 ERROR 100, "Duration out of range: "+STR$lngth%
+              IF voice% < 4 THEN
+                IF staccato% THEN lngth% -= 1
+                snd{(voice%,p%(voice%))}.a& = vol%(voice%)
+                snd{(voice%,p%(voice%))}.p& = pitch%
+                snd{(voice%,p%(voice%))}.d& = lngth%
+                p%(voice%) += 1
+                IF staccato% THEN
+                  snd{(voice%,p%(voice%))}.a& = vol%(voice%)
+                  snd{(voice%,p%(voice%))}.p& = 0
+                  snd{(voice%,p%(voice%))}.d& = 1
+                  p%(voice%) += 1
+                ENDIF
+              ENDIF
+          ENDCASE
+        ENDWHILE
+        
+        SOUND &300,0,0,0 : SOUND &301,0,0,0 : SOUND &302,0,0,0 : SOUND &303,0,0,0
+        
+        REPEAT
+          stall% = TRUE
+          FOR v% = 0 TO 3
+            IF q%(v%) < p%(v%) IF ADVAL(-5-v%) THEN
+              stall% = FALSE
+              IF snd{(v%,q%(v%))}.p& = 0 THEN
+                SOUND v%+&1000,1,0,snd{(v%,q%(v%))}.d&
+              ELSE
+                SOUND v%,1,snd{(v%,q%(v%))}.p&,snd{(v%,q%(v%))}.d&
+              ENDIF
+              q%(v%) += 1
+            ENDIF
+          NEXT v%
+          IF stall% WAIT 1
+        UNTIL p%(0)=q%(0) AND p%(1)=q%(1) AND p%(2)=q%(2) AND p%(3)=q%(3)
+        
+      UNTIL EOF#tune%
+      CLOSE #tune%
+      REPEAT WAIT 1 : UNTIL FALSE
+      END

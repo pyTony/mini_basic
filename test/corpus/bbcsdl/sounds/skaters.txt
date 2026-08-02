@@ -1,0 +1,288 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM LES PATINEURS (The Skaters' Waltz) by Emile Waldteufel
+      REM Transcribed for Z80 Music by R.J.Stickley, August 1985
+      REM Animated BBCSDL version by Richard Russell 25-Jul-2019
+      
+      HIMEM = PAGE + 3000000
+      SYS "SDL_SetWindowTitle", @hwnd%, "Les Patineurs (The Skaters' Waltz) by Emile Waldteufel", @memhdc%
+      VDU 26,20,12 : OFF : PRINT "Please wait..." : *REFRESH
+      
+      REM Generate vertically-flipped object for reflections:
+      F% = OPENIN(@dir$+"skater.fvf")
+      IF F% = 0 ERROR 100, "Can't load skater.fvf"
+      fvf$ = GET$#F% BY EXT#F% : CLOSE #F%
+      p%% = PTR(fvf$) : S% = p%%!6 AND &FFFF : F% = &80000000
+      FOR i%% = p%% + 16 TO p%% + LEN(fvf$) STEP S% : !i%% EOR= F% : NEXT
+      F% = OPENOUT(@tmp$+"skater_flipped.fvf")
+      BPUT#F%,fvf$; : CLOSE #F% : CLEAR
+      
+      REM Constants:
+      SPEED = 4
+      TURNSPD = 0.05
+      GL_BLEND = &0BE2
+      GL_SRC_ALPHA = &0302
+      GL_ONE_MINUS_SRC_ALPHA = &0303
+      GL_TEXTURE_ENV = &2300
+      GL_TEXTURE_ENV_MODE = &2200
+      GL_COMBINE = &8570
+      GL_COMBINE_ALPHA = &8572
+      GL_ADD = &0104
+      GL_MODULATE = &2100
+      
+      INSTALL @lib$+"ogllib"
+      DIM L%(2), B%(4), N%(4), F%(4), S%(4), M%(4), T%(4), P(4), T(4), R(4), X(4), Y(4), Z(4)
+      
+      DIM Light{(2) Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \      Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \      Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \      Theta%, Phi%}
+      
+      DIM Material{(1) Diffuse{r%,g%,b%,a%}, Ambient{r%,g%,b%,a%}, \
+      \     Specular{r%,g%,b%,a%}, Emissive{r%,g%,b%,a%}, Power%}
+      
+      PROCinitrender
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : PROCinitrender : RETURN
+      
+      tune% = OPENIN(@dir$+"skaters.tun")
+      
+      REM Set tempo to 4 and enable 4-voice mode (BB4W v5.94a or later):
+      *TEMPO 132
+      
+      DIM snd{(3,50)a&,p&,d&}, p%(3), q%(3), vol%(3)
+      DIM cmajor&(7), scale%(7), acc%(7), flat&(7), sharp&(7)
+      
+      cmajor&() = 88,96,52,60,68,72,80
+      flat&() = 0, &02, &12, &13, &1B, &5B, &5F, &7F
+      sharp&() = 0, &A0, &A4, &E4, &EC, &ED, &FD, &FF
+      vol%() = 1, 1, 2, 2
+      tempo% = 4 : dur% = 24
+      
+      ENVELOPE 1,1,0,0,0,0,0,0,72,0,0,-72,119,0
+      ENVELOPE 2,1,0,0,0,0,0,0,72,0,0,-72,95,0
+      
+      REPEAT
+        INPUT #tune%,T$
+        IF ASCT$ = 10 T$ = MID$(T$,2)
+        
+        acc%() = scale%()
+        clef% = 48 : voice% = 1
+        p%() = 0 : q%() = 0
+        WHILE T$<>""
+          I% = 1 : WHILE INSTR("0123456789",MID$(T$,I%,1)) I% += 1 : ENDWHILE
+          IF I% > 1 dur% = VALLEFT$(T$,I%-1) : T$ = MID$(T$,I%)
+          C$ = LEFT$(T$,1) : T$=MID$(T$,2)
+          CASE C$ OF
+            WHEN " ":
+            WHEN ";": T$ = ""
+            WHEN "=": tempo% = ASC(T$) - &30 : T$=MID$(T$,2)
+            WHEN "T": acc%() = scale%() : clef% = 48
+            WHEN "S": acc%() = scale%() : clef% = 0
+            WHEN "V": acc%() = scale%() : voice% = ASC(T$) - &30 : T$=MID$(T$,2)
+              voice% AND= 3 : REM Delete for 3-voices
+            WHEN "K": key% = ASC(T$) - &30 : T$=MID$(T$,2)
+              scale%() = 0
+              IF key% THEN
+                key$ = LEFT$(T$,1) : T$=MID$(T$,2)
+                CASE key$ OF
+                  WHEN "#": key& = sharp&(key%)
+                  WHEN "b","&": key& = flat&(key%)
+                ENDCASE
+                FOR I% = 0 TO 6
+                  IF key& AND (2^I%) scale%(I%) = -4 : IF key& AND &80 scale%(I%) = +4
+                NEXT
+              ENDIF
+              acc%() = scale%()
+            OTHERWISE
+              Note% = INSTR("ABCDEFG$",C$)-1
+              IF Note% < 0 ERROR 100, "Unrecognised command "+C$
+              octave% = 0
+              REPEAT
+                ok% = FALSE
+                CASE LEFT$(T$,1) OF
+                  WHEN "#": acc%(Note%) = 4 : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "%": acc%(Note%) = 0 : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "&","b": acc%(Note%) =-4 : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "+": octave% += 48   : T$=MID$(T$,2) : ok% = TRUE
+                  WHEN "-": octave% -= 48   : T$=MID$(T$,2) : ok% = TRUE
+                ENDCASE
+              UNTIL NOT ok%
+              lgth% = dur% * tempo% / 15
+              IF LEFT$(T$,1)="." lgth% = dur% * tempo% / 15 * 3/2 : T$=MID$(T$,2)
+              IF LEFT$(T$,1)=":" lgth% = dur% * tempo% / 15 * 2/3 : T$=MID$(T$,2)
+              pitch% = cmajor&(Note%) + acc%(Note%) + clef% + octave%
+              IF Note% = 7 pitch% = 0
+              IF pitch% < 0 OR pitch% > 255 ERROR 100, "Pitch out of range: "+STR$pitch%
+              IF lgth% < 0 OR lgth% > 254 ERROR 100, "Duration out of range: "+STR$lgth%
+              IF voice% < 4 THEN
+                snd{(voice%,p%(voice%))}.a& = vol%(voice%)
+                snd{(voice%,p%(voice%))}.p& = pitch%
+                snd{(voice%,p%(voice%))}.d& = lgth%
+                p%(voice%) += 1
+              ENDIF
+          ENDCASE
+        ENDWHILE
+        
+        WHILE ADVAL(-5)=0 OR ADVAL(-6)=0 OR ADVAL(-7)=0 OR ADVAL(-8)=0
+          PROCanimate
+        ENDWHILE
+        IF p%(0)<>q%(0) OR p%(1)<>q%(1) OR p%(2)<>q%(2) OR p%(3)<>q%(3) THEN
+          SOUND &300,0,0,0 : SOUND &301,0,0,0 : SOUND &302,0,0,0 : SOUND &303,0,0,0
+          REPEAT
+            stall% = TRUE
+            FOR v% = 0 TO 3
+              IF q%(v%) < p%(v%) IF ADVAL(-5-v%) THEN
+                stall% = FALSE
+                IF snd{(v%,q%(v%))}.p& = 0 THEN
+                  SOUND v%+&1000,0,0,snd{(v%,q%(v%))}.d&
+                ELSE
+                  SOUND v%,snd{(v%,q%(v%))}.a&,snd{(v%,q%(v%))}.p&,snd{(v%,q%(v%))}.d&
+                ENDIF
+                q%(v%) += 1
+              ENDIF
+            NEXT v%
+            IF stall% PROCanimate
+          UNTIL p%(0)=q%(0) AND p%(1)=q%(1) AND p%(2)=q%(2) AND p%(3)=q%(3)
+        ENDIF
+      UNTIL EOF#tune%
+      
+      CLOSE #tune%
+      REPEAT PROCanimate : UNTIL FALSE
+      END
+      
+      DEF PROCanimate
+      PRIVATE L%, M%
+      
+      IF P(3) = 0 P(3) = RND(1) : X(3) = -RND(200)
+      IF P(4) = 0 P(4) = -RND(1) : Z(4) = RND(400)
+      LOCAL B%, I%, X%, Y%, e(), a(), a, d, dx, dy
+      DIM e(2), a(2)
+      MOUSE X%, Y%, B%
+      
+      dx = X(3) - X(4) : dy = Z(3) - Z(4)
+      a = FNatan2(dx, dy)
+      d = SQR(dx^2 + dy^2)
+      
+      FOR I% = 3 TO 4
+        dx = SINP(I%) : X(I%) -= SPEED * dx
+        dy = COSP(I%) : Z(I%) -= SPEED * dy
+        
+        CASE TRUE OF
+          WHEN X(I%) > +200: P(I%) = FNatan2(dx + TURNSPD / (ABS(dy)+0.1), dy)
+          WHEN X(I%) < -200: P(I%) = FNatan2(dx - TURNSPD / (ABS(dy)+0.1), dy)
+          WHEN Z(I%) > +400: P(I%) = FNatan2(dx, dy + TURNSPD / (ABS(dx)+0.1))
+          WHEN Z(I%) < -400: P(I%) = FNatan2(dx, dy - TURNSPD / (ABS(dx)+0.1))
+          OTHERWISE:
+            IF ABS(P(I%) - a) < 2/3 * PI P(I%) += 10 * SGN(P(I%) - a) / d
+            IF ABS(P(I%) - a) > 4/3 * PI P(I%) -= 10 * SGN(P(I%) - a) / d
+        ENDCASE
+        IF a > 0 a -= PI ELSE a += PI
+      NEXT
+      
+      a() = 0, 30, 0
+      e() = 0, 100, 800
+      X(0) = X(3) : Z(0) = Z(3) : P(0) = P(3)
+      X(1) = X(4) : Z(1) = Z(4) : P(1) = P(4)
+      T() = PI/2
+      PROC_render(D3D%, &FFBFCFFF, 3, L%(), 5, M%(), T%(), B%(), N%(), F%(), S%(), \
+      \ P(), T(), R(), X(), Y(), Z(), e(), a(), PI/4, @vdu%!208/@vdu%!212, 100, 2000, 0)
+      
+      IF B%=0 L%=0 : M%=0 ELSE L%+=X%-L% AND X%>L% : M%+=Y%-M% AND Y%>M% : IF L%-X%>700 IF M%-Y%>700 M%()=M%(2)
+      ENDPROC
+      
+      DEF PROCinitrender
+      
+      IF POS REM SDL thread sync
+      VDU 26
+      
+      D3D% = FN_initgl(@hwnd%, 0, 1)
+      IF D3D% = 0 ERROR 100, "Can't initialise 3D library"
+      
+      REM. Enable alpha-blending and change alpha combine mode to ADD:
+      SYS FN_gpa("glEnable"), GL_BLEND, @memhdc%
+      SYS FN_gpa("glBlendFunc"), GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, @memhdc%
+      IF (@platform% AND &F) <> 5 THEN
+        SYS "glTexEnvi", GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE, @memhdc%
+        SYS "glTexEnvi", GL_TEXTURE_ENV, GL_COMBINE_ALPHA, GL_ADD, @memhdc%
+      ENDIF
+      
+      REM. Load vertically flipped skaters (draw first):
+      B%(0) = FN_load3d(D3D%, @tmp$+"skater_flipped.fvf", N%(0), F%(0), S%(0))
+      IF B%(0) = 0 ERROR 100, "Can't load skater_flipped.fvf"
+      B%(1) = B%(0) : N%(1) = N%(0) : F%(1) = F%(0) : S%(1) = S%(0)
+      
+      REM. Load ice rink (draw after reflections but before skaters):
+      B%(2) = FN_load3d(D3D%, @dir$+"icerink.fvf", N%(2), F%(2), S%(2))
+      IF B%(2) = 0 ERROR 100, "Can't load icerink.fvf"
+      
+      REM. Load skaters (draw last):
+      B%(3) = FN_load3d(D3D%, @dir$+"skater.fvf", N%(3), F%(3), S%(3))
+      IF B%(3) = 0 ERROR 100, "Can't load skater.fvf"
+      B%(4) = B%(3) : N%(4) = N%(3) : F%(4) = F%(3) : S%(4) = S%(3)
+      
+      REM. Load skater texture:
+      T%(0) = FN_loadtexture(D3D%, @dir$+"skater.png")
+      IF T%(0) = 0 ERROR 100, "Can't load skater.png"
+      T%(1) = T%(0) : T%(3) = T%(0) : T%(4) = T%(0)
+      
+      REM. Load ice rink texture:
+      T%(2) = FN_loadtexture(D3D%, @dir$+"icerink.png")
+      IF T%(2) = 0 ERROR 100, "Can't load icerink.png"
+      
+      REM. Materials:
+      Material{(0)}.Diffuse.r% = FN_f4(1)
+      Material{(0)}.Diffuse.g% = FN_f4(1)
+      Material{(0)}.Diffuse.b% = FN_f4(1)
+      Material{(0)}.Diffuse.a% = FN_f4(1)
+      M%(0) = Material{(0)} - PAGE + !340
+      M%(1) = M%(0) : M%(3) = M%(0) : M%(4) = M%(0)
+      
+      Material{(1)}.Diffuse.r% = FN_f4(1)
+      Material{(1)}.Diffuse.g% = FN_f4(1)
+      Material{(1)}.Diffuse.b% = FN_f4(1)
+      Material{(1)}.Diffuse.a% = FN_f4(0)
+      M%(2) = Material{(1)} - PAGE + !340
+      
+      REM. Point-source lights:
+      Light{(0)}.Type%=1 : REM. point source
+      Light{(0)}.Diffuse.r% =FN_f4(0.6)
+      Light{(0)}.Diffuse.g% =FN_f4(0.6)
+      Light{(0)}.Diffuse.b% =FN_f4(0.6)
+      Light{(0)}.Position.x%=FN_f4(-400)
+      Light{(0)}.Position.y%=FN_f4(500)
+      Light{(0)}.Position.z%=FN_f4(200)
+      Light{(0)}.Range% =FN_f4(1000)
+      Light{(0)}.Attenuation0%=FN_f4(1)
+      L%(0) = Light{(0)} - PAGE + !340
+      
+      Light{(1)} = Light{(0)}
+      Light{(1)}.Position.x%=FN_f4(+400)
+      L%(1) = Light{(1)} - PAGE + !340
+      
+      Light{(2)} = Light{(0)}
+      Light{(2)}.Position.x%=FN_f4(0)
+      Light{(2)}.Position.y%=FN_f4(0)
+      Light{(2)}.Position.z%=FN_f4(800)
+      L%(2) = Light{(2)} - PAGE + !340
+      
+      ENDPROC
+      
+      DEF PROCcleanup
+      T%(0) += 0 : IF T%(0) PROC_release(T%(0)) : T%(0) = 0
+      T%(2) += 0 : IF T%(2) PROC_release(T%(2)) : T%(2) = 0
+      B%(0) += 0 : IF B%(0) PROC_release(B%(0)) : B%(0) = 0
+      B%(2) += 0 : IF B%(2) PROC_release(B%(2)) : B%(2) = 0
+      B%(3) += 0 : IF B%(3) PROC_release(B%(3)) : B%(3) = 0
+      IF (@platform% AND &F) <> 5 THEN
+        SYS "glTexEnvi", GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_COMBINE, @memhdc%
+        SYS "glTexEnvi", GL_TEXTURE_ENV, GL_COMBINE_ALPHA, GL_MODULATE, @memhdc%
+      ENDIF
+      D3D% += 0  : IF D3D%  PROC_release(D3D%)  : D3D% = 0
+      *REFRESH ON
+      ENDPROC
+      
+      DEF FNatan2(y,x) : ON ERROR LOCAL = SGN(y)*PI/2
+      IF x>0 THEN = ATN(y/x) ELSE IF y>0 THEN = ATN(y/x)+PI ELSE = ATN(y/x)-PI

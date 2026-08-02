@@ -1,0 +1,322 @@
+      REM. Utility to search for a string in .BBC and .BAS program files
+      REM. (C) Richard Russell, http://www.rtrussell.co.uk/, 09-Oct-2010
+      REM. 'BBC BASIC for SDL 2.0' version, Richard Russell, 07-Sep-2023
+      
+      Version$ = "v1.6"
+      UtilityName$ = "Search BASIC programs"
+      
+      REM!WC Constants
+      MB_ICONWARNING = &30
+      WS_VSCROLL = &200000
+      
+      GUIscale = 2.0
+      I% = INSTR(@cmd$, "-scale") : IF I% GUIscale = VALMID$(@cmd$, I% + 6)
+      
+      HIMEM = PAGE + 20000000
+      *FLOAT 64
+      *ESC OFF
+      Resize% = FALSE
+      VDU 23,22,400*GUIscale;300*GUIscale;8,16,16,128
+      
+      PROCsettitle(UtilityName$ + " " + Version$)
+      IF INKEY$(-256) = "W" THEN
+        *FONT Arial,11
+        SYS "ShowWindow", @hwnd%, 1
+        SYS "BringWindowToTop", @hwnd%
+      ELSE
+        OSCLI "FONT """ + @lib$ + "DejaVuSans""," + STR$INT(11 * GUIscale / 2)
+        SYS "SDL_ShowWindow", @hwnd%, @memhdc%
+        SYS "SDL_RaiseWindow", @hwnd%, @memhdc%
+      ENDIF
+      
+      ON ERROR ON ERROR OFF : PROCcleanup : ERROR 0, REPORT$ + " at line " + STR$ERL
+      ON MOVE Resize% OR= (@msg% == 5) : RETURN
+      ON CLOSE PROCcleanup : QUIT
+      
+      INSTALL @lib$+"dlglib"
+      INSTALL @lib$+"filedlg"
+      INSTALL @lib$+"stringlib"
+      INSTALL @lib$+"sortlib"
+      
+      VDU 23,0,10,0,0;0;0; : REM Set start line
+      VDU 23,0,11,@vdu%!220,0;0;0; : REM Set end line
+      VDU 23,0,18,2,0;0;0; : REM Set cursor width
+      OFF
+      
+      REM. Find address of string accumulator:
+      IF INKEY(-256)<>&57 IF @platform% AND &40 Accs%% = ]332 ELSE Accs%% = !332
+      
+      DIM Array$(1000), Col%(9)
+      PROC_setdialogpalette
+      PROCcreateform
+      
+      REM PROCrefresh
+      DIM Click%(2)
+      ON MOUSE Click%() = @msg%,@wparam%,@lparam% : RETURN
+      IF FN_polldialog(MainForm%, 9, Click%())
+      
+      inifile$ = @usr$ + ".searchin.dat"
+      F% = OPENIN(inifile$)
+      IF F% THEN
+        INPUT #F%,search$, folder$, sub%, whole%, case%
+        CLOSE #F%
+      ELSE
+        search$ = ""
+        folder$ = @dir$
+        sub% = TRUE
+        whole% = FALSE
+        case% = FALSE
+      ENDIF
+      
+      Dialog% = FN_newdialog("Find .BBC and .BAS files",274,80)
+      PROC_static(Dialog%,"Containing:",103,4,10,38,17,0)
+      PROC_textbox(Dialog%,search$,104,42,7,167,13,128)
+      PROC_static(Dialog%,"Look in:",105,4,31,38,17,0)
+      IDBROWSE = FN_setproc(PROCbrowse())
+      PROC_button(Dialog%,"Browse...",IDBROWSE,158,28,50,14,0)
+      PROC_textbox(Dialog%,folder$,107,42,28,108,13,128)
+      PROC_checkbox(Dialog%,"Include subfolders",108,42,50,80,16,0)
+      PROC_checkbox(Dialog%,"Match whole word only",110,122,50,90,16,0)
+      PROC_checkbox(Dialog%,"Match case",111,217,50,50,16,0)
+      PROC_static(Dialog%,"",109,4,65,256,8,0)
+      PROC_button(Dialog%,"Find Now",1,216,6,50,14,1)
+      PROC_button(Dialog%,"Close",2,216,28,50,14,0)
+      PROC_checkdlgitem(Dialog%, 108, sub%)
+      PROC_checkdlgitem(Dialog%, 110, whole%)
+      PROC_checkdlgitem(Dialog%, 111, case%)
+      
+      found% = 0
+      X% = &80000000 : Y% = &80000000
+      REPEAT
+        result% = FN_showdialog(Dialog%, X%, Y%)
+        PROC_getdlgrect(Dialog%, X%, Y%, W%, H%)
+        CASE result% OF
+          WHEN 1:
+            search$ = FN_getdlgitemtext(Dialog%, 104)
+            folder$ = FN_getdlgitemtext(Dialog%, 107)
+            sub%    = FN_isdlgitemchecked(Dialog%, 108)
+            whole%  = FN_isdlgitemchecked(Dialog%, 110)
+            case%   = FN_isdlgitemchecked(Dialog%, 111)
+            PROC_closedialog(Dialog%)
+            
+            Array$() = ""
+            PROC_setlistboxcols(MainForm%, 101, Col%(), 4)
+            PROC_setlistboxarray(MainForm%, 101, Array$(), 0)
+            PROC_refreshdialog(MainForm%)
+            
+            F% = OPENOUT(inifile$)
+            PRINT #F%, search$, folder$, sub%, whole%, case%
+            CLOSE #F%
+            
+            found% = 0
+            IF search$ <> "" THEN
+              *REFRESH OFF
+              IF case% = 0 search$ = FN_lower(search$)
+              found% = FNfsearch(folder$, "*.bas", search$, sub%, 0, whole%, case%)
+              IF case% = 0 THEN *lowercase on
+              IF EVAL("1RECTANGLERECTANGLE:" + search$) search$ = $(Accs%%+4)
+              *lowercase off
+              found% = FNfsearch(folder$, "*.bbc", search$, sub%, found%, whole%, case%)
+              *REFRESH ON
+            ENDIF
+            
+            PROCsettitle(UtilityName$ + " " + Version$)
+            PROC_setdlgitemtext(Dialog%, 109, "Found "+STR$found%+" file(s)." + \
+            \ "  Double-click on filename to open in BBC BASIC editor.")
+            
+          WHEN 2:
+            PROC_refreshdialog(MainForm%)
+            REPEAT
+              IF Resize% THEN
+                Resize% = FALSE
+                PROCresize
+                PROC_setlistboxcols(MainForm%, 101, Col%(), 4)
+                PROC_setlistboxarray(MainForm%, 101, Array$(), found%)
+                PROC_refreshdialog(MainForm%)
+              ENDIF
+              result% = FN_polldialog(MainForm%, INKEY(5), Click%())
+              IF result% = 1 THEN
+                text$ = Array$(FN_getlistboxselect(MainForm%, 101))
+                T% = INSTR(text$, CHR$9) : U% = INSTR(text$, CHR$9, T%+1)
+                ON ERROR LOCAL IF FALSE THEN
+                  IF INKEY$(-256) = "W" THEN
+                    OSCLI "RUN " + @lib$ + "../bbcwin6 """ + \
+                    \          MID$(text$, T%+1, U%-T%-1) + LEFT$(text$, T%-1) + """;"
+                  ELSE
+                    command$ = @lib$ + "../bbcsdl """ + @lib$ + "../examples/tools/SDLIDE.bbc"" """ + \
+                    \          MID$(text$, T%+1, U%-T%-1) + LEFT$(text$, T%-1) + """"
+                    CASE @platform% AND &F OF
+                      WHEN 0  SYS "WinExec", command$, 1
+                      WHEN 1: OSCLI "run " + command$ + ";"
+                      WHEN 2: OSCLI "run " + command$ + ";"
+                    ENDCASE
+                  ENDIF
+                ENDIF : RESTORE ERROR
+              ENDIF
+            UNTIL FALSE
+        ENDCASE
+        
+      UNTIL FALSE
+      END
+      
+      DEF PROCbrowse(D%,I%)
+      LOCAL folder$
+      folder$ = FN_getdlgitemtext(Dialog%, 107)
+      folder$ = FN_filedlg("Browse For Folder", "OK", folder$, "", ".", 0)
+      PROC_setdlgitemtext(Dialog%, 107, folder$)
+      PROC_refreshdialog(Dialog%)
+      ENDPROC
+      
+      DEF PROCcleanup
+      Dialog% += 0 : IF Dialog% PROC_closedialog(Dialog%)
+      ENDPROC
+      
+      DEF FNfsearch(path$,type$,search$,sub%,index%,whole%,case%)
+      PROCsettitle(UtilityName$ + " " + Version$ + " searching  "+path$)
+      LOCAL @%, F%, I%, num%, tmp%, fnd$, text$, name$()
+      DIM name$(1000)
+      @% = &1010
+      IF RIGHT$(path$)<>"/" IF RIGHT$(path$)<>"\" path$ += RIGHT$(@lib$)
+      num% = FN_dirscan(name$(), "dir """ + path$ + type$ + """", "", ":", "")
+      IF num% THEN
+        FOR I% = 1 TO num%
+          IF LEFT$(name$(I%),1) <> ":" THEN
+            F% = OPENIN(path$ + name$(I%))
+            IF F% THEN
+              text$ = GET$#F% BY EXT#F%
+              CLOSE #F%
+              fnd$ = FNinstr(type$,text$,search$,whole%,case%)
+              IF fnd$ <> "" THEN
+                index% += 1
+                PROCaddtolist(index%, name$(I%))
+                PROCaddtolist(index%, path$)
+                PROCaddtolist(index%, FNrj(STR$LENtext$, WIDTH("999999")))
+                IF RIGHT$(type$,4) = ".bbc" AND ASCfnd$ = LENfnd$ + 1 THEN
+                  tmp% = OPENOUT(@tmp$+"sutmp.bbc")
+                  PRINT #tmp%, fnd$
+                  CLOSE #tmp%
+                  VDU 21
+                  OSCLI "SPOOL """+@tmp$+"sutmp.bas"""
+                  OSCLI "LIST """+@tmp$+"sutmp.bbc"""
+                  *SPOOL
+                  VDU 6
+                  tmp% = OPENIN(@tmp$+"sutmp.bas")
+                  INPUT #tmp%,fnd$
+                  CLOSE #tmp%
+                ELSE
+                  fnd$ = MID$(fnd$,2)
+                ENDIF
+                PROCaddtolist(index%, FN_trim(FNclean(fnd$)))
+                PROC_setlistboxarray(MainForm%, 101, Array$(), index%)
+                PROC_setlistboxselect(MainForm%, 101, index%)
+                PROC_refreshdialog(MainForm%)
+                IF index% >= DIM(Array$(),1) EXIT FOR
+              ENDIF
+            ENDIF
+          ENDIF
+        NEXT I%
+      ENDIF
+      text$ = "" : name$() = "" : REM Free memory before recursing to reduce peak usage
+      IF sub% THEN
+        num% = FN_dirscan(name$(), "dir """ + path$ + "*.*""", ".", "", "")
+        IF num% THEN
+          FOR I% = 1 TO num%
+            IF LEFT$(name$(I%),1) <> "." IF LEFT$(name$(I%),1) <> "@" THEN
+              index% = FNfsearch(path$+name$(I%),type$,search$,sub%,index%,whole%,case%)
+            ENDIF
+          NEXT I%
+        ENDIF
+      ENDIF
+      = index%
+      
+      DEF PROCaddtolist(I%, field$)
+      PRIVATE P%, T%, rec$
+      IF I% <> P% THEN
+        P% = I%
+        rec$ = ""
+        T% = 0
+      ELSE
+        T% += 1
+        IF T% < 4 rec$ += CHR$9
+      ENDIF
+      rec$ += field$
+      Array$(I%) = rec$
+      ENDPROC
+      
+      DEF FNinstr(type$,text$, search$, whole%, case%)
+      IF search$="" THEN = ""
+      LOCAL B%, C%, D%, F%, a$, b$, copy$, M$
+      B% = LEN(search$) : C% = LEN(text$)
+      IF C% < B% THEN = ""
+      copy$ = text$
+      IF case% = 0 text$ = FN_lower(text$)
+      D% = 1
+      REPEAT
+        F% = INSTR(text$, search$, D%)
+        IF F% = 0 OR whole% = 0 THEN EXIT REPEAT
+        IF F% > 1      a$ = MID$(text$, F%-1, 1)  ELSE a$ = ""
+        IF F%+B% <= C% b$ = MID$(text$, F%+B%, 1) ELSE b$ = ""
+        D% = F% + 1
+        IF (a$ >= "A" AND a$ <= "Z") OR (a$ >= "a" AND a$ <= "z") F% = 0
+        IF (b$ >= "A" AND b$ <= "Z") OR (b$ >= "a" AND b$ <= "z") F% = 0
+      UNTIL F% <> 0
+      IF F% THEN
+        CASE RIGHT$(type$,3) OF
+          WHEN "bbc":
+            B% = INSTR(copy$,CHR$&D,F%)
+            WHILE F% > 1 AND (ASCMID$(copy$,F%,1) <> &D OR ASCMID$(copy$,F%+1,1) <> B%-F%)
+              F% -= 1
+            ENDWHILE
+          WHEN "bas":
+            WHILE F% > 1 AND ASCMID$(copy$,F%,1) <> &D : F% -= 1 : ENDWHILE
+        ENDCASE
+        IF F% > 1 F% += 1
+        M$ = MID$(copy$, F%, INSTR(copy$, CHR$&D, F%+1) - F%)
+      ENDIF
+      = M$
+      
+      DEF FNrj(a$, W%)
+      LOCAL T%
+      T% = W% - WIDTH(a$)
+      IF T% <= 0 THEN = a$
+      = CHR$25 + CHR$0 + CHR$(T%MOD256) + CHR$(T%DIV256) + CHR$0 + CHR$0 + a$
+      
+      DEF PROCcreateform
+      VDU 5,26,12
+      IF POS : REM SDL thread sync
+      MainForm% = FN_newdialog("", 0, 0)
+      PROC_listbox(MainForm%, "", 101, 0, 2 * @vdu%!220, 2 * @vdu%!208, \
+      \            2 * (@vdu%!212 - @vdu%!220), WS_VSCROLL + LBS_USETABSTOPS)
+      Col%() = @vdu%!208*0.4, @vdu%!208*0.6, @vdu%!208*0.2, @vdu%!208*2
+      VDU 30 : GCOL 0 : PRINT " Filename";
+      VDU 30 : PLOT 0, Col%(0), 0 : PRINT "   Folder";
+      VDU 30 : PLOT 0, Col%(0)+Col%(1), 0 : PRINT "   Size";
+      VDU 30 : PLOT 0, Col%(0)+Col%(1)+Col%(2), 0 : PRINT "    Context";
+      PROC_refreshdialog(MainForm%)
+      ENDPROC
+      
+      DEF PROCresize
+      PRIVATE S%
+      IF S% ENDPROC
+      S% = TRUE
+      PROCcreateform
+      S% = FALSE
+      ENDPROC
+      
+      DEF PROCsettitle(title$)
+      IF INKEY$(-256) = "W" THEN
+        SYS "SetWindowText", @hwnd%, title$
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%, title$, @memhdc%
+      ENDIF
+      ENDPROC
+      
+      DEF FNclean(a$)
+      LOCAL p%%
+      FOR p%% = PTR(a$) TO PTR(a$)+LEN(a$)-1
+        IF ?p%%<&20 THEN
+          IF ?p%%>=&18 MID$(a$, p%%-PTR(a$)+2, 2) = "??"
+          ?p%%=&2E
+        ENDIF
+      NEXT
+      = a$

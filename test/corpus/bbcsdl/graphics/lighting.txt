@@ -1,0 +1,107 @@
+      REM. Program to demonstrate lighting and specular reflection
+      
+      INSTALL @lib$+"ogllib" : REM @lib$ + "webgllib"
+      
+      DIM pVB%(0)
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : CLEAR
+      VDU 20,26,12
+      
+      DIM pVB%(0), nv%(0), vf%(0), vl%(0), l%(0), m%(0), t%(0), y(0), p(0), r(0)
+      DIM X(0), Y(0), Z(0), eye(2), at(2), n(2)
+      
+      REM. Initialise OpenGL:
+      pDevice% = FN_initgl(@hwnd%, 0, 1)
+      IF pDevice% = 0 ERROR 100, "Couldn't initialise OpenGL"
+      
+      REM. Create 3D object with surface normals:
+      F% = OPENOUT(@tmp$+"lighting.fvf")
+      BPUT #F%,18 : BPUT#F%,0 : BPUT #F%,0 : BPUT#F%,0   : REM number of vertices
+      BPUT #F%,&12 : BPUT #F%,0 : BPUT#F%,24 : BPUT#F%,0 : REM vertex format and size
+      FOR V% = 0 TO 5
+        READ x1, y1, z1, x2, y2, z2, x3, y3, z3
+        a = x2 - x3
+        b = y2 - y3
+        c = z2 - z3
+        d = x1 - x3
+        e = y1 - y3
+        f = z1 - z3
+        n(0) = b*f-c*e
+        n(1) = c*d-a*f
+        n(2) = a*e-b*d
+        n() /= MOD(n())
+        PROC4(F%,x1) : PROC4(F%,y1) : PROC4(F%,z1)       : REM xyz coordinates
+        PROC4(F%,n(0)) : PROC4(F%,n(1)) : PROC4(F%,n(2)) : REM surface normal
+        PROC4(F%,x2) : PROC4(F%,y2) : PROC4(F%,z2)       : REM xyz coordinates
+        PROC4(F%,n(0)) : PROC4(F%,n(1)) : PROC4(F%,n(2)) : REM surface normal
+        PROC4(F%,x3) : PROC4(F%,y3) : PROC4(F%,z3)       : REM xyz coordinates
+        PROC4(F%,n(0)) : PROC4(F%,n(1)) : PROC4(F%,n(2)) : REM surface normal
+      NEXT
+      CLOSE #F%
+      
+      REM. Load 3D object:
+      pVB%(0) = FN_load3d(pDevice%, @tmp$+"lighting.fvf", nv%(0), vf%(0), vl%(0))
+      IF pVB%(0) = 0 ERROR 101, "Couldn't load 'lighting.fvf'"
+      
+      REM. Point-source light:
+      DIM light{Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi%}
+      
+      light.Type% = 1              : REM. point source
+      light.Diffuse.r% = FN_f4(1)  : REM. diffuse colour RGB
+      light.Diffuse.g% = FN_f4(1)
+      light.Diffuse.b% = FN_f4(1)
+      light.Specular.r% = FN_f4(1) : REM. specular colour RGB
+      light.Specular.g% = FN_f4(1)
+      light.Specular.b% = FN_f4(1)
+      light.Position.x% = FN_f4(0) : REM. position XYZ
+      light.Position.y% = FN_f4(0)
+      light.Position.z% = FN_f4(-4)
+      light.Range% = FN_f4(10)     : REM. range
+      light.Attenuation0% = FN_f4(1) : REM. attenuation (constant)
+      l%(0) = light{} - PAGE + !340
+      
+      REM. Gold-coloured material:
+      DIM material{Diffuse{r%,g%,b%,a%}, Ambient{r%,g%,b%,a%}, \
+      \     Specular{r%,g%,b%,a%}, Emissive{r%,g%,b%,a%}, Power%}
+      
+      material.Diffuse.r% = FN_f4(1)  : REM. diffuse colour RGB
+      material.Diffuse.g% = FN_f4(0.7)
+      material.Diffuse.b% = FN_f4(0)
+      material.Specular.r% = FN_f4(1) : REM. specular colour RGB
+      material.Specular.g% = FN_f4(1)
+      material.Specular.b% = FN_f4(1)
+      material.Power% = FN_f4(20): REM. specular 'power'
+      m%(0) = material{} - PAGE + !340
+      
+      REM. Render the tumbling object:
+      eye() = 0, 0, -9
+      at() = 0, 0, 0
+      REPEAT
+        y() = TIME/200
+        r() = TIME/80
+        PROC_render(pDevice%, &7F7F7F, 1, l%(), 1, m%(), t%(), pVB%(), nv%(), vf%(), vl%(), \
+        \ y(), p(), r(), X(), Y(), Z(), eye(), at(), PI/6, @vdu%!208/@vdu%!212, 1, 1000, 0)
+      UNTIL INKEY(1)=0
+      END
+      
+      DEF PROCcleanup
+      pVB%(0) += 0  : IF pVB%(0)  PROC_release(pVB%(0))
+      pDevice% += 0 : IF pDevice% PROC_release(pDevice%)
+      *REFRESH ON
+      ENDPROC
+      
+      DEF PROC4(F%,a) : LOCAL A% : A%=FN_f4(a)
+      BPUT #F%,A% : BPUT #F%,A%>>8 : BPUT#F%,A%>>16 : BPUT#F%,A%>>24
+      ENDPROC
+      
+      REM. Pyramid (6 triangles each with three vertices):
+      DATA -1, -1,  1, -1, -1, -1,  0, .414,  0
+      DATA  1, -1,  1, -1, -1,  1,  0, .414,  0
+      DATA  1, -1, -1,  1, -1,  1,  0, .414,  0
+      DATA -1, -1, -1,  1, -1, -1,  0, .414,  0
+      DATA  1, -1, -1, -1, -1, -1, -1,   -1,  1
+      DATA -1, -1,  1,  1, -1,  1,  1,   -1, -1

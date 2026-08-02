@@ -1,0 +1,6 @@
+      SYS "SDL_SetWindowTitle", @hwnd%, "Demo", @memhdc%
+      INSTALL @lib$ + "aagfxlib"
+      `SDL_RenderCopy` = FNGetProcAddress("SDL_RenderCopy")
+      DIM rec{ x%, y%, bm%% }
+      ON MOUSE PROCclick : RETURN
+      END

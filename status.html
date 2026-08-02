@@ -37,89 +37,91 @@
 </head>
 <body>
 <h1>mini_basic Progress Dashboard</h1>
-<p class="meta">work sync #47 • Updated: 2026-07-26 13:05:11</p>
+<p class="meta">work sync #71 • Updated: 2026-08-03 00:07:28</p>
 
 <section class="current">
     <h2> Currently Working On</h2>
-    <div class="line active">Program: <strong>piechart.txt</strong></div>
-    <div class="line">Focus: piechart.txt - Colour&amp; / COSa / @vdu%! / OSCLI stubs (agent)</div>
-    <div class="line stamp">Started: 2026-07-26 13:05</div>
+    <div class="line active">Program: <strong>None</strong></div>
+    <div class="line">Focus: None - idle; LANGUAGE_FEATURES_1.00.md written</div>
+    <div class="line stamp">Started: 2026-08-03 00:07</div>
 
     <h3>TODOs for this program</h3>
     <ul>
-        <li class="todo">BBCSDL parity: re-probe CORPUS_AUDIT (filters, jclock, piechart, welcome, ...); hanoi demo path fixed 2026-07-26</li>
         <li class="todo">PRINT array subscript expansion (known gap)</li>
+        <li class="todo">Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)</li>
+        <li class="todo">Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)</li>
+        <li class="todo">1.00 ship: version + RELEASE notes</li>
+        <li class="todo">phase2: mark graphics suites when isolated</li>
     </ul>
 </section>
 
 <section class="workload-warn">
     <h2> Agent Workload</h2>
     <div class="workload-action workload-reduce">REDUCE workload — one small step, display=none, no parallel audits</div>
-    <div class="line">Level: <strong>WARN</strong> • checked 2026-07-26 13:05:11</div>
-    <div class="line">RSS 37 MB • peak 283 MB • system free 19529 MB • load 40% • CPU ~9%</div>
+    <div class="line">Level: <strong>WARN</strong> • checked 2026-08-03 00:07:28</div>
+    <div class="line">RSS 37 MB • peak 283 MB • system free 20986 MB • load 35% • CPU ~8%</div>
     <div class="line">peak RSS 283 MB &gt;= 260 MB</div>
 </section>
 
 <section class="approval">
     <h2> User Final Approval (whole programs)</h2>
-    <div class="line">Focus: <strong>piechart.txt</strong> • 1 program(s) ready for your OK • 0 still agent-side</div>
+    <div class="line">Focus: <strong>None</strong> • 0 program(s) ready for your OK • 0 still agent-side</div>
     <div class="line muted">Approve whole programs only. Run the program yourself (mini_basic.py) with varied inputs; verify_program.py is agent-only. Reply OK in chat; agent marks [x] in USER_APPROVAL.txt</div>
-    <h3>Ready for your approval</h3>
-    <ul>
-        <li class="approval-pending">[ ] saucer.txt (graphics)</li>
-    </ul>
+    <div class="line muted">No whole program ready for your OK yet.</div>
     <h3>Recently approved</h3>
-    <div class="line approval-done">[x] soccerball.txt (graphics) — user confirmed 2026-07-26</div>
-    <div class="line approval-done">[x] wheel.txt (graphics) — user confirmed 2026-07-26</div>
-    <div class="line approval-done">[x] animal.txt (games) — user confirmed 2026-07-26</div>
     <div class="line approval-done">[x] jclock.txt (graphics) — user confirmed 2026-07-26 (TIME$, SINRADT, MOUSE, scales)</div>
     <div class="line approval-done">[x] filters.txt (general) — user confirmed 2026-07-26 (waveforms OK; ORIGIN al text fix)</div>
     <div class="line approval-done">[x] flier.txt (graphics) — user confirmed 2026-07-26 (rotating ship; no interactive input by design)</div>
-    <div class="line">... (1 more approved)</div>
+    <div class="line approval-done">[x] saucer.txt (graphics) — user confirmed 2026-07-26 (shape OK; draw is slow but acceptable)</div>
+    <div class="line approval-done">[x] welcome.txt (general) — user confirmed 2026-08-02 (graphics match SDL + Archimedes; sound N/A)</div>
+    <div class="line approval-done">[x] squares.txt (graphics) — user confirmed 2026-08-02 (look OK; speed OK after nested FOR/kernel)</div>
+    <div class="line">... (4 more approved)</div>
 </section>
 
 <section class="success">
     <h2>✅ Confirmed Working</h2>
-    <div class="line done">glued NOTX / A%AND1 / DIV / INKEY(n) expression normalize (saucer + welcome pack)</div>
-    <div class="line done">BBC dialect line glue: MODE5 GCOL0 VDU23 PLOT MOVE FOR DEFPROC REPEATUNTIL PRINTCHR$</div>
-    <div class="line done">jclock + filters corpus re-probe OK; saucer smoke OK after NOTX</div>
-    <div class="line done">test_glued_bbc_syntax.py</div>
-    <div class="line done">BBCSDL leading-underscore user vars/arrays (_BOX,_LINE); system _* only if in SYSTEM_VAR_SPEC</div>
-    <div class="line done">flier corpus smoke OK (WAIT/REPEAT only stripped)</div>
-    <div class="line">... (45 more confirmed)</div>
+    <div class="line done">piechart VDU5 labels: GCOL mode+colour (XOR 3,15) + clear rgb_pixels on palette write</div>
+    <div class="line done">corpus re-probe 2026-08-02: piechart/saucer/squares/flier OK (loop-shorten W%-1 + saucer STEP);</div>
+    <div class="line done">VDU 23,22 user mode: charx/chary set text grid (squares 512;512;8,16); present without font assert</div>
+    <div class="line done">squares.bbc speed: pure bitwise EOR/AND compile; nested int FOR + munching kernel;</div>
+    <div class="line done">USER APPROVAL squares.txt (graphics) - user confirmed 2026-08-02 (look + speed OK)</div>
+    <div class="line done">docs/LANGUAGE_FEATURES_1.00.md - ship qualification + language/graphics baseline (2026-08-03)</div>
+    <div class="line">... (71 more confirmed)</div>
 </section>
 
 <section class="pending">
     <h2>⏳ Pending / Not Yet Confirmed</h2>
-    <div class="line">BBCSDL parity: re-probe CORPUS_AUDIT (filters, jclock, piechart, welcome, ...); hanoi demo path fixed 2026-07-26</div>
     <div class="line">PRINT array subscript expansion (known gap)</div>
+    <div class="line">Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)</div>
+    <div class="line">Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)</div>
+    <div class="line">1.00 ship: version + RELEASE notes</div>
+    <div class="line">phase2: mark graphics suites when isolated</div>
     <div class="line">16 deferred features (WIMP, ASM, SYS...)</div>
-    <div class="line">Corpus audit: 20 OK, 4 FAIL (of 24 claimed runnable)</div>
+    <div class="line">Corpus audit: 22 OK, 2 FAIL (of 24 claimed runnable)</div>
 </section>
 
 <section>
     <h2> Recent Work Log</h2>
-    <div class="line stamp">2026-07-26 13:05:11 — POLICY: agentic BEGIN/END status script + tick todos (§3b); interrupt §6b</div>
-    <div class="line stamp">2026-07-26 13:01:28 — USER APPROVAL flier.txt (auto-rotate ship; no user input in listing)</div>
-    <div class="line stamp">2026-07-26 13:00:41 — filters: Original not ORIGIN al (glue outside strings); user OK visual</div>
-    <div class="line stamp">2026-07-26 12:59:23 — Process: mid-agentic work will check user input queue; jclock approved; piechart in progress</div>
-    <div class="line stamp">2026-07-26 12:52:30 — USER APPROVAL jclock.txt; user testing filters/saucer/flier; agent on piechart</div>
-    <div class="line stamp">2026-07-26 12:46:43 — TIME\$ full BBC 24-char Day,dd Mon yyyy.hh:mm:ss (jclock hands)</div>
-    <div class="line stamp">2026-07-26 12:39:41 — mouse_click_letter.bas + uniform OS scales for 640x480 (jclock elongate)</div>
-    <div class="line stamp">2026-07-26 12:35:52 — jclock: MOUSE samples live pointer before read (was 0,0 → lower-left)</div>
+    <div class="line stamp">2026-08-03 00:07:28 — END docs/LANGUAGE_FEATURES_1.00.md: clean 1.00 language features + ship qualification</div>
+    <div class="line stamp">2026-08-03 00:06:28 — BEGIN 1.00 language features document</div>
+    <div class="line stamp">2026-08-03 00:01:37 — USER APPROVAL squares.txt (graphics) — look OK + speed OK after nested-FOR/kernel</div>
+    <div class="line stamp">2026-08-02 23:58:29 — END squares.bbc speed: bitwise compile + nested FOR kernel; ~1s full 512 (SDL-class)</div>
+    <div class="line stamp">2026-08-02 23:50:00 — BEGIN squares.bbc speed: approach SDL &lt;5s</div>
+    <div class="line stamp">2026-08-02 23:33:02 — END squares.bbc: VDU 23,22 char size + text grid; no more font assert on present</div>
+    <div class="line stamp">2026-08-02 23:31:40 — BEGIN squares.bbc: fix assert font None on VDU 23,22 custom size</div>
+    <div class="line stamp">2026-08-02 23:27:38 — END corpus re-probe: piechart/saucer/squares/flier all OK; CORPUS_AUDIT OK22 FAIL2 polly+poem DEFER</div>
 </section>
 
 <section>
     <h2>⚠️ Issues / Error Reports</h2>
     <div class="line todo">Tests not all pass: see test/_run_progress.log</div>
-    <div class="line todo">welcome.txt general :: partial — MODE/GCOL/NOT/A%AND glue improved; ENVELOPE unimplemented; remaining IF/PLOT edge cases</div>
-    <div class="line todo">piechart.txt graphics :: DIM Colour&amp;() byte arrays / SUM / array fill / COSa glue — deferred</div>
-    <div class="line todo">polly.txt sounds :: ? Expression error: name REPEAT is not defined; ? OSCLI error</div>
+    <div class="line todo">polly.txt sounds :: DEFER SOUND/ENVELOPE + OSCLI DISPLAY (not a 1.00 blocker)</div>
+    <div class="line todo">poem.txt general :: DEFER interactive MODE7 / audit timeout (not a 1.00 blocker)</div>
     <div class="line todo">Resource watch — agent reduce workload: peak RSS 283 MB &gt;= 260 MB</div>
 
 </section>
 
-<div class="line muted">last work 2026-07-26 13:05:11 · status work pending tests not all pass 2 todo items · resources warn: RSS 37 MB (peak 283) reduce workload</div>
+<div class="line muted">last work 2026-08-03 00:07:28 · status work pending tests not all pass 5 todo items · resources warn: RSS 37 MB (peak 283) reduce workload</div>
 
 </body>
 </html>

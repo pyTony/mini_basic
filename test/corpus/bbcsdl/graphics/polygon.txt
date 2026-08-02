@@ -1,0 +1,38 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM POLYGON
+      REM FROM AN ORIGINAL PROGRAM BY JOHN A COLL
+      REM IBM VERSION / 23 MAR 86; MODIFIED 26 SEP 98
+      MODE 18
+      DIM X(10)
+      DIM Y(10)
+      :
+      REPEAT
+        xorigin=RND(1279)
+        yorigin=RND(1023)
+        Radius=RND(300)+50
+        VDU 29,xorigin;yorigin;
+        sides=RND(8)+2
+        MOVE Radius,0
+        MOVE 10,10
+        :
+        C=RND(16)-1:GCOL 0,C
+        FOR SIDE=1 TO sides
+          angle=(SIDE-1)*2*PI/sides
+          X(SIDE)=Radius*COS(angle)
+          Y(SIDE)=Radius*SIN(angle)
+          MOVE 0,0
+          PLOT 85,X(SIDE),Y(SIDE)
+        NEXT SIDE
+        MOVE 0,0
+        PLOT 85,Radius,0
+        :
+        REPEAT D=RND(16)-1:UNTIL (D AND3)<>(C AND3):GCOL 0,D
+        FOR SIDE=1 TO sides
+          FOR Line=SIDE TO sides
+            MOVE X(SIDE), Y(SIDE)
+            DRAW X(Line), Y(Line)
+          NEXT Line
+        NEXT SIDE
+        K% = INKEY(30)
+      UNTIL FALSE

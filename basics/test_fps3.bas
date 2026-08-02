@@ -1,0 +1,13 @@
+MODE 9
+ORIGIN 640,512
+*REFRESH OFF
+t = TIME
+FOR frames% = 1 TO 30
+  CLS
+  GCOL 3 : CIRCLE FILL 0,0,400 : GCOL 0
+  *REFRESH
+NEXT
+elapsed = (TIME - t) / 100
+PRINT INT(30 / elapsed); " fps"
+WAIT 500
+END

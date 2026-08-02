@@ -3,6 +3,8 @@
 Hanoi DISC$ embeds CHR$17+colour. Near column 80, counting those bytes as
 cells inserted a newline mid-sequence and left a CHR$128 glyph with the disc
 background — a floating coloured remnant after TAKE.
+
+User-approved hanoi.txt (2026-07-26); these unit checks stay green under phase0.
 """
 import os
 import sys
@@ -11,6 +13,8 @@ from contextlib import redirect_stdout, redirect_stderr
 from io import StringIO
 from unittest.mock import patch
 
+import pytest
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -18,6 +22,8 @@ if _ROOT not in sys.path:
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+pytestmark = [pytest.mark.phase0]
 
 
 class HanoiVduPrintWrapTests(unittest.TestCase):

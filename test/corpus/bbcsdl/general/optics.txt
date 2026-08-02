@@ -1,0 +1,108 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM mw2.bas - jack@ord.ca - revised 9 Oct 02 - BBC BASIC (RTR)
+      REM wave incident (n=1) on a film (n=2) on a substrate (n=1.5)
+      
+      INSTALL @lib$+"dlglib"
+      
+      REM Initialize Window
+      WindowWidth=480     : REM Scale 0-480
+      WindowHeight=240    : REM Scale 0-240
+      VDU 23,22,WindowWidth;WindowHeight;8,15,16,128
+      SYS "SDL_SetWindowTitle", @hwnd%, "Wave Incident on a Film-covered Dielectric", @memhdc%
+      OFF
+      
+      REM Set colour palette:
+      PROC_setdialogpalette
+      
+      REM Set font:
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"",12"
+      
+      DIM click%(2)
+      ON MOUSE click%() = @msg%,@wparam%,@lparam% : RETURN
+      
+      container% = FN_newdialog("", 0, 0)
+      PROC_button(container%, "Component", FN_setproc(PROCp1()), 40, 20, 200, 40, 0)
+      PROC_button(container%, "Resultant", FN_setproc(PROCp2()), 300, 20, 200, 40, 0)
+      PROC_refreshdialog(container%)
+      REPEAT
+        res% = FN_polldialog(container%, INKEY(4), click%())
+      UNTIL FALSE
+      
+      DEF PROCp1(D%,I%) : kk=1
+      DEF PROCp2(D%,I%) : kk=2
+      
+      *REFRESH ON
+      ORIGIN 0,0
+      VDU 24,0;0;WindowWidth*2-2;WindowHeight*2-2;
+      CLS
+      GCOL 0
+      LINE 0, 240, 960, 240 : LINE 480, 0, 480, 480 : LINE 570, 0, 570, 480
+      DIM yi&(81), yr&(81), ys&(81)
+      DIM ya&(16), yb&(16), yc&(16), yt&(66)
+      DIM zi&(81), zr&(81), zs&(81)
+      DIM za&(16), zb&(16), zc&(16), zt&(66)
+      dx=PI/20: dt=dx/2
+      n1=1: n=2: n2=1.5
+      a1=60: r1=a1*(n1*n2-n*n)/(n1*n2+n*n)          : REM Amplitudes
+      t=n/n2*(a1+r1): phase=PI/2                    : REM   and
+      a2=t*(n+n2)/2/n: r2=t-a2                      : REM     phases
+      FOR i=0 TO 80
+        WAIT 2
+        tt=i*dt
+        FOR j=0 TO 80
+          yi&(j)=120-INT(a1*SIN(tt+(80-j)*dx))
+          yr&(j)=120-INT(r1*SIN(tt+(j-80)*dx))
+          ys&(j)=yi&(j)+yr&(j)-120
+        NEXT j
+        FOR j=0 TO 15
+          ya&(j)=120-INT(a2*SIN(tt-2*(j-15)*dx+phase))
+          yb&(j)=120-INT(r2*SIN(tt+2*(j-15)*dx+phase))
+          yc&(j)=ya&(j)+yb&(j)-120
+        NEXT j
+        FOR j=0 TO 65
+          yt&(j)=120-INT(t*SIN(tt-1.5*j*dx+phase))
+        NEXT j
+        IF kk=1 THEN
+          GCOL 3,10
+          FOR j=1 TO 80
+            IF i>0 THEN MOVE 6*j-6, 2*zi&(j-1) : PLOT 13, 6*j, 2*zi&(j)
+            MOVE 6*j-6, 2*yi&(j-1) : PLOT 13, 6*j, 2*yi&(j)
+          NEXT j
+          GCOL 3,6
+          FOR j=1 TO 80
+            IF i>0 THEN MOVE 6*j-6, 2*zr&(j-1) : PLOT 13, 6*j, 2*zr&(j)
+            MOVE 6*j-6, 2*yr&(j-1) : PLOT 13, 6*j, 2*yr&(j)
+          NEXT j
+          GCOL 3,12
+          FOR j=1 TO 15
+            IF i>0 THEN MOVE 480+6*j-6, 2*za&(j-1) : PLOT 13, 480+6*j, 2*za&(j)
+            MOVE 480+6*j-6, 2*ya&(j-1) : PLOT 13, 480+6*j, 2*ya&(j)
+          NEXT j
+          GCOL 3,13
+          FOR j=1 TO 15
+            IF i>0 THEN MOVE 480+6*j-6, 2*zb&(j-1) : PLOT 13, 480+6*j, 2*zb&(j)
+            MOVE 480+6*j-6, 2*yb&(j-1) : PLOT 13, 480+6*j, 2*yb&(j)
+          NEXT j
+        ELSE
+          GCOL 3,3
+          FOR j=1 TO 80
+            IF i>0 THEN MOVE 6*j-6, 2*zs&(j-1) : PLOT 13, 6*j, 2*zs&(j)
+            MOVE 6*j-6, 2*ys&(j-1) : PLOT 13, 6*j, 2*ys&(j)
+          NEXT j
+          FOR j=1 TO 15
+            IF i>0 THEN MOVE 480+6*j-6, 2*zc&(j-1) : PLOT 13, 480+6*j, 2*zc&(j)
+            MOVE 480+6*j-6, 2*yc&(j-1) : PLOT 13, 480+6*j, 2*yc&(j)
+          NEXT j
+        ENDIF
+        GCOL 3,3
+        FOR j=1 TO 65
+          IF i>0 THEN MOVE 570+6*j-6, 2*zt&(j-1) : PLOT 13, 570+6*j, 2*zt&(j)
+          MOVE 570+6*j-6, 2*yt&(j-1) : PLOT 13, 570+6*j, 2*yt&(j)
+        NEXT j
+        zi&()=yi&(): zr&()=yr&(): zs&()=ys&()
+        za&()=ya&(): zb&()=yb&(): zc&()=yc&()
+        zt&()=yt&()
+      NEXT i
+      PROC_refreshdialog(container%)
+      ENDPROC

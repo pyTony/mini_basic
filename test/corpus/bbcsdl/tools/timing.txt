@@ -1,0 +1,199 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      VDU 23,22,640;512;8,16,16,128
+      
+      A=1:B=0.5:ANTIDISESTABLISHMENTARIANISM=1:ANTI=1:B%=123456789:C%=17:b%=B%:c%=C%:B%%=2097151:C%%=C%
+      VDU 32 : *HELP
+      
+      @%=&905
+      PRINT
+      :
+      REM. Reference
+      Z%=0:TIME=0:FOR N%=1 TO 1000000:NEXT:R%=TIME
+      :
+      REM. New reference
+      TIME=0:FOR N%=1 TO 1000000:::::::::::NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " Colon:"TAB(26)T%-R%;" ns" : R%=T%
+      :
+      REM. New reference
+      TIME=0:FOR N%=1 TO 1000000:ENDCASE:ENDCASE:ENDCASE:ENDCASE:ENDCASE:ENDCASE:ENDCASE:ENDCASE:ENDCASE:ENDCASE:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " Dispatch (ENDCASE):"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:ENDIF:ENDIF:ENDIF:ENDIF:ENDIF:ENDIF:ENDIF:ENDIF:ENDIF:ENDIF:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " Dispatch (ENDIF):"TAB(26)T%-R%;" ns" : D%=T%-R% : R%=T%
+      :
+      TIME=0:FOR N%=1 TO 10000000:NEXT:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT (integer):"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR N=1.1 TO 10000000.1:NEXT:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT (default real):"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR N#=1.1# TO 10000000.1#:NEXT:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT (64-bit real):"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 10000000:NEXT N%:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT N%:"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR n%=1 TO 10000000:NEXT n%:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT n%:"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR N=1.1 TO 10000000.1:NEXT N:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT N:"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR N#=1.1# TO 10000000.1#:NEXT N#:T%=TIME
+      Z%+=T%-D%:PRINT " NEXT N#:"TAB(26)T%-D%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:REPEATUNTILTRUE:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " REPEATUNTILTRUE:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:WHILEFALSE:ENDWHILE:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " WHILEFALSE:ENDWHILE:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:A%=FALSE:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=FALSE:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=0:A%=0:A%=0:A%=0:A%=0:A%=0:A%=0:A%=0:A%=0:A%=0:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=0:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=PI:A=PI:A=PI:A=PI:A=PI:A=PI:A=PI:A=PI:A=PI:A=PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI
+        ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:ANTIDISESTABLISHMENT=PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " ANTIDISESTABLISHMENT=PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=(PI):A=(PI):A=(PI):A=(PI):A=(PI):A=(PI):A=(PI):A=(PI):A=(PI):A=(PI):NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=(PI):"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:A%=1234567890:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=1234567890:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:A%=&499602D2:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=&499602D2:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:A=1.23456789E38:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=1.23456789E38:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%:A%=B%:A%=B%:A%=B%:A%=B%:A%=B%:A%=B%:A%=B%:A%=B%:A%=B%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B:A=B:A=B:A=B:A=B:A=B:A=B:A=B:A=B:A=B:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:ANTI=ANTI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " ANTI=ANTI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:A%=B%+C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%+C%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:A%=B%-C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%-C%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:A%=B%*C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%*C%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:A%=B%DIVC%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%DIVC%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:A%=B%/C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%/C%:"TAB(26)T%-R%;" ns"
+      :
+      D% = 7
+      TIME=0:FOR N%=1 TO 1000000:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:A%=C%^D%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=C%^D%:"TAB(26)T%-R%;" ns"
+      :
+      VDU 28,40,40,79,0,10,10 : PRINT CHR$13;
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:A%=B%<<C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%<<C%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:A%=B%>>C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%>>C%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:A%=B%>>>C%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=B%>>>C%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:A%%=B%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:A%%=B%%+C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%+C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:A%%=B%%-C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%-C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:A%%=B%%*C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%*C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:A%%=B%%DIVC%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%DIVC%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:A%%=B%%/C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%/C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:A%%=B%%^3:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%^3:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:A%%=B%%<<C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%<<C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:A%%=B%%>>C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%>>C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:A%%=B%%>>>C%%:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%%=B%%>>>C%%:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B+PI:A=B+PI:A=B+PI:A=B+PI:A=B+PI:A=B+PI:A=B+PI:A=B+PI:A=B+PI:A=B+PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B+PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B-PI:A=B-PI:A=B-PI:A=B-PI:A=B-PI:A=B-PI:A=B-PI:A=B-PI:A=B-PI:A=B-PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B-PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B*PI:A=B*PI:A=B*PI:A=B*PI:A=B*PI:A=B*PI:A=B*PI:A=B*PI:A=B*PI:A=B*PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B*PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B/PI:A=B/PI:A=B/PI:A=B/PI:A=B/PI:A=B/PI:A=B/PI:A=B/PI:A=B/PI:A=B/PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B/PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B^3:A=B^3:A=B^3:A=B^3:A=B^3:A=B^3:A=B^3:A=B^3:A=B^3:A=B^3:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B^3:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=B^PI:A=B^PI:A=B^PI:A=B^PI:A=B^PI:A=B^PI:A=B^PI:A=B^PI:A=B^PI:A=B^PI:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=B^PI:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=SINB:A=SINB:A=SINB:A=SINB:A=SINB:A=SINB:A=SINB:A=SINB:A=SINB:A=SINB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=SINB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=TANB:A=TANB:A=TANB:A=TANB:A=TANB:A=TANB:A=TANB:A=TANB:A=TANB:A=TANB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=TANB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=LOGB:A=LOGB:A=LOGB:A=LOGB:A=LOGB:A=LOGB:A=LOGB:A=LOGB:A=LOGB:A=LOGB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=LOGB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=EXPB:A=EXPB:A=EXPB:A=EXPB:A=EXPB:A=EXPB:A=EXPB:A=EXPB:A=EXPB:A=EXPB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=EXPB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=SQRB:A=SQRB:A=SQRB:A=SQRB:A=SQRB:A=SQRB:A=SQRB:A=SQRB:A=SQRB:A=SQRB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=SQRB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=ATNB:A=ATNB:A=ATNB:A=ATNB:A=ATNB:A=ATNB:A=ATNB:A=ATNB:A=ATNB:A=ATNB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=ATNB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=ABSB:A=ABSB:A=ABSB:A=ABSB:A=ABSB:A=ABSB:A=ABSB:A=ABSB:A=ABSB:A=ABSB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=ABSB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A=INTB:A=INTB:A=INTB:A=INTB:A=INTB:A=INTB:A=INTB:A=INTB:A=INTB:A=INTB:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A=INTB:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:PROC1:PROC1:PROC1:PROC1:PROC1:PROC1:PROC1:PROC1:PROC1:PROC1:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " PROC1:"TAB(26)T%-R%;" ns"
+      :
+      TIME=0:FOR N%=1 TO 1000000:A%=FN1:A%=FN1:A%=FN1:A%=FN1:A%=FN1:A%=FN1:A%=FN1:A%=FN1:A%=FN1:A%=FN1:NEXT:T%=TIME
+      Z%+=T%-R%:PRINT " A%=FN1:"TAB(26)T%-R%;" ns"
+      :
+      PRINT TAB(15,0)"Average:"TAB(26,0)INT(Z%/58);" ns"
+      OFF
+      REPEAT : WAIT 10 : UNTIL FALSE
+      
+      DEF PROC1:ENDPROC
+      DEF FN1=FALSE

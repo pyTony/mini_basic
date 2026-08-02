@@ -1,58 +1,86 @@
 mini-BASIC tests
 ================
 
-Run from the project root (mini_basic):
+Run from the project root (mini_basic). pytest is preferred; collection is limited
+to this test/ tree (see pytest.ini testpaths).
 
-  python -m unittest discover -s test -p "test_*.py" -v
+Preferred regression
+--------------------
 
-Or a single module:
+  python -m pytest -q test/test_mini_basic.py --timeout=30
+
+  python -m pytest -q -m "phase1 and not slow" --timeout=20
+
+  python -m pytest -q test/test_mini_basic.py test/test_parsing.py \
+    test/test_compositional.py test/test_control_flow.py --timeout=20
+
+Control-flow multi-statement regression (must stay green)
+---------------------------------------------------------
+
+Saucer/FOR/IF bugs were colon-split + re-entry gaps. Run these after any
+control-flow change:
+
+  python -m pytest -q test/test_control_flow.py --timeout=20
+
+Key classes in test/test_control_flow.py (phase1):
+
+  TestForSameLineBody     FOR X=…:S=… body with NEXT later; saucer P/NI;
+                          double FOR on one line; multiline + inline
+  TestIfColonTail         compact IF false skips colon tail (saucer M/N init
+                          + plot); THEN/ELSE colon; silhouette not all points
+  TestWhileAndRepeatForms WHILE/WEND multi + same-line WHILE:body:WEND;
+                          REPEAT trailing body / fully inline
+  TestCaseWhenColon       CASE/WHEN match + colon tail; non-match skip
+  TestOnErrorColonTail    ON ERROR multi-statement handler; IF ERR= compiled
+  TestRepeatSameLineAndInkey  REPEAT:body:UNTIL + INKEY$ (earlier)
+  TestNestedForMatching   hypothesis nested FOR/NEXT (safe_var stems; was skipped)
+  TestForCaseSensitiveToVar  case-sensitive ``to`` / ``to0`` loop vars; glued 1TO n
+
+Piechart / OSCLI simple regressions:
+  python -m pytest -q test/test_piechart_regression.py --timeout=20
+  # or: python -m unittest test.test_piechart_regression -v
+
+  test_piechart_regression.py — ON ERROR IF ERR=; @tmp$; GSAVE/DISPLAY BMP;
+  COSa glue; piechart corpus smoke (no OSCLI/NameError)
+
+Also phase1: test_compositional.py, test_parsing.py (IF THEN true colons).
+
+Legacy unittest
+---------------
 
   python -m unittest test.test_mini_basic -v
-
-Quiet:
-
-  python -m unittest discover -s test -q
+  python -m unittest discover -s test -p "test_*.py" -q
 
 Layout
 ------
 
-  test/test_mini_basic.py   Main suite (150+ tests)
-  test/manual/              Scratch scripts, not part of CI discovery
+  test/test_mini_basic.py   Main suite (~360+ tests)
+  test/test_compositional.py, test_control_flow.py   Phase 1 foundation
+  test/manual/              Scratch scripts (not required for CI)
+  test/corpus/              BBCSDL corpus files
+  test/corpus_audit_probe.py  Writes CORPUS_AUDIT.txt from CORPUS_RUNNABLE.txt
 
-Corpus paths (ELIZA.BAS, BETH.BAS) resolve to the project root automatically.
+Corpus paths (ELIZA.BAS, BETH.BAS) resolve to examples/museum/ automatically.
 
-BBCSDL example corpus (178 programs):
+BBCSDL example corpus:
 
   python test/manual/fetch_bbcsdl_corpus.py
   python -m mini_basic.bbcsdl_scan test/corpus/bbcsdl --tier A
-  python -m unittest test.test_bbcsdl_corpus -v
+  python test/corpus_audit_probe.py
 
 Manual scratch
 --------------
 
   python test/manual/user_prog_scratch.py
 
-Separating stuck tests + regression on previously-passed tests
---------------------------------------------------------------
+Stuck / slow tests
+------------------
 
-Some tests (interactive input, pygame/graphics, long-running corpus, display-dependent)
-can hang or become "stuck" on certain platforms (e.g. Windows without proper display).
+Some interactive, pygame, or infinite-loop corpus samples can hang.
 
-1. Maintain test/stuck_tests.txt (one pattern or dotted test name per line, comments with #).
-
-2. After a full clean run that you trust, the _run_progress.log records what passed.
-
-3. To run *only* previously-passed tests while skipping stuck ones (ideal for quick regression before continuing work):
-
-   python test/run_regression.py -v
-
-   This loads the last successful tests from the log, drops any matching stuck patterns,
-   and runs only the regression subset.
-
-You can also combine with the normal discover while excluding stuck patterns via -k (limited)
-or by temporarily moving/renaming the stuck test files.
-
-To force a full run (including stuck) use the normal unittest commands above.
+1. Maintain test/stuck_tests.txt (one pattern or name per line; # comments).
+2. Prefer markers: phase1, non_gfx, graphics, slow (pytest.ini).
+3. Do not use run_regression.py (removed); use pytest markers instead.
 
 Timeouts for long-running / potentially hanging tests
 -----------------------------------------------------
@@ -95,14 +123,9 @@ After a successful full run, the last passed tests are recorded in test/_run_pro
 
 Use the helper:
 
-  python test/run_regression.py -v
+  python -m pytest -q -m "phase1 and not slow" --timeout=20
 
-This will:
-- Load tests that passed in the *last* recorded run.
-- Drop any that match patterns in test/stuck_tests.txt (edit that file to add/remove stuck tests such as interactive_animal, pygame_*, graphics_confirm, etc.).
-- Run only the safe regression subset.
-
-This is ideal before continuing development: it avoids re-running potentially stuck/hanging tests (graphics, interactive input, certain corpus) while still verifying that everything that used to pass still passes.
+Prefer pytest markers. stuck_tests.txt still documents hangers for -k filters.
 
 Edit test/stuck_tests.txt to maintain the list of potentially problematic tests (one pattern per line, # for comments).
 
@@ -131,7 +154,11 @@ Other safe non-gfx: test_dialect_hint.py, test_dim_memory.py, test_parsing.py, t
 
 Practical Phase 1 non-gfx check (focused + regression):
   python -m pytest -q test/test_compositional.py test/test_control_flow.py
-  python test/run_regression.py -q
+  python -m pytest -q test/test_control_flow.py::TestForSameLineBody \
+    test/test_control_flow.py::TestIfColonTail \
+    test/test_control_flow.py::TestWhileAndRepeatForms \
+    test/test_control_flow.py::TestCaseWhenColon --timeout=20
+  python -m pytest -q -m "phase1 and not slow" --timeout=20
 
 For broader (but still phase-1 safe) runs, also ignore the entries in stuck_tests.txt (animal, agon, save_case, unknown_syntax, etc.).
 

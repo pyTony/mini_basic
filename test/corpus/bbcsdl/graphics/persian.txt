@@ -1,0 +1,23 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM PERSIAN
+      REM FROM AN ORIGINAL PROGRAM BY ACORN COMPUTERS
+      REM IBM VERSION / 23 MAR 86; MODIFIED 25 SEP 98
+      MODE 18
+      VDU 29,638;478;
+      REPEAT
+        CLS
+        J1%=0
+        FOR K%=396 TO 240 STEP -40
+          REPEATJ2%=RND(15):UNTILJ2%<>J1%
+          J1%=J2%
+          GCOL 3,J1%
+          FOR I%=-K% TO K% STEP 4
+            MOVE K%,I%
+            DRAW -K%,-I%
+            MOVE I%,-K%
+            DRAW -I%,K%
+          NEXT
+        NEXT
+        K% = INKEY(200)
+      UNTIL FALSE

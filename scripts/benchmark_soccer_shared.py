@@ -13,8 +13,8 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from bbc_graphics import disc_screen_radii, pixel_inside_disc_ellipse  # noqa: E402
-from bbc_modes import bbc_mode_spec, bbc_os_scales  # noqa: E402
+from mini_basic.bbc_graphics import disc_screen_radii, pixel_inside_disc_ellipse  # noqa: E402
+from mini_basic.bbc_modes import bbc_mode_spec, bbc_os_scales  # noqa: E402
 from test.bbc_expect import (  # noqa: E402
     bbc_cos_degrees,
     bbc_sin_degrees,

@@ -1,16 +1,3 @@
-Focus: piechart.txt — Colour& / COSa / @vdu%! / OSCLI stubs (agent)
+Focus: None — idle; LANGUAGE_FEATURES_1.00.md written
 
-User testing next (ready for OK):
-[ ] saucer.txt (graphics) — long nested FOR draw, not interactive
-
-User approved: hanoi, soccerball, wheel, animal, jclock, filters, flier
-
-Agent queue:
-1. piechart Colour& / SUM / Label$() fill / COSa
-2. welcome ENVELOPE stub + residual
-3. poem timeout / polly
-
-Run guides for user:
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/general/filters.txt
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/saucer.txt
-  python mini_basic.py --dialect bbc test/corpus/bbcsdl/graphics/flier.txt
+Repo: C:\Users\Tony\mini_basic

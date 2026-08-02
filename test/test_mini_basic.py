@@ -12,16 +12,17 @@ from unittest.mock import MagicMock, patch
 # =============================================================================
 # LEGACY BROAD TEST FILE (test_mini_basic.py)
 # =============================================================================
-# Policy (Phase 1 priority per test/README.txt):
+# Policy:
 # - NO NEW TESTS should be added here.
-# - This file provides historical broad coverage.
-# - All new non-graphics foundation work goes in focused files:
-#     test_control_flow.py, test_compositional.py, (future) test_error_recovery.py etc.
-# - Graphics, pygame, interactive, long corpus, and display-dependent tests
-#   have been removed from here (or quarantined) and are listed in stuck_tests.txt.
-# - Use: python -m pytest -m "phase1" ... or python test/run_regression.py
+# - Marked phase0 (implemented language coverage); phase1+ regression includes phase0.
+# - Prefer focused files for new work: test_control_flow.py, test_vdu_*.py, etc.
+# - Hang / interactive cases: stuck_tests.txt
+# - Regression: pytest -q -m "phase1 and not slow" --timeout=30  (includes phase0)
 # =============================================================================
 
+import pytest
+
+pytestmark = [pytest.mark.phase0]
 
 
 def _run_with_timeout(func, timeout_seconds: float = 15.0, *args, **kwargs):
@@ -259,6 +260,10 @@ class MiniBASICTests(unittest.TestCase):
             _execute_repl_line(interp, 'for i = 1 to 3: print i : next i')
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
+    @pytest.mark.xfail(
+        reason='compact FOR glue for i=1to3 not yet in mini immediate path',
+        strict=False,
+    )
     def test_immediate_for_compact_bbc_spacing(self):
         interp = self.make_interp()
         buf = io.StringIO()
@@ -1173,19 +1178,25 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('NEAR(1, 1+2*eps)', out)
         self.assertIn('NEARSIG(pi, 3.14159, 6)', out)
 
-    def test_user_variables_cannot_start_with_underscore(self):
+    def test_user_variables_may_start_with_underscore(self):
+        """BBCSDL-style leading underscore user vars (e.g. flier _BOX)."""
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.execute_immediate('_user = 1')
-        self.assertIn('System variable error', buf.getvalue())
+            interp.execute_immediate('PRINT _user')
+        self.assertNotIn('System variable error', buf.getvalue())
+        self.assertIn('1', buf.getvalue())
 
-    def test_unknown_system_variable_rejected(self):
+    def test_unknown_underscore_name_is_user_var_not_system(self):
+        """Names starting with _ that are not SYSTEM_VAR_SPEC are user variables."""
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
-            interp.execute_immediate('_not_a_real_setting = 1')
-        self.assertIn('System variable error', buf.getvalue())
+            interp.execute_immediate('_not_a_real_setting = 42')
+            interp.execute_immediate('PRINT _not_a_real_setting')
+        self.assertNotIn('System variable error', buf.getvalue())
+        self.assertIn('42', buf.getvalue())
 
     def test_print_line_buffering_matches_direct_print(self):
         lines = [

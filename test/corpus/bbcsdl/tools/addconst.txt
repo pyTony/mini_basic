@@ -1,0 +1,192 @@
+      REM. BBCSDL utility to add SDL Constants declarations to clipboard
+      REM. (C) Richard Russell, http://www.rtrussell.co.uk/, 07-Sep-2023
+      
+      Version$ = "v1.1"
+      
+      HIMEM = PAGE + 5000000
+      
+      INSTALL @lib$+"dlglib"
+      INSTALL @lib$+"msgbox"
+      
+      ON ERROR PROCcleanup : R% = FN_messagebox("Add Constants utility", REPORT$, 0) : QUIT
+      ON CLOSE PROCcleanup : QUIT
+      
+      GUIscale = 2.0
+      I% = INSTR(@cmd$, "-scale") : IF I% GUIscale = VALMID$(@cmd$, I% + 6)
+      Darkmode% = INSTR(@cmd$, "-dark") <> 0
+      BBCFile$ = @tmp$ + "program.tmp.bbc"
+      
+      *ESC OFF
+      *SYS 4
+      VDU 23,22,160*GUIscale;80*GUIscale;8,16,16,128+8 - (128 AND Darkmode%)
+      IF INKEY(-256) = &57 THEN
+        SYS "SetWindowText", @hwnd%, "Add Constants utility " + Version$
+        *FONT Arial,11
+        DataBase$ = @lib$ + "winconsts.db"
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%, "Add Constants utility " + Version$, @memhdc%
+        OSCLI "FONT """ + @lib$ + "DejaVuSans""," + STR$INT(11 * GUIscale / 2)
+        DataBase$ = @lib$ + "sdlconsts.db"
+      ENDIF
+      OFF
+      
+      PROC_setdialogpalette(Darkmode%)
+      VDU 23,0,10,0,0;0;0;
+      VDU 23,0,18,2,0;0;0;
+      OFF
+      
+      Dlg% = FN_newdialog("", 142, 72)
+      
+      PROC_static(Dlg%,"Reading database",113,2,4,138,10,SS_CENTER)
+      PROC_groupbox(Dlg%,"Progress",100,4,14,134,34,0)
+      PROC_static(Dlg%,"",101,9,27,124,12,WS_VISIBLE)
+      PROC_button(Dlg%,"OK",1,20,54,46,12,WS_DISABLED)
+      PROC_button(Dlg%,"Cancel",2,76,54,46,12,0)
+      
+      PROC_getdlgrect(Dlg%, X%, Y%, W%, H%)
+      IF INKEY(-256) = &57 THEN
+        DIM rc{l%,t%,r%,b%} : rc.r% = W% DIV 2 + 2 : rc.b% = H% DIV 2
+        SYS "AdjustWindowRect", rc{}, &CF0000, 0
+        SYS "SetWindowPos", @hwnd%, FALSE, X%, Y%, rc.r% - rc.l%, rc.b% - rc.t%, 6
+        SYS "ShowWindow", @hwnd%, 5
+      ELSE
+        SYS "SDL_SetWindowSize", @hwnd%, W% DIV 2 + 2, H% DIV 2, @memhdc%
+        SYS "SDL_ShowWindow", @hwnd%, @memhdc%
+      ENDIF
+      PROC_setdlgrect(Dlg%, 0, H%, W%, H%)
+      VDU 26
+      
+      DIM Click%(2), Line%(63), Const$(80000), Equal$(80000), Flags&(80000)
+      ON MOUSE Click%() = @msg%,@wparam%,@lparam% : RETURN
+      
+      COLOR 128 + 7 : CLS
+      PROC_refreshdialog(Dlg%)
+      
+      REM. Read constants file:
+      F% = OPENIN(DataBase$)
+      IF F% = 0 ERROR 100, "Cannot open database"
+      
+      FOR I% = 0 TO DIM(Const$(),1)
+        IF EOF#F% THEN EXIT FOR
+        c$ = GET$#F% : E% = INSTR(c$, "=")
+        IF E% Const$(I%) = LEFT$(c$, E%-1) : Equal$(I%) = MID$(c$, E%+1)
+      NEXT
+      CLOSE #F%
+      nConst% = I%
+      IF nConst% > DIM(Const$(),1) ERROR 100, "Too many constants for array"
+      
+      F% = OPENIN(BBCFile$)
+      IF F% = 0 ERROR 100, "Cannot open BASIC program"
+      Length% = EXT#F%
+      
+      PROC_setdlgitemtext(Dlg%, 113, "Scanning program")
+      PROC_refreshdialog(Dlg%)
+      VDU 26
+      
+      Count% = 0
+      Progress% = 0
+      Line$ = ""
+      Line%% = ^Line%(0)
+      WHILE NOT EOF#F%
+        N% = BGET#F% : L% = BGET#F% : H% = BGET#F% : INPUT #F%,Line$
+        
+        Line%() = 0 : $Line%% = Line$
+        Line%() AND= &E0E0E0E0 : Line%() EOR= &3FBFBFBF : REM Capitals give &7FFFFFFF
+        Line%() DIV= &7FFFFFFF : S% = SUM(Line%())      : REM Count groups of 4 caps
+        Line%() = 0 : $(Line%% + 2) = Line$
+        Line%() AND= &E0E0E0E0 : Line%() EOR= &3FBFBFBF : REM Capitals give &7FFFFFFF
+        Line%() DIV= &7FFFFFFF : S% += SUM(Line%())     : REM Count groups of 4 caps
+        
+        IF S% > 0 PROCprocess(Line$)
+        
+        Count% += 1 : Progress% += N%
+        PROC_getdlgitemrect(Dlg%, 101, X%, Y%, W%, H%)
+        GCOL 0 : RECTANGLE X%, Y%, W%, H%
+        GCOL 2 : RECTANGLE FILL X%, Y%, W% * Progress% DIV Length%, H%
+        
+        result% = FN_polldialog(Dlg%, INKEY(0), Click%())
+        IF result% = 2 EXIT WHILE
+      ENDWHILE
+      CLOSE #F%
+      GCOL 0 : RECTANGLE X%, Y%, W%, H%
+      GCOL 2 : RECTANGLE FILL X%, Y%, W%, H%
+      *REFRESH
+      
+      IF result% = 2 PROCcleanup : QUIT
+      
+      Clip$ = ""
+      CRLF$ = CHR$&D + CHR$&A
+      nSaved% = 0
+      FOR I% = 0 TO nConst% - 1
+        F% = Flags&(I%)
+        IF F% THEN
+          c$ = Const$(I%)
+          v$ = Equal$(I%)
+          IF (F% AND %00000011) = %00000001 Clip$ +=       c$ +  " = " + v$ + CRLF$ : nSaved% += 1
+          IF (F% AND %00001100) = %00000100 Clip$ += "_" + c$ +  " = " + v$ + CRLF$ : nSaved% += 1
+          IF (F% AND %00110000) = %00010000 Clip$ +=       c$ + "% = " + v$ + CRLF$ : nSaved% += 1
+          IF (F% AND %11000000) = %01000000 Clip$ += "_" + c$ + "% = " + v$ + CRLF$ : nSaved% += 1
+        ENDIF
+      NEXT
+      
+      IF INKEY$(-256) = "W" THEN
+        SYS "GlobalAlloc", &2000, LEN(Clip$)+1 TO H%
+        SYS "GlobalLock", H% TO T% : $$T% = Clip$
+        SYS "GlobalUnlock", H%
+        SYS "OpenClipboard", @hwnd%
+        SYS "EmptyClipboard"
+        SYS "SetClipboardData", 1, H%
+        SYS "CloseClipboard"
+      ELSE
+        SYS "SDL_SetClipboardText", Clip$
+      ENDIF
+      
+      PROC_setdlgitemtext(Dlg%, 113, STR$(nSaved%) + " constants on clipboard")
+      PROC_enabledlgitem(Dlg%, 1, TRUE)
+      PROC_enabledlgitem(Dlg%, 2, FALSE)
+      PROC_refreshdialog(Dlg%)
+      
+      REPEAT
+        key% = INKEY(1)
+        result% = FN_polldialog(Dlg%, key%, Click%())
+      UNTIL result% = 1 OR result% = 2
+      PROCcleanup
+      QUIT
+      
+      DEF PROCprocess(a$)
+      LOCAL I%,J%,Q%
+      FOR I% = 1 TO LENa$
+        IF MID$(a$,I%,1) = """" Q% = NOT Q%
+        IF NOT Q% IF MID$(a$,I%,1) >= "A" AND MID$(a$,I%,1) <= "Z" OR MID$(a$,I%,1) = "_" THEN
+          J% = I%
+          REPEAT I% += 1
+          UNTIL MID$(a$,I%,1) < "0" OR MID$(a$,I%,1) > "_" OR MID$(a$,I%,1) > "9" AND MID$(a$,I%,1) < "A"
+          IF I% - J% > 4 IF MID$(a$,I%,1) < "a" OR MID$(a$,I%,1) > "z" PROCconst(MID$(a$, J%, I%-J%), MID$(a$, I%))
+        ENDIF
+      NEXT
+      ENDPROC
+      
+      DEF PROCconst(c$, l$)
+      LOCAL I%, U%
+      U% = 1
+      IF ASCl$ = &24 c$ += "$" : l$ = MID$(l$,2)
+      IF ASCc$ = &5F c$ = MID$(c$,2) : U% *= 4
+      IF ASCl$ = &25 l$ = MID$(l$,2) : U% *= 16
+      I% = FNsearch(Const$(), c$, 0, nConst%-1)
+      IF c$ = Const$(I%) THEN
+        WHILE ASCl$ = &20 l$ = MID$(l$,2) : ENDWHILE
+        IF ASCl$ = &3D Flags&(I%) OR= U% << 1 ELSE Flags&(I%) OR= U%
+      ENDIF
+      ENDPROC
+      
+      DEF FNsearch(a$(), s$, L%, H%)
+      LOCAL M%
+      REPEAT
+        M% = (L% + H%) DIV 2
+        IF s$ > a$(M%) L% = M% ELSE H% = M%
+      UNTIL (H% - L%) <= 1
+      = H%
+      
+      DEF PROCcleanup
+      Dlg% += 0 : IF Dlg% PROC_closedialog(Dlg%)
+      ENDPROC

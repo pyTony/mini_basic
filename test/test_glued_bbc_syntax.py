@@ -4,7 +4,11 @@ from io import StringIO
 from contextlib import redirect_stdout, redirect_stderr
 from unittest.mock import patch
 
+import pytest
+
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+pytestmark = [pytest.mark.phase1, pytest.mark.non_gfx]
 
 
 class GluedBbcSyntaxTests(unittest.TestCase):
@@ -31,6 +35,18 @@ class GluedBbcSyntaxTests(unittest.TestCase):
         out = buf.getvalue().replace(" ", "")
         self.assertIn("1", out)
         self.assertIn("2", out)
+
+    def test_percent_mod_space_rhs_clock_style(self):
+        """Clock.bas: HOUR24%MOD 12 after int sub → 18MOD 12 must become 18 % 12."""
+        i = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        self.assertEqual(i._normalize_operators("18MOD 12").replace(" ", ""), "18%12")
+        i.int_variables["HOUR24"] = 18
+        self.assertEqual(int(i._eval_numeric("HOUR24%MOD 12")), 6)
+        i.program[10] = "HOUR24%=14:HOUR%=HOUR24%MOD 12:PRINT HOUR%:END"
+        buf = StringIO()
+        with redirect_stdout(buf), redirect_stderr(StringIO()):
+            i.run()
+        self.assertEqual(buf.getvalue().strip(), "2")
 
     def test_mode5_normalize(self):
         i = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))

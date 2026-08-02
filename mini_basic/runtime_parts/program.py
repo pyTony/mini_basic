@@ -359,7 +359,11 @@ class RuntimeProgramMixin:
         self._definitions_dirty = False
 
     def _prepare_expr_for_compile(
-        self, expr: str, is_condition: bool,
+        self,
+        expr: str,
+        is_condition: bool,
+        *,
+        allow_bitwise: bool = False,
     ) -> Tuple[str, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
         if self._RE_FN_CALL.search(expr):
             raise ValueError('dynamic call in expression')
@@ -370,7 +374,8 @@ class RuntimeProgramMixin:
         if self._RE_FILE_FUNC.search(expr) or self._RE_FILE_FUNC_BBC.search(expr):
             raise ValueError('dynamic file function in expression')
         if self._expr_has_boolean_syntax(expr):
-            raise ValueError('boolean expression')
+            if not (allow_bitwise and self._expr_is_pure_bitwise(expr)):
+                raise ValueError('boolean expression')
         if is_condition:
             expr = self._normalize_condition(expr)
         # TRUE/FALSE must become -1/0 before compile(); else Python NameError.
@@ -384,6 +389,7 @@ class RuntimeProgramMixin:
                 str(self.bbc_at_percent),
                 expr,
             )
+        # Bitwise words → Python operators before int-slot rewrite.
         expr = self._normalize_operators(expr)
         needs_time = bool(self._RE_TIME.search(expr))
         if needs_time:
@@ -547,10 +553,18 @@ class RuntimeProgramMixin:
         # DEFPROCname / DEFPROCname( → DEF PROC name
         line = re.sub(r'\bDEFPROC\b', 'DEF PROC', line, flags=re.IGNORECASE)
         line = re.sub(r'\bDEFPROC(?=[A-Za-z])', 'DEF PROC ', line, flags=re.IGNORECASE)
-        # REPEATUNTILTIME… / REPEATUNTIL … / REPEAT UNTIL …
+        # REPEATUNTILTIME… (welcome) — \b after REPEATUNTIL fails when TIME follows
+        line = re.sub(
+            r'\bREPEATUNTIL(?=[A-Za-z_])',
+            'REPEAT UNTIL ',
+            line,
+            flags=re.IGNORECASE,
+        )
         line = re.sub(r'\bREPEATUNTIL\b', 'REPEAT UNTIL', line, flags=re.IGNORECASE)
         line = re.sub(r'\bREPEAT(?=UNTIL)', 'REPEAT ', line, flags=re.IGNORECASE)
         line = re.sub(r'\bREPEAT\s+UNTIL\b', 'REPEAT UNTIL', line, flags=re.IGNORECASE)
+        # UNTILTIME>… / UNTIL TIME
+        line = re.sub(r'\bUNTIL(?=[A-Za-z_])', 'UNTIL ', line, flags=re.IGNORECASE)
         # 0TO20 / 0STEP2 — only after digit/%/) so TOTAL is not split
         line = re.sub(r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])', ' TO ', line, flags=re.IGNORECASE)
         line = re.sub(r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])', ' STEP ', line, flags=re.IGNORECASE)
@@ -728,19 +742,51 @@ class RuntimeProgramMixin:
         return norm_base + suffix
 
     def _normalize_for_rest(self, rest: str) -> str:
-        """Space TO/STEP when glued (BBC style and quick typing: ``1TO100``, ``1toN``, ``N TO 10``, ``1toTOTAL`` etc.).
-        Must handle upper limits that are variables (which may contain 'TO' letters) without
-        breaking var names in general (the previous formatting fixes protect LIST etc.).
+        """Space TO/STEP when glued (BBC style and quick typing: ``1TO100``, ``1toN``, ``N TO 10``).
+
+        Never rewrite the loop variable (text before the first ``=``), so names like
+        ``to0`` / ``step3`` stay intact. In case-sensitive dialects, only uppercase
+        ``TO`` / ``STEP`` are keywords — lowercase ``to`` / ``to0`` are identifiers.
         """
         text = rest.strip()
-        # Catch number or ) immediately followed by TO/STEP (to digit, var, or expr)
-        text = re.sub(r'(?<=[0-9)])(TO|STEP)', r' \1 ', text, flags=re.IGNORECASE)
-        # Catch TO/STEP immediately followed by digit or ( (no space)
-        text = re.sub(r'(TO|STEP)(?=[0-9(])', r' \1 ', text, flags=re.IGNORECASE)
-        # Ensure spaces around whole-word TO/STEP (handles already spaced or varTO cases safely)
-        text = re.sub(r'\b(TO|STEP)\b', r' \1 ', text, flags=re.IGNORECASE)
-        # Original sign/digit case for safety
-        text = re.sub(r'(?<=[0-9])\s*(TO|STEP)\s*(?=-?[0-9])', r' \1 ', text, flags=re.IGNORECASE)
+        eq = text.find('=')
+        if eq >= 0:
+            head, tail = text[: eq + 1], text[eq + 1 :]
+        else:
+            head, tail = '', text
+
+        case_sensitive = False
+        try:
+            case_sensitive = bool(self._identifiers_case_sensitive())
+        except Exception:
+            case_sensitive = False
+
+        if case_sensitive:
+            # Keywords only in uppercase; leave lowercase identifiers (to, to0, step3).
+            tail = re.sub(r'(?<=[0-9)])(TO|STEP)', r' \1 ', tail)
+            tail = re.sub(r'(?<![A-Za-z0-9_])(TO|STEP)(?=[0-9(])', r' \1 ', tail)
+            tail = re.sub(r'(?<![A-Za-z0-9_])(TO|STEP)(?![A-Za-z0-9_])', r' \1 ', tail)
+            tail = re.sub(r'(?<=[0-9])\s*(TO|STEP)\s*(?=-?[0-9])', r' \1 ', tail)
+        else:
+            # Fold mode: never rewrite variable head; only unglue in the range tail.
+            flags = re.IGNORECASE
+            tail = re.sub(r'(?<=[0-9)])(TO|STEP)', r' \1 ', tail, flags=flags)
+            # ``TO10`` / ``TO(`` after space or operator — not mid-name like ``total``.
+            tail = re.sub(
+                r'(?<=[\s=+\-*/,(])(TO|STEP)(?=[0-9(])',
+                r' \1 ',
+                tail,
+                flags=flags,
+            )
+            tail = re.sub(r'\b(TO|STEP)\b', r' \1 ', tail, flags=flags)
+            tail = re.sub(
+                r'(?<=[0-9])\s*(TO|STEP)\s*(?=-?[0-9])',
+                r' \1 ',
+                tail,
+                flags=flags,
+            )
+
+        text = head + tail
         return re.sub(r'\s+', ' ', text).strip()
 
     def _parse_var_token(self, token: str) -> Tuple[str, VarKind]:
@@ -1143,11 +1189,19 @@ class RuntimeProgramMixin:
             raise ValueError(
                 "'%' is reserved for integer variable suffixes (A%) and binary literals (%1010); use MOD for modulo"
             )
-        # Support glued forms like 10MOD3, 2DIV3, (1+2)MOD5 (BBC quick-typing style)
-        # but only when MOD/DIV follows a number/paren (to avoid splitting inside var names
-        # like AMOD or XMOD that might be valid identifiers).
-        expr = re.sub(r'(?<=[0-9)])(MOD|DIV)(?=[0-9A-Za-z_(])', r' \1 ', expr, flags=re.IGNORECASE)
-        # Welcome: A%AND1 / A%DIV2 / I%AND1 after integer suffix
+        # Glued BBC operators after a number/paren or integer suffix:
+        #   10MOD3, 18MOD 12 (Clock HOUR24%MOD after sub), (1+2)DIV5
+        #   0AND1 / 0DIV2 after A%→0 substitution (welcome K%=68+(A%AND1))
+        #   (500+32-0)DIVM8 — \b after DIV fails (M continues the word); use
+        #   lookahead for digit/ident/paren instead of trailing \b.
+        # Require lookbehind digit/paren so AMOD / XMOD stay identifiers.
+        expr = re.sub(
+            r'(?<=[0-9)])(MOD|DIV|AND|OR|EOR|XOR)(?=\s|[0-9A-Za-z_(]|$)',
+            r' \1 ',
+            expr,
+            flags=re.IGNORECASE,
+        )
+        # Welcome / Clock: A%AND1, A%DIV2, HOUR24%MOD 12 before var substitution
         # (no \b after AND — digit continues the word in Python \w)
         expr = re.sub(
             r'%(?=(?:AND|OR|EOR|XOR|DIV|MOD)(?![A-Za-z_]))',
@@ -1155,7 +1209,7 @@ class RuntimeProgramMixin:
             expr,
             flags=re.IGNORECASE,
         )
-        # AND1 / DIV2 when op glued to a digit operand
+        # AND1 / DIV2 / MOD12 when op glued to a digit operand
         expr = re.sub(
             r'\b(AND|OR|EOR|XOR|DIV|MOD)(?=\d)',
             r'\1 ',

@@ -1,10 +1,13 @@
-# Register a Windows scheduled task: update progress files every minute.
-# Each run writes and exits - no process or file left open.
+# Register a Windows scheduled task: poll status source .txt files.
+# Rebuilds status.html only when sources change (or rare agent-staleness flag).
+# Default interval: every 5 minutes (was every 1 minute full rewrite).
+# Each run exits immediately — no process left open.
 # Run once:  powershell -File register_progress_task.ps1
 # Remove:    schtasks /delete /tn mini_basic_progress /f
 
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$Script = Join-Path $Root 'progress_heartbeat.py'
+# progress_heartbeat.py lives in scripts/, this file is scripts/ps1/
+$Script = Join-Path (Split-Path -Parent $Root) 'progress_heartbeat.py'
 
 function Test-RealPythonPath {
     param([string]$Path)
@@ -57,8 +60,9 @@ if ($Pythonw -like '*\WindowsApps\*') {
 
 schtasks /delete /tn 'mini_basic_progress' /f 2>$null | Out-Null
 
-$arg = "`"$Pythonw`" `"$Script`""
-$result = schtasks /create /tn 'mini_basic_progress' /tr $arg /sc minute /mo 1 /f 2>&1
+# Quiet: no console spam under pythonw. Poll interval 5 minutes.
+$arg = "`"$Pythonw`" `"$Script`" --quiet"
+$result = schtasks /create /tn 'mini_basic_progress' /tr $arg /sc minute /mo 5 /f 2>&1
 if ($LASTEXITCODE -ne 0) {
     Write-Error $result
     exit 1
@@ -75,7 +79,8 @@ if ($task) {
     Set-ScheduledTask -TaskName 'mini_basic_progress' -Settings $settings | Out-Null
 }
 
-Write-Host "Registered: mini_basic_progress (every 60s, battery OK, start when available)"
+Write-Host "Registered: mini_basic_progress (every 5 min poll; rebuild only on .txt change)"
 Write-Host "Pythonw:    $Pythonw"
 Write-Host "Script:     $Script"
+Write-Host "Stale agent check: every ~30 min if sources unchanged (see utils/status_sources.py)"
 Write-Host "Tablet:     PHONE_PROGRESS.txt, status.html, SYNC_STAMP.txt"

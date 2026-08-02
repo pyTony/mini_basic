@@ -1,0 +1,425 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE PRINT 'REPORT$ : END
+      
+      REM Toccata pour Grand Orgue (1912) Gaston Bélier
+      REM Transcribed by Richard Russell, 8th Feb. 2025
+      
+      VDU 23,22,960;540;8,16,16,128+8
+      COLOR 1,255,255,240
+      COLOR 129
+      CLS
+      OSCLI "FONT """ + @lib$ + "DejaVuSansMono"",10"
+      *TEMPO 133
+      *STEREO 0,-127
+      *STEREO 1,-42
+      *STEREO 2,42
+      *STEREO 3,127
+      *VOICE 0,5
+      *VOICE 1,5
+      *VOICE 2,5
+      *VOICE 3,5
+      SOUND 1,0,0,10
+      
+      ENVELOPE 4,1,0,0,0,0,0,0,64,0,0,-4,69,39
+      ENVELOPE 5,1,0,0,0,0,0,0,64,0,0,-4,119,89
+      ENVELOPE 6,1,0,0,0,0,0,0,64,0,0,-4,119,89
+      ENVELOPE 7,1,0,0,0,0,0,0,64,0,0,-4,99,69
+      
+      DIM snd{(3,50)a&,e&,p&,d&}, p%(3), q%(3), cli$(3), envel%(3)
+      DIM cmajor&(7), scale%(7), acc%(7), flat&(7), sharp&(7)
+      cmajor&() = 88,96,52,60,68,72,80
+      flat&() = 0, &02, &12, &13, &1B, &5B, &5F, &7F
+      sharp&() = 0, &A0, &A4, &E4, &EC, &ED, &FD, &FF
+      dur% = 24
+      envel%() = 5
+      tempo = 2
+      REPEAT
+        REPEAT
+          READ R$ : IF R$="" REPEAT WAIT 4 : UNTIL FALSE
+          T$ += R$ : IF RIGHT$(T$) = "\" T$ = LEFT$(T$)
+        UNTIL RIGHT$(R$) <> "\"
+        PRINT R$
+        acc%() = scale%()
+        clef% = 48 : voice% = 1
+        p%() = 0 : q%() = 0
+        WHILE T$<>""
+          I% = 1 : WHILE INSTR("0123456789",MID$(T$,I%,1)) I% += 1 : ENDWHILE
+          IF I% > 1 dur% = VALLEFT$(T$,I%-1) : T$ = MID$(T$,I%)
+          C$ = LEFT$(T$,1) : T$=MID$(T$,2)
+          CASE C$ OF
+            WHEN " ":
+            WHEN ";": T$ = ""
+            WHEN "[": T$ = ""
+            WHEN "P": T$ = MID$(T$,2)
+            WHEN "=": beat% = 0
+              WHILE ASC(T$)>=&30 AND ASC(T$)<=&39 beat% = beat% * 10 + ASC(T$)-&30
+                T$ = MID$(T$,2) : ENDWHILE
+              WHILE ADVAL(-5)<16 OR ADVAL(-6)<16 OR ADVAL(-7)<16 OR ADVAL(-8)<16
+                WAIT 1 : ENDWHILE
+              CASE TRUE OF
+                WHEN beat% <= 60  tempo = 3 : *TEMPO 130
+                WHEN beat% <= 70  tempo = 4 : *TEMPO 131
+                WHEN beat% <= 100 tempo = 3 : *TEMPO 131
+                WHEN beat% <= 120 tempo = 4 : *TEMPO 133
+                WHEN beat% <= 130 tempo = 3 : *TEMPO 132
+                WHEN beat% <= 150 tempo = 2 : *TEMPO 131
+                WHEN beat% <= 170 tempo = 3 : *TEMPO 133
+                WHEN beat% <= 200 tempo = 2 : *TEMPO 132
+                WHEN beat% <= 255 tempo = 2 : *TEMPO 133
+              ENDCASE
+            WHEN "T": acc%() = scale%() : clef% = 48
+            WHEN "S": acc%() = scale%() : clef% = 0
+            WHEN "V": acc%() = scale%() : voice% = ASC(T$) - &30 : T$=MID$(T$,2)
+              voice% AND= 3
+            WHEN "W": wave% = VAL(T$) : T$ = MID$(T$,2)
+              WHILE ADVAL(-5-voice%)<16 WAIT 1 : ENDWHILE
+              cli$(voice%) = "voice " + STR$voice% + "," + STR$(wave%)
+              envel%(voice%) = wave%
+            WHEN "K": key% = ASC(T$) - &30 : T$=MID$(T$,2)
+              scale%() = 0
+              IF key% THEN
+                key$ = LEFT$(T$,1) : T$=MID$(T$,2)
+                CASE key$ OF
+                  WHEN "#": key& = sharp&(key%)
+                  WHEN "b","&": key& = flat&(key%)
+                ENDCASE
+                FOR I% = 0 TO 6
+                  IF key& AND (2^I%) scale%(I%) = -4 : IF key& AND &80 scale%(I%) = +4
+                NEXT
+              ENDIF
+              acc%() = scale%()
+            OTHERWISE
+              Note% = INSTR("ABCDEFG$",C$)-1
+              IF Note% < 0 ERROR 100, "Unrecognised command "+C$
+              octave% = 0
+              staccato = 0
+              ticks% = dur% / tempo
+              REPEAT
+                CASE LEFT$(T$,1) OF
+                  WHEN "#": acc%(Note%) = 4
+                  WHEN "%": acc%(Note%) = 0
+                  WHEN "&","b": acc%(Note%) =-4
+                  WHEN "+": octave% += 48
+                  WHEN "-": octave% -= 48
+                  WHEN ".": ticks% = dur% / tempo * 3/2
+                  WHEN ":": ticks% = dur% / tempo * 2/3
+                  WHEN ",": staccato = 1/3
+                  WHEN "'":  staccato = 1/6
+                  WHEN """": staccato = 1/6
+                  OTHERWISE: EXIT REPEAT
+                ENDCASE
+                T$=MID$(T$,2)
+              UNTIL FALSE
+              pitch% = cmajor&(Note%) + acc%(Note%) + clef% + octave%
+              IF Note% = 7 pitch% = 0
+              IF pitch% < 0 OR pitch% > 255 ERROR 100, "Pitch out of range: "+STR$pitch%
+              IF ticks% < 0 OR ticks% > 254 ERROR 100, "Duration out of range: "+STR$ticks%
+              gap% = INT(ticks% * staccato) + 0.5
+              snd{(voice%,p%(voice%))}.e& = envel%(voice%)
+              snd{(voice%,p%(voice%))}.p& = pitch%
+              snd{(voice%,p%(voice%))}.d& = ticks% - gap%
+              p%(voice%) += 1
+              IF gap% THEN
+                snd{(voice%,p%(voice%))}.p& = 0
+                snd{(voice%,p%(voice%))}.d& = gap%
+                p%(voice%) += 1
+              ENDIF
+          ENDCASE
+        ENDWHILE
+        WHILE ADVAL(-5)=0 OR ADVAL(-6)=0 OR ADVAL(-7)=0 OR ADVAL(-8)=0
+          WAIT 1
+        ENDWHILE
+        IF p%(0)<>q%(0) OR p%(1)<>q%(1) OR p%(2)<>q%(2) OR p%(3)<>q%(3) THEN
+          SOUND &300,0,0,0 : SOUND &301,0,0,0 : SOUND &302,0,0,0 : SOUND &303,0,0,0
+          FOR v% = 0 TO 3
+            IF cli$(v%)<>"" OSCLI(cli$(v%)) : cli$(v%) = ""
+          NEXT
+          REPEAT
+            stall% = TRUE
+            FOR v% = 0 TO 3
+              IF q%(v%) < p%(v%) IF ADVAL(-5-v%) THEN
+                stall% = FALSE
+                IF snd{(v%,q%(v%))}.p& = 0 THEN
+                  SOUND v%+&1000,snd{(v%,q%(v%))}.e&,0,snd{(v%,q%(v%))}.d&
+                ELSE
+                  SOUND v%,snd{(v%,q%(v%))}.e&,snd{(v%,q%(v%))}.p&,snd{(v%,q%(v%))}.d&
+                ENDIF
+                q%(v%) += 1
+              ENDIF
+            NEXT v%
+            IF stall% WAIT 1
+          UNTIL p%(0)=q%(0) AND p%(1)=q%(1) AND p%(2)=q%(2) AND p%(3)=q%(3)
+        ENDIF
+      UNTIL FALSE
+      END
+      ;
+      DATA "[Toccata pour Grand Orgue (1912) Gaston Bélier"
+      DATA "[Transcribed by Richard Russell, 8th Feb. 2025"
+      DATA K1b W2
+      DATA =250
+      DATA V1W5V2W5V3W5V4W5
+      
+      DATA [ Page 1
+      
+      DATA TV1 12 D++D 6$DC#D V2 12 F+$ V3 AD SV4 DD- [ Bar 1
+      DATA TV1 6 F+D+C#+D+G+D+C+D+ V2 12 F$G$ V3 D$E$ V4 $$D$
+      DATA TV1 12 A+D 6 $DC#D V2 12 D+D+ V3 FF SV4 DD-
+      DATA TV1 6 G+D+C#+D+A+D+C+D+ V2 12 G$A$ V3 E$F$ V4 D$D$
+      DATA TV1 12 B+D+ 6 $AGA V2 12 G+D+ 6 $D+C+D+ V3 12 GG SV4 12 DD-
+      DATA TV1 6 G+A+G+A+F+G+F+G+ V2 BC+BC+ABAB
+      
+      DATA TV1 6 E+F+E+F+D+E+D+E+ V2 GAGAFGFG  [ Bar 7
+      DATA TV1 12 C#+C+D+F+ V2 6 EAGAFADA
+      DATA TV1 12 E+C#+E+G+ V2 6 C#AA-ACAEA
+      DATA TV1 6 F+A+G+A+F+A+D+A+ V2 12 DC#DF
+      DATA TV1 6 C#+A+AA+CA+EA+ V2 12 EC#EG
+      DATA TV1 12 D+B%C%+E+ V2 6 FAFGEGCG
+      
+      DATA TV1 12 D+B%D+F+ V2 6 B-%GG-GB-GDG  [ Bar 13
+      DATA TV1 6 E+G+F+G+E+G+C+G+ V2 12 CB-%CE
+      DATA TV1 6 B%G+GG+BG+D+G+ V2 12 DB-%DF
+      DATA TV1 6 C+A+G+A+F+A+E+A+ V2 12 EC#DE
+      DATA TV1 6 D+B+%A+B+G+B+F#+B+ V2 12 FD#EF#
+      DATA TV1 6 E+C++B+C++A+C++G+C++ V2 12 GEFG
+      
+      DATA TV1 12 F+E+F+G+ V2 6 AC+BC+AC+GC+  [ Bar 19
+      DATA TV1 6 A+D++C++D++B+D++A+D++ V2 12 FF#GA
+      DATA TV1 12 G+F#+G+A+ V2 6 BD+C+D+BD+AD+
+      DATA "TV1 12 B+B+,B+,B+, V2 6 GD+FD+ED+DD+ V3 12 $G+,G+,G+,"
+      DATA TV1 12 B+E+F+G+ V2 6 CC+BC+AC+GC+ V3 12 G+
+      DATA "TV1 12 A+A+,A+,A+, V2 6 FC+EC+DC+CC+ V3 12 $F+,F+,F+,"
+      
+      DATA TV1 12 A+D+E+F+ V2 6 B-BABGBFG V3 12 F+ [ Bar 25
+      DATA "TV1 12 G+G+,G+,G+, V2 6 EBDBCBB-B V3 12 $E+,E+,E+,"
+      DATA TV1 12 G+C#+D+E+ V2 6 A-AGAFAEA V3 12 E+
+      DATA "TV1 12F+F+,F+,F+, V2 6 DACDB-AA-A V3 12 $D+,D+,D+,"
+      DATA TV1 6 F+E+D+F+E+D+C#+E+ V2 G-GFAGFEG V3 D+ SV4 24 $A-
+      DATA TV1 24 D+$ V2 A$ V3 F$ SV4 12 DD-$$
+      
+      DATA [ Repeat bars 1 to 30
+      
+      DATA TV1 12 D++D 6$DC#D V2 12 F+$ V3 AD SV4 DD- [ Bar 1
+      DATA TV1 6 F+D+C#+D+G+D+C+D+ V2 12 F$G$ V3 D$E$ V4 $$D$
+      DATA TV1 12 A+D 6 $DC#D V2 12 D+D+ V3 FF SV4 DD-
+      DATA TV1 6 G+D+C#+D+A+D+C+D+ V2 12 G$A$ V3 E$F$ V4 D$D$
+      DATA TV1 12 B+D+ 6 $AGA V2 12 G+D+ 6 $D+C+D+ V3 12 GG SV4 12 DD-
+      DATA TV1 6 G+A+G+A+F+G+F+G+ V2 BC+BC+ABAB
+      
+      DATA TV1 6 E+F+E+F+D+E+D+E+ V2 GAGAFGFG  [ Bar 7
+      DATA TV1 12 C#+C+D+F+ V2 6 EAGAFADA
+      DATA TV1 12 E+C#+E+G+ V2 6 C#AA-ACAEA
+      DATA TV1 6 F+A+G+A+F+A+D+A+ V2 12 DC#DF
+      DATA TV1 6 C#+A+AA+CA+EA+ V2 12 EC#EG
+      DATA TV1 12 D+B%C%+E+ V2 6 FAFGEGCG
+      
+      DATA TV1 12 D+B%D+F+ V2 6 B-%GG-GB-GDG  [ Bar 13
+      DATA TV1 6 E+G+F+G+E+G+C+G+ V2 12 CB-%CE
+      DATA TV1 6 B%G+GG+BG+D+G+ V2 12 DB-%DF
+      DATA TV1 6 C+A+G+A+F+A+E+A+ V2 12 EC#DE
+      DATA TV1 6 D+B+%A+B+G+B+F#+B+ V2 12 FD#EF#
+      DATA TV1 6 E+C++B+C++A+C++G+C++ V2 12 GEFG
+      
+      DATA TV1 12 F+E+F+G+ V2 6 AC+BC+AC+GC+  [ Bar 19
+      DATA TV1 6 A+D++C++D++B+D++A+D++ V2 12 FF#GA
+      DATA TV1 12 G+F#+G+A+ V2 6 BD+C+D+BD+AD+
+      DATA "TV1 12 B+B+,B+,B+, V2 6 GD+FD+ED+DD+ V3 12 $G+,G+,G+,"
+      DATA TV1 12 B+E+F+G+ V2 6 CC+BC+AC+GC+ V3 12 G+
+      DATA "TV1 12 A+A+,A+,A+, V2 6 FC+EC+DC+CC+ V3 12 $F+,F+,F+,"
+      
+      DATA TV1 12 A+D+E+F+ V2 6 B-BABGBFG V3 12 F+ [ Bar 25
+      DATA "TV1 12 G+G+,G+,G+, V2 6 EBDBCBB-B V3 12 $E+,E+,E+,"
+      DATA TV1 12 G+C#+D+E+ V2 6 A-AGAFAEA V3 12 E+
+      DATA "TV1 12F+F+,F+,F+, V2 6 DACDB-AA-A V3 12 $D+,D+,D+,"
+      DATA TV1 6 F+E+D+F+E+D+C#+E+ V2 G-GFAGFEG V3 D+ SV4 24 $A-
+      DATA TV1 24 D+$ V2 A$ V3 F$ SV4 12 DD-$$
+      
+      DATA [ Page 2
+      DATA TV1 12 A+$ 6 $AG#A V2 12 CA- V3 E+ SV4 AA- [ Bar 31
+      DATA TV1 6 C+AG#AD+AGA V2 12 C$D$ V3 A-$B-%$ V4 $$A-$
+      DATA TV1 12 E+A 6 $AG#A V2 12 A$ V3 CE SV4 AA-$$
+      DATA TV1 6 D+AG#AE+AGA V2 12 D$E$ V3 B-%$C$ V4 A-$A-$
+      DATA TV1 12 F+A 6 $F+E+F+ V2 12 A V3 DD SV4 AA-
+      DATA TV1 6 D+E+D+E+C+D+C+D+ V2 FGFGEFEF
+      
+      DATA TV1 6 B%C+BC+ABAB V2 DEDECDCD [ Bar 37
+      DATA TV1 12 G#GAB% V2 6 B%-EDECEB-E
+      DATA TV1 12 C+C#+D+E+ V2 $AAA V3 A-C#DE SV4 6 $AGAFAEA
+      DATA "TV1 12 F+,F+,F+,F+, V2 A,A,A,A, V3 D,D,D,D, SV4 6 DACAB%-AA-A"
+      DATA TV1 12 F+B%C+D+ V2 D+B%GG V3 FB%-CD SV4 6 G-GFGEGDG
+      DATA "TV1 12 E+,E+,E+,E+, V2 G,G,G,G, V3 C,C,C,C, SV4 6 CGB-%GA-GG-G"
+      
+      DATA TV1 12 E+AB%C+ V2 AFFF V3 CA-B%A- SV4 6 F-FEFDFCF [ Bar 43
+      DATA "TV1 12 D+,D+,D+,D+, V2 F,F,F,F, V3 B%-,B-,B-,B-, SV4 6 B%-FA-FG-FF-F"
+      DATA TV1 12 D+G#AB% V2 G#EEE V3 B%-G#-A-B- SV4 6 E-EDECEB-%E
+      DATA "TV1 12 C+,C+,C+,C+, V2 E,E,E,E, V3 C,C,C,C, SV4 6 A-EG-EF-EE-E"
+      DATA TV1 6 C+B%AC+BAG#B V2 F V3 A-DCEDCB-%D SV4 12 D-$ 24 E-
+      DATA TV1 24 A V2 E V3 C SV4 12 AA-
+      DATA V1W7V2W7V3W7V4W7 TV1 6 $E+F+G+
+      
+      DATA "TV1 6 A+AE+AA+AE+A SV4 12 C+#,A,C+,A, [ Bar 49"
+      DATA "TV1 6 A+G+F+E+F+E+D+D+ SV4 12 C+#,A,D+,C+%,"
+      DATA "TV1 6 G+GD+GG+GD+G SV4 12 B%,G,B,G,"
+      DATA "TV1 6 G+F+E+D+E+D+C+C+ SV4 12 B%,G,C+,B,"
+      DATA "TV1 6 F+FC+FF+FC+F SV4 12 A,F,A,F,"
+      DATA "TV1 6 F+E+D+C+D+C+B%B SV4 12 A,F,B%,A,"
+      
+      DATA "TV1 6 E+EB%EE+EBE SV4 12 G#,E,G,E, [ Bar 55"
+      DATA "TV1 6 E+D+C+B%C+BAA SV4 12 G#,E,AG%"
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 C+ V3 A V4 F
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 E+ V3 C+ V4 E
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 D#+ V3 A V4 D#
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 E+ V3 A V4 E
+      
+      DATA V1W5V2W5V3W5V4W5
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 F V3 C V4 F-  [ Bar 61
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 E+ V3 A V$ E-
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 D#+ V3 A V4 D-#
+      DATA "TV1 12 E+,E+$$ V2 G#,G#$$ SV3 B%,B%$$ V4 E-$$$"
+      DATA "TV1 12 F+,F+$$ V2 A,A$$ SV3 D#,D#$$ V4 D-#"
+      DATA "TV1 12 F+#,F+#$$ V2 A,A$$ SV3 D,D$$ V4 D-%"
+      
+      DATA [ Page 3
+      DATA V1W4V2W4V3W4V4W4
+      DATA TV1 12 G+B%C+E+ V2 6 G-GF%GEGCG [ Bar 67
+      DATA TV1 12 D+B%D+F+ V2 6 B-%GG-GB-GDG
+      DATA TV1 6 E+G+F+G+E+G+C+G+ V2 12 CB-%CE
+      DATA TV1 6 B%G+GG+BG+DG+ V2 12 DB-%DF
+      DATA TV1 12 C+E+F+A+ V2 6 EC+BC+AC+FC+
+      DATA TV1 12 G+E+G+B+ V2 6 EC+CC+EC+GC+
+      
+      DATA TV1 6 A+C++B+C++A+C++D+C++ V2 12 FEFA [ Bar 73
+      DATA TV1 6 E+C++C+C++E+C++G+C++ V2 12 GEGB
+      DATA TV1 6 F+C++B+C++A+B+A+B+ V2 AE+D+E+C+D+C+D+
+      DATA TV1 6 G+A+G+A+F+G+F+G+ V2 BC+BC+ABAB
+      DATA TV1 6 E+F+E+F+D+E+D+E+ V2 GAGAFGFG
+      DATA TV1 12 C+#C+D+E+ V2 6 EAGAFAEA
+      
+      DATA TV1 12 F+C#+D+E+ V2 6 DAA-AB-%AC#A [ Bar 79
+      DATA V1W7V2W7V3W7V4W7
+      DATA TV1 12 F+C#+D+E+ V2 6 DAGAFAEA
+      DATA TV1 12 F+F+#G+G+# V2 6 DACAB-%ABbA
+      DATA "TV1 6 A+AE+A A+AE+A SV4 12 A,A,C#+,A,"
+      DATA "TV1 6 A+G+F+E+F+E+D+D+ SV4 12 C#+,A,D+C%+"
+      
+      DATA "TV1 6 G+GD+GG+GD+G SV4 12 B%,G,B,G, [ Bar 84"
+      DATA "TV1 6 G+F+E+D+E+D+C+C+ SV4 12 B%,G,C+B"
+      DATA "TV1 6 F+FC+CF+FC+F SV4 12 A,F,A,F,"
+      DATA "TV1 6 F+E+D+C+D+C+B%B% SV4 12 A,F,B%A"
+      DATA "TV1 6 E+EB%EE+EBE SV4 12 G#,E,G,E,"
+      
+      DATA "TV1 6 E+D+C+B%C+BAA SV4 12 G#,E,AG%  [ Bar 89"
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 C+ V3 A V4 F
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 E+ V3 C+ V4 E
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 D#+ V3 C+ V4 D#
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 E+ V3 C+ V4 E
+      
+      DATA V1W5V2W5V3W5V4W5
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 F+ V3 C+ V4 F  [ Bar 94
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 E+ V3 A V4 E
+      DATA TV1 6 A+AG#AB%C+BA SV2 12 D#+ V3 A V4 D#
+      DATA "TV1 12 E+,E+$$ V2 G#,G#$$ SV3 E+,E+$$ V4 E,E$$"
+      DATA "TV1 12 F+,F+$$ V2 A,A$$ SV3 D+#,D+#$$ V4 D#,D#$$"
+      DATA "TV1 12 E+,E+$$ V2 G#,G#$$ SV3 E+,E+$$ V4 E,E$$"
+      DATA TV1 12 A+A 6 $AG#A V2 12 A SV3 E+A V4 AA-
+      
+      DATA TV1 6 C+AG#AD+AGA SV2 12 $$D+$ V3 C+$D+$ V4 A$B%$  [ Bar 101
+      DATA TV1 12 E+A 6 $AG#A SV2 12 E+E+$$ V3 C+C+ V4 AA-$$
+      DATA TV1 6 D+AG#AE+AGA SV2 12 D+$E+$ V3 B%$C+$ V4 A$A$
+      DATA TV1 12 F+A 6 $F+E+F+ SV2 12 F+F+ T6$AG%A SV3 12 D+D+$$ V4 AA-$$
+      DATA TV1 6 D+E+D+E+C+D+C+D+ V2 FGFGEFEF
+      DATA TV1 6 B%C+BC+ABAB V2 DEDECDCD
+      
+      DATA [ Page 4
+      DATA TV1 12 G#GAB% V2 6 B-%EDECEB-E [ Bar 107
+      DATA TV1 12 C+C+#D+E+ V2 $AAA V3 A-C#DE SV4 6 $AGAFAEA
+      DATA "TV1 12 F+,F+,F+,F+, V2 A,A,A,A, V3 D,D,D,D, SV4 6 DACAB-AA-A"
+      DATA TV1 12 F+B%C+D+ V2 D+GGG V3 FB-%CD SV4 6 G-GFGEGDG
+      DATA "TV1 12 E+,E+,E+,E+, V2 G,G,G,G, V3 C,C,C,C, SV4 6 CGB-%GA-GG-G"
+      DATA TV1 12 E+AB%C+ V2 C+FFF V3 CSAB%C+ SV4 6 G-FEFDFCF
+      
+      DATA "TV1 12 D+,D+,D+,D+ V2 F,F,F,F, SV3 B%,B,B,B, V4 6 B-%FA-FG-FF-F [ Bar 113"
+      DATA TV1 12 D+G#AB% V2 B%EEE SV3 D+G#AB% V4 6 E-EDECEB-%E
+      DATA "TV1 12 C+,C+,C+,C+, V2 E,E,E,E, SV3 A,A,A,A, V4 6 A-EG-EF-EE-E"
+      DATA TV1 6 C+B%AC+BAG#B V2 F SV3 AD+C+E+D+C+B%D+ V4 12 D-$E-$
+      DATA TV1 24 A SV2 E+ V3 C+ V4 12 AA-
+      DATA V1W7V2W7V3W7V4W7
+      DATA TV1 6 $E+F+G#+
+      DATA TV1 6 A+AE+AA+AE+A SV2 12 C+#AC+A
+      
+      DATA TV1 6 A+G+F+E+F+E+D+D+ SV4 12 C+#AD+C+%  [ Bar 119
+      DATA TV1 6 G+GD+GG+GD+G SV4 12 B%GBG
+      DATA TV1 6 G+F+E+D+E+D+C+C+ SV4 12 B%GC+B
+      DATA TV1 6 F+FC+FF+FC+F SV4 12 AFAF
+      DATA TV1 6 F+E+D+C+D+C+B%B SV4 12 AFB%A
+      DATA TV1 6 E+EB%EE+EBE SV4 12 G#EGE
+      
+      DATA TV1 6 E+D+C+B%C+BAA SV4 12 G#EAG%  [ Bar 125
+      DATA V1W4V2W4V3W4V4W4
+      DATA TV1 6 D++D+A+D+D++D+A+D+ V2 12 F#DFD
+      DATA TV1 6 D++C++B+A+B+A+G+G+ V2 12 F#DGF%
+      DATA TV1 6 C++C+G+C+C++C+G+C+ V2 12 ECEC
+      DATA TV1 6 C++B+A+G+A+G+F+F+  V2 12 ECFE
+      DATA TV1 6 B+BF+BB+BF+B       V2 12 DB-DB-
+      
+      DATA TV1 6 B+A+G+F+G+F+E+E+   V2 12 DB-ED  [ Bar 131
+      DATA TV1 6 A+AE+AA+AE+A       V2 12 C#A-CA-
+      DATA TV1 6 A+G+F+E+F+E+D+D+   V2 12 C#A-DC%
+      DATA V1W7V2W7V3W7V4W7
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 F V3 D V4 B-
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 A V3 F V4 A-
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 G# V3 F V4 G#-
+      
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 A V3 F V4 A- [ Bar 137
+      DATA V1W5V2W5V3W5V4W5
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 B V3 F V4 B-
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 A V3 F V4 A-
+      DATA TV1 6 D++D+C+#D+E+F+E+D+ V2 12 G# V3 F V4 G#-
+      DATA "TV1 12 A+,A+,$$ V2 E+,E+,$$ V3 C#,C#,$$ SV4 A-"
+      DATA "TV1 12 B+,B+,$$ V2 F+,F+,$$ V3 D,D,$$ SV4 G#-"
+      DATA "TV1 12 A+,A+,$$ V2 E+,E+,$$ V3 C#,C#,$$ SV4 A-"
+      
+      DATA [ Page 5
+      DATA TV1 12 D++D+ 6 $D+C#+D+ V2 12 AD V3 F SV4 DD-$$  [ Bar 144
+      DATA TV1 6 F+D+C#+D+G+D+C+D+ V2 12 F$G$ V3 D$E$ V4 $$D$
+      DATA TV1 12 A+D+ 6 $D+C#+D+ V2 12 AA$$ V3 FF$$ SV4 DD-$$
+      DATA TV1 6 G+D+C#+D+A+D+C+D+ V2 12 G$A$ V3 D$F$ V4 E$$$
+      DATA TV1 12 B+D+ 6 $B+A+B+ V2 12 BB 6 $C+C%+D+ V3 12 DD V4 DD-$$
+      DATA TV1 6 G+A+G+A+F+G+F+G+ V2 BC+BC+ABAB
+      DATA TV1 6 E+F+E+F+D+E+D+E+ V2 GAGAFGFG
+      
+      DATA TV1 12 C+#C+D+F+ V2 6 EAGAFADA  [ Bar 151
+      DATA TV1 12 E+C#+E+G+ V2 6 C#AA-ACAEA
+      DATA TV1 6 F+A+G+A+F+A+D+A+ V2 12 DC#DF
+      DATA TV1 6 C+#A+AA+CA+EA+ V2 12 EC#EG
+      DATA TV1 12 D+B%C+%E+ V2 6 FAFGEGCG
+      DATA TV1 12 D+B%D+F+ V2 6 B-%GG-GB-GDG
+      
+      DATA TV1 6 E+G+F+G+E+G+C+G+ V2 12 CB-%CE  [ Bar 157
+      DATA TV1 6 B%G+GG+BG+DG+ V2 12 DB-%DF
+      DATA TV1 6 C+A+G+A+F+A+E+A+ V2 12 EC#DE
+      DATA TV1 6 D+B+%A+B+G+B+F#+B+ V2 12 FD#EF#
+      DATA TV1 6 E+C++B+C++A+C++G+C++ V2 12 GEFG
+      DATA TV1 12 F+E+F+G+ V2 6 AC+BC+AC+GC+
+      
+      DATA TV1 6 A+D++C++D++B+D++A+D++ V2 12 FF#GA  [ Bar 163
+      DATA TV1 12 G+F#+G+A+ V2 6 BD+C+D+BD+AD+
+      DATA "TV1 12 B+G+,G+,G+, V2 6 GD+FD+ED+DD+ V3 12 $B+,B+,B+,"
+      DATA TV1 12 B+E+F+G+ V2 G+C+C+E+ V3 CEFG SV4 6 $C+BC+AC+GC+
+      DATA "TV1 12 A+,A+,A+,A+, V2 C+,C+,C+,C+ V3 F,F,F,F, SV4 6 FC+EC+DC+CC+"
+      DATA TV1 12 A+D+E+F+ V2 F+BBB V3 ADEF SV4 6 B-BABGBFB
+      
+      DATA "TV1 12 G+,G+,G+,G+, V2 B,B,B,B, V3 E,E,E,E, SV4 6 EBDBCBB-B  [ Bar 169"
+      DATA TV1 12 G+C+#D+E+ V2 E+AAA V3 GC#DE SV4 6 A-AGAFAEA
+      DATA "TV1 12 F+,F+,F+,F+, V2 C+,C+,C+,C+ V3 D,D,D,D, SV4 6 DACAB-AA-A"
+      DATA TV1 6 F+E+D+F+E+D+C#+E+ V2 12 B V3 6 DGFAGFEG SV4 12 G-$ 24 A-
+      DATA TV1 24 D+ $ V2 A$ V3 F$ SV4 12 DD-$$
+      DATA TV1 12 D++D+ 6 $D+C+#D+ V2 12 AA$$ V3 F+F+$$ SV4 DD-$$
+      DATA TV1 6 F+D+C#+D+G+D+C+D+ V2 12 F$G$ V3 D$E$ V4 $$D$
+      
+      DATA TV1 12 A+D+ 6 $D+C+#D+ V2 12 AA$$ V3 FF$$ SV4 DD-$$  [ Bar 176
+      DATA TV1 6 G+D+C#+D+A+D+C+D+ V2 12 G$A$ V3 E$F$ V4 D$D$
+      DATA TV1 12 B+D+ 6 $D+C#+D+ V2 12 BB$$ V3 DD$$ SV4 DD-$$
+      DATA TV1 12 B+D+ 6 $D+C#+D+ V2 12 BB$$ V3 DD$$ SV4 GD-$$
+      DATA TV1 12 B+D+$$  V2 BB$$ V3 DD$$  SV4 GD-$$
+      DATA TV1 14 D++D+$$ V2 F+D$ V3 D+D$$ SV4 DD-$$
+      
+      DATA ""

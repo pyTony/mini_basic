@@ -32,7 +32,7 @@ RE_BITWISE_EOR = re.compile(r'\bEOR\b', re.IGNORECASE)
 
 # Array element references in expressions, e.g. A(1) or N$(I%).
 RE_ARRAY_HEAD = re.compile(
-    rf'\b({VAR_BASE_PATTERN})(%%|%|\$|!|#)?\s*\(',
+    rf'\b({VAR_BASE_PATTERN})(%%|%|\$|!|#|&)?\s*\(',
 )
 
 # String builtin calls with parentheses.

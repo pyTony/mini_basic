@@ -139,9 +139,23 @@ class RuntimeExprMixin:
             self.config.strict_dialect = saved_strict
 
     def _coerce_int_storage(self, value: object) -> object:
-        if self._bigint_enabled():
-            return int(value)
-        return float(value)
+        """Store as BBC integer: round half away from zero (not C trunc toward 0).
+
+        jclock uses X%(I%) += spring*delta; truncating small steps stalls particles
+        and leaves the date ring looking spiral vs SDL.
+        """
+        if not self._bigint_enabled():
+            return float(value)
+        try:
+            x = float(value)
+        except (TypeError, ValueError):
+            return 0
+        if x != x or x in (float('inf'), float('-inf')):  # NaN/inf
+            return 0
+        # Round half away from zero (common Acorn-style).
+        if x >= 0:
+            return int(x + 0.5)
+        return int(x - 0.5)
 
     def _warm_compiled_exprs(self) -> None:
         running_types: Dict[str, VarKind] = {}
@@ -257,14 +271,21 @@ class RuntimeExprMixin:
             if self._boolean_literal_value(stripped) is not None:
                 raise ValueError('boolean literal')
             if self._expr_has_boolean_syntax(stripped):
-                if (
+                if self._expr_is_pure_bitwise(stripped):
+                    expr, needs_time, float_vars, int_vars, system_vars = (
+                        self._prepare_expr_for_compile(
+                            stripped, is_condition, allow_bitwise=True,
+                        )
+                    )
+                elif (
                     self._expr_has_logical_boolean_ops(stripped)
                     or self._expr_has_xor_eqv_imp_eor(stripped)
                 ):
                     raise ValueError('boolean expression')
-                expr, needs_time, float_vars, int_vars, system_vars = (
-                    self._prepare_simple_comparison_for_compile(stripped)
-                )
+                else:
+                    expr, needs_time, float_vars, int_vars, system_vars = (
+                        self._prepare_simple_comparison_for_compile(stripped)
+                    )
             else:
                 expr, needs_time, float_vars, int_vars, system_vars = (
                     self._prepare_expr_for_compile(stripped, is_condition)
@@ -537,6 +558,7 @@ class RuntimeExprMixin:
         raise ValueError(f'unknown string function {func}')
 
     def _expand_builtin_calls(self, expr: str) -> str:
+        expr = self._unglue_asc_string_literal(expr)
         # Support bare STR$~ expr without parentheses, including with variables
         # that have type suffixes like result% , and binary literals %1010.
         # e.g. STR$~X , STR$~ result% , STR$~ %10101010 , PRINT STR$~N
@@ -842,7 +864,8 @@ class RuntimeExprMixin:
     def _array_kind_from_suffix(self, suffix: str) -> VarKind:
         if suffix == '$':
             return 'str'
-        if suffix == '%':
+        # % = integer; & = byte (BBCSDL) — store as int 0..255
+        if suffix in ('%', '&'):
             return 'int'
         return 'float'
 
@@ -1591,6 +1614,13 @@ class RuntimeExprMixin:
             expr,
             flags=re.IGNORECASE,
         )
+        # piechart: COSa / SINa / COSb → COS(a) / SIN(a) / COS(b)
+        expr = re.sub(
+            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
+            r'\1(\2)',
+            expr,
+            flags=re.IGNORECASE,
+        )
         # VALMID$(s,i) → VAL(MID$(s,i)) (balanced parens)
         val_glued = re.compile(
             r'(?<![A-Za-z0-9_])VAL(MID\$|LEFT\$|RIGHT\$)\s*\(',
@@ -2129,7 +2159,8 @@ class RuntimeExprMixin:
     def _dim_single_array(self, decl: str) -> None:
         self.dprint(f"\n[DEBUG DIM] Entering _dim_single_array with decl: {repr(decl)}")
 
-        pattern = rf'^({self._VAR_BASE_PATTERN})([%$!#]?)\s*\((.+)\)\s*$'
+        # Include & for BBCSDL byte arrays (piechart Colour&(n))
+        pattern = rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)\s*\((.+)\)\s*$'
         self.dprint(f"[DEBUG DIM] Using pattern: {repr(pattern)}")
 
         match = re.match(pattern, decl.strip())
@@ -2420,12 +2451,12 @@ class RuntimeExprMixin:
         expr = re.sub(r'\bAND\b', '&', expr, flags=re.IGNORECASE)
         expr = re.sub(r'\bOR\b', '|', expr, flags=re.IGNORECASE)
         expr = re.sub(r'\bXOR\b', '^', expr, flags=re.IGNORECASE)
+        expr = re.sub(r'\bEOR\b', '^', expr, flags=re.IGNORECASE)
         expr = re.sub(r'\bNOT\b', '~', expr, flags=re.IGNORECASE)
         return expr
 
-    def _expr_has_boolean_syntax(self, expr: str) -> bool:
-        if re.search(r'\b(AND|OR|NOT|XOR|EOR|EQV|IMP)\b', expr, re.IGNORECASE):
-            return True
+    def _expr_has_comparison_op(self, expr: str) -> bool:
+        """True if expr has BBC relational operators (=, <>, <, >, …), not shifts."""
         index = 0
         in_string = False
         while index < len(expr):
@@ -2459,6 +2490,23 @@ class RuntimeExprMixin:
                     return True
             index += 1
         return False
+
+    def _expr_is_pure_bitwise(self, expr: str) -> bool:
+        """AND/OR/EOR/XOR/NOT as integer bitwise (no EQV/IMP/comparisons).
+
+        squares.bbc: ``(X% EOR Y%) AND 255`` must compile to ``^``/``&`` rather than
+        the recursive boolean parser (orders of magnitude slower in pixel loops).
+        """
+        if re.search(r'\b(EQV|IMP)\b', expr, re.IGNORECASE):
+            return False
+        if not re.search(r'\b(AND|OR|NOT|XOR|EOR)\b', expr, re.IGNORECASE):
+            return False
+        return not self._expr_has_comparison_op(expr)
+
+    def _expr_has_boolean_syntax(self, expr: str) -> bool:
+        if re.search(r'\b(AND|OR|NOT|XOR|EOR|EQV|IMP)\b', expr, re.IGNORECASE):
+            return True
+        return self._expr_has_comparison_op(expr)
 
     def _fragment_is_string_expr(self, fragment: str) -> bool:
         fragment = fragment.strip()
@@ -2533,6 +2581,8 @@ class RuntimeExprMixin:
         if not expr:
             return 0.0
         expr = self._substitute_boolean_literals(expr)
+        expr = self._unglue_inkey_digits(expr)
+        expr = self._unglue_asc_string_literal(expr)
         expr = self._expand_dynamic_calls(expr)
         expr = self._expand_file_calls(expr)
         expr = self._substitute_array_references(expr)
@@ -2584,24 +2634,119 @@ class RuntimeExprMixin:
     def _expr_has_logical_boolean_ops(self, expr: str) -> bool:
         return bool(re.search(r'\b(AND|OR|NOT)\b', expr, re.IGNORECASE))
 
+    def _expand_parenthesized_bbc_comparisons(self, expr: str) -> str:
+        """Turn ``(a=b)`` / ``(a<>b)`` into -1/0 so arithmetic can use them.
+
+        Welcome: ``CHR$(ASC"B"-(I%=M2))`` — BBC comparison yields -1/0, not
+        Python assignment (which raises ``cannot assign to literal``).
+        """
+        # Innermost (...) that contains a comparison and no nested parens.
+        pattern = re.compile(
+            r'\(([^()]*?)(<>|<=|>=|<|>|=)([^()]*)\)',
+        )
+        guard = 0
+        while guard < 32:
+            guard += 1
+            match = None
+            for m in pattern.finditer(expr):
+                op = m.group(2)
+                # Skip == (already Python) and leave lone = as BBC equality.
+                if op == '=' and m.end(2) < len(expr) and expr[m.start(2) + 1] == '=':
+                    continue
+                left = m.group(1).strip()
+                right = m.group(3).strip()
+                if not left or not right:
+                    continue
+                # Avoid false hits like function defaults; require comparison intent.
+                match = m
+                break
+            if match is None:
+                break
+            left_s = match.group(1).strip()
+            op = match.group(2)
+            right_s = match.group(3).strip()
+            try:
+                # Recurse via numeric eval so ASC("B") etc. expand first.
+                left_v = self._eval_numeric(left_s)
+                right_v = self._eval_numeric(right_s)
+                if isinstance(left_v, str) or isinstance(right_v, str):
+                    # string compare
+                    lv, rv = str(left_v), str(right_v)
+                    if op in ('=', '=='):
+                        result = -1.0 if lv == rv else 0.0
+                    elif op in ('<>', '!='):
+                        result = -1.0 if lv != rv else 0.0
+                    else:
+                        result = float(self._compare_bbc_values(op, float(lv), float(rv)))
+                else:
+                    result = float(
+                        self._compare_bbc_values(op, float(left_v), float(right_v))
+                    )
+            except Exception:
+                break
+            repl = str(int(result)) if float(result) == int(result) else str(result)
+            expr = expr[: match.start()] + repl + expr[match.end() :]
+        return expr
+
     def _eval_numeric_slow(self, expr: str) -> object:
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
         expr = self._substitute_boolean_literals(expr)
+        expr = self._unglue_asc_string_literal(expr)
         if self._expr_has_boolean_syntax(expr):
-            return self._eval_bbc_boolean_expr(expr)
+            # welcome: ASC"B"-(I%=M2) — expand parenthesized BBC =/<> into -1/0
+            expanded = self._expand_parenthesized_bbc_comparisons(expr)
+            if not self._expr_has_boolean_syntax(expanded):
+                return self._eval_arith_core_slow(expanded)
+            return self._eval_bbc_boolean_expr(expanded)
         return self._eval_arith_core_slow(expr)
 
     def _unglue_unary_not(self, expr: str) -> str:
         """BBC often glues unary NOT: NOTX → NOT X (saucer PLOT 69,NOTX,Y)."""
         return re.sub(r'\bNOT(?=[A-Za-z_(])', 'NOT ', expr, flags=re.IGNORECASE)
 
+    def _unglue_trig_idents(self, expr: str) -> str:
+        """COSa / SINRADT → COS(a) / SIN(RAD(T)) before compile (MOVE/PLOT coords)."""
+        expr = re.sub(
+            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
+            r'\1(RAD(\2))',
+            expr,
+            flags=re.IGNORECASE,
+        )
+        expr = re.sub(
+            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
+            r'\1(\2)',
+            expr,
+            flags=re.IGNORECASE,
+        )
+        return expr
+
+    def _unglue_inkey_digits(self, expr: str) -> str:
+        """INKEY1 / INKEY2 → INKEY(1) (welcome pack D%=INKEY1).
+
+        Must run before expand_dynamic_calls / compiled eval; normalize_operators
+        alone is too late (expand sees bare INKEY1 and leaves name INKEY).
+        """
+        return re.sub(r'\bINKEY(\d+)\b', r'INKEY(\1)', expr, flags=re.IGNORECASE)
+
+    def _unglue_asc_string_literal(self, expr: str) -> str:
+        """ASC\"B\" → ASC(\"B\") (welcome PRINT CHR$(ASC\"B\"-(I%=M2)))."""
+        return re.sub(
+            r'(?<![A-Za-z0-9_])ASC\s*("(?:[^"]|"")*")',
+            r'ASC(\1)',
+            expr,
+            flags=re.IGNORECASE,
+        )
+
     def _eval_numeric(self, expr: str) -> object:
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
         expr = self._unglue_unary_not(expr)
+        expr = self._unglue_trig_idents(expr)
+        expr = self._unglue_inkey_digits(expr)
+        expr = self._unglue_asc_string_literal(expr)
         # Stub MOD(array) as norm ~ non-zero for BBCSDL vector code like light() /= MOD(light())
         if expr.upper().startswith('MOD(') and ')' in expr:
             inner = expr[4:-1].strip()
@@ -2623,7 +2768,15 @@ class RuntimeExprMixin:
         if literal is not None:
             return literal
         if self._expr_has_boolean_syntax(expr):
-            return self._eval_bbc_boolean_expr(expr)
+            # welcome: ASC"B"-(I%=M2) — parenthesized BBC = must become -1/0
+            # before any path that eval()'s Python (assignment SyntaxError).
+            expanded = self._expand_parenthesized_bbc_comparisons(expr)
+            if not self._expr_has_boolean_syntax(expanded):
+                expr = expanded
+            elif self._expr_is_pure_bitwise(expanded) and self.config.use_compiled_exprs:
+                return self._get_compiled_expr(expanded, is_condition=False).eval_numeric(self)
+            else:
+                return self._eval_bbc_boolean_expr(expanded)
         if not self.config.use_compiled_exprs:
             return self._eval_numeric_slow(expr)
         return self._get_compiled_expr(expr, is_condition=False).eval_numeric(self)
@@ -2633,6 +2786,7 @@ class RuntimeExprMixin:
         if not expr:
             return False
         expr = self._unglue_unary_not(expr)
+        expr = self._unglue_inkey_digits(expr)
         if self.config.use_compiled_exprs:
             return bool(
                 self._get_compiled_expr(expr, is_condition=True).eval_condition(self)
@@ -2874,20 +3028,48 @@ class RuntimeExprMixin:
             assert parsed is not None
             base, kind, indices_expr = parsed
             if not indices_expr.strip():
-                # Support simple whole-array compound like light() /= scalar for BBCSDL demos
+                # Whole-array compound: light() /= s, Value() *= s, Colour&() OR= 8
+                key = self._resolve_array_key(base, kind)
+                if key not in self.array_storage:
+                    raise ValueError('unknown array')
+                bounds, lb, data = self.array_storage[key]
+                if not isinstance(data, list):
+                    raise ValueError('whole-array compound assignment not supported')
+                # Storage is a flat 1D list (see ArrayStorage).
                 if op == '/=':
                     rhs = float(self.eval_expr(expr))
                     if rhs == 0:
-                        rhs = 1.0  # avoid div0 for vector norm cases like light() /= MOD(light())
-                    key = self._resolve_array_key(base, kind)
-                    if key in self.array_storage:
-                        bounds, lb, data = self.array_storage[key]
-                        if isinstance(data, list):
-                            flat = self._flatten_array(data)
-                            flat = [float(v) / rhs for v in flat]
-                            self._fill_array_storage(base, kind, flat)  # simplistic 1D fill
-                            return
-                raise ValueError('whole-array compound assignment not supported')
+                        rhs = 1.0
+                    for i, v in enumerate(data):
+                        data[i] = float(v) / rhs
+                elif op == '*=':
+                    rhs = float(self.eval_expr(expr))
+                    for i, v in enumerate(data):
+                        data[i] = float(v) * rhs
+                elif op == '+=':
+                    rhs = float(self.eval_expr(expr))
+                    for i, v in enumerate(data):
+                        data[i] = float(v) + rhs
+                elif op == '-=':
+                    rhs = float(self.eval_expr(expr))
+                    for i, v in enumerate(data):
+                        data[i] = float(v) - rhs
+                elif op in ('OR=', 'AND=', 'EOR=', 'XOR='):
+                    rhs = int(self.eval_expr(expr)) & 0xFF
+                    for i, v in enumerate(data):
+                        iv = int(v) & 0xFF
+                        if op == 'OR=':
+                            data[i] = iv | rhs
+                        elif op == 'AND=':
+                            data[i] = iv & rhs
+                        else:
+                            data[i] = iv ^ rhs
+                else:
+                    raise ValueError('whole-array compound assignment not supported')
+                if kind == 'int':
+                    for i, v in enumerate(data):
+                        data[i] = self._coerce_int_storage(v)
+                return
         loc = self._read_lvalue(var)
         var_kind = loc[2]
         if var_kind == 'str':

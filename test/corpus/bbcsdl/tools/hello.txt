@@ -1,0 +1,119 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      VDU 23,22,640;500;8,20,16,128+8
+      OFF
+      
+      DIM limit%% -1, code%% 100, limit%% -1
+      FOR pass% = 8 TO 11 STEP 3
+        IF @platform% AND &40 THEN
+          ]^P% = code%%
+          ]^L% = limit%%
+          [opt 0:nop:]
+          CASE ?(]^P%-1) OF
+            WHEN &90:
+              [opt pass%
+              .hello
+              sub rsp,24
+              push rbx : push rbp
+              mov rbp,"oswrch"
+              lea rbx,[rel asciiz]
+              .loop
+              mov al,[rbx]  ; get next char
+              inc rbx       ; bump pointer
+              cmp al,0      ; is it a NUL?
+              jz done       ; if so, exit
+              movzx ecx,al  ; for Windows &
+              mov edi,ecx   ; System V ABIs
+              call rbp      ; output char
+              jmp short loop; continue
+              ;
+              .done
+              pop rbp : pop rbx
+              add rsp,24
+              ret
+              ;
+              .asciiz
+              db "Hello world!"
+              dw &0A0D
+              db 0
+              ]
+            WHEN &D5:
+              [opt pass%
+              .hello
+              stp x29,x30,[sp,#-16]!
+              stp x19,x20,[sp,#-16]!
+              ldr x19,oswrch
+              adr x20,asciiz    ; pointer to text
+              .loop
+              ldrb w0,[x20],#1  ; get next character
+              cbz w0,exit       ; if it's a NUL, exit
+              blr x19           ; output character
+              b loop            ; continue
+              .exit
+              ldp x19,x20,[sp],#16
+              ldp x29,x30,[sp],#16
+              ret
+              .asciiz
+              equs "Hello world!"
+              equw &0A0D
+              equb 0
+              align
+              .oswrch
+              equq "oswrch"
+              ]
+          ENDCASE
+        ELSE
+          P% = code%%
+          L% = limit%%
+          [opt 0:nop:]
+          CASE P%?-1 OF
+            WHEN &90:
+              [opt pass%
+              .hello
+              push esi
+              mov esi,asciiz    ; pointer to text
+              .loop
+              lodsb             ; get next character
+              cmp al,0          ; is it a NUL ?
+              jz done           ; if so, exit
+              call "oswrch"     ; output character
+              jmps loop         ; continue
+              ;
+              .done
+              pop esi
+              ret
+              ;
+              .asciiz
+              db "Hello world!"
+              dw &0A0D
+              db 0
+              ]
+            WHEN &E1:
+              [opt pass%
+              .hello
+              push {r8-r9,lr}
+              ldr r8,oswrch
+              adr r9,asciiz     ; pointer to text
+              .loop
+              ldrb r0,[r9],#1   ; get next character
+              cmp r0,#0         ; is it a NUL ?
+              popeq {r8-r9,pc}  ; if so, exit
+              blx r8            ; output character
+              b loop            ; continue
+              ;
+              .asciiz
+              equs "Hello world!"
+              equw &0A0D
+              equb 0
+              ;
+              align
+              .oswrch
+              equd "oswrch"
+              ]
+          ENDCASE
+        ENDIF
+      NEXT pass%
+      
+      PRINT
+      CALL hello
+      
+      REPEAT WAIT 2 : UNTIL FALSE

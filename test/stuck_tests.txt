@@ -2,7 +2,7 @@
 # (interactive, graphics, pygame, long-running corpus, input blocking, etc.)
 # One per line, matched with startswith on the dotted name.
 #
-# Phase 1 rule: these are excluded from run_regression.py and broad "phase1" runs.
+# Phase 1 rule: exclude these from broad auto runs (pytest -m phase1 / -k filters).
 # Many graphics/interactive tests were removed from test_mini_basic.py during hygiene work.
 
 test_interactive_animal
@@ -17,10 +17,10 @@ test_bbcsdl_corpus
 test_agon_corpus
 test_progress_runner  # may be meta
 
-# Phase 1 temporary: pre-existing test expectation drift (not core to new compositional foundation).
-# These cause broad non-gfx runs to fail; will be addressed after solid control/DEF/file/expr foundation.
-test_save_case
+# Pre-existing drift (not phase0 yet):
 test_unknown_syntax
+# test_save_case is phase0 (green)
+# test_regular_array_substitution_and_access.py — broken unittest (fixture 'self')
 
 # Phase 1: keep graphics + interactive + long corpus in stuck list.
 # Focus regression and new work on non-graphics foundation (expressions, control, DEF/PROC, file I/O, arrays, errors, dialects).

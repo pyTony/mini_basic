@@ -1,0 +1,204 @@
+      ON ERROR IF ERR = 17 CHAIN @lib$ + "../examples/tools/touchide" ELSE MODE 7:REPORT:END
+      
+      REM 'BBC BASIC for SDL 2.0' Calculator, by Richard Russell, 01-Apr-2024
+      REM On entry M% determines mode: FALSE = floating-point, TRUE = integer
+      SYS "SDL_SetWindowTitle", @hwnd%, "Calculator v1.1", @memhdc%
+      
+      REM Establish a unit size by which everything is scaled:
+      VDU 26 : IF POS REM SDL thread sync
+      IF @size.y% > 600 SIZE = @size.y% / 4.6 ELSE SIZE = 600 / 4.6
+      
+      REM Initialise the window (UTF-8 character set):
+      VDU 23, 22, SIZE*2.6; SIZE*4.6; 8, 16, 16, 8, 5, 23, 16, 64|
+      
+      REM Asynchronous event handling:
+      DIM Click%(2)
+      ON MOVE IF @msg% = 5 RUN ELSE RETURN : REM Resize
+      ON ERROR IF ERR = 17 CHAIN @lib$ + "../examples/tools/touchide" ELSE MODE 7:REPORT:END
+      ON MOUSE Click%() = @msg%, @wparam%, @lparam% : RETURN
+      IF INSTR(@usr$, "rtrussell.calculator") OR INSTR(@lib$, @dir$) THEN *ESC OFF
+      
+      REM Install libraries:
+      INSTALL @lib$ + "aagfxlib"
+      INSTALL @lib$ + "utf8lib"
+      
+      REM Set the font:
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", " + STR$(SIZE DIV 7)
+      
+      REM Draw the mode switch:
+      *hex 32
+      PROC_aaellipsefill(SIZE*2.4, SIZE*8.8, SIZE*0.2, SIZE*0.2, 0.0, &FFD0D080)
+      PROC_aaellipsefill(SIZE*2.8, SIZE*8.8, SIZE*0.2, SIZE*0.2, 0.0, &FFD0D080)
+      PROC_aaline(SIZE*2.4, SIZE*8.8, SIZE*2.8, SIZE*8.8, SIZE*0.2, &FFD0D080, 0)
+      W% = WIDTH("Scientific") : MOVE SIZE*1.1 - W% DIV 2, SIZE*9.0 : PRINT "Scientific";
+      W% = WIDTH("Integer")    : MOVE SIZE*4.1 - W% DIV 2, SIZE*9.0 : PRINT "Integer";
+      
+      REM Initialise the global button names and update the mode switch:
+      DIM Button$(6, 4)
+      IF M% THEN
+        Button$() =   "D",   "E",   "F",   "0",   "=",   "C",   "1",   "2",   "3",   "+", \
+        \             "B",   "4",   "5",   "6",   "−",   "A",   "7",   "8",   "9",   "×", \
+        \             "(",   ")", "clr",   "⌫", "hex",  "<<",  ">>", "rnd", "not",   "&", \
+        \            " and ",  " or ", " eor ", " mod ", " div "
+        PROC_aaellipsefill(SIZE*2.8, SIZE*8.8, SIZE*0.15, SIZE*0.15, 0.0, &FF000000)
+      ELSE
+        Button$() =   "π",   "E",   "0",   ".",   "=",   "^",   "1",   "2",   "3",   "+", \
+        \           "deg",   "4",   "5",   "6",   "−", "rad",   "7",   "8",   "9",   "×", \
+        \             "(",   ")", "clr",   "⌫",   "÷", "asn", "acs", "atn", "exp",   "√", \
+        \           "sin", "cos", "tan",  "ln", "log"
+        PROC_aaellipsefill(SIZE*2.4, SIZE*8.8, SIZE*0.15, SIZE*0.15, 0.0, &FF000000)
+      ENDIF
+      
+      REM Draw and label the buttons:
+      GCOL 0
+      FOR Y% = 0 TO DIM(Button$(), 1)
+        FOR X% = 0 TO DIM(Button$(), 2)
+          CASE TRUE OF
+            WHEN X% = 4 AND (Y% = 0 OR (Y% AND M%) = 4) C% = &FFFFC0F0
+            WHEN Y% > 4: C% = &FFC0E0C0
+            WHEN Y% = 4 OR X% = M% OR X% = 4 C% = &FFC0C0F0
+            OTHERWISE: C% = &FFFFC0C0
+          ENDCASE
+          PROC_aaellipsefill(SIZE*X% + SIZE*0.6, SIZE*Y% + SIZE*0.6, SIZE*0.4, SIZE*0.4, 0.0, C%)
+          W% = WIDTH(Button$(Y%, X%))
+          MOVE SIZE*X% + SIZE*0.6 - W%/2, SIZE*Y% + SIZE*0.6 + @char.y%
+          PRINT Button$(Y%, X%);
+        NEXT X%
+      NEXT Y%
+      
+      REM Define a graphics viewport where the output will appear:
+      VDU 24, 0; SIZE*7.1; SIZE*5.0; SIZE*8.3;
+      
+      REM Initialise:
+      Expr$ = ""
+      Result$ = ""
+      GCOL 15
+      *hex 64
+      
+      REPEAT
+        REM Handle keyboard input or click/tap:
+        k$ = INKEY$(10)
+        IF k$ = "" IF Click%(0) THEN
+          Click%(0) = FALSE
+          X% = (Click%(2) MOD &10000 * 2 - SIZE*0.1) DIV SIZE
+          Y% = (SIZE*9.1 - Click%(2) DIV &10000 * 2) DIV SIZE
+          IF Y% > 7 k$ = CHR$(&92 + SGN(X% - 2)) : REM switch mode
+          IF Y% = 7 k$ = CHR$3   : REM copy to clipboard
+          IF X% >= 0 IF Y% >= 0 IF X% <= 4 IF Y% <= 6 k$ = Button$(Y%, X%)
+        ENDIF
+        
+        REM Process input, if any:
+        IF k$ <> "" THEN
+          CASE k$ OF
+            WHEN "clr", CHR$135: REM Clear
+              Expr$ = "" : Result$ = ""
+            WHEN "⌫", CHR$8: REM Backspace
+              Expr$ = FN_uleft(Expr$, FN_ulen(Expr$)-1) : Result$ = ""
+            WHEN "=", CHR$13: REM Evaluate decimal expression:
+              Expr$ = FNpostfix(Expr$)
+              ON ERROR LOCAL IF FALSE THEN
+                @% = &1000F10
+                *lowercase on
+                Result$ = "= " + STR$(EVAL(FNsub(Expr$)))
+              ELSE
+                IF ERR = 27 Result$ = "Mistake" ELSE Result$ = REPORT$
+              ENDIF : RESTORE ERROR
+            WHEN "hex", "~": REM Evaluate hexadecimal expression:
+              Expr$ = FNpostfix(Expr$)
+              ON ERROR LOCAL IF FALSE THEN
+                *lowercase on
+                Result$ = "= &" + STR$~(EVAL(FNsub(Expr$)))
+              ELSE
+                IF ERR = 27 Result$ = "Mistake" ELSE Result$ = REPORT$
+              ENDIF : RESTORE ERROR
+            WHEN CHR$&91: REM Scientific mode (F1)
+              M% = FALSE : RUN
+            WHEN CHR$&92: REM Toggle mode (F2)
+              M% = (M% = FALSE) : RUN
+            WHEN CHR$&93: REM Integer mode (F3)
+              M% = TRUE : RUN
+            WHEN CHR$3: REM Copy to clipboard
+              IF LEFT$(Result$, 1) = "=" THEN
+                ON ERROR LOCAL IF FALSE THEN
+                  SYS "SDL_SetClipboardText", MID$(Result$, 3)
+                  Expr$ = "Copied to clipboard"
+                ENDIF : RESTORE ERROR
+              ENDIF
+            OTHERWISE: REM Everything else
+              IF Expr$ = "Copied to clipboard" Expr$ = ""
+              IF LEFT$(Result$ ,1) = "=" Expr$ = FNminus(MID$(Result$, 3)) : Result$ = ""
+              IF ASCk$ >= 32 IF ASCk$ < 128 OR ASCk$ > 160 Expr$ += k$
+          ENDCASE
+          
+          REM Update display:
+          *REFRESH OFF
+          CLG
+          W% = WIDTH(Expr$)
+          MOVE SIZE*5.0 - W%, SIZE*8.3
+          PRINT Expr$
+          IF Expr$ = "Copied to clipboard" Expr$ = ""
+          IF Result$ <> "" THEN
+            r$ = FNminus(Result$)
+            W% = WIDTH(r$)
+            MOVE SIZE*5.0 - W%, SIZE*7.7
+            GCOL 11 : PRINT r$; : GCOL 15
+          ENDIF
+          *REFRESH
+          *REFRESH ON
+        ENDIF
+      UNTIL FALSE
+      END
+      
+      REM Substitute minus signs in result:
+      DEF FNminus(a$)
+      LOCAL I%
+      REPEAT
+        I% = INSTR(a$, "-")
+        IF I% a$ = LEFT$(a$, I%-1) + "−" + MID$(a$, I%+1)
+      UNTIL I% = 0
+      = a$
+      
+      REM Substitute Unicode symbols:
+      DEF FNsub(a$)
+      LOCAL I%
+      REPEAT
+        I% = INSTR(a$, "π")
+        IF I% MID$(a$, I%, 2) = "PI"
+      UNTIL I% = 0
+      REPEAT
+        I% = INSTR(a$, "÷")
+        IF I% MID$(a$, I%, 2) = "/ "
+      UNTIL I% = 0
+      REPEAT
+        I% = INSTR(a$, "×")
+        IF I% MID$(a$, I%, 2) = "* "
+      UNTIL I% = 0
+      REPEAT
+        I% = INSTR(a$, "−")
+        IF I% a$ = LEFT$(a$, I%-1) + "-" + MID$(a$, I%+3) : REM e.g. 1E-2
+      UNTIL I% = 0
+      REPEAT
+        I% = INSTR(a$, "√")
+        IF I% MID$(a$, I%, 3) = "sqr"
+      UNTIL I% = 0
+      = "(" + a$ + ")"
+      
+      REM Convert postfix operator(s) to infix:
+      DEF FNpostfix(e$)
+      LOCAL X%, Y%, b$, prefix$, suffix$
+      REPEAT
+        FOR Y% = 0 TO DIM(Button$(), 1)
+          FOR X% = 0 TO DIM(Button$(), 2)
+            b$ = Button$(Y%, X%)
+            IF RIGHT$(e$, LENb$) = b$ IF ASCb$ <> &20 IF INSTR("0123456789ABCDEF()π", b$) = 0 THEN
+              e$ = LEFT$(e$, LENe$-LENb$)
+              prefix$ += b$ + "("
+              suffix$ += ")"
+              EXIT FOR Y%
+            ENDIF
+          NEXT
+        NEXT Y%
+      UNTIL Y% > DIM(Button$(), 1)
+      e$ = prefix$ + e$ + suffix$
+      IF RIGHT$(e$, 2) = "()" e$ = LEFT$(LEFT$(e$))
+      = e$

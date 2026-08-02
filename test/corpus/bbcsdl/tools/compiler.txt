@@ -1,0 +1,1286 @@
+      REM Create Application utility v1.45 for use with SDLIDE.bbc
+      REM Richard Russell, http://www.rtrussell.co.uk/ 14-Apr-2026
+      Version$ = "v1.45a"
+      
+      SERV$ = "www.bbcbasic.co.uk"
+      USER$ = "bbcsdl@bbcbasic.co.uk"
+      PASS$ = "BBC!ftp+123"
+      WURL$ = "https://www.bbcbasic.co.uk/webapps/"
+      
+      GUIscale = 2.0
+      I% = INSTR(@cmd$, "-scale") : IF I% GUIscale = VALMID$(@cmd$, I% + 6)
+      Darkmode% = INSTR(@cmd$, "-dark") <> 0
+      Platform% = @platform% AND &F
+      
+      VDU 23,22,360*GUIscale;240*GUIscale;8,16,16,128+8 - (128 AND Darkmode%)
+      *ESC OFF
+      
+      CASE @platform% AND &FF OF
+        WHEN 0:
+          SYS "LoadLibraryA", @lib$ + "..\aplib.dll" TO aPlib%%
+          SYS "GetProcAddress", aPlib%%, "_aP_workmem_size" TO p%%    : `aP_workmem_size` = p%%
+          SYS "GetProcAddress", aPlib%%, "_aP_max_packed_size" TO p%% : `aP_max_packed_size` = p%%
+          SYS "GetProcAddress", aPlib%%, "_aP_pack" TO p%%            : `aP_pack` = p%%
+        WHEN &40:
+          SYS "LoadLibraryA", @lib$ + "..\aplib.dll" TO aPlib%%
+          SYS "GetProcAddress", aPlib%%, "aP_workmem_size" TO p%%    : `aP_workmem_size` = p%%
+          SYS "GetProcAddress", aPlib%%, "aP_max_packed_size" TO p%% : `aP_max_packed_size` = p%%
+          SYS "GetProcAddress", aPlib%%, "aP_pack" TO p%%            : `aP_pack` = p%%
+      ENDCASE
+      BUFSIZE = &200000
+      SW_SHOWNORMAL = 1
+      
+      IF @platform% >= &2000500 SYS "SDL_SetWindowResizable", @hwnd%, 0, @memhdc%
+      SYS "SDL_SetWindowTitle", @hwnd%, "Create Application Bundle " + Version$, @memhdc%
+      OSCLI "FONT """ + @lib$ + "DejaVuSans""," + STR$INT(11 * GUIscale / 2)
+      VDU 26 : OFF
+      
+      F% = OPENIN(@tmp$ + "compiler.tmp.bbc")
+      IF F% = 0 PROCerror("Must be called from SDLIDE.bbc") : QUIT
+      PTR#F% = 3 : INPUT #F%,dir$ : CLOSE #F% : REM Read directory
+      F% = FNinstrr(dir$, "/", 0)
+      IF F% = 0 F% = FNinstrr(dir$, "\", 0)
+      name$ = MID$(dir$,F%+1)
+      dir$ = MID$(dir$, 11, F%-14)
+      $PTR(@dir$) = dir$ : !(^@dir$+4) = LEN(dir$)
+      
+      REM Adjust caret shape and size according to font:
+      VDU 23,0,10,0,0;0;0;         : REM Set start line
+      VDU 23,0,11,@vdu%!220,0;0;0; : REM Set end line
+      VDU 23,0,18,2,0;0;0;         : REM Set caret width
+      
+      INSTALL @lib$ + "dlglib"
+      INSTALL @lib$ + "msgbox"
+      INSTALL @lib$ + "filedlg"
+      INSTALL @lib$ + "sortlib"
+      INSTALL @lib$ + "socklib"
+      INSTALL @lib$ + "stringlib"
+      PROC_initsockets
+      
+      ON CLOSE PROC_exitsockets : QUIT
+      ON ERROR ON ERROR OFF : PROCerror("Internal error " + STR$ERR) : PROC_exitsockets : QUIT
+      
+      PROC_setdialogpalette(Darkmode%)
+      
+      REM!WC Constants
+      BUFLEN = 1024
+      SS_BITMAP = &E
+      WS_DISABLED = &8000000
+      WS_VSCROLL = &200000
+      
+      REM. Set up main form template:
+      Form% = FN_newdialog("", 320, 215)
+      
+      PROC_groupbox(Form%,"Application",&101,6,4,308,67,0)
+      PROC_static(Form%,"App bundle:",&201,16,17,42,8,0)
+      PROC_textbox(Form%,"",&301,60,16,192,12,0)
+      PROC_button(Form%,"Browse",FN_setproc(PROCbrowse()),258,16,48,14,0)
+      PROC_static(Form%,"App name:",&202,16,37,42,8,0)
+      PROC_textbox(Form%,name$,&302,60,36,114,12,0)
+      PROC_checkbox(Form%,"Deploy as a web application",&506,16,56,110,10,0)
+      PROC_static(Form%,"Icon:",&207,183,37,20,8,0)
+      PROC_static(Form%,@lib$ + "../bbc256x.png",&601,212,34,32,32,SS_BITMAP)
+      IDchangeicon% = FN_setproc(PROCchangeicon())
+      PROC_button(Form%,"Change icon",IDchangeicon%,258,38,48,14,0)
+      
+      PROC_groupbox(Form%,"Crunch",&103,6,75,308,28,0)
+      PROC_checkbox(Form%,"Discard spaces",&501,16,87,66,10,0)
+      PROC_checkbox(Form%,"Concatenate lines",&502,93,87,76,10,0)
+      PROC_checkbox(Form%,"Remove REMarks",&503,170,87,74,10,0)
+      PROC_checkbox(Form%,"Shorten names",&504,247,87,66,10,0)
+      
+      PROC_groupbox(Form%,"Embedded files",&104,6,108,308,79,0)
+      PROC_listbox(Form%,"",&306,16,121,234,45,WS_VSCROLL)
+      PROC_button(Form%,"Add @dir$",FN_setproc(PROCadddir()),258,121,48,14,0)
+      PROC_button(Form%,"Add @lib$",FN_setproc(PROCaddlib()),258,143,48,14,0)
+      IDremove% = FN_setproc(PROCremove())
+      PROC_button(Form%,"Remove",IDremove%,258,165,48,14,WS_DISABLED)
+      PROC_checkbox(Form%,"Crunch embedded program (.BBC) files",&505,16,172,150,10,0)
+      
+      PROC_button(Form%,"Test",FN_setproc(PROCtestapp()),7,194,48,14,0)
+      PROC_button(Form%,"Create Application",FN_setproc(PROCbundle()),120,194,80,14,0)
+      PROC_button(Form%,"Cancel",2,265,194,48,14,0)
+      
+      DIM Buff%% BUFLEN-1, Prog$(&FFFF), Flag&(&FFFF), Old$(9999), New$(9999)
+      DIM Embed$(1000), Resrc$(100), Prev&(255), Next&(255)
+      nEmbed% = 0 : nResrc% = 0
+      
+      REM If the same bit is set in Prev&(prevchar) and Next&(nextchar)
+      REM it is important to preserve a space between those characters.
+      REM 1. Must keep a space separating a RANGE1 char from a RANGE0 char:
+      FOR C% = &30 TO &39 : Prev&(C%) OR= 1 : Next&(C%) OR= 1 : NEXT : REM 0-9
+      FOR C% = &40 TO &5A : Prev&(C%) OR= 1 : Next&(C%) OR= 1 : NEXT : REM @-Z
+      FOR C% = &5F TO &7A : Prev&(C%) OR= 1 : Next&(C%) OR= 1 : NEXT : REM _-z
+      Next&(&21) OR= 1 : Next&(&3F) OR= 1 : Next&(&2E) OR= 1 : Next&(&28) OR= 1
+      Next&(&7C) OR= 1 : Next&(&24) OR= 1 : Next&(&25) OR= 1 : Next&(&26) OR= 1
+      Next&(&23) OR= 1
+      REM 2. Must keep a space separating two quoted strings:
+      Prev&(&22) OR= 2 : Next&(&22) OR= 2
+      REM 3. Must keep a space separating '%', '#' or ')' from '!', '?' or '(':
+      Prev&(&25) OR= 4 : Prev&(&23) OR= 4 : Prev&(&29) OR= 4
+      Next&(&21) OR= 4 : Next&(&3F) OR= 4 : Next&(&28) OR= 4
+      REM 4. Must keep a space separating '[' from ':' or ',' (assembler):
+      Prev&(&5B) OR= 8 : Next&(&3A) OR= 8 : Next&(&2C) OR= 8
+      
+      PROCrefresh(@tmp$ + "compiler.tmp.bbc")
+      PROC_registerdlgcallback(Form%, FNcallback())
+      
+      PROC_getdlgrect(Form%, X%, Y%, W%, H%)
+      SYS "SDL_SetWindowSize", @hwnd%, W% DIV 2 + 2, H% DIV 2, @memhdc%
+      SYS "SDL_ShowWindow", @hwnd%, @memhdc%
+      VDU 26
+      
+      IF FN_showdialogex(Form%, 0, H%, Darkmode%)
+      PROC_closedialog(Form%)
+      PROC_exitsockets
+      QUIT
+      
+      DEF FNcallback(D%, K%)
+      PRIVATE I%, L%
+      IF I% <> FN_isdlgitemchecked(D%, &506) THEN
+        I% = FN_isdlgitemchecked(D%, &506)
+        IF I% Platform% = 5 ELSE Platform% = @platform% AND &F
+        PROC_enabledlgitem(D%, IDchangeicon%, I% == 0)
+        PROCexefile(FN_getdlgitemtext(D%, &301))
+        PROC_refreshdialog(D%)
+      ENDIF
+      IF L% <> FN_getlistboxselect(D%, &306) THEN
+        L% = FN_getlistboxselect(D%, &306)
+        PROC_enabledlgitem(D%, IDremove%, L% <> 0)
+        PROC_refreshdialog(D%)
+      ENDIF
+      = FALSE
+      
+      DEF PROCbrowse(D%, I%)
+      LOCAL file$
+      CASE Platform% OF
+        WHEN 0:
+          file$ = FN_filedlgex("Browse for executable", "OK", @dir$, "EXE files", ".exe", \
+          \                    0, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+        WHEN 1:
+          file$ = FN_filedlgex("Browse for app bundle", "OK", @dir$, "ZIP files", ".zip", \
+          \                    0, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+        WHEN 2:
+          file$ = FN_filedlgex("Browse for app bundle", "OK", @dir$, "DMG files", ".dmg", \
+          \                    0, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+        WHEN 5:
+          file$ = FN_filedlgex("Browse for app bundle", "OK", @dir$, "BBB files", ".bbb", \
+          \                    0, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+      ENDCASE
+      IF file$ = "" ENDPROC
+      PROCexefile(file$)
+      PROC_refreshdialog(Form%)
+      ENDPROC
+      
+      DEF PROCchangeicon(D%, I%)
+      LOCAL file$
+      file$ = FN_filedlgex("Browse for icon", "OK", @dir$, "PNG files", ".png", \
+      \                    0, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+      IF file$ = "" ENDPROC
+      PROCicofile(file$)
+      PROC_refreshdialog(D%)
+      ENDPROC
+      
+      DEF PROCadddir(D%, I%)
+      LOCAL P%, file$, tail$, pref$
+      file$ = FN_filedlgex("Browse for resource file", "OK", @dir$, "BBC files", ".bbc", \
+      \                    &801, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+      IF file$ = "" ENDPROC
+      IF LEFT$(file$, LEN(@dir$)-1) <> LEFT$(@dir$) ENDPROC
+      file$ = MID$(file$, LEN(@dir$)+1)
+      P% = FN_instrr(file$, "/", 0)
+      IF P% = 0 P% = FN_instrr(file$, "\", 0)
+      IF P% pref$ = LEFT$(file$, P%) : file$ = MID$(file$, P%+1)
+      REPEAT
+        P% = INSTR(pref$, "\")
+        IF P% MID$(pref$, P%, 1) = "/"
+      UNTIL P%=0
+      REPEAT
+        P% = INSTR(file$, "|")
+        IF P% tail$ = MID$(file$, P% + 1) : file$ = LEFT$(file$, P% - 1)
+        file$ = "@dir$" + CHR$9 + pref$ + file$
+        IF INSTR(SUM(Embed$()),file$) = 0 nEmbed% += 1 : Embed$(nEmbed%) = file$
+        PROC_setlistboxarray(D%, &306, Embed$(), nEmbed%)
+        file$ = tail$
+      UNTIL P% = 0
+      PROC_refreshdialog(D%)
+      ENDPROC
+      
+      DEF PROCaddlib(D%, I%)
+      LOCAL P%, file$, tail$, pref$
+      file$ = FN_filedlgex("Browse for library or font", "OK", @lib$, "BBC files", ".bbc", \
+      \                    &801, Darkmode%, &FFFFFFFF80000000, &FFFFFFFF80000000)
+      IF file$ = "" ENDPROC
+      IF LEFT$(file$, LEN(@lib$)-1) <> LEFT$(@lib$) ENDPROC
+      file$ = MID$(file$, LEN(@lib$)+1)
+      P% = FN_instrr(file$, "/", 0)
+      IF P% = 0 P% = FN_instrr(file$, "\", 0)
+      IF P% pref$ = LEFT$(file$, P%) : file$ = MID$(file$, P%+1)
+      REPEAT
+        P% = INSTR(pref$, "\")
+        IF P% MID$(pref$, P%, 1) = "/"
+      UNTIL P%=0
+      REPEAT
+        P% = INSTR(file$, "|")
+        IF P% tail$ = MID$(file$, P% + 1) : file$ = LEFT$(file$, P% - 1)
+        file$ = "@lib$" + CHR$9 + pref$ + file$
+        IF INSTR(SUM(Embed$()),file$) = 0 nEmbed% += 1 : Embed$(nEmbed%) = file$
+        PROC_setlistboxarray(D%, &306, Embed$(), nEmbed%)
+        file$ = tail$
+      UNTIL P% = 0
+      PROC_refreshdialog(D%)
+      ENDPROC
+      
+      DEF PROCremove(D%, I%)
+      LOCAL N%
+      N% = FN_getlistboxselect(D%, &306)
+      IF N% = 0 ENDPROC
+      FOR I% = N% TO nEmbed%
+        Embed$(I%) = Embed$(I% + 1)
+      NEXT
+      nEmbed% -= 1
+      PROC_setlistboxarray(D%, &306, Embed$(), nEmbed%)
+      PROC_refreshdialog(D%)
+      ENDPROC
+      
+      DEF PROCbundle(D%, I%)
+      LOCAL folder$, bundle$, appname$, pc%
+      SYS "SDL_GetPerformanceCounter" TO pc%
+      folder$ = @tmp$ + "bbc" + RIGHT$(STR$~pc%, 6) + RIGHT$(@tmp$)
+      ON ERROR LOCAL PROCerror("Internal error " + STR$ERR) : PROCkilldir(folder$) : QUIT
+      IF (@platform% AND &F) = 2 MOUSE ON 136 ELSE MOUSE ON 2
+      IF NOT FNbuild(folder$) : MOUSE ON 0 : PROCkilldir(folder$) : ENDPROC
+      PROCseticon(folder$, FALSE)
+      bundle$ = FN_getdlgitemtext(D%, &301)
+      appname$ = FN_getdlgitemtext(D%, &302)
+      IF appname$ = "" PROCerror("Please enter a name for your app") : ENDPROC
+      PROCmakedir(bundle$)
+      ON ERROR LOCAL IF FALSE THEN
+        OSCLI "delete """ + bundle$ + """"
+      ENDIF : RESTORE ERROR
+      CASE Platform% OF
+        WHEN 0:
+          OSCLI "cd """ + folder$ + """"
+          IF FN_lower(RIGHT$(bundle$, 4)) = ".zip" THEN
+            SYS "WinExec", "zip -r """ + bundle$ + """ *", 0
+          ELSE
+            PROCwinbundle(folder$, appname$, bundle$)
+          ENDIF
+        WHEN 1:
+          OSCLI "cd """ + folder$ + """"
+          OSCLI "run zip -r """ + bundle$ + """ ."
+        WHEN 2:
+          ON ERROR LOCAL IF FALSE THEN
+            OSCLI "run rm -R """ + @tmp$ + appname$ + ".app"""
+          ENDIF : RESTORE ERROR
+          OSCLI "run mv """ + folder$ + """ """ + @tmp$ + appname$ + ".app"""
+          OSCLI "run codesign --force --deep --sign - """ + @tmp$ + appname$ + ".app"""
+          OSCLI "run hdiutil create -volname """ + appname$ + """ -srcfolder """ + @tmp$ + appname$ + ".app"" -ov -format UDBZ """ + bundle$ + """"
+          OSCLI "run codesign --force --deep --sign - """ + bundle$ + """"
+        WHEN 5:
+          OSCLI "cd """ + folder$ + """"
+          PROCwebbundle(folder$, appname$, bundle$)
+      ENDCASE
+      MOUSE ON 0
+      IF FN_messageboxdpi("Compile Utility", "Application bundle created successfully", &40, \
+      \                   Darkmode%, GUIscale)
+      IF Platform% <> 2 PROCkilldir(folder$)
+      PROC_exitsockets
+      QUIT
+      ENDPROC
+      
+      DEF PROCtestapp(D%, I%)
+      LOCAL folder$, appname$, pc%
+      SYS "SDL_GetPerformanceCounter" TO pc%
+      folder$ = @tmp$ + "bbc" + RIGHT$(STR$~pc%, 6) + RIGHT$(@tmp$)
+      ON ERROR LOCAL PROCerror("Internal error " + STR$ERR) : PROCkilldir(folder$) : QUIT
+      IF (@platform% AND &F) = 2 MOUSE ON 136 ELSE MOUSE ON 2
+      IF NOT FNbuild(folder$) : MOUSE ON 0 : PROCkilldir(folder$) : ENDPROC
+      appname$ = FN_getdlgitemtext(D%, &302)
+      IF appname$ = "" PROCerror("Please enter a name for your app") : ENDPROC
+      CASE Platform% OF
+        WHEN 0,1: OSCLI "run """ + folder$ + appname$ + """"
+        WHEN 2:
+          ON ERROR LOCAL IF FALSE THEN
+            OSCLI "run rm -R """ + @tmp$ + appname$ + ".app"""
+          ENDIF : RESTORE ERROR
+          OSCLI "run mv """ + folder$ + """ """ + @tmp$ + appname$ + ".app"""
+          OSCLI "run open """ + @tmp$ + appname$ + ".app"""
+        WHEN 5:
+          PROCwebbundle(folder$, appname$, @tmp$ + "tmp.bbb")
+          IF FNftpupload(SERV$, USER$, PASS$, @tmp$ + "tmp.bbb", "tmp.bbb") THEN
+            PROCopenurl("https://wasm.bbcbasic.co.uk/bbcsdl.html?app=" + WURL$ + "tmp.bbb")
+          ENDIF
+      ENDCASE
+      IF Platform% <> 2 PROCkilldir(folder$)
+      MOUSE ON 0
+      ENDPROC
+      
+      DEF FNbuild(folder$)
+      LOCAL D%, I%, P%, f$, appfol$, appname$, libfol$
+      appfol$ = folder$ : libfol$ = folder$
+      appname$ = FN_getdlgitemtext(Form%, &302)
+      OSCLI "mkdir """ + folder$ + """"
+      CASE Platform% OF
+        WHEN 0:
+          OSCLI "mkdir """ + folder$ + "lib/"""
+          OSCLI "copy """ + @lib$ + "../bbcsdl.exe"" """ + folder$ + appname$ + ".exe"""
+          OSCLI "copy """ + @lib$ + "../SDL2.dll"" """ + folder$ + "SDL2.dll"""
+          OSCLI "copy """ + @lib$ + "../SDL2_ttf.dll"" """ + folder$ + "SDL2_ttf.dll"""
+          OSCLI "copy """ + @lib$ + "../SDL2_net.dll"" """ + folder$ + "SDL2_net.dll"""
+          IF INSTR(SUM(Embed$()), "box2d") THEN
+            OSCLI "copy """ + @lib$ + "../Box2D231.dll"" """ + folder$ + "Box2D231.dll"""
+          ENDIF
+        WHEN 1:
+          OSCLI "mkdir """ + folder$ + "lib/"""
+          OSCLI "copy """ + @lib$ + "../bbcsdl."" """ + folder$ + appname$ + "."""
+          OSCLI "copy """ + @lib$ + "../libstb.so"" """ + folder$ + "libstb.so"""
+          IF INSTR(SUM(Embed$()), "box2d") THEN
+            OSCLI "copy """ + @lib$ + "../Box2D231.so"" """ + folder$ + "Box2D231.so"""
+          ENDIF
+          OSCLI "run chmod +x """ + folder$ + appname$ + """"
+        WHEN 2:
+          PROCmakedir(folder$ + "Contents/MacOS/")
+          PROCmakedir(folder$ + "Contents/Resources/lib/")
+          PROCmakedir(folder$ + "Contents/Frameworks/")
+          OSCLI "run cp -R """ + @lib$ + "../../Frameworks/"" """ + folder$ + "Contents/Frameworks/"""
+          P% = OPENIN(@lib$ + "../../Info.plist") : f$ = GET$#P% BY EXT#P% : CLOSE #P%
+          I% = INSTR(f$, "com.rtrussell.bbcbasic") : IF I% = 0 PROCerror("Invalid Info.plist") : = 0
+          f$ = LEFT$(f$, I%-1) + "com.bbcbasic." + FNsquish(appname$) + MID$(f$, I%+22)
+          I% = INSTR(f$, "BBCBasic</string>") : IF I% = 0 PROCerror("Invalid Info.plist") : = 0
+          f$ = LEFT$(f$, I%-1) + appname$ + MID$(f$, I%+8)
+          P% = OPENOUT(folder$ + "Contents/Info.plist") : BPUT#P%, f$; : CLOSE #P%
+          libfol$ = folder$ + "Contents/Resources/"
+          appfol$ = folder$ + "Contents/MacOS/"
+          OSCLI "copy """ + @lib$ + "../bbcsdl."" """ + libfol$ + appname$ + "."""
+          OSCLI "run chmod +x """ + libfol$ + appname$ + """"
+        WHEN 5:
+          OSCLI "mkdir """ + folder$ + "lib/"""
+      ENDCASE
+      FOR P% = 1 TO 3
+        IF nEmbed% THEN
+          FOR I% = 1 TO nEmbed%
+            f$ = MID$(Embed$(I%),7)
+            CASE LEFT$(Embed$(I%),5) OF
+              WHEN "@dir$":
+                IF P% = 3 PROCmakedir(libfol$ + f$)
+                IF NOT FNcrunch(P%, @dir$ + f$, libfol$ + f$, TRUE) THEN = FALSE
+              WHEN "@lib$":
+                IF P% = 3 PROCmakedir(libfol$ + "lib/" + f$)
+                IF NOT FNcrunch(P%, @lib$ + f$, libfol$ + "lib/" + f$, TRUE) THEN = FALSE
+            ENDCASE
+          NEXT
+        ENDIF
+        IF NOT FNcrunch(P%, @tmp$ + "compiler.tmp.bbc", libfol$ + appname$ + ".bbc", FALSE) THEN = FALSE
+      NEXT
+      CASE Platform% OF
+        WHEN 2:
+          OSCLI "run ln """ + libfol$ + appname$ + """ """ + appfol$ + appname$ + """"
+      ENDCASE
+      = TRUE
+      
+      REM Delete a directory, recursively deleting files and subdirectories:
+      DEF PROCkilldir(dir$)
+      LOCAL I%, N%, file$()
+      DIM file$(1000)
+      IF RIGHT$(dir$) = "\" dir$ = LEFT$(dir$)
+      IF RIGHT$(dir$) <> "/" dir$ += "/"
+      N% = FN_dirscan(file$(), "dir """ + dir$ + "*.*""", "", "", "*")
+      IF N% THEN
+        FOR I% = 1 TO N%
+          IF ASCfile$(I%) = &2A THEN
+            IF INSTR(file$(I%),".") = 0 file$(I%) += "."
+            ON ERROR LOCAL IF FALSE THEN
+              OSCLI "unlock """ + dir$ + MID$(file$(I%),2) + """"
+              OSCLI "delete """ + dir$ + MID$(file$(I%),2) + """"
+            ENDIF : RESTORE ERROR
+          ELSE
+            PROCkilldir(dir$ + file$(I%) + "/")
+          ENDIF
+        NEXT
+      ENDIF
+      OSCLI "cd """ + @dir$ + """"
+      ON ERROR LOCAL IF FALSE THEN
+        OSCLI "rmdir """ + LEFT$(dir$) + """"
+      ENDIF : RESTORE ERROR
+      ENDPROC
+      
+      REM Create a subdirectory, creating intermediate directories if necessary;
+      REM only directories followed by a slash are created, so a filepath is OK:
+      DEF PROCmakedir(dir$)
+      LOCAL D%
+      REPEAT
+        D% = INSTR(dir$, "/", D%+1)
+        ON ERROR LOCAL IF FALSE THEN
+          IF D% OSCLI "mkdir """ + LEFT$(dir$, D%-1) + """"
+        ENDIF : RESTORE ERROR
+      UNTIL D% = 0
+      ENDPROC
+      
+      REM Search backwards from end of string:
+      DEF FNinstrr(A$, B$, S%)
+      LOCAL O%,P%
+      IF S%=0 S% = LEN(A$)
+      REPEAT
+        O% = P%
+        P% = INSTR(A$, B$, P%+1)
+      UNTIL P% = 0 OR P% > S%
+      = O%
+      
+      DEF PROCrefresh(bbc$)
+      LOCAL F%, I%, L%, N%, a$
+      nEmbed% = 0 : Embed$() = ""
+      
+      REM Initialise to all crunch options set:
+      PROC_checkdlgitem(Form%,&501,1)
+      PROC_checkdlgitem(Form%,&502,1)
+      PROC_checkdlgitem(Form%,&503,1)
+      PROC_checkdlgitem(Form%,&504,1)
+      PROC_checkdlgitem(Form%,&505,1)
+      
+      REM First scan for compiler directives:
+      F% = OPENIN(bbc$)
+      IF F% = 0 ENDPROC
+      WHILE NOT EOF#F%
+        L% = BGET#F%
+        N% = BGET#F% + 256*BGET#F%
+        INPUT #F%, a$
+        I% = INSTR(a$, CHR$&F4 + "!Crunch")
+        IF I% THEN
+          PROC_checkdlgitem(Form%,&501,INSTR(a$,"spaces"))
+          PROC_checkdlgitem(Form%,&502,INSTR(a$,"lines"))
+          PROC_checkdlgitem(Form%,&503,INSTR(a$,"rems"))
+          PROC_checkdlgitem(Form%,&504,INSTR(a$,"names"))
+          PROC_checkdlgitem(Form%,&505,INSTR(a$,"embedded"))
+        ENDIF
+        I% = INSTR(a$, CHR$&F4 + "!Appname")
+        IF I% PROC_setdlgitemtext(Form%, &302, FN_trim(MID$(a$,I%+9)))
+        I% = INSTR(a$, CHR$&F4 + "!Exefile")
+        IF I% PROCexefile(MID$(a$, I%+9))
+        IF I% IF INSTR(a$, ".bbb") PROC_checkdlgitem(Form%, &506, TRUE)
+        I% = INSTR(a$, CHR$&F4 + "!Embed")
+        IF I% PROCembed(MID$(a$, I%+7))
+        I% = INSTR(a$, CHR$&F4 + "!Icon")
+        IF I% PROCicofile(MID$(a$, I%+6))
+        I% = INSTR(a$, CHR$&F4 + "!Resource")
+        IF I% PROCresrc(MID$(a$, I%+10))
+      ENDWHILE
+      CLOSE #F%
+      
+      REM Then scan program for @dir$+ and @lib$+:
+      IF nEmbed% = 0 THEN
+        F% = OPENIN(bbc$)
+        WHILE NOT EOF#F%
+          L% = BGET#F%
+          N% = BGET#F% + 256*BGET#F%
+          INPUT #F%, a$
+          PROCembed(a$)
+        ENDWHILE
+        CLOSE #F%
+      ENDIF
+      
+      PROC_setlistboxarray(Form%, &306, Embed$(), nEmbed%)
+      ENDPROC
+      
+      DEF PROCexefile(p$)
+      LOCAL I%, J%
+      p$ = FN_trim(p$)
+      REPEAT
+        I% = INSTR(p$, "\")
+        IF I% MID$(p$, I%, 1) = "/"
+      UNTIL I% = 0
+      I% = FNinstrr(p$, ".", 0)
+      J% = FNinstrr(p$, "/", 0)
+      IF I% > J% p$ = LEFT$(p$, I%-1)
+      CASE Platform% OF
+        WHEN 0: p$ += ".exe"
+        WHEN 1: p$ += ".zip"
+        WHEN 2: p$ += ".dmg"
+        WHEN 5: p$ += ".bbb"
+      ENDCASE
+      I% = INSTR(p$, ":")
+      J% = INSTR(p$, "/")
+      IF J% <> I%+1 p$ = @dir$ + p$
+      PROC_setdlgitemtext(Form%, &301, p$)
+      ENDPROC
+      
+      DEF PROCicofile(p$)
+      LOCAL I%, J%
+      p$ = FN_trim(p$)
+      REPEAT
+        I% = INSTR(p$, "\")
+        IF I% MID$(p$, I%, 1) = "/"
+      UNTIL I% = 0
+      I% = FNinstrr(p$, ".", 0)
+      J% = FNinstrr(p$, "/", 0)
+      IF I% > J% p$ = LEFT$(p$, I%-1)
+      p$ += ".png"
+      I% = INSTR(p$, ":")
+      J% = INSTR(p$, "/")
+      IF J% <> I%+1 p$ = @dir$ + p$
+      PROC_setdlgitemtext(Form%, &601, p$)
+      ENDPROC
+      
+      DEF PROCembed(p$)
+      LOCAL D%,I%,N%,Q%,d$,e$,f$,g$,file$()
+      DIM file$(1000)
+      REPEAT
+        D% = INSTR(p$, "@dir$")
+        I% = INSTR(p$, "@lib$")
+        IF D% = 0 AND I% = 0 EXIT REPEAT
+        IF D% = 0 D% = 2 ELSE IF I% = 0 OR D% < I% I% = D% : D% = 1
+        IF D% = 1 d$ = "@dir$" ELSE d$ = "@lib$"
+        f$ = FN_lower(LEFT$(p$,I%))
+        CASE TRUE OF
+          WHEN INSTR(f$, "font") <> 0: e$ = ".ttf"
+          WHEN INSTR(f$, "display") <> 0: e$ = ".bmp"
+          OTHERWISE: e$ = ".bbc"
+        ENDCASE
+        p$ = MID$(p$, I%+5)
+        WHILE ASCp$ = 32 : p$ = MID$(p$,2) : ENDWHILE
+        IF ASCp$ = 43 THEN
+          p$ = MID$(p$,2)
+          WHILE ASCp$ = 32 : p$ = MID$(p$,2) : ENDWHILE
+          IF ASCp$ = 34 THEN
+            p$ = MID$(p$,2)
+            Q% = INSTR(p$, """")
+            IF Q% THEN
+              f$ = LEFT$(p$,Q%-1)
+              REPEAT
+                I% = INSTR(f$, "\")
+                IF I% MID$(f$,I%,1) = "/"
+              UNTIL I%=0
+              IF LEFT$(f$,3) <> "../" THEN
+                I% = FNinstrr(f$, ".", 0)
+                Q% = FNinstrr(f$, "/", 0)
+                IF I% <= Q% f$ += e$
+                IF INSTR(f$,"*") OR INSTR(f$,"?") THEN
+                  N% = FN_dirscan(file$(), "dir """ + EVAL(d$) + f$ + """", "", "", "")
+                  IF N% THEN
+                    FOR I% = 1 TO N%
+                      g$ = file$(I%)
+                      IF Q% g$ = LEFT$(f$,Q%) + g$
+                      g$ = d$ + CHR$9 + g$
+                      IF INSTR(SUM(Embed$()), g$) = 0 nEmbed% += 1 : Embed$(nEmbed%) = g$
+                    NEXT
+                  ENDIF
+                ELSE
+                  f$ = d$ + CHR$9 + f$
+                  IF INSTR(SUM(Embed$()), f$) = 0 nEmbed% += 1 : Embed$(nEmbed%) = f$
+                ENDIF
+              ENDIF
+            ENDIF
+          ENDIF
+        ENDIF
+      UNTIL FALSE
+      ENDPROC
+      
+      DEF PROCresrc(p$)
+      LOCAL D%, L%
+      ON ERROR LOCAL PROCerror("Error in REM!Resource directive") : QUIT
+      REPEAT
+        D% = INSTR(p$, "@dir$")
+        L% = INSTR(p$, "@lib$")
+        IF D% = 0 AND L% = 0 EXIT REPEAT
+        IF L% IF L% < D% D% = L%
+        nResrc% += 1
+        Resrc$(nResrc%) = EVAL(MID$(p$, D%))
+        p$ = MID$(p$, D%+5)
+      UNTIL FALSE
+      ENDPROC
+      
+      DEF FNcrunch(pass%, src$, dst$, embedded%)
+      LOCAL C%, F%, I%, L%, N%, R%, a&, b&, c&, text$, this$, next$
+      LOCAL p%%, nlines%, contin%, left%, flags{}
+      PRIVATE num%, oldpass%
+      DIM flags{asm%, braket%, struct%, crunch%, label%}
+      IF pass% <> oldpass% oldpass% = pass% : IF pass% = 1 num% = 1
+      
+      flags.crunch% = FN_isdlgitemchecked(Form%, &501) AND %00001 OR \
+      \               FN_isdlgitemchecked(Form%, &502) AND %00010 OR \
+      \               FN_isdlgitemchecked(Form%, &503) AND %00100 OR \
+      \               FN_isdlgitemchecked(Form%, &504) AND %01000 OR \
+      \               FN_isdlgitemchecked(Form%, &505) AND %10000
+      
+      IF FN_lower(RIGHT$(src$,4))<>".bbc" OR flags.crunch% = 0 OR \
+      \  (flags.crunch% AND %10000) = 0 AND embedded% THEN
+        ON ERROR LOCAL IF FALSE THEN
+          IF pass% = 3 OSCLI "copy """ + src$ + """ """ + dst$ + """"
+        ELSE
+          PROCerror("Couldn't copy '" + src$ + "'") : = FALSE
+        ENDIF : RESTORE ERROR
+        = TRUE
+      ENDIF
+      
+      F% = OPENIN(src$)
+      IF F% = 0 PROCerror("Couldn't open '" + src$ + "'") : = FALSE
+      
+      REM Read program to array, handling REM!Keep
+      I% = 0
+      Prog$() = ""
+      WHILE NOT EOF#F%
+        L% = BGET#F%
+        IF L% = 0 EXIT WHILE
+        Prog$(I%) = CHR$L% + GET$#F% BY (L%-1)
+        IF RIGHT$(Prog$(I%)) <> CHR$&0D PROCerror("Bad BASIC program") : QUIT
+        IF MID$(Prog$(I%), 4, 6) = CHR$&F4 + "!Keep" THEN
+          REM Handle REM!Keep
+          $Buff%% = MID$(Prog$(I%), 10)
+          p%% = Buff%%
+          REPEAT
+            REPEAT p%% += 1: UNTIL ?p%% <> &20
+            IF LEFT$($p%%,2) = "FN"   $p%% = CHR$&A4 + MID$($p%%,3)
+            IF LEFT$($p%%,4) = "PROC" $p%% = CHR$&F2 + MID$($p%%,5)
+            PROCname(p%%,num%,0,TRUE,flags{})
+            REPEAT p%% += 1: UNTIL ?p%%<>&20 AND ?p%%<>&29 AND ?p%%<>&7D
+          UNTIL ?p%% <> &2C
+        ENDIF
+        I% += 1
+      ENDWHILE
+      CLOSE #F%
+      nlines% = I%
+      
+      REM Remove trailing colons and spaces, convert multiple spaces to single spaces
+      REM and scan for line number refs (doing this now simplifies subsequent steps):
+      FOR I% = 0 TO nlines%-1
+        text$ = LEFT$(MID$(Prog$(I%),4))
+        WHILE RIGHT$(text$)=":" OR RIGHT$(text$)=" " text$ = LEFT$(text$) : ENDWHILE
+        REPEAT
+          C% = FNinstrq(text$, "  ", 1)
+          IF C% THEN text$ = LEFT$(text$, C%) + MID$(text$, C%+2)
+        UNTIL C%=0
+        Prog$(I%) = LEFT$(Prog$(I%),3) + text$ + CHR$&D
+        
+        R% = 0
+        REPEAT
+          R% = FNinstrq(text$, CHR$&8D, R%+1)
+          IF R% THEN
+            a& = ASCMID$(text$,R%+1)
+            b& = ASCMID$(text$,R%+2)
+            c& = ASCMID$(text$,R%+3)
+            N% = (((a& << 2) AND &C0) EOR b&) + 256*(((a& << 4) AND &C0) EOR c&)
+            Flag&(N%) = 1
+          ENDIF
+        UNTIL R% = 0
+      NEXT
+      
+      IF flags.crunch% AND %00100 IF pass% = 3 THEN
+        REM Remove REMs (unless after THEN):
+        FOR I% = 0 TO nlines%-1
+          text$ = LEFT$(MID$(Prog$(I%),4))
+          R% = FNinstrq(text$,CHR$&F4,1)
+          IF R% THEN
+            text$ = LEFT$(text$,R%-1)
+            WHILE RIGHT$(text$)=" " text$ = LEFT$(text$) : ENDWHILE
+            IF RIGHT$(text$) = CHR$&8C text$ += CHR$&F4
+          ENDIF
+          Prog$(I%) = LEFT$(Prog$(I%),3) + text$ + CHR$&D
+        NEXT
+      ENDIF
+      
+      IF flags.crunch% AND %01001 THEN
+        REM Scan for variables, arrays, structures, functions and procedures:
+        flags.asm% = FALSE
+        contin% = FALSE
+        FOR I% = 0 TO nlines%-1
+          IF Prog$(I%) <> "" THEN
+            $Buff%% = MID$(Prog$(I%), 4)
+            
+            IF contin% THEN
+              IF ?Buff%% <> &5C PROCerror("Continuation line missing initial \") : QUIT
+              contin% = FALSE
+            ELSE
+              left% = TRUE
+              flags.struct% = FALSE
+              flags.braket% = 0
+            ENDIF
+            
+            p%% = Buff%%
+            flags.label% = ?p%% == &28
+            REPEAT
+              C% = ?p%%
+              CASE C% OF
+                WHEN &0D: EXIT REPEAT : REM end-of-line
+                WHEN &20: IF flags.crunch% AND %00001 IF flags.asm% = 0 PROCstrip(p%%)
+                WHEN &22: REPEAT p%% += 1 : UNTIL ?p%% = &22 OR ?p%% = &D : IF ?p%% = &D PROCerror("Mismatched quotes") : QUIT
+                WHEN &26: REPEAT p%% += 1 : UNTIL ?p%%<&30 OR ?p%%>&66 OR ?p%%>&39 AND ?p%%<&41 OR ?p%%>&46 AND ?p%%<&61 : p%% -= 1
+                WHEN &28: flags.braket% += 1
+                WHEN &29: flags.braket% -= 1 : flags.label% = FALSE
+                WHEN &2A,&DC: IF left% EXIT REPEAT : REM *command or DATA statement (n.b. LOCAL DATA)
+                WHEN &2E: IF flags.asm% p%% += 1 : PROCname(p%%,num%,pass%,TRUE,flags{}) : left% = TRUE : REM assembler label
+                WHEN &5B: flags.asm% = TRUE : left% = TRUE
+                WHEN &5C: IF p%% > Buff%% contin% = TRUE : p%%?1 = &0D : EXIT REPEAT : REM Continues on next line
+                WHEN &5D: IF left% flags.asm% = FALSE : REM Don't exit assembler on [expr] or ]expr
+                WHEN &7B: flags.struct% += 1 : flags.braket% = 0
+                WHEN &7D: flags.struct% -= 1
+                WHEN &A4,&F2: PROCname(p%%,num%,pass%,FALSE,flags{}) : REM FN or PROC (don't create)
+                WHEN &8D: p%% += 3 : REM Encoded line number
+                WHEN &B8: IF p%%?1 = &50 p%% += 1 : REM TOP
+                WHEN &D2: IF flags.crunch% AND %01000 PROCerror("It is unsafe to change LOMEM when crunching names") : = FALSE
+                WHEN &DD: REPEAT p%% += 1 : UNTIL ?p%%<>&20 : IF ?p%%=&A4 OR ?p%%=&F2 PROCname(p%%,num%,pass%,TRUE,flags{}) : REM DEF
+                WHEN &F4: EXIT REPEAT : REM REMark
+                WHEN &30,&31,&32,&33,&34,&35,&36,&37,&38,&39: REM Decimal constant (in case contains 'e' or 'E')
+                  REPEAT p%% += 1 : UNTIL ?p%%<>&2E AND ?p%%<&30 OR ?p%%>&39 AND (?p%% AND &5F)<>&45 : p%% -= 1
+                OTHERWISE:
+                  IF C%>=&40 IF C%<=&7A IF C%<=&5A OR C%>=&5F PROCname(p%%,num%,pass%,TRUE,flags{}) : IF ?p%%=&28 flags.braket% += 1
+              ENDCASE
+              CASE C% OF
+                WHEN &20,&2C: REM spaces and commas don't affect left mode
+                WHEN &3A,&8B,&8C,&CC,&F5: left% = TRUE  : REM Set to Left
+                OTHERWISE:                left% = FALSE : REM Set to Right
+              ENDCASE
+              p%% += 1
+            UNTIL FALSE
+            IF NOT contin% IF flags.struct% PROCerror("Mismatched braces {}") : QUIT
+            Prog$(I%) = LEFT$(Prog$(I%), 3) + $Buff%% + CHR$&D
+          ENDIF
+        NEXT I%
+      ENDIF
+      
+      IF pass% < 3 THEN = TRUE
+      
+      IF flags.crunch% AND %00010 THEN
+        REM Concatenate lines if possible (relies on spaces already having been removed):
+        FOR I% = 0 TO nlines%-2
+          this$ = LEFT$(MID$(Prog$(I%), 4))
+          next$ = LEFT$(MID$(Prog$(I%+1), 4))
+          L% = ASCMID$(Prog$(I%+1),2) + 256*ASCMID$(Prog$(I%+1),3)
+          IF L% < 0 L% = 0
+          CASE TRUE OF
+            WHEN LEN(this$+next$) > 250 : REM resulting line would be too long
+            WHEN ASCthis$=&DC : REM starts with DATA
+            WHEN ASCthis$=&DD : REM starts with DEF
+            WHEN ASCthis$=&2A : REM starts with *
+            WHEN ASCthis$=&5C : REM non-concatenated continuation line
+            WHEN FNinstrq(this$,":*",1)<>0  : REM contains star command
+            WHEN FNinstrq(this$,CHR$&8B+"*",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&8C+"*",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&CC+"*",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&F5+"*",1)<>0 : REM "
+            WHEN FNinstrq(this$,": *",1)<>0 : REM contains star command
+            WHEN FNinstrq(this$,CHR$&8B+" *",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&8C+" *",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&CC+" *",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&F5+" *",1)<>0 : REM "
+            WHEN FNinstrq(this$,CHR$&E7,1)<>0 : REM contains IF
+            WHEN FNinstrq(this$,CHR$&EE,1)<>0 : REM contains ON
+            WHEN FNinstrq(this$,CHR$&F4,1)<>0 : REM contains REM
+            WHEN RIGHT$(this$,2)=CHR$&8C+";" : REM ends with THEN;
+            WHEN RIGHT$(this$)=CHR$&8C : REM ends with THEN
+            WHEN RIGHT$(this$)=CHR$&CA : REM ends with OF
+            WHEN ASCnext$=&8B : REM next line starts with ELSE
+            WHEN ASCnext$=&C9 : REM next line starts with WHEN
+            WHEN ASCnext$=&CC : REM next line starts with OTHERWISE
+            WHEN ASCnext$=&CB : REM next line starts with ENDCASE
+            WHEN ASCnext$=&CD : REM next line starts with ENDIF
+            WHEN ASCnext$=&DC : REM next line starts with DATA
+            WHEN ASCnext$=&DD : REM next line starts with DEF
+            WHEN ASCnext$=&28 : REM next line starts with (label)
+            WHEN Flag&(L%)<>0 : REM referenced by GOTO/GOSUB/RESTORE
+            OTHERWISE:
+              IF LEFT$(next$,1)="\" THEN
+                IF RIGHT$(this$)<>"\" PROCerror("Unexpected continuation line") : QUIT
+                Prog$(I%+1) = LEFT$(Prog$(I%),3) + LEFT$(this$) + MID$(next$,2) + CHR$&D
+              ELSE
+                IF this$<>"" IF next$<>"" this$ += ":"
+                Prog$(I%+1) = LEFT$(Prog$(I%),3) + this$ + next$ + CHR$&D
+              ENDIF
+              Prog$(I%) = ""
+          ENDCASE
+        NEXT I%
+      ENDIF
+      
+      REM Update line-length bytes:
+      FOR I% = 0 TO nlines%-1
+        IF LENProg$(I%) > 255 PROCerror("Crunch failed: line too long") : = FALSE
+        LEFT$(Prog$(I%),1) = CHR$LENProg$(I%)
+      NEXT
+      
+      REM Terminate:
+      IF NOT embedded% Prog$(nlines%) = CHR$3 + RIGHT$(FNfast(""), 2) + FNshort("") : nlines% += 1
+      Prog$(nlines%) = CHR$0 + CHR$&FF + CHR$&FF
+      
+      REM Write out:
+      F% = OPENOUT(dst$)
+      BPUT#F%, SUM(Prog$());
+      CLOSE #F%
+      
+      = TRUE
+      
+      REM As INSTR() but skipping quoted text:
+      DEF FNinstrq(a$, B$, S%)
+      LOCAL I%, Q%
+      REPEAT
+        I% = INSTR(a$, B$, S%)
+        Q% = INSTR(a$, """", S%)
+        IF Q%=0 OR I%<Q% THEN = I%
+        S% = INSTR(a$, """", Q%+1)+1
+      UNTIL S%=1
+      = 0
+      
+      REM Remove spaces if allowed:
+      DEF PROCstrip(RETURN p%%)
+      IF Prev&(?(p%%-1)) AND Next&(?(p%%+1)) ENDPROC
+      SYS "memmove", p%%, p%% + 1, Buff%% + BUFLEN - p%% - 1
+      p%% -= 1
+      ENDPROC
+      
+      REM Pass = 0: Substitute variable etc. name with itself (for REM!Keep)
+      REM Pass = 1: Substitute structure members (only) with 'short' version
+      REM Pass = 2: Substitute variable etc. with 'fast' version (but not in
+      REM           assembler code, so register names etc. are unaffected;
+      REM           n.b. could fail if variable has same name as a register)
+      REM Pass = 3: Replace variable etc. with previously stored substitute.
+      REM GLOBAL Buff%%, New$(), Old$()
+      DEF PROCname(RETURN p%%, RETURN num%, pass%, create%, fl{})
+      LOCAL I%, J%, M%, S%, q%%, old$, new$
+      
+      S% = fl.struct%
+      q%% = p%%
+      REPEAT
+        REPEAT
+          old$ += CHR$?q%%
+          q%% += 1
+        UNTIL ?q%% < &30 OR ?q%% > &7A OR ?q%% > &39 AND ?q%% < &40 OR ?q%% > &5A AND ?q%% < &5F
+      UNTIL ?p%% <> &40 OR ?q%% <> &2E
+      IF ?q%% = &23 OR ?q%% = &24 OR ?q%% = &25 OR ?q%% = &26 OR ?q%% = &2E OR ?q%% = &7B old$ += CHR$?q%% : q%% += 1
+      IF RIGHT$(old$) = "{" fl.struct% += 1 : fl.braket% = 0
+      IF RIGHT$(old$) = "." RIGHT$(old$) = "{" : M% = TRUE
+      IF RIGHT$(old$) = "%" IF ?q%% = &25 old$ += "%" : q%% += 1
+      IF ?q%% = &28 old$ += "(" ELSE q%% -= 1
+      
+      IF (fl.crunch% AND %01000) = 0       p%% = q%% : ENDPROC : REM Name crunching disabled
+      IF ?p%% = &40                        p%% = q%% : ENDPROC : REM 'system variable'
+      IF pass% = 1 IF S% = 0 OR fl.braket% p%% = q%% : ENDPROC : REM Only structures in pass 1
+      
+      I% = FNsearch(Old$(), old$, num%)
+      IF old$ = Old$(I%) new$ = New$(I%)
+      
+      REM If structure member names differ only in % vs %% suffix, so must crunched versions:
+      IF new$ = "" THEN
+        CASE TRUE OF
+          WHEN RIGHT$(old$,2) = "%%":
+            J% = FNsearch(Old$(), LEFT$(old$), num%)
+            IF LEFT$(old$) = Old$(J%) IF ASCNew$(J%) > 32 new$ = New$(J%) + "%"
+          WHEN RIGHT$(old$) = "%":
+            J% = FNsearch(Old$(), old$ + "%", num%)
+            IF old$ + "%" = Old$(J%) IF ASCNew$(J%) > 32 new$ = LEFT$(New$(J%))
+        ENDCASE
+      ENDIF
+      
+      IF new$ = "" THEN
+        CASE pass% OF
+          WHEN 0: new$ = old$ : REM !Keep
+          WHEN 1: new$ = FNshort(old$)
+          WHEN 2: IF fl.asm% new$ = old$ ELSE IF fl.label% new$ = FNshort(old$) ELSE new$ = FNfast(old$)
+          WHEN 3: new$ = old$ : REM For example FN/PROC calls with no definition
+        ENDCASE
+        IF NOT create% p%% = q%% : ENDPROC
+        num% += 1 : I% += 1
+        PROCinsert(Old$(), old$, I%, num%)
+        PROCinsert(New$(), new$, I%, num%)
+      ENDIF
+      
+      IF pass% < 3 p%% = q%% : ENDPROC
+      
+      IF M% THEN
+        IF ASCnew$ > &20 RIGHT$(new$) = "." ELSE new$ += "."
+      ENDIF
+      I% = LENnew$ - LENold$
+      IF I% > 0 SYS "memmove", p%% + I%, p%%, Buff%% + BUFLEN - p%% - I%
+      IF I% < 0 SYS "memmove", p%%, p%% - I%, Buff%% + BUFLEN - p%% + I%
+      q%% = p%% + LENnew$
+      WHILE p%% < q%% ?p%% = ASCnew$ : p%% += 1 : new$ = MID$(new$,2) : ENDWHILE
+      p%% -= 1
+      ENDPROC
+      
+      REM Binary-chop search of ordered string array:
+      DEF FNsearch(a$(), s$, N%)
+      LOCAL B%, H%
+      H% = 1
+      REPEAT H% *= 2 : UNTIL H%>=N%
+      H% /= 2
+      REPEAT
+        IF (B%+H%)<N% IF s$>=a$(B%+H%) B% += H%
+        H% /= 2
+      UNTIL H%=0
+      = B%
+      
+      REM Insert word into array:
+      DEF PROCinsert(a$(), w$, I%, N%)
+      SYS "memmove", ^a$(I%) + 8, ^a$(I%), (N% - I%) * 8
+      !(^a$(I%) + 4) = 0
+      a$(I%) = w$
+      ENDPROC
+      
+      REM Create a new shortened name of the appropriate type:
+      REM n.b. don't allow both 'x%' and 'x%%' members in a 64-bit structure
+      REM because they can both become 'x%' in an equivalent 32-bit structure
+      REM and they alias each other in a 64-bit structure; index 6 not used.
+      DEF FNshort(o$)
+      LOCAL A%, I%, a$, n$
+      PRIVATE i%() : DIM i%(15) : IF o$ = "" i%() = 0 : = ""
+      IF i%(2) = 0 i%(2) = 19 : REM Don't allocate A%-Z% or A%%-Z%%
+      IF LENo$ = 2 IF o$ >= "A%" IF o$ <= "Z%" THEN = o$
+      a$ = "GHIJKLMNOQRSTUVWXYZ_`ghijklmnoqrstuvwxyzABCDEFPabcdefp0123456789"
+      IF RIGHT$(o$) = "(" o$ = LEFT$(o$) : A% = 8
+      CASE ASCo$ OF
+        WHEN &A4,&F2: I% = 0 : REM PROC/FN
+        OTHERWISE:
+          CASE RIGHT$(o$) OF
+            WHEN "#": I% = 3 : REM double
+            WHEN "$": I% = 7 : REM string
+            WHEN "%": I% = 2 : REM integer (x% and x%% are aliases in 64-bit struct)
+            WHEN "&": I% = 1 : REM byte
+            WHEN "{": I% = 5 : REM structure
+            OTHERWISE: I% = 4 : REM variant
+          ENDCASE
+      ENDCASE
+      I% += A%
+      A% = i%(I%) : i%(I%) += 1
+      n$ = MID$(a$, ((A% MOD 40) EOR ((I% EOR 2) << 1)) + 1, 1)
+      A% = A% DIV 40
+      WHILE A%
+        n$ += MID$(a$, A% MOD 64 + 1, 1)
+        A% = A% DIV 64
+      ENDWHILE
+      CASE I% AND 7 OF
+        WHEN 0: n$ = LEFT$(o$,1) + n$
+        WHEN 1: n$ += "&"
+        WHEN 2: n$ += "%" : IF RIGHT$(o$,2) = "%%" n$ += "%"
+        WHEN 3: n$ += "#"
+        WHEN 5: n$ += "{"
+        WHEN 7: n$ += "$"
+      ENDCASE
+      IF I% AND 8 n$ += "("
+      = n$
+      
+      REM Create a fast reference of the appropriate type:
+      DEF FNfast(o$)
+      LOCAL A%, N%, n$, d$
+      PRIVATE I%
+      IF o$ = "" THEN n$ = CHR$(I% MOD 256) + CHR$(I% DIV 256) : I% = 0 : = n$
+      d$ = CHR$&0D + CHR$&10 + CHR$&22 + CHR$&8B + CHR$&8C + CHR$&C7 + \
+      \    CHR$&CE + CHR$&E3 + CHR$&ED + CHR$&F4 + CHR$&F5 + CHR$&FD + "\"
+      IF LENo$ = 2 IF RIGHT$(o$) = "%" IF ASCo$ >= &41 IF ASCo$ <= &5A THEN = o$
+      IF I% > &FFFC THEN = FNshort(o$)
+      IF RIGHT$(o$) = "(" o$ = LEFT$(o$) : A% = TRUE
+      CASE ASCo$ OF
+        WHEN &A4,&F2: n$ = LEFT$(o$,1) + CHR$&18 : N% = 2 : REM 8 bytes PROC/FN pointer
+        OTHERWISE:
+          CASE RIGHT$(o$) OF
+            WHEN "#": n$ = CHR$&1B : N% = 2 : REM 8 bytes double
+            WHEN "$": n$ = CHR$&1F : N% = 2 : REM 8 bytes string descriptor
+            WHEN "%":
+              IF RIGHT$(o$,2) = "%%" THEN
+                n$ = CHR$&1E : N% = 2 : REM 8 bytes integer
+              ELSE
+                n$ = CHR$&1A : N% = 1 : REM 4 bytes integer
+              ENDIF
+            WHEN "&": n$ = CHR$&19 : N% = 1 : REM 1 byte variable (allocate 4)
+            WHEN "{": n$ = CHR$&1D : N% = 4 : REM 16 bytes structure descriptor
+            OTHERWISE: n$ = CHR$&1C : N% = 4 : REM 10 bytes variant (allocate 16 for alignment)
+          ENDCASE
+      ENDCASE
+      WHILE INSTR(d$, CHR$(I% MOD 256)) OR INSTR(d$, CHR$(I% DIV 256)) OR (I% MOD N%)
+        I% += 1
+      ENDWHILE
+      n$ += CHR$(I% MOD 256) + CHR$(I% DIV 256)
+      IF A% n$ += "(" : N% = 2 : REM 8 bytes array pointer
+      I% += N%
+      = n$
+      
+      DEF PROCseticon(folder$, winexe%)
+      LOCAL F%, G%, L%, r%%, u%%, bundle$, appname$, pngfile$, pngdata$
+      bundle$  = FN_getdlgitemtext(Form%,&301)
+      appname$ = FN_getdlgitemtext(Form%,&302)
+      pngfile$ = FN_getdlgitemtext(Form%,&601)
+      F% = OPENIN(pngfile$)
+      IF F% CLOSE #F% ELSE ENDPROC
+      CASE Platform% OF
+        WHEN 0:
+          F% = OPENIN(pngfile$) : L% = EXT#F% : pngdata$ = GET$#F% BY L% + CHR$0
+          CLOSE #F% : DIM r%% LOCAL 20 : r%%?2 = 1 : r%%?4 = 1 : r%%!14 = L% : r%%?18 = 1
+          IF winexe% THEN
+            SYS "BeginUpdateResourceA", bundle$, FALSE TO u%%
+          ELSE
+            SYS "BeginUpdateResourceA", folder$ + appname$ + ".exe", FALSE TO u%%
+          ENDIF
+          SYS "UpdateResourceA", u%%, &E, "bbcsdl", 0, r%%, 20
+          SYS "UpdateResourceA", u%%,  3, 1, 0, pngdata$, L%
+          SYS "EndUpdateResourceA", u%%, 0
+        WHEN 1:
+          OSCLI "copy """ + pngfile$ + """ """ + folder$ + appname$ + "_icon.png"""
+          G% = OPENOUT(folder$ + "mkicon.sh")
+          BPUT #G%, "#!/bin/bash"
+          BPUT #G%, "MYDIR=""$( cd ""$( dirname ""${BASH_SOURCE[0]}"" )"" > /dev/null && pwd )"""
+          BPUT #G%, "echo ""[Desktop Entry]"
+          BPUT #G%, "Name=" + appname$
+          BPUT #G%, "Comment="
+          BPUT #G%, "Icon=$MYDIR/" + appname$ + "_icon.png"
+          BPUT #G%, "Exec=\""$MYDIR/" + appname$ + "\"""
+          BPUT #G%, "Type=Application"
+          BPUT #G%, "Encoding=UTF-8"
+          BPUT #G%, "Terminal=false"
+          BPUT #G%, "Categories=None;"" > ""$HOME/Desktop/" + appname$ + ".desktop"""
+          BPUT #G%, "chmod +x ""$HOME/Desktop/" + appname$ + ".desktop"""
+          CLOSE #G%
+        WHEN 2:
+          OSCLI "run sips -s format icns """ + pngfile$ + """ --out """ + folder$ + "Contents/Resources/my-icon.icns"""
+          OSCLI "run defaults write """ + folder$ + "Contents/Info"" CFBundleIconFile 'my-icon.icns'"
+      ENDCASE
+      ENDPROC
+      
+      DEF PROCerror(msg$)
+      LOCAL I%, J%, title$
+      MOUSE ON 0
+      WHILE WIDTH(msg$) > 2 * @size.x% - 64
+        I% = INSTR(msg$, "\")         : IF I% = 0 I% = INSTR(msg$, "/")         : IF I% = 0 EXIT WHILE
+        J% = INSTR(msg$, "\", I% + 1) : IF J% = 0 J% = INSTR(msg$, "/", I% + 1) : IF J% = 0 EXIT WHILE
+        msg$ = LEFT$(msg$, I% - 1) + "..." + MID$(msg$, J%)
+        I% = INSTR(msg$, "......") : IF I% msg$ = LEFT$(msg$, I%) + MID$(msg$, I% + 4)
+      ENDWHILE
+      IF ERL THEN title$ = "Line " + STR$ERL ELSE title$ = "Compile Utility"
+      IF FN_messageboxdpi(title$, msg$, &10, Darkmode%, GUIscale)
+      ENDPROC
+      
+      DEF PROCwinbundle(folder$, appname$, bundle$)
+      LOCAL I%, anyres%, exefile%, libptr%, proginfo{}, pi%%
+      DIM proginfo{DefaultRAM%, Library%, WindowWidth%, WindowHeight%, CmdShow%, \
+      \   Flags%, SerialNumber%, ProgLength%} : proginfo.DefaultRAM% = BUFSIZE
+      OSCLI "rename """ + folder$ + appname$ + ".exe"" """ + folder$ + "bbcsdl.exe"""
+      OSCLI "copy """ + @lib$ + "../sdlrun.exe"" """ + bundle$ + """"
+      PROCseticon(folder$, TRUE)
+      IF nResrc% THEN
+        FOR I% = 1 TO nResrc%
+          PROCwinresrc(bundle$, Resrc$(I%))
+        NEXT
+      ENDIF
+      exefile% = OPENUP(bundle$)
+      IF exefile% = 0 PROCerror("Couldn't create file " + bundle$) : ENDPROC
+      libptr% = EXT#exefile% : PTR#exefile% = libptr%
+      IF INSTR(SUM(Embed$()), "box2d") THEN
+        PROCwinembed(exefile%, @lib$, "..\Box2D231.dll", 2)
+      ENDIF
+      PROCwinembed(exefile%, @lib$, "..\SDL2.dll", 2)
+      PROCwinembed(exefile%, @lib$, "..\SDL2_ttf.dll", 2)
+      PROCwinembed(exefile%, @lib$, "..\SDL2_net.dll", 2)
+      IF nEmbed% THEN
+        FOR I% = 1 TO nEmbed%
+          CASE LEFT$(Embed$(I%),5) OF
+            WHEN "@dir$":
+              PROCwinembed(exefile%, folder$, MID$(Embed$(I%), 7), 1)
+              anyres% = TRUE
+            WHEN "@lib$":
+              PROCwinembed(exefile%, folder$ + "lib\", MID$(Embed$(I%), 7), 3)
+          ENDCASE
+        NEXT
+      ENDIF
+      PROCwinembed(exefile%, folder$ + "lib\", "..\bbcsdl.exe", 3)
+      IF anyres% THEN
+        PROCwinembed(exefile%, folder$, appname$ + ".bbc", 1)
+      ELSE
+        PROCwinembed(exefile%, folder$ + "lib\", "..\" + appname$ + ".bbc", 3)
+      ENDIF
+      proginfo.Library% = PTR#exefile% - libptr%
+      proginfo.WindowWidth% = &80000000
+      proginfo.WindowHeight% = &80000000
+      proginfo.CmdShow% = SW_SHOWNORMAL
+      BPUT #exefile%, appname$; : proginfo.ProgLength% += LEN(appname$)
+      REPEAT
+        BPUT#exefile%,0
+        proginfo.ProgLength% += 1
+      UNTIL (PTR#exefile% AND 15) = 0
+      pi%% = proginfo{}
+      FOR I% = 0 TO DIM(proginfo{}) - 1
+        BPUT #exefile%, pi%%?I%
+      NEXT
+      CLOSE #exefile%
+      ENDPROC
+      
+      DEF PROCwinembed(outfile%, dir$, name$, type&)
+      LOCAL I%, here%, size%, remain%, packed%, temp%, infile%, inbuf%%, outbuf%%, workmem%%
+      REPEAT
+        I% = INSTR(name$, "/")
+        IF I% MID$(name$, I%, 1) = "\"
+      UNTIL I% = 0
+      infile% = OPENIN(dir$ + name$)
+      IF infile% = 0 PROCerror("Couldn't open file " + dir$ + name$) : ENDPROC
+      BPUT#outfile%, type& : here% = PTR#outfile% : PTR#outfile% = here% + 4
+      BPUT#outfile%, name$; : BPUT#outfile%, 0
+      remain% = EXT#infile%
+      REPEAT
+        size% = BUFSIZE
+        IF size% > remain% size% = remain%
+        SYS "SDL_malloc", size% TO inbuf%%
+        SYS "SDL_RWread", @hfile%(infile%), inbuf%%, 1, size%
+        PTR#outfile% = PTR#outfile%
+        IF type& AND 1 THEN
+          SYS `aP_workmem_size`, size% TO temp%
+          SYS "SDL_malloc", temp% TO workmem%%
+          SYS `aP_max_packed_size`, size% TO temp%
+          SYS "SDL_malloc", temp%+512 TO outbuf%%
+          SYS `aP_pack`, inbuf%%, outbuf%%, size%, workmem%%, 0, 0 TO temp%
+          SYS "SDL_RWwrite", @hfile%(outfile%), outbuf%%, 1, temp%
+          SYS "SDL_free", outbuf%%
+          SYS "SDL_free", workmem%%
+        ELSE
+          temp% = size%
+          SYS "SDL_RWwrite", @hfile%(outfile%), inbuf%%, 1, temp%
+        ENDIF
+        PTR#outfile% = PTR#outfile%
+        SYS "SDL_free", inbuf%%
+        packed% += temp%
+        remain% -= size%
+      UNTIL remain% = 0
+      CLOSE #infile%
+      PTR#outfile% = here%
+      BPUT#outfile%, packed%     : BPUT#outfile%, packed%>>8
+      BPUT#outfile%, packed%>>16 : BPUT#outfile%, packed%>>24
+      PTR#outfile% = EXT#outfile%
+      ENDPROC
+      
+      DEF PROCwinresrc(bundle$, resfile$)
+      LOCAL F%, cbdata%, cbhead%, lptype%%, lpname%%, ok%, size%, res%%, u%%, res$, sig$
+      LOCAL sig%() : DIM sig%(8) : sig%() = 0, 32, 65535, 65535, 0, 0, 0, 0, 13
+      F% = OPENIN(resfile$)
+      IF F% = 0 PROCerror("Couldn't open resource file " + resfile$) : QUIT
+      sig$ = GET$#F% BY 32
+      IF sig$ <> $^sig%(0) PROCerror(resfile$ + " is not a valid resource file") : QUIT
+      WHILE NOT EOF#F%
+        cbdata%   = BGET#F% OR BGET#F%<<8 OR BGET#F%<<16 OR BGET#F%<<24
+        cbhead% = BGET#F% OR BGET#F%<<8 OR BGET#F%<<16 OR BGET#F%<<24
+        size% = (cbdata% + cbhead% - 8 + 3) AND -4 : REM Align
+        res$ = GET$#F% BY size%
+        res%% = PTR(res$)
+        lptype%% = res%%
+        lpname%% = res%% + 4
+        IF !lptype%% AND &FFFF = &FFFF THEN
+          lptype%% = !lptype%% >>> 16
+        ELSE
+          REPEAT lpname%% += 2 : UNTIL (!lpname%% AND &FFFF) = 0 : lpname%% += 2
+        ENDIF
+        IF !lpname%% AND &FFFF = &FFFF THEN
+          lpname%% = !lpname%% >>> 16
+        ENDIF
+        SYS "BeginUpdateResourceA", bundle$, FALSE TO u%%
+        SYS "UpdateResourceW", u%%, lptype%%, lpname%%, \
+        \   res%%!(cbhead% - 18) AND &FFFF, res%% + cbhead% - 8, cbdata% TO ok%
+        SYS "EndUpdateResourceA", u%%, 0
+        IF ok% = 0 PROCerror("Failed to update resource " + resfile$) : QUIT
+      ENDWHILE
+      CLOSE #F%
+      ENDPROC
+      
+      DEF PROCwebbundle(folder$, appname$, bundle$)
+      LOCAL g%%, I%, f$
+      SYS "gzopen", bundle$, "w" TO g%%
+      IF @platform% AND &40 ELSE g%% = !^g%%
+      IF g%% = 0 PROCerror("Couldn't create bundle file " + bundle$) : QUIT
+      IF nEmbed% THEN
+        FOR I% = 1 TO nEmbed%
+          f$ = MID$(Embed$(I%),7)
+          CASE LEFT$(Embed$(I%),5) OF
+            WHEN "@dir$":
+              PROCaddfile(g%%, folder$, f$)
+            WHEN "@lib$":
+              PROCaddfile(g%%, folder$, "lib/" + f$)
+          ENDCASE
+        NEXT
+      ENDIF
+      PROCaddfile(g%%, folder$, appname$ + ".bbc")
+      SYS "gzclose", g%%
+      ENDPROC
+      
+      DEF PROCaddfile(g%%, dir$, file$)
+      LOCAL A%, F%, L%
+      F% = OPENIN(dir$ + file$)
+      IF F% = 0 PROCerror("Couldn't open file " + dir$ + file$) : ENDPROC
+      L% = EXT#F%
+      SYS "gzwrite", g%%, ^L%, 4
+      SYS "gzwrite", g%%, file$ + CHR$&D, LEN(file$) + 1
+      REPEAT
+        IF L% < &10000 A% = L% ELSE A% = &10000
+        SYS "gzwrite", g%%, GET$#F% BY A%, A%
+        L% -= A%
+      UNTIL L% = 0
+      CLOSE #F%
+      ENDPROC
+      
+      DEF FNftpupload(server$, user$, pass$, file$, dest$)
+      LOCAL A%, C%, D%, E%, F%, K%, L%, M%, P%, Q%, R%, S%, T%, U%, temp$, reply$
+      
+      F% = OPENIN(file$)
+      IF F% = 0 PROCerror("Couldn't open file " + file$) : = FALSE
+      
+      K% = FN_tcpconnect(server$, "ftp")
+      IF K% = FALSE OR K% = TRUE THEN
+        PROCerror("Connection to server failed") : CLOSE #F% : = FALSE
+      ENDIF
+      
+      C% = 0
+      M% = 500
+      REPEAT
+        E% = FN_readlinesocket(K%, M%, reply$)
+        IF E% > 0 C% = VAL(reply$)
+        
+        IF C% = 220 OR C% = 230 M% = 100
+        IF E% = 0 OR E% > 0 AND C% <> 220 AND C% <> 230 THEN
+          E% = -1
+          CASE C% OF
+            WHEN 220: E% = FN_writelinesocket(K%, "USER " + user$)
+            WHEN 331: E% = FN_writelinesocket(K%, "PASS " + pass$)
+            WHEN 230,530: E% = FN_writelinesocket(K%, "TYPE I")
+            WHEN 200: E% = FN_writelinesocket(K%, "PASV")
+            WHEN 226: REM Successful completion
+            WHEN 227:
+              P% = INSTR(reply$, "(")
+              Q% = INSTR(reply$, ",") : MID$(reply$,Q%,1) = "."
+              R% = INSTR(reply$, ",") : MID$(reply$,R%,1) = "."
+              S% = INSTR(reply$, ",") : MID$(reply$,S%,1) = "."
+              T% = INSTR(reply$, ",") : MID$(reply$,T%,1) = "."
+              U% = INSTR(reply$, ",")
+              D% = FN_tcpconnect( MID$(reply$, P%+1, T%-P%-1), \
+              \ STR$(256 * VALMID$(reply$,T%+1) + VALMID$(reply$,U%+1)))
+              IF D% > 0 THEN
+                E% = FN_writelinesocket(K%, "STOR " + dest$)
+              ELSE
+                PROCerror("Failed to create data socket") : EXIT REPEAT
+              ENDIF
+            WHEN 150:
+              PTR#F% = 0 : L% = EXT#F%
+              REPEAT
+                IF L% <= &10000 A% = L% ELSE A% = &10000
+                temp$ = GET$#F% BY A%
+                E% = FN_writesocket(D%, PTR(temp$), LEN(temp$))
+                L% -= A%
+              UNTIL L% = 0 OR E% <> LEN(temp$)
+              PROC_closesocket(D%)
+              IF E% <> LEN(temp$) PROCerror("Failed to send data (quota exceeded?)") : EXIT REPEAT
+            OTHERWISE: PROCerror("FTP error: " + reply$) : EXIT REPEAT
+          ENDCASE
+        ENDIF
+        IF E% < 0 IF C% <> 226 PROCerror("Connection broken")
+      UNTIL E% < 0
+      CLOSE #F%
+      REPEAT E% = FN_readlinesocket(K%, 0, reply$) : UNTIL reply$ = ""
+      PROC_closesocket(K%)
+      = C% == 226
+      
+      DEF PROCopenurl(url$)
+      CASE @platform% AND &F OF
+        WHEN 0:
+          SYS "WinExec", "cmd /cstart " + url$ + "&", 0
+        WHEN 1:
+          SYS "system", "xdg-open " + url$ + "&"
+        WHEN 2:
+          SYS "system", "open " + url$ + "&"
+      ENDCASE
+      ENDPROC
+      
+      DEF FNsquish(a$)
+      LOCAL I%
+      REPEAT I% = INSTR(a$, " ")
+        IF I% a$ = LEFT$(a$, I%-1) + MID$(a$, I%+1)
+      UNTIL I% = 0
+      = FN_lower(a$)

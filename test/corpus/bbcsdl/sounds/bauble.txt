@@ -1,0 +1,546 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Christmas_Ball_05 model from turbosquid.com
+      REM MAY NOT BE REUSED WITHOUT BEING REPURCHASED
+      
+      SYS "SDL_SetWindowTitle", @hwnd%, "Air 'Prepare Thyself, Zion' from " + \
+      \                                 "J.S.Bach's Christmas Oratorio", @memhdc%
+      
+      INSTALL @lib$+"webgllib"
+      GL_REPEAT = &2901
+      
+      DIM Object%(0), nVert%(0), vFormat%(0), vSize%(0), Texture%(0), Light%(3)
+      DIM Material%(0), Pan(0), Tilt(0), Roll(0), Xpos(0), Ypos(0), Zpos(0)
+      DIM Q1&(3), Q2&(3), Q3&(3), Q4&(3)
+      
+      DIM Material{(3) Diffuse{r%,g%,b%,a%}, Ambient{r%,g%,b%,a%}, \
+      \     Specular{r%,g%,b%,a%}, Emissive{r%,g%,b%,a%}, Power%}
+      
+      DIM Light{(3)Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi%}
+      
+      VDU 23,22,640;500;8,16,16,128
+      PRINT "Please wait..."
+      *REFRESH OFF
+      *REFRESH
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE Resize% OR= (@msg% = 5) : RETURN
+      
+      Device% = 0
+      Resize% = FALSE
+      PROCinitrender
+      
+      *TEMPO 133
+      *STEREO 1,127
+      *STEREO 2,42
+      *STEREO 3,-42
+      *STEREO 0,-127
+      *VOICE 0,6
+      *VOICE 1,6
+      *VOICE 2,6
+      *VOICE 3,6
+      SOUND 1,0,0,10
+      
+      DIM snd{(3,50)a&,p&,d&}, p%(3), q%(3), cli$(3)
+      DIM cmajor&(7), scale%(7), acc%(7), flat&(7), sharp&(7)
+      cmajor&() = 88,96,52,60,68,72,80
+      flat&() = 0, &02, &12, &13, &1B, &5B, &5F, &7F
+      sharp&() = 0, &A0, &A4, &E4, &EC, &ED, &FD, &FF
+      dur% = 24
+      tempo = 4
+      ENVELOPE 1,1,0,0,0,0,0,0,64,0,0,-8,119,89
+      REPEAT
+        REPEAT
+          READ R$ : IF R$="" REPEAT PROCanimate : UNTIL FALSE
+          T$ += R$ : IF RIGHT$(T$) = "\" T$ = LEFT$(T$)
+        UNTIL RIGHT$(R$) <> "\"
+        acc%() = scale%()
+        clef% = 48 : voice% = 1
+        p%() = 0 : q%() = 0
+        WHILE T$<>""
+          I% = 1 : WHILE INSTR("0123456789",MID$(T$,I%,1)) I% += 1 : ENDWHILE
+          IF I% > 1 dur% = VALLEFT$(T$,I%-1) : T$ = MID$(T$,I%)
+          C$ = LEFT$(T$,1) : T$=MID$(T$,2)
+          CASE C$ OF
+            WHEN " ":
+            WHEN ";": T$ = ""
+            WHEN "[": T$ = ""
+            WHEN "P": T$ = MID$(T$,2)
+            WHEN "=": beat% = 0
+              WHILE ASC(T$)>=&30 AND ASC(T$)<=&39 beat% = beat% * 10 + ASC(T$)-&30
+                T$ = MID$(T$,2) : ENDWHILE
+              WHILE ADVAL(-5)<16 OR ADVAL(-6)<16 OR ADVAL(-7)<16 OR ADVAL(-8)<16
+                PROCanimate : ENDWHILE
+              CASE TRUE OF
+                WHEN beat% <= 60  tempo = 3 : *TEMPO 130
+                WHEN beat% <= 70  tempo = 4 : *TEMPO 131
+                WHEN beat% <= 100 tempo = 3 : *TEMPO 131
+                WHEN beat% <= 120 tempo = 4 : *TEMPO 133
+                WHEN beat% <= 130 tempo = 3 : *TEMPO 132
+                WHEN beat% <= 150 tempo = 2 : *TEMPO 131
+                WHEN beat% <= 170 tempo = 3 : *TEMPO 133
+                WHEN beat% <= 200 tempo = 2 : *TEMPO 132
+                WHEN beat% <= 255 tempo = 2 : *TEMPO 133
+              ENDCASE
+            WHEN "T": acc%() = scale%() : clef% = 48
+            WHEN "S": acc%() = scale%() : clef% = 0
+            WHEN "V": acc%() = scale%() : voice% = ASC(T$) - &30 : T$=MID$(T$,2)
+              voice% AND= 3
+            WHEN "W": wave% = VAL(T$) : T$ = MID$(T$,2)
+              WHILE ADVAL(-5-voice%)<16 PROCanimate : ENDWHILE
+              cli$(voice%) = "voice " + STR$voice% + "," + STR$(wave%)
+            WHEN "K": key% = ASC(T$) - &30 : T$=MID$(T$,2)
+              scale%() = 0
+              IF key% THEN
+                key$ = LEFT$(T$,1) : T$=MID$(T$,2)
+                CASE key$ OF
+                  WHEN "#": key& = sharp&(key%)
+                  WHEN "b","&": key& = flat&(key%)
+                ENDCASE
+                FOR I% = 0 TO 6
+                  IF key& AND (2^I%) scale%(I%) = -4 : IF key& AND &80 scale%(I%) = +4
+                NEXT
+              ENDIF
+              acc%() = scale%()
+            OTHERWISE
+              Note% = INSTR("ABCDEFG$",C$)-1
+              IF Note% < 0 ERROR 100, "Unrecognised command "+C$
+              octave% = 0
+              staccato = 0
+              ticks% = dur% / tempo
+              REPEAT
+                CASE LEFT$(T$,1) OF
+                  WHEN "#": acc%(Note%) = 4
+                  WHEN "%": acc%(Note%) = 0
+                  WHEN "&","b": acc%(Note%) =-4
+                  WHEN "+": octave% += 48
+                  WHEN "-": octave% -= 48
+                  WHEN ".": ticks% = dur% / tempo * 3/2
+                  WHEN ":": ticks% = dur% / tempo * 2/3
+                  WHEN ",": staccato = 1/3
+                  WHEN "'":  staccato = 1/6
+                  WHEN """": staccato = 1/6
+                  OTHERWISE: EXIT REPEAT
+                ENDCASE
+                T$=MID$(T$,2)
+              UNTIL FALSE
+              pitch% = cmajor&(Note%) + acc%(Note%) + clef% + octave%
+              IF Note% = 7 pitch% = 0
+              IF pitch% < 0 OR pitch% > 255 ERROR 100, "Pitch out of range: "+STR$pitch%
+              IF ticks% < 0 OR ticks% > 254 ERROR 100, "Duration out of range: "+STR$ticks%
+              gap% = INT(ticks% * staccato) + 0.5
+              snd{(voice%,p%(voice%))}.p& = pitch%
+              snd{(voice%,p%(voice%))}.d& = ticks% - gap%
+              p%(voice%) += 1
+              IF gap% THEN
+                snd{(voice%,p%(voice%))}.p& = 0
+                snd{(voice%,p%(voice%))}.d& = gap%
+                p%(voice%) += 1
+              ENDIF
+          ENDCASE
+        ENDWHILE
+        WHILE ADVAL(-5)=0 OR ADVAL(-6)=0 OR ADVAL(-7)=0 OR ADVAL(-8)=0
+          PROCanimate
+        ENDWHILE
+        IF p%(0)<>q%(0) OR p%(1)<>q%(1) OR p%(2)<>q%(2) OR p%(3)<>q%(3) THEN
+          SOUND &300,0,0,0 : SOUND &301,0,0,0 : SOUND &302,0,0,0 : SOUND &303,0,0,0
+          FOR v% = 0 TO 3
+            IF cli$(v%)<>"" OSCLI(cli$(v%)) : cli$(v%) = ""
+          NEXT
+          REPEAT
+            stall% = TRUE
+            FOR v% = 0 TO 3
+              IF q%(v%) < p%(v%) IF ADVAL(-5-v%) THEN
+                stall% = FALSE
+                IF snd{(v%,q%(v%))}.p& = 0 THEN
+                  SOUND v%+&1000,1,0,snd{(v%,q%(v%))}.d&
+                ELSE
+                  SOUND v%,1,snd{(v%,q%(v%))}.p&,snd{(v%,q%(v%))}.d&
+                ENDIF
+                q%(v%) += 1
+              ENDIF
+            NEXT v%
+            IF stall% PROCanimate
+          UNTIL p%(0)=q%(0) AND p%(1)=q%(1) AND p%(2)=q%(2) AND p%(3)=q%(3)
+        ENDIF
+      UNTIL FALSE
+      END
+      
+      DEF PROCanimate
+      LOCAL bgcolour%, nobjects%, nlights%, viewangle, aspectratio, mindist, maxdist, cameraroll
+      LOCAL camera(), lookat() : DIM camera(2), lookat(2)
+      PRIVATE elev, dist
+      IF dist = 0 dist = 32
+      
+      lookat() = 0, 7, 0
+      bgcolour% = &FF608060
+      nlights% = 4
+      nobjects% = 1
+      viewangle = PI/8
+      aspectratio = @vdu%!208/@vdu%!212
+      mindist = 5.0
+      maxdist = 200.0
+      cameraroll = 0
+      Pan() = -TIME/500
+      
+      CASE INKEY(0) OF
+        WHEN 132: dist -= 1
+        WHEN 133: dist += 1
+        WHEN 138: elev -= RAD(1) : IF elev < -PI/2 elev = -PI/2
+        WHEN 139: elev += RAD(1) : IF elev >  PI/2 elev =  PI/2
+      ENDCASE
+      
+      camera() = 0, 8 + dist * SIN(elev), dist * COS(elev)
+      PROC_render(Device%, bgcolour%, nlights%, Light%(), nobjects%, Material%(), Texture%(), \
+      \ Object%(), nVert%(), vFormat%(), vSize%(), Pan(), Tilt(), Roll(), Xpos(), Ypos(), Zpos(), \
+      \ camera(), lookat(), viewangle, aspectratio, mindist, maxdist, cameraroll)
+      
+      IF Resize% Resize% = FALSE : PROCcleanup : PROCinitrender
+      ENDPROC
+      
+      DEF PROCinitrender
+      IF POS REM SDL thread sync
+      VDU 26
+      
+      Device% = FN_initgl(@hwnd%, 0, 1)
+      IF Device% = 0 ERROR 100, "Can't initialise 3D library"
+      
+      REM Load the 3D object:
+      Object%(0) = FN_load3d(Device%, @dir$ + "bauble.fvf", nVert%(0), vFormat%(0), vSize%(0))
+      IF Object%(0) = 0 ERROR 100, "Can't load bauble.fvf"
+      
+      REM Load the texture:
+      Texture%(0) = FN_loadtexture(Device%, @dir$ + "bauble.jpg")
+      IF Texture%(0) = 0 ERROR 100, "Can't load bauble.jpg"
+      SYS `glTexParameteri`,GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL_REPEAT,@memhdc%
+      
+      REM. Material:
+      Material{(0)}.Ambient.r% = FN_f4(0.0)
+      Material{(0)}.Ambient.g% = FN_f4(0.0)
+      Material{(0)}.Ambient.b% = FN_f4(0.0)
+      Material{(0)}.Diffuse.r% = FN_f4(1.0)
+      Material{(0)}.Diffuse.g% = FN_f4(1.0)
+      Material{(0)}.Diffuse.b% = FN_f4(1.0)
+      Material{(0)}.Specular.r% = FN_f4(1.2)
+      Material{(0)}.Specular.g% = FN_f4(1.2)
+      Material{(0)}.Specular.b% = FN_f4(1.2)
+      Material{(0)}.Power% = FN_f4(60)
+      Material%(0) = Material{(0)} - PAGE + !340
+      
+      REM. Point-source lights:
+      Light{(0)}.Type% = 1                : REM. point source
+      Light{(0)}.Ambient.r% = FN_f4(1.0)  : REM. ambient colour RGB
+      Light{(0)}.Ambient.g% = FN_f4(1.0)
+      Light{(0)}.Ambient.b% = FN_f4(1.0)
+      Light{(0)}.Ambient.a% = FN_f4(1)
+      Light{(0)}.Diffuse.r% = FN_f4(1.0)  : REM. diffuse colour RGB
+      Light{(0)}.Diffuse.g% = FN_f4(1.0)
+      Light{(0)}.Diffuse.b% = FN_f4(1.0)
+      Light{(0)}.Diffuse.a% = FN_f4(1)
+      Light{(0)}.Specular.r% = FN_f4(1.0) : REM. specular colour RGB
+      Light{(0)}.Specular.g% = FN_f4(1.0)
+      Light{(0)}.Specular.b% = FN_f4(1.0)
+      Light{(0)}.Position.x% = FN_f4(0) : REM. position XYZ
+      Light{(0)}.Position.y% = FN_f4(8)
+      Light{(0)}.Position.z% = FN_f4(30)
+      Light{(0)}.Range% = FN_f4(200)     : REM. range
+      Light{(0)}.Attenuation0% = FN_f4(1) : REM. attenuation (constant)
+      Light%(0) = Light{(0)} - PAGE + !340
+      
+      Light{(1)} = Light{(0)}
+      Light{(1)}.Position.x% = FN_f4(-100) : REM. position XYZ
+      Light{(1)}.Position.y% = FN_f4(80)
+      Light{(1)}.Position.z% = FN_f4(-50)
+      Light%(1) = Light{(1)} - PAGE + !340
+      
+      Light{(2)} = Light{(0)}
+      Light{(2)}.Position.x% = FN_f4(100) : REM. position XYZ
+      Light{(2)}.Position.y% = FN_f4(80)
+      Light{(2)}.Position.z% = FN_f4(-50)
+      Light%(2) = Light{(2)} - PAGE + !340
+      
+      Light{(3)} = Light{(0)}
+      Light{(3)}.Position.x% = FN_f4(0)   : REM. position XYZ
+      Light{(3)}.Position.y% = FN_f4(-100)
+      Light{(3)}.Position.z% = FN_f4(-50)
+      Light%(3) = Light{(3)} - PAGE + !340
+      
+      ENDPROC
+      
+      DEF PROCcleanup
+      Object%(0) += 0  : IF Object%(0)  PROC_release(Object%(0))  : Object%(0) = 0
+      Texture%(0) += 0 : IF Texture%(0) PROC_release(Texture%(0)) : Texture%(0) = 0
+      Device% += 0     : IF Device%     PROC_release(Device%)     : Device% = 0
+      *REFRESH ON
+      ENDPROC
+      
+      DATA "[ Air: Prepare Thyself, Zion - J.S.Bach."
+      DATA "; From 'Christmas Oratorio'"
+      DATA ";"
+      DATA "; Scored by G.D.Pye, 27-09-81."
+      DATA ";"
+      DATA "=160 V1W2V2W1V3W1V4W1   PA"
+      DATA "TV224EAC+3BC+18BV324$$$G#SV4$$$E-"
+      DATA "TV2C+G#AV3ADESV4A-B-C"
+      DATA "TV212G%FED24GV3A-G-B-SV4DB-G-"
+      DATA "TV23EF18E6D18C24C+V3C$ESV4CEA-"
+      DATA "TV224B12C+BAG#V348F24ESV448D24E"
+      DATA "TV224ABC+V3EG#ASV4C12DCB-A-"
+      DATA "TV224D+12C+B24C+V3BEASV4G#-12A-G-24A- ; LINE 2:"
+      DATA "PB"
+      DATA "TV224B.'12BE+D+V348G#24ESV4E-EG#"
+      DATA "TV212C#+E+C+AEGV348E.SV424AA-C#"
+      DATA "TV212FADAD+C%+V324F$DSV4D$F"
+      DATA "TV212BD+BGDFV348D.SV424GG-B-"
+      DATA "TV212EGCGC+BV324E$CSV4C$E"
+      DATA "TV212AG#AG#AF+V348C24ASV4FED"
+      DATA "TV212E+D#+E+D#+E+G#+V324AC+BSV4CA-B- ; LINE 3:"
+      DATA "PC"
+      DATA "TV224A+C+BV3AAG#SV4CDE"
+      DATA "TV248A       SV4A-"
+      DATA "V2W2V3W4V4W4 PD"
+      
+      DATA "TV224EAC+3BC+18BV324$$$G#SV4$$$E-"
+      DATA "TV2C+G#AV3ADESV4A-B-C"
+      DATA "TV212G%FED24GV3A-G-B-SV4DB-G-"
+      DATA "TV23EF18E6D18C24C+V3C$ESV4CEA-"
+      DATA "TV224B12C+BAG#V348F24ESV448D24E"
+      DATA "TV224ABC+V3EG#ASV4C12DCB-A-"
+      DATA "TV224D+12C+B24C+V3BEASV4G#-12A-G-24A- ; LINE 2:"
+      
+      DATA "V2W4 PE"
+      DATA "TV13BC+42B'24BV348G#24ASV4E-ED#"
+      DATA "TV124BE$V212$$$BE+D+V324G#$ESV4E$G#"
+      DATA "TV124$$AV212C#+E+C+AEGV348E.SV424AA-C# ; LINE 5:"
+      DATA "TV124AD$V212FADAD+C%+V324F$DSV4D$F"
+      DATA "TV124$$GV212BD+BGDFV348D.SV424GG-B"
+      DATA "TV124CEDV212EG24CGV348E24DSV4CC+B"
+      DATA "TV16F18E6D18C24$V2G$CV3E$$SV4C+12EDEC"
+      DATA "TV224GB3AB18A24V3DGF#SV4B-CD"
+      DATA "TV124$$AV2BG$V3GB-C#SV4G-12GF%GE"
+      DATA "TV124DFEV2$BbAV348D24C#SV4FGA ; PAGE 15:"
+      DATA "TV16G18F6E18D24$V2F$DV3D$$SV4D12FEFD"
+      DATA "TV224AC+3BC+18B24V3EAG#SV4CDE"
+      DATA "TV124$$EV2C+12AC+BD+V324A$$SV448A-24$"
+      DATA "TV124AC+BV212C+E+C+AG#BSV424$$E-"
+      DATA "TV124C+G#AV212AC+E+D+C+BSV424A-$A-"
+      DATA "TV112G%FED24GV2AD+BSV4DFG ; LINE 2:"
+      DATA "TV124ECC+V212C+GEGC+E+SV424C$A-"
+      DATA "TV124B12C+BAG#V2D+F+E+D+C+BSV424D$E"
+      DATA "TV124ABC+V212AGFEDCSV4FEDCBA"
+      DATA "TV124D+12C+B24C+V2B-G#ASV4G#-E-A-"
+      DATA "TV148B24D+V212AF#G#B24D+V3$$ESV4E-EG#-"
+      DATA "TV124C#+E+GV2C#+E+G%V3E$ESV4A-$C# ; LINE 3:"
+      DATA "TV124F12ED24C+V248F24FSV4DFD"
+      DATA "TV124BD+FV2F$DSV4G$B-"
+      DATA "TV124E12DC24EV248C24$SV4CEC"
+      DATA "TV124D+C+BV248A24G#SV4FED"
+      DATA "TV124E+ABV248A24FSV4CFD"
+      DATA "TV124E12C+BAG#V248E24$SV4EDE"
+      DATA "TV148A'24AV2C$$SV4F-12FEDC ; LINE 4"
+      DATA "TV124AD$V2D.12FBbASV4Bb$$"
+      DATA "TV124$$G'V212GBbGEBb-DV324D$$SV4E-$$"
+      DATA "TV124GC#$V212C#EA-CEGSV424A-$$"
+      DATA "TV124$$AV212FAFDA-C%V324A-$$SV4D-$D"
+      DATA "TV124G#BD+V212B-D24FBSV4D12G#-F#-G#-E-"
+      DATA "TV124D+C#+$V2BAGV3$$ESV4A-.12B-C#A- ; LINE 5:"
+      DATA "TV224F#AC+V348D24ASV4D12F#-E-F#-D-"
+      DATA "TV124$$FV23C+D+18C+24BDV3AG$SV4G-12A-B-G-"
+      DATA "TV124EGBbV248C24GSV4C12E-D-E-C-"
+      DATA "TV124BbA$V2GFD+V3$$ASV4F-12FEFD"
+      DATA "TV224C#+E+GV348G24C#SV4EC#A-"
+      DATA "TV124$$D+V212FAFDA-DV324D$$SV4DD-F-"
+      DATA "TV124C#+E+GV212EGEC#A-C#SV424A-$A- ; PAGE 16:"
+      DATA "TV124F12ED24C+V212DFA-DFASV424D$D-"
+      DATA "TV124BD+FV212BD+BGDFSV424G-$B-"
+      DATA "TV124E12DC24EV212EGCEGBbSV424C$C-"
+      DATA "TV124D+C+BV212AG#AG#AF+SV424F-ED"
+      DATA "TV124E+ABV212E+D#+E+D#+E+G#+SV424C$B-"
+      DATA "TV124E12C+BAG#V224A+CB-SV4CDE"
+      DATA "TV148AV2A-SV4A-"
+      DATA "V2W1V3W1V4W1 PF"
+      
+      DATA "TV224EAC+3BC+18BV324$$$G#SV4$$$E-"
+      DATA "TV2C+G#AV3ADESV4A-B-C"
+      DATA "TV212G%FED24GV3A-G-B-SV4DB-G-"
+      DATA "TV23EF18E6D18C24C+V3C$ESV4CEA-"
+      DATA "TV224B12C+BAG#V348F24ESV448D24E"
+      DATA "TV224ABC+V3EG#ASV4C12DCB-A-"
+      DATA "TV224D+12C+B24C+V3BEASV4G#-12A-G-24A- ; LINE 2:"
+      
+      DATA "TV224B.'12BE+D+V348G#24ESV4E-EG#"
+      DATA "TV212C#+E+C+AEGV348E.SV424AA-C#"
+      DATA "TV212FADAD+C%+V324F$DSV4D$F"
+      DATA "TV212BD+BGDFV348D.SV424GG-B-"
+      DATA "TV212EGCGC+BV324E$CSV4C$E"
+      DATA "TV212AG#AG#AF+V348C24ASV4FED"
+      DATA "TV212E+D#+E+D#+E+G#+V324AC+BSV4CA-B- ; LINE 3:"
+      
+      DATA "PG"
+      DATA "TV224A+C3B-CB-CB-C6B-V324AA-G#-SV4CDE ; LINE 4:"
+      DATA "PH"
+      DATA "TV248A-.SV412A-CEAEC"
+      DATA "V2W4V3W4V4W4 PI"
+      DATA "TV124$ECSV448A-24$"
+      DATA "TV148G'24GV248E.SV424$12EDCB-"
+      DATA "TV124$F#GV3C48DSV412A-B-CB-A-G-"
+      DATA "TV124AF#DV248A24DV348D.SV412F#-A-D-A-F-D-"
+      DATA "TV124BGDV248B.V3D.SV412G-B-DB-G-D-"
+      DATA "TV124AF#DV248A.V3D24F#SV412F#-A-DCB-A- ; LINE 5:"
+      DATA "TV124$G#AV3F%48ESV412B-EDCB-A-"
+      DATA "TV124BG#EV248B24EV348E24$SV412G#-B-EB-G-E-"
+      DATA "TV124C+AEV248C+.V3E.SV412A-CECA-E-"
+      DATA "TV124BG#EV248B.V3E.SV412G#-B-EDCB-"
+      DATA "TV124ABC+V2ABC+V348E.SV412CEDCB-A-"
+      DATA "TV124BAGV2BAGV3F#$ESV4D#$E"
+      DATA "TV124F#12ED#24EV248F#.V3C24ESV412AGABC+A ; PAGE 17:"
+      DATA "TV124D#B-$V2F#12$FBAV324D#$$SV412BC+BAGF#"
+      DATA "TV124$BBV212GBGED#F#SV424EGF#"
+      DATA "TV148B.V212EGF#AGBSV424GD#E"
+      DATA "TV124B12AG#F#EV2E+D+C+BAG#SV424CD%E"
+      DATA "TV124C+.12B24AV212AECEAGSV424A-12$AF#E"
+      DATA "TV148A.V212F#AFDC#ESV424DF#E"
+      DATA "TV148A.V212DF#EGFASV424F#C#D ; LINE 2:"
+      DATA "TV124A12GF#EDV2D+C+BAGF#SV424B-C%D"
+      DATA "TV124B12AGABV2GDB-D24GSV4G-F#-E-"
+      DATA "TV112C+BAGF#EV224G12F#G24ASV4A-B-C"
+      DATA "TV112D#EF#GAFV2AGF#ED#FSV424B-D#B-"
+      DATA "TV124GED#V2EGF#SV4EA-B-"
+      DATA "TV124E'EV248ESV412EF#GA"
+      DATA "TV224B-SV412BA"
+      DATA "TV224EGF#V3$$D#SV4GEB- ; LINE 3:"
+      DATA "TV224GD#EV3EA-G-SV4EF#G"
+      DATA "TV212D%CB-A-24DV3G-48F#-SV424A-DD-"
+      DATA "TV224B-G-GV348G-24B-SV4G-B-E"
+      DATA "TV224F#12GFED#V348C24B-SV448A-24B-"
+      DATA "TV224EF#GV3B-D#ESV4G-12A-G-F#-E-"
+      DATA "TV224A12GF#24GV3F#B-ESV4D#-E-E"
+      DATA "TV224F#.V3D#.SV4B-12B"
+      DATA "TV212F#+B+A+SV4B24D#"
+      DATA "TV124$BG#V212G#+B+G+E+BD+SV424E ; LINE 4:"
+      DATA "TV124A12C+B24AV212C+E+AE+A+G+SV424$AC"
+      DATA "TV124$AF#V212F#+A+F+D+BC+SV424D$$"
+      DATA "TV124GDBV212BD+GD+G+F#+SV424$B-G-"
+      DATA "TV124B12AGF#EV2E+G+E+C+GBSV424C$$"
+      DATA "TV112ED#48AV212AC+F#C+F#+E+SV424$A-F#-"
+      DATA "TV124A6BA12G6AG12F#V2D#+F#+D+BF#ASV424B-$$"
+      DATA "TV148G.V212GBEBE+D+SV424$G-E- ; LINE 5:"
+      DATA "TV124G6AG12F%6GF12EV2C#+E+C+AEGSV424A-$$"
+      DATA "TV112FEFDFAV2FADAD+C+SV424$D-D"
+      DATA "TV112D+BGBAGV2BD+BGDGSV424DEF"
+      DATA "TV124C+C$V2G-GC+SV412EGFEDC"
+      DATA "TV112DEFGABV224C+12D+E+24F+SV4FED"
+      DATA "TV112C+BAG24C+V2F+BC+SV4GFE"
+      DATA "TV124E27F30DV224C+27D30BSV424A27F30G"
+      DATA "TV133C,CV266C+SV4C"
+      DATA "36$ ; D.C.al fine:"
+      DATA "V2W1V3W1V4W1 PJ"
+      
+      DATA "TV224EAC+3BC+18BV324$$$G#SV4$$$E-"
+      DATA "TV2C+G#AV3ADESV4A-B-C"
+      DATA "TV212G%FED24GV3A-G-B-SV4DB-G-"
+      DATA "TV23EF18E6D18C24C+V3C$ESV4CEA-"
+      DATA "TV224B12C+BAG#V348F24ESV448D24E"
+      DATA "TV224ABC+V3EG#ASV4C12DCB-A-"
+      DATA "TV224D+12C+B24C+V3BEASV4G#-12A-G-24A- ; LINE 2:"
+      
+      DATA "TV224B.'12BE+D+V348G#24ESV4E-EG#"
+      DATA "TV212C#+E+C+AEGV348E.SV424AA-C#"
+      DATA "TV212FADAD+C%+V324F$DSV4D$F"
+      DATA "TV212BD+BGDFV348D.SV424GG-B-"
+      DATA "TV212EGCGC+BV324E$CSV4C$E"
+      DATA "TV212AG#AG#AF+V348C24ASV4FED"
+      DATA "TV212E+D#+E+D#+E+G#+V324AC+BSV4CA-B- ; LINE 3:"
+      
+      DATA "TV224A+C+BV3AAG#SV4CDE"
+      DATA "TV248A       SV4A-"
+      
+      DATA "V2W2V3W4V4W4 PK"
+      
+      DATA "TV224EAC+3BC+18BV324$$$G#SV4$$$E-"
+      DATA "TV2C+G#AV3ADESV4A-B-C"
+      DATA "TV212G%FED24GV3A-G-B-SV4DB-G-"
+      DATA "TV23EF18E6D18C24C+V3C$ESV4CEA-"
+      DATA "TV224B12C+BAG#V348F24ESV448D24E"
+      DATA "TV224ABC+V3EG#ASV4C12DCB-A-"
+      DATA "TV224D+12C+B24C+V3BEASV4G#-12A-G-24A- ; LINE 2:"
+      
+      DATA "V2W4"
+      
+      DATA "TV13BC+42B'24BV348G#24ASV4E-ED#"
+      DATA "TV124BE$V212$$$BE+D+V324G#$ESV4E$G#"
+      DATA "TV124$$AV212C#+E+C+AEGV348E.SV424AA-C# ; LINE 5:"
+      DATA "TV124AD$V212FADAD+C%+V324F$DSV4D$F"
+      DATA "TV124$$GV212BD+BGDFV348D.SV424GG-B"
+      DATA "TV124CEDV212EG24CGV348E24DSV4CC+B"
+      DATA "TV16F18E6D18C24$V2G$CV3E$$SV4C+12EDEC"
+      DATA "TV224GB3AB18A24V3DGF#SV4B-CD"
+      DATA "TV124$$AV2BG$V3GB-C#SV4G-12GF%GE"
+      DATA "TV124DFEV2$BbAV348D24C#SV4FGA ; PAGE 15:"
+      DATA "TV16G18F6E18D24$V2F$DV3D$$SV4D12FEFD"
+      DATA "TV224AC+3BC+18B24V3EAG#SV4CDE"
+      DATA "TV124$$EV2C+12AC+BD+V324A$$SV448A-24$"
+      DATA "TV124AC+BV212C+E+C+AG#BSV424$$E-"
+      DATA "TV124C+G#AV212AC+E+D+C+BSV424A-$A-"
+      DATA "TV112G%FED24GV2AD+BSV4DFG ; LINE 2:"
+      DATA "TV124ECC+V212C+GEGC+E+SV424C$A-"
+      DATA "TV124B12C+BAG#V2D+F+E+D+C+BSV424D$E"
+      DATA "TV124ABC+V212AGFEDCSV4FEDCBA"
+      DATA "TV124D+12C+B24C+V2B-G#ASV4G#-E-A-"
+      DATA "TV148B24D+V212AF#G#B24D+V3$$ESV4E-EG#-"
+      DATA "TV124C#+E+GV2C#+E+G%V3E$ESV4A-$C# ; LINE 3:"
+      DATA "TV124F12ED24C+V248F24FSV4DFD"
+      DATA "TV124BD+FV2F$DSV4G$B-"
+      DATA "TV124E12DC24EV248C24$SV4CEC"
+      DATA "TV124D+C+BV248A24G#SV4FED"
+      DATA "TV124E+ABV248A24FSV4CFD"
+      DATA "TV124E12C+BAG#V248E24$SV4EDE"
+      DATA "TV148A'24AV2C$$SV4F-12FEDC ; LINE 4"
+      DATA "TV124AD$V2D.12FBbASV4Bb$$"
+      DATA "TV124$$G'V212GBbGEBb-DV324D$$SV4E-$$"
+      DATA "TV124GC#$V212C#EA-CEGSV424A-$$"
+      DATA "TV124$$AV212FAFDA-C%V324A-$$SV4D-$D"
+      DATA "TV124G#BD+V212B-D24FBSV4D12G#-F#-G#-E-"
+      DATA "TV124D+C#+$V2BAGV3$$ESV4A-.12B-C#A- ; LINE 5:"
+      DATA "TV224F#AC+V348D24ASV4D12F#-E-F#-D-"
+      DATA "TV124$$FV23C+D+18C+24BDV3AG$SV4G-12A-B-G-"
+      DATA "TV124EGBbV248C24GSV4C12E-D-E-C-"
+      DATA "TV124BbA$V2GFD+V3$$ASV4F-12FEFD"
+      DATA "TV224C#+E+GV348G24C#SV4EC#A-"
+      DATA "TV124$$D+V212FAFDA-DV324D$$SV4DD-F-"
+      DATA "TV124C#+E+GV212EGEC#A-C#SV424A-$A- ; PAGE 16:"
+      DATA "TV124F12ED24C+V212DFA-DFASV424D$D-"
+      DATA "TV124BD+FV212BD+BGDFSV424G-$B-"
+      DATA "TV124E12DC24EV212EGCEGBbSV424C$C-"
+      DATA "TV124D+C+BV212AG#AG#AF+SV424F-ED"
+      DATA "TV124E+ABV212E+D#+E+D#+E+G#+SV424C$B-"
+      DATA "TV124E12C+BAG#V224A+CB-SV4CDE"
+      DATA "TV148AV2A-SV4A-"
+      
+      DATA "V2W1V3W1V4W1 PL"
+      
+      DATA "TV224EAC+3BC+18BV324$$$G#SV4$$$E-"
+      DATA "TV2C+G#AV3ADESV4A-B-C"
+      DATA "TV212G%FED24GV3A-G-B-SV4DB-G-"
+      DATA "TV23EF18E6D18C24C+V3C$ESV4CEA-"
+      DATA "TV224B12C+BAG#V348F24ESV448D24E"
+      DATA "TV224ABC+V3EG#ASV4C12DCB-A-"
+      DATA "TV224D+12C+B24C+V3BEASV4G#-12A-G-24A- ; LINE 2:"
+      
+      DATA "TV224B.'12BE+D+V348G#24ESV4E-EG#"
+      DATA "TV212C#+E+C+AEGV348E.SV424AA-C#"
+      DATA "TV212FADAD+C%+V324F$DSV4D$F"
+      DATA "TV212BD+BGDFV348D.SV424GG-B-"
+      DATA "TV212EGCGC+BV324E$CSV4C$E"
+      DATA "TV212AG#AG#AF+V348C24ASV4FED"
+      DATA "TV212E+D#+E+D#+E+G#+V324AC+BSV4CA-B- ; LINE 3:"
+      
+      DATA "PM"
+      DATA "TV224A+27C30B-V324A27A-30G#-SV424C27D30E"
+      DATA "TV272A-.SV4A-."
+      
+      DATA ""

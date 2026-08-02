@@ -1,0 +1,118 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM OpenGL Rotating Globe in 'BBC BASIC for SDL 2.0'
+      REM (C) R.T.Russell 2016, http://www.rtrussell.co.uk/
+      
+      MODE 8 : OFF
+      INSTALL @lib$ + "ogllib" : REM @lib$ + "webgllib"
+      PRINT "Please wait..."
+      *REFRESH
+      
+      file% = OPENOUT(@tmp$+"sphere.fvf")
+      PROC4(file%, 6144) : REM vertex count
+      PROC4(file%, &00240152) : REM vertex format and size
+      PROCtriangulate(5, file%,  1,  0,  0,   0,  0,  1,   0,  1,  0)
+      PROCtriangulate(5, file%,  0,  1,  0,   0,  0,  1,  -1,  0,  0)
+      PROCtriangulate(5, file%, -1,  0,  0,   0,  0,  1,   0, -1,  0)
+      PROCtriangulate(5, file%,  0, -1,  0,   0,  0,  1,   1,  0,  0)
+      PROCtriangulate(5, file%,  1,  0,  0,   0,  1,  0,   0,  0, -1)
+      PROCtriangulate(5, file%,  0,  1,  0,  -1,  0,  0,   0,  0, -1)
+      PROCtriangulate(5, file%, -1,  0,  0,   0, -1,  0,   0,  0, -1)
+      PROCtriangulate(5, file%,  0, -1,  0,   1,  0,  0,   0,  0, -1)
+      CLOSE #file%
+      
+      DIM b%(0), t%(0)
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : CLEAR
+      VDU 20,26,12
+      
+      DIM l%(0), b%(0), n%(0), f%(0), s%(0), m%(0), t%(0), y(0), p(0), r(0), X(0), Y(0), Z(0), e(2), a(2)
+      
+      d% = FN_initgl(@hwnd%, 1, 1)
+      IF d% = 0 ERROR 100, "Can't initialise OpenGL"
+      
+      b%(0) = FN_load3d(d%, @tmp$+"sphere.fvf", n%(0), f%(0), s%(0))
+      IF b%(0) = 0 ERROR 100, "Can't load sphere.fvf"
+      
+      t%(0) = FN_loadtexture(d%, @dir$+"world.jpg")
+      IF t%(0) = 0 ERROR 100, "Can't load world.jpg"
+      
+      DIM light{Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi% }
+      light.Type% = 3 : REM directional (sun at 'infinity')
+      light.Diffuse.r% = FN_f4(3)
+      light.Diffuse.g% = FN_f4(3)
+      light.Diffuse.b% = FN_f4(3)
+      light.Ambient.r% = FN_f4(0.1)
+      light.Ambient.g% = FN_f4(0.1)
+      light.Ambient.b% = FN_f4(0.1)
+      light.Direction.x% = FN_f4(1)
+      light.Direction.z% = FN_f4(1)
+      l%(0) = light{} - PAGE + !340
+      
+      e() = 0, 0, -9
+      a() = 0, 0, 0
+      REPEAT
+        y() = -TIME/200
+        r() = -0.4 * COS(y(0))
+        p() = 0.4 * SIN(y(0))
+        PROC_render(d%, &00303030, 1, l%(), 1, m%(), t%(), b%(), n%(), f%(), s%(), \
+        \ y(), p(), r(), X(), Y(), Z(), e(), a(), 0.4, @vdu%!208/@vdu%!212, 1, 1000, 0)
+      UNTIL INKEY(1)=0
+      END
+      
+      DEF PROCcleanup
+      t%(0) += 0:IF t%(0) PROC_release(t%(0))
+      b%(0) += 0:IF b%(0) PROC_release(b%(0))
+      PROC_release(d%)
+      *REFRESH ON
+      ENDPROC
+      
+      DEF PROCtriangulate(L%, F%, x0, y0, z0, x1, y1, z1, x2, y2, z2)
+      L% -= 1
+      IF L% THEN
+        LOCAL a(), b(), c() : DIM a(2), b(2), c(2)
+        a(0) = x0 + x2 : a(1) = y0 + y2 : a(2) = z0 + z2 : a() /= MOD(a())
+        b(0) = x0 + x1 : b(1) = y0 + y1 : b(2) = z0 + z1 : b() /= MOD(b())
+        c(0) = x1 + x2 : c(1) = y1 + y2 : c(2) = z1 + z2 : c() /= MOD(c())
+        PROCtriangulate(L%, F%, x0, y0, z0, b(0), b(1), b(2), a(0), a(1), a(2))
+        PROCtriangulate(L%, F%, b(0), b(1), b(2), x1, y1, z1, c(0), c(1), c(2))
+        PROCtriangulate(L%, F%, a(0), a(1), a(2), b(0), b(1), b(2), c(0), c(1), c(2))
+        PROCtriangulate(L%, F%, a(0), a(1), a(2), c(0), c(1), c(2), x2, y2, z2)
+      ELSE
+        LOCAL u0, u1, u2, v0, v1, v2
+        PROCvertex(x0, y0, z0, u0, v0)
+        PROCvertex(x1, y1, z1, u1, v1)
+        PROCvertex(x2, y2, z2, u2, v2)
+        IF (u1 - u0) > 0.5 u0 += 1.0
+        IF (u0 - u1) > 0.5 u1 += 1.0
+        IF (u2 - u1) > 0.5 u1 += 1.0
+        IF (u1 - u2) > 0.5 u2 += 1.0
+        IF (u0 - u2) > 0.5 u2 += 1.0
+        IF (u2 - u0) > 0.5 u0 += 1.0
+        PROC4(F%, FN_f4(-x0)) : PROC4(F%, FN_f4(z0)) : PROC4(F%, FN_f4(y0))
+        PROC4(F%, FN_f4(-x0)) : PROC4(F%, FN_f4(z0)) : PROC4(F%, FN_f4(y0))
+        PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u0)) : PROC4(F%, FN_f4(v0))
+        PROC4(F%, FN_f4(-x1)) : PROC4(F%, FN_f4(z1)) : PROC4(F%, FN_f4(y1))
+        PROC4(F%, FN_f4(-x1)) : PROC4(F%, FN_f4(z1)) : PROC4(F%, FN_f4(y1))
+        PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u1)) : PROC4(F%, FN_f4(v1))
+        PROC4(F%, FN_f4(-x2)) : PROC4(F%, FN_f4(z2)) : PROC4(F%, FN_f4(y2))
+        PROC4(F%, FN_f4(-x2)) : PROC4(F%, FN_f4(z2)) : PROC4(F%, FN_f4(y2))
+        PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u2)) : PROC4(F%, FN_f4(v2))
+      ENDIF
+      ENDPROC
+      
+      DEF PROCvertex(x, y, z, RETURN u, RETURN v)
+      u = FNatan2(x, y) / PI / 2 + 0.5
+      v = FNatan2(z, SQR(x^2 + y^2)) / PI + 0.5
+      ENDPROC
+      
+      DEF FNatan2(y,x) : ON ERROR LOCAL = SGN(y)*PI/2
+      IF x>0 THEN = ATN(y/x) ELSE IF y>0 THEN = ATN(y/x)+PI ELSE = ATN(y/x)-PI
+      
+      DEF PROC4(F%, A%)
+      BPUT#F%,A% : BPUT#F%,A%>>8 : BPUT#F%,A%>>16 : BPUT#F%,A%>>24
+      ENDPROC

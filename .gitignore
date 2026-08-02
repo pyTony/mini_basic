@@ -1,0 +1,86 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+.eggs/
+dist/
+build/
+.venv/
+venv/
+ENV/
+
+# Coverage / test noise
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.hypothesis/
+.tox/
+.mypy_cache/
+.ruff_cache/
+test/logs/
+test/_run_progress.log
+test/_regression_out.txt
+test_execution.log
+*.log
+
+# Agent / local probes (not product)
+test/_probe_*.py
+test/_debug_*.py
+test/_repro_*.py
+test/_bench_*.py
+test/_patch_*.py
+test/_t_*.py
+test/t/
+_run_one_probe.py
+_t_*.py
+*_session_summary.md
+
+# Status / resource churn (optional keep FEATURES_DONE etc. tracked)
+.resource_crash.json
+.resource_peak.json
+.status_heartbeat_meta.json
+.status_sources_stamp.json
+.sync_counter
+RESOURCE_CHECK.txt
+AGENT_RESOURCE_ALERT.txt
+
+# Generated archives / installs
+archives/
+mini_basic_text_part*.txt
+mini_basic_dev_text_part*.txt
+dev_text_part*.txt
+dist_archive/
+
+# OneDrive / Windows
+*.tmp
+~$*
+Thumbs.db
+desktop.ini
+*.lnk
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*~
+
+# Local data / dumps
+data.txt
+data2.txt
+hanoi_debug.txt
+backup/
+*.bak
+test_reconstruct/
+
+# Large binary examples (keep sources; skip bulky assets if needed)
+# Uncomment if OneDrive thrash becomes a problem:
+# examples/games/.*/
+# examples/**/*.bmp
+# examples/**/*.png
+# examples/**/*.jpg
+# documentation/*.pdf

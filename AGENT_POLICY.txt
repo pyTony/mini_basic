@@ -2,12 +2,16 @@
 # Core rules that LLM / autonomous agents MUST follow on every session.
 
 ## 1. Mandatory Startup Checklist (read this every time)
-- Read AGENT_POLICY.txt (this file) — **pay special attention to section 8 (Pygame safety / no leftover windows)**
+- Read AGENT_POLICY.txt (this file) — **pay special attention to section 8 (Pygame safety / no leftover windows)** and **§5b (Grok Python leftovers)**
 - Read CURRENT_TASK.txt
 - Read FEATURES_DONE.txt (especially lines starting with -- )
 - Read DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md (at least the pipeline section)
 - Read DEVELOPMENT_GIT_USAGE.md
 - Run: python scripts/verify_resources.py
+  (includes agent-python leftover scan; or: `python scripts/probe_agent_python.py`)
+- If orphan agent Python shows up: kill clear orphans
+  (`python scripts/probe_agent_python.py --kill-orphans`) unless the user is
+  deliberately running that command.
 - If any prior pygame state is suspected: explicitly call `from mini_basic.display import ensure_no_pygame_leftovers; ensure_no_pygame_leftovers()` early.
 
 ## 2. Single Focus Rule (HIGHEST PRIORITY)
@@ -53,6 +57,9 @@ Skipping either end is a policy violation.
 
 ### DURING job (midpoints)
 - After each meaningful probe/fix/commit: check user input queue (see §6b).
+- **Probe Grok/agent Python leftovers** (see §5b) after long probes, background
+  tasks, or any job that used `python -c` / `_probe_*.py` — at least every
+  ~30–60 minutes of agent work, and immediately if the machine feels thrashy.
 - Optionally `log_work_event` for milestones; keep CURRENT_TASK focus accurate.
 
 ### END job (before stopping or switching focus)
@@ -61,9 +68,13 @@ Skipping either end is a policy violation.
    - FEATURES_DONE: move `-- item` → `OK item` when the item is done; leave `--` only for remaining work.
 2. Update `CURRENT_TASK.txt`: either next focus, or idle note if waiting on user.
 3. Update approval/corpus files if the job changed readiness (`USER_APPROVAL*`, `CORPUS_AUDIT`).
-4. Log end + rebuild status:  
+4. **Kill leftover agent Python** from this job: background `python -c` probes,
+   `test/_probe_*.py`, hung CASE/ON ERROR experiments. Do **not** kill the user's
+   intentional `mini_basic.py … saucer.bbc` (etc.) demos. Prefer:
+   `python scripts/probe_agent_python.py` then `--kill-orphans` if orphans listed.
+5. Log end + rebuild status:  
    `python -c "from test.progress_runner import log_work_event, update_project_status; log_work_event('END <focus>: <result>', kind='WORK'); update_project_status()"`
-5. Commit policy-relevant file updates when code changed (branch workflow §4).
+6. Commit policy-relevant file updates when code changed (branch workflow §4).
 
 ### Idle / waiting on user
 - If the only remaining work is user playtesting ready `[ ]` programs: set focus to the
@@ -82,6 +93,49 @@ Skipping either end is a policy violation.
 - Prefer git diffs, versions, and small context over loading entire files.
 - Call gc.collect() when appropriate.
 - Keep memory/CPU usage low during repeated agent sessions.
+
+## 5b. MUST-FOLLOW: Probe Grok/agent leftover Python processes
+Hung agent probes (background `python -c`, `test/_probe_*.py`, incomplete
+CASE/ON ERROR experiments) have burned **hours of CPU** and thrash the machine.
+Treating this as optional is a policy violation.
+
+### When to probe (regular cadence)
+1. **Startup** (checklist §1) — with `verify_resources.py` or
+   `python scripts/probe_agent_python.py`.
+2. **During long jobs** — at midpoints and at least every ~30–60 minutes of
+   continuous agent work; always after a backgrounded/timed-out shell command.
+3. **END job** — before declaring the job done (§3b).
+4. **After user reports** high CPU, fans, or “something still running”.
+5. **Before starting another heavy probe** — do not stack zombies.
+
+### What counts as agent/Grok-related
+- `test/_probe_*.py`, `_run_one_probe.py`, `corpus_audit_probe.py`
+- `python -c` snippets importing `BASICInterpreter` / `InterpreterConfig`
+- Long-lived agent experiments under the mini_basic tree (e.g. `t_saucer*.py`)
+- Session tooling that is clearly automation, not a user demo window
+
+### What NOT to kill without asking
+- User demo: `python mini_basic.py … examples/…` or corpus files the user launched
+- Active `pytest` the agent or user just started
+- This probe script / `verify_resources.py` itself
+
+### Commands
+```
+python scripts/probe_agent_python.py              # list agent-related + orphans
+python scripts/probe_agent_python.py --kill-orphans  # kill clear orphans only
+python scripts/verify_resources.py                # memory check + short python scan
+python scripts/verify_resources.py --kill-orphans
+```
+
+### Background / timeout rule
+- Prefer **timeouts** on exploratory `python -c` probes (or short programs with END).
+- If a shell task is backgrounded or exceeds default timeout: **track the PID/task**,
+  and on completion/kill/timeout **verify it is gone** with `probe_agent_python.py`.
+- Never leave multi-hour `python -c` ON ERROR / CASE experiments running.
+
+### Log
+- If orphans were killed: one WORK_LOG line, e.g.
+  `agent-python: killed orphan pids … (hung probe)`.
 
 ## 6. User Approval Gate
 - Only the user can finally approve a whole program.
@@ -109,12 +163,14 @@ User chat **always preempts** long autonomous runs. This is not optional.
 
 ### Workload when interrupted
 - After user interrupt: re-check `scripts/verify_resources.py` / `AGENT_RESOURCE_ALERT.txt` before restarting heavy probes.
+- Re-run **§5b** Python leftover probe (kill orphans if present).
 - Prefer one small resume step over restarting a full corpus audit.
 - Log a short `WORK_LOG` line: `USER interrupt handled; resume <focus>`.
 
 ### Queue check habit
 - At natural midpoints of agentic work (after each probe, fix, or commit), **check for new user input** before continuing the next step.
 - Never assume silence means "keep burning resources" without updating status.
+- Same midpoints: glance at agent-python leftovers when any background probe was used.
 
 ## 7. General Rules
 - Update this file and the pipeline guide when priorities change.

@@ -1,0 +1,88 @@
+      REM Simple metronome by Richard Russell, http://www.rtrussell.co.uk/
+      REM Compatible with BBC BASIC for SDL 2.0 and BBC BASIC for Windows.
+      REM Metronome image licensed from vectorstock.com: Image ID 22644063
+      
+      INSTALL @lib$ + "imglib"
+      PROC_imgInit
+      IF INKEY(-256) = &57 `GetTicks` = SYS("GetTickCount") ELSE `GetTicks` = SYS("SDL_GetTicks")
+      
+      ON ERROR PROC_imgExit : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$
+      ON CLOSE PROC_imgExit : QUIT
+      
+      VDU 23,22,450;600;32,40,16,128,5
+      COLOR 4,192,192,255
+      COLOR 128+4
+      CLS
+      OFF
+      @% = 3
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 26"
+      
+      base%% = FN_imgLoad(@dir$ + "metronome_base.png")
+      main%% = FN_imgLoad(@dir$ + "metronome_top.png")
+      rod%% = FN_imgLoad(@dir$ + "metronome_rod.png")
+      weight%% = FN_imgLoad(@dir$ + "metronome_weight.png")
+      IF base%%=0 OR main%%=0 OR rod%%=0 OR weight%%=0 ERROR 100, "Couldn't load image file"
+      
+      tempo% = 100
+      weight = 586
+      ampl = 0
+      oldangle = 90
+      *TEMPO 1
+      *REFRESH OFF
+      
+      SOUND 1,0,0,1
+      SYS `GetTicks` TO O%
+      F% = FALSE
+      REPEAT
+        
+        MOUSE X%,Y%,B%
+        IF B% AND 4 IF X% > 0 IF X% < 900 IF Y% > 0 IF Y% < 1200 THEN
+          CASE TRUE OF
+            WHEN Y% > 300: weight += (Y% - 170 - weight) / 8 : F% = 2
+            WHEN F% < -20: F% = 20
+            WHEN F% = 0  : F% = TRUE
+          ENDCASE
+        ENDIF
+        
+        CASE INKEY(0) OF
+          WHEN 138: weight -= 6.9 : F% = 30
+          WHEN 139: weight += 6.9 : F% = 30
+          WHEN  32: F% = (F% == 0)
+        ENDCASE
+        
+        IF F% THEN
+          F% -= 1
+          IF weight > 818 weight = 818
+          IF weight < 168 weight = 168
+          tempo% = (256 - 0.291 * weight + 8.59E-5 * weight^2 - 7.308E-8 * weight^3 + 1) AND -2
+          SYS `GetTicks` TO O%
+          ampl = 0
+        ELSE
+          ampl += 0.5
+          IF ampl > 25 ampl = 25
+        ENDIF
+        
+        SYS `GetTicks` TO T% : T% -= O%
+        angle = 90 + ampl * SIN(PI * tempo% * T% / 60000)
+        
+        IF (angle>=90) <> (oldangle>=90) IF ampl > 0 SOUND 1,-15,148,4
+        oldangle = angle
+        
+        CLS
+        
+        PROC_imgPlot(main%%, 450, 772, 0.7, 0.7, 0.0)
+        PROC_imgPlot(rod%%, 414, 180, 0.7, 0.7, angle)
+        PROC_imgPlot(weight%%, 414-weight*COSRAD(angle), 180+weight*SINRAD(angle), 0.7, 0.7, angle)
+        PROC_imgPlot(base%%, 450, 180, 0.7, 0.7, 0.0)
+        VDU 30 : PLOT 0,750,0 : PRINT tempo%;
+        
+        *REFRESH
+        IF INKEY(-256)=&57 WAIT 1
+      UNTIL FALSE
+      END
+      
+      REM!Embed @lib$+"imglib", @lib$+"DejaVuSans.ttf", @dir$+"metronome_icon.png"
+      REM!Embed @dir$+"metronome_top.png", @dir$+"metronome_rod.png"
+      REM!Embed @dir$+"metronome_base.png", @dir$+"metronome_weight.png"
+      REM!Icon  metronome_icon.png
+      REM!Appname Metronome

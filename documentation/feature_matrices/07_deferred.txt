@@ -15,7 +15,7 @@
   Structures           structure arrays and tags        RETURN struct from FN
   Pointers             ? ! $ $$ indirection             byte/word/string pointers
   Sound                SOUND / ENVELOPE / ADVAL audio   multi-channel synthesis
-  Teletext             MODE 7 / VDU teletext codes      SAA5050 mosaic mode
+  Teletext remainder   MODE 7 double-height / conceal / boxed extend existing teletext renderer
   Physics              FN_b2* Box2D bindings            corpus physics tier
   Network              URL fetch / Ceefax remote        needs HTTP client
   Compiler             BBC BASIC compiler / Crunch      not interpreter scope

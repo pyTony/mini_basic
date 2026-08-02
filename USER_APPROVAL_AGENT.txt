@@ -9,9 +9,11 @@ OK jclock.txt (graphics) :: user confirmed 2026-07-26
 OK filters.txt (general) :: user confirmed 2026-07-26; Original-string glue fix
 OK flier.txt (graphics) :: user confirmed 2026-07-26; auto-rotate only (no INPUT/MOUSE)
 
-OK saucer.txt (graphics) :: NOTX + scales; ready (long draw)
+OK saucer.txt (graphics) :: user confirmed 2026-07-26; shape OK; slow draw noted (not a hang)
 
-FAIL welcome.txt (general) :: ENVELOPE unimplemented; residual edges
-FAIL piechart.txt (graphics) :: Colour& / SUM / array fill / COSa
-FAIL polly.txt (sounds) :: REPEAT / OSCLI
-FAIL poem.txt (general) :: audit timeout
+OK welcome.txt (general) :: user confirmed 2026-08-02; graphics = SDL/Archimedes; SOUND deferred
+
+OK squares.txt (graphics) :: user confirmed 2026-08-02; look + speed OK (nested int FOR / munching kernel)
+FAIL piechart.txt (graphics) :: Colour& / SUM / array fill / COSa (re-probe pending)
+FAIL polly.txt (sounds) :: DEFER SOUND/ENVELOPE + OSCLI DISPLAY
+FAIL poem.txt (general) :: DEFER interactive MODE7 audit timeout

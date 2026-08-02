@@ -1,0 +1,44 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE PRINT REPORT$ : END
+      
+      REM Check memory alignment of system variables
+      MODE 9
+      OFF
+      *HEX 64
+      *HELP
+      IF @platform% AND 64 var$ = "@wparam%" ELSE var$ = "@memhdc%"
+      var%% = EVAL("^" + var$)
+      link%% = var%% - 12
+      REPEAT
+        COLOR 7 : PRINT 'var$, ~var%% TAB(26);
+        IF var$ = "@flags%" IF var%% = ^@% + &3F8 COLOR 10
+        IF var%% AND 3 COLOR 9 : PRINT "Mis-aligned"; ELSE IF var%% > ^@% PRINT "+"; ~var%% - ^@%;
+        IF !link%% = 0 EXIT REPEAT
+        IF ABS(!link%%) < ^@% link%% += !link%% ELSE link%% = !link%%
+        var$ = "@" + $$(link%% + 4)
+        IF RIGHT$(var$,2) = "%%" var$ = LEFT$(var$)
+        IF RIGHT$(var$,3) = "%%(" var$ = LEFT$(var$) : RIGHT$(var$) = "("
+        IF RIGHT$(var$) = "(" var$ += ")" ELSE IF RIGHT$(var$) = "{" var$ += "}"
+        var%% = EVAL("^" + var$)
+      UNTIL FALSE
+      WAIT 50
+      REPEAT UNTIL INKEY(5) <> -1 OR INKEY(-10)
+      
+      CLS
+      *HELP
+      var$ = "@vdu.o{}"
+      var%% = EVAL("^" + var$)
+      link%% = var%% - 7
+      REPEAT
+        COLOR 7 : PRINT 'var$, ~var%% TAB(26);
+        IF var%% AND 3 COLOR 9 : PRINT "Mis-aligned"; ELSE IF var%% > ^@% PRINT "+"; ~var%% - ^@%;
+        IF !link%% = 0 EXIT REPEAT
+        IF ABS(!link%%) < ^@% link%% += !link%% ELSE link%% = !link%%
+        var$ = "@vdu." + $$(link%% + 4)
+        IF RIGHT$(var$,2) = "%%" var$ = LEFT$(var$)
+        IF RIGHT$(var$,3) = "%%(" var$ = LEFT$(var$) : RIGHT$(var$) = "("
+        IF RIGHT$(var$) = "(" var$ += ")" ELSE IF RIGHT$(var$) = "{" var$ += "}"
+        var%% = EVAL("^" + var$)
+      UNTIL FALSE
+      WAIT 50
+      REPEAT UNTIL INKEY(5) <> -1 OR INKEY(-10)
+      RUN

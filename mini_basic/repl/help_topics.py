@@ -1,0 +1,512 @@
+"""Structured HELP topics for the interactive REPL (HELP INDEX, HELP FUNCTIONS, ...)."""
+from __future__ import annotations
+
+from typing import Callable, Dict, List, Optional, Tuple
+
+from mini_basic.bbc_modes import BB4W_MODE_SPECS, BBCModeSpec, BBC_MODE_SPECS, bbc_os_scales
+
+HELP_MENU_ITEMS: List[Tuple[str, str]] = [
+    ('OVERVIEW', 'quick tour of the interpreter'),
+    ('FUNCTIONS', 'numeric/math builtins (SIN, RND, CVI, ...)'),
+    ('STRINGS', 'string functions (MID$, STR$, MKI$, colours, ...)'),
+    ('OPERATORS', 'comparisons, logic, arithmetic'),
+    ('STATEMENTS', 'IF, loops, PROC, ON ERROR, DEF FN, ...'),
+    ('FILES', 'channels, PRINT#, random files, OPENIN/OUT'),
+    ('GRAPHICS', 'MODE, VDU, GCOL, PLOT, sprites, pygame'),
+    ('MODES', 'BBC 0-7 and SDL 8-31 — resolution and implementation status'),
+    ('REPL', 'LIST, RUN, LOAD, EDIT, abbreviations, Tab completion'),
+    ('SYSTEM', '_argc, _optimization_level, TIME, ERR, ERL'),
+    ('DIALECTS', 'mits / commodore / tiny / bbc / mini (same as MATRIX)'),
+]
+
+_HELP_ALIASES = {
+    'INDEX': 'INDEX',
+    'TOPICS': 'INDEX',
+    'TOPIC': 'INDEX',
+    'MENU': 'INDEX',
+    'INTERACTIVE': 'INDEX',
+    'OVERVIEW': 'OVERVIEW',
+    'STARTUP': 'OVERVIEW',
+    'ALL': 'OVERVIEW',
+    'FUNCTIONS': 'FUNCTIONS',
+    'FUNCTION': 'FUNCTIONS',
+    'FUNCS': 'FUNCTIONS',
+    'MATH': 'FUNCTIONS',
+    'MATHS': 'FUNCTIONS',
+    'STRINGS': 'STRINGS',
+    'STRING': 'STRINGS',
+    'FILES': 'FILES',
+    'FILE': 'FILES',
+    'IO': 'FILES',
+    'REPL': 'REPL',
+    'COMMANDS': 'REPL',
+    'GRAPHICS': 'GRAPHICS',
+    'GFX': 'GRAPHICS',
+    'DISPLAY': 'GRAPHICS',
+    'MODES': 'MODES',
+    'MODE': 'MODES',
+    'OPERATORS': 'OPERATORS',
+    'OPS': 'OPERATORS',
+    'STATEMENTS': 'STATEMENTS',
+    'STMTS': 'STATEMENTS',
+    'SYSTEM': 'SYSTEM',
+    'SYS': 'SYSTEM',
+    'DIALECTS': 'DIALECTS',
+    'DIALECT': 'DIALECTS',
+    'MATRIX': 'DIALECTS',
+    'COMPAT': 'DIALECTS',
+}
+
+
+def _section(title: str, lines: List[str]) -> None:
+    print(title)
+    for line in lines:
+        print(f'  {line}')
+
+
+def _print_help_index() -> None:
+    print('=== HELP INDEX ===')
+    print('  HELP              HELP> menu (empty line returns to >)')
+    print('  HELP topic        open at topic (e.g. HELP FUNCTIONS)')
+    print()
+    for index, (name, summary) in enumerate(HELP_MENU_ITEMS, start=1):
+        print(f'  {index:2} {name:<12} {summary}')
+    print()
+    print('  Abbrev: H.=HELP   MA.=MATRIX')
+
+
+def _print_help_overview() -> None:
+    sections = [
+        ('=== mini-BASIC overview ===', [
+            'Five dialects: mits  commodore  tiny  bbc (BBC SDL 2.0)  mini (default)',
+            'HELP INDEX lists topics; HELP FUNCTIONS lists every builtin.',
+        ]),
+        ('Quick start', [
+            'mini_basic file.bas [args]    load and RUN',
+            'mini_basic -i                 REPL after RUN',
+            'mini_basic --pretty file.bas  LIST structured, exit',
+            '--dialect mits|commodore|tiny|bbc|mini   --strict-dialect   --pygame',
+            'Program file: #!bbc  or  REM dialect: bbc  (shebang-style hint)',
+        ]),
+        ('At the > prompt', [
+            '123 PRINT X          store a program line',
+            'PRINT 1+2            immediate statement',
+            'RUN  LIST  LOAD  SAVE  NEW  EDIT  MATRIX',
+            'bye / quit / exit    leave REPL',
+        ]),
+    ]
+    for index, (title, lines) in enumerate(sections):
+        if index:
+            print()
+        _section(title, lines)
+
+
+def _print_help_functions() -> None:
+    _section('=== Numeric / math functions ===', [
+        'PI()                 pi (no arguments)',
+        'RND[(n)]             random 0..1, or 1..n integer when n>=1',
+        'RANDOMIZE [seed]     reseed RNG (statement, not a function)',
+        '',
+        'SIN(x)  COS(x)  TAN(x)',
+        'ASN(x)  ACS(x)  ATN(x)     aliases: ASIN  ACOS  ATAN',
+        'LOG(x)  EXP(x)              natural log and e^x',
+        'SQR(x)  SQRT(x)             square root (aliases)',
+        'ABS(x)  INT(x)  SGN(x)      floor for INT',
+        '',
+        'VAL(s$)              string to number',
+        'NEAR(x,y [,t])       nearly equal (-1 true, 0 false); optional abs tolerance t',
+        'NEARSIG(x,y,n)       match to n significant figures',
+        'LEN(s$)              string length (numeric result)',
+        'INSTR(hay$, needle$ [, start])   1-based position, 0 if missing',
+        '',
+        'ARG(n)               n-th program CLI arg as number (mini)',
+        'POS                  text cursor column (0-based)',
+        'VPOS                 text cursor row (0-based)',
+        'POINT(x, y)          graphics pixel colour index',
+        '',
+        'CVI(s$)  CVS(s$)  CVD(s$)   unpack binary from FIELD buffer',
+        'LOC(#n)  LOF(#n)            random/sequential file position/size',
+    ])
+    print()
+    _section('Bitwise operators', [
+        'XOR  EOR  EQV  IMP   32-bit integer bitwise ops',
+        'DIV                 integer division (like \\\\)',
+        'REPORT / REPORT$    last error message text',
+        '@dir$  @lib$  @usr$  BBCSDL-style path strings',
+        'SWAP a, b           exchange two variables or array elements',
+    ])
+
+
+def _print_help_strings() -> None:
+    _section('=== String functions ===', [
+        'CHR$(n)              character from ASCII code',
+        'ASC(s$)              code of first character',
+        'MID$(s$, start [, len])',
+        'LEFT$(s$, n)  RIGHT$(s$, n)',
+        'UCASE$(s$)  LCASE$(s$)',
+        'STR$(n)              number formatted as string',
+        'STRING$(n [, char])  repeat char n times',
+        'SPACE$(n)            n spaces',
+        'INKEY$ / INKEY$(n)   key as string; n=0 poll ("" if none); n>0 wait n cs',
+        'ARG$(n)              n-th CLI argument string (mini)',
+        '',
+        'MKI$(n)  MKS$(n)  MKD$(n)   pack int/single/double for FIELD',
+        '',
+        'OPENIN(path$)        channel for sequential read',
+        'OPENOUT(path$)       channel for sequential write',
+    ])
+    print()
+    _section('ANSI colour (mini, terminal display)', [
+        'FG$(n)  BG$(n)         BBC/Agon palette 0-15, or 256-colour index',
+        'RGB$(r,g,b)  BGRGB$(r,g,b)   true-colour foreground/background',
+        'ANSI$(codes...)  RESET$()',
+    ])
+
+
+def _print_help_operators() -> None:
+    _section('=== Operators ===', [
+        '+  -  *  /  ^  MOD',
+        '=  <>  <  >  <=  >=',
+        'AND  OR  NOT          TRUE=-1  FALSE=0  (MBASIC style)',
+        '? expr                PRINT shorthand',
+    ])
+
+
+def _print_help_statements() -> None:
+    _section('=== Program statements ===', [
+        'REM  \'comment',
+        'LET v = expr   (LET optional)',
+        'DIM A(10)  DIM M(5,5)   OPTION BASE 0|1',
+        'DEFINT/DEFSNG/DEFDBL/DEFSTR letter ranges',
+        '',
+        'IF ... THEN ... [ELSE ...] ENDIF',
+        'WHILE ... WEND   REPEAT ... UNTIL   FOR ... NEXT',
+        'EXIT FOR|WHILE|REPEAT   BREAK/CONTINUE [label] (mini)',
+        '',
+        'GOTO line  GOSUB line  RETURN',
+        'ON expr GOTO a,b,...   ON expr GOSUB a,b,...',
+        'DEF PROCname(...) ... ENDPROC   PROC name',
+        'DEF FNname(x)=expr',
+        'DEF FNname(x) ... =ret ... END DEF',
+        '  In DEF FN, IF needs THEN:  IF n<2 THEN =1 ELSE =n*FNfact(n-1)',
+        '  (THEN is not optional when the branch is a =return)',
+        'Closers: ENDIF or END IF, WEND or END WHILE, ENDPROC or END PROC',
+        'DEF FN block ends with END DEF or END FN',
+        '',
+        'ON ERROR GOTO|GOSUB line   RESUME [0]   RESUME NEXT   ON ERROR OFF',
+        'STOP   END   CONT (after STOP)',
+        'DATA ...   READ   RESTORE [line]',
+        'RANDOMIZE [seed]   WAIT n   (n centiseconds)',
+        'TIME   TIME=0   TIME=n   TIME=TIME+n   centisecond clock (persists across RUN)',
+    ])
+
+
+def _print_help_files() -> None:
+    _section('=== File I/O ===', [
+        'OPENIN(path$)  OPENOUT(path$)   sequential via channel number',
+        'PRINT#ch, ...   INPUT#ch, vars   WRITE#ch, ...   CLOSE#ch',
+        'LINE INPUT#ch, var$',
+        '',
+        'OPEN "R", #n, "file" [,reclen]   random access',
+        'FIELD #n, w AS var$ [, ...]   GET #n [,rec]   PUT #n [,rec]',
+        'LSET field$ = s$   RSET field$ = s$',
+        'LOC(#n)  LOF(#n)   MKI$/MKS$/MKD$  CVI/CVS/CVD',
+        '',
+        'ERR   ERL   error code and line after ON ERROR trap',
+        'INPUT reads the line as data (standard BASIC)',
+        '--input-exit (CLI)   optional bye/quit/exit at INPUT',
+    ])
+
+
+def _print_help_graphics() -> None:
+    _section('=== Graphics (bbc + mini, pygame or terminal) ===', [
+        'MODE n               text/graphics mode (see HELP MODES)',
+        'VDU codes            CLS, CLG, COLOUR/COLOR, cursor positioning',
+        'GCOL f,c   MOVE x,y   DRAW x,y   ORIGIN x,y',
+        'PLOT code,x,y        BBC/Agon plot codes (156=circle fill, ...)',
+        'SPRITEDEF / SPRITE   hardware-style sprites (pygame)',
+        'POINT(x,y)           read pixel colour',
+        'OSCLI "..."          host command (limited)',
+        '',
+        'CLI: --pygame  --display pygame|terminal|none',
+        'Text-only (no DISPLAY / MINIBASIC_NO_GRAPHICS=1): no auto pygame window',
+        'During RUN: Ctrl+C or ESC in the terminal stops the program',
+        '     --scale N  --cols/--rows  --gfx-width/--gfx-height',
+        '     --hold / --no-hold',
+        '     --slow [ms]   pause after each line (default 50); or _slow=N in program',
+    ])
+
+
+_MODE_STATUS_OVERRIDES: Dict[int, Tuple[str, str]] = {
+    7: (
+        'partial',
+        'alpha/gfx colours, mosaics, flash/hold/separated/bg; '
+        'double-height/conceal/full SAA5050 still open',
+    ),
+}
+
+_MODE_COLOURS: Dict[int, str] = {
+    0: '2',
+    1: '4',
+    2: '8',
+    3: '16 (text)',
+    4: '2',
+    5: '4',
+    6: '16 (text)',
+    7: '8 (teletext)',
+}
+
+_MODE_PLATFORM: Dict[int, str] = {
+    0: 'Model B',
+    1: 'Model B',
+    2: 'Model B',
+    3: 'Model B',
+    4: 'Model A',
+    5: 'Model A',
+    6: 'Model A',
+    7: 'Teletext',
+}
+
+
+def _mode_implementation_status(mode: int, spec: BBCModeSpec) -> Tuple[str, str]:
+    override = _MODE_STATUS_OVERRIDES.get(mode)
+    if override is not None:
+        return override
+    if spec.teletext:
+        return (
+            'partial',
+            'teletext renderer (colours + mosaics); not full SAA5050',
+        )
+    if not spec.plot_enabled:
+        return 'implemented', 'text only — PLOT/CLG disabled (like Model B)'
+    return 'implemented', 'graphics + text'
+
+
+def _mode_colours(mode: int, spec: BBCModeSpec) -> str:
+    if mode in _MODE_COLOURS:
+        return _MODE_COLOURS[mode]
+    if spec.plot_enabled:
+        return '256'
+    if spec.teletext:
+        return '8 (teletext)'
+    return '16 (text)'
+
+
+def _mode_platform(mode: int, spec: BBCModeSpec) -> str:
+    if mode in _MODE_PLATFORM:
+        return _MODE_PLATFORM[mode]
+    if mode >= 8:
+        return 'SDL / VGA'
+    return '—'
+
+
+def _mode_graphics_kind(spec: BBCModeSpec) -> str:
+    if spec.teletext:
+        return 'teletext'
+    if spec.plot_enabled and spec.gfx_width > 0:
+        return 'graphics'
+    return 'text'
+
+
+def _format_mode_resolution(spec: BBCModeSpec) -> str:
+    if spec.teletext:
+        return 'teletext'
+    if spec.plot_enabled and spec.gfx_width > 0:
+        return f'{spec.gfx_width}x{spec.gfx_height}'
+    return '—'
+
+
+def _format_mode_par(spec: BBCModeSpec) -> str:
+    return f'{spec.par_w}:{spec.par_h}'
+
+
+def _format_mode_os_scale(spec: BBCModeSpec) -> str:
+    if not spec.plot_enabled or spec.gfx_width <= 0:
+        return '—'
+    x_scale, y_scale = bbc_os_scales(spec.gfx_width, spec.gfx_height)
+    return f'{x_scale}x{y_scale}'
+
+
+def _format_mode_cell(spec: BBCModeSpec) -> str:
+    return f'{spec.cell_width}x{spec.cell_height}'
+
+
+def _format_mode_line(mode: int, spec: BBCModeSpec) -> str:
+    status, note = _mode_implementation_status(mode, spec)
+    gfx = _format_mode_resolution(spec)
+    text = f'{spec.text_cols}x{spec.text_rows}'
+    cell = _format_mode_cell(spec)
+    colours = _mode_colours(mode, spec)
+    par = _format_mode_par(spec)
+    os_scale = _format_mode_os_scale(spec)
+    platform = _mode_platform(mode, spec)
+    kind = _mode_graphics_kind(spec)
+    return (
+        f'MODE {mode:<2}  {gfx:<11}  {text:<7}  {cell:<5}  {colours:<12}  '
+        f'{par:<4}  {os_scale:<5}  {platform:<10}  {kind:<9}  {status:<18}  {note}'
+    )
+
+
+def _print_mode_group(title: str, modes: Dict[int, BBCModeSpec]) -> None:
+    print(title)
+    print(
+        '  MODE  resolution   text     cell   colours       PAR   OS     platform    kind       status              notes'
+    )
+    for mode in sorted(modes):
+        print(f'  {_format_mode_line(mode, modes[mode])}')
+
+
+def _print_help_modes() -> None:
+    _section('=== BBC MODE n (bbc dialect, pygame display) ===', [
+        'MODE n sets the text grid and graphics framebuffer.',
+        'Default on pygame startup: MODE 8 (640x512).',
+        'Unknown mode numbers: not implemented (ignored).',
+        '',
+        'Status key:',
+        '  implemented          MODE switch, text, and graphics (where applicable)',
+        '  under construction   partial support — behaviour may change',
+        '  not implemented      no spec / not accepted',
+    ])
+    print()
+    _print_mode_group('BBC Model B / Model A (modes 0-7)', BBC_MODE_SPECS)
+    print()
+    _print_mode_group('BBC BASIC for Windows / SDL extended (modes 8-31)', BB4W_MODE_SPECS)
+    print()
+    _section('Column guide', [
+        'resolution   graphics framebuffer pixels (— if text/teletext only)',
+        'text         character grid (cols x rows)',
+        'cell         font matrix width x height in pixels',
+        'colours      logical palette size on real BBC hardware (256 on SDL modes)',
+        'PAR          pixel aspect ratio (window corrects non-square pixels)',
+        'OS           MOS graphics units per pixel (1280 x 1024 OS space)',
+        'platform     Model B / Model A / Teletext / SDL-VGA extended modes',
+        'kind         graphics | text | teletext',
+    ])
+    print()
+    _section('Notes', [
+        'Modes 3 and 6 are text-only on real hardware; PLOT and CLG are ignored.',
+        'Modes 0 and 2 use non-square pixels (PAR 1:2 or 2:1); window corrects aspect.',
+        'Modes 8+ use square pixels (PAR 1:1); default interpreter framebuffer is MODE 8.',
+        'MODE 7: VDU teletext control codes (129-135 fg, 145-151 gfx, 160-191 mosaic).',
+        'CLI --gfx-width/--gfx-height overrides framebuffer without changing MODE table.',
+        'CLI --scale N zooms the pygame window (set before first graphics command).',
+    ])
+
+
+def _print_help_repl() -> None:
+    _section('=== REPL commands ===', [
+        'LIST [PRETTY|REFS] [start[-end]]',
+        'RUN  CONT  NEW',
+        'SAVE [PRETTY|REFS] [file]   LOAD file   DIR [pattern]   CD [path]',
+        'REN|RENUMBER [start[,step]]   AUTO [start[,step]]',
+        'EDIT [line]',
+        'HELP [topic]   MATRIX (= HELP DIALECTS)',
+        'DIALECT [mini|mits|commodore|tiny|bbc] [strict|loose]   CASE [on|off|auto]',
+        '  bare DIALECT reports dialect, strict on/off, and case mode',
+        'bye | quit | exit | goodbye | q',
+        '',
+        'Tab completes filenames after LOAD, SAVE (*.bas + backups), RUN, CD',
+        '',
+        'Abbreviations (BBC/VAX style):',
+        'H.=HELP   L.=LIST   LO.=LOAD   R.=RUN   N.=NEW',
+        'SA.=SAVE   MA.=MATRIX',
+    ])
+
+
+def _print_help_system() -> None:
+    _section('=== System variables & pseudo-variables ===', [
+        '_argc                 program argument count (mini)',
+        'ARG(n)  ARG$(n)        nth argument (mini)',
+        '',
+        'TIME                  read: centiseconds since last TIME=...',
+        'TIME = 0              start a stopwatch (benchmarks)',
+        'TIME = n              set clock to n centiseconds',
+        'TIME = TIME + n       bump clock by n (same as any TIME = <expr>)',
+        '  persists across RUN/NEW; seconds = TIME / 100',
+        'ERR  ERL               last error code / line',
+        '',
+        '_print_line_buffering   0|1',
+        '_print_file_echo        0|1',
+        '_tee_terminal           0|1  mirror pygame text/input to terminal',
+        '_optimization_level     0|1|2  (parse cache / compiled expr)',
+        '_print_field_width      PRINT comma field width (default 10)',
+        '_cols                   screen width in characters',
+        '_rows                   screen height in characters',
+        '',
+        '_epsilon                machine epsilon (smallest step in 1+eps)',
+        '_float_digits           safe decimal digits (~15 on IEEE double)',
+        '_float_mantissa         mantissa bits in float storage (~53)',
+        '_float_radix            number base of float (2 = binary)',
+        '_ieee754                1 if float matches IEEE 754 binary64',
+        '_save_case              0=UPPER 1=lower LIST/SAVE (mits/bbc only)',
+        '_case_sensitive         0=fold  1=on  2=auto (dialect default)',
+        '_bigint                 1=arbitrary % ints (default)  0=IEEE float',
+        '  PRINT _epsilon, _float_digits, _ieee754',
+        '  examples/mini/find_epsilon.bas   discover epsilon in BASIC',
+        '  examples/mini/near_float.bas     NEAR / NEARSIG comparisons',
+    ])
+
+
+_HELP_PRINTERS: Dict[str, Callable[[], None]] = {
+    'INDEX': _print_help_index,
+    'OVERVIEW': _print_help_overview,
+    'FUNCTIONS': _print_help_functions,
+    'STRINGS': _print_help_strings,
+    'OPERATORS': _print_help_operators,
+    'STATEMENTS': _print_help_statements,
+    'FILES': _print_help_files,
+    'GRAPHICS': _print_help_graphics,
+    'MODES': _print_help_modes,
+    'REPL': _print_help_repl,
+    'SYSTEM': _print_help_system,
+}
+
+
+def normalize_help_topic(topic: str) -> Optional[str]:
+    """Return canonical topic name, or None if unknown."""
+    key = topic.strip().upper()
+    if not key:
+        return 'INDEX'
+    return _HELP_ALIASES.get(key)
+
+
+def print_help_topic(
+    topic: str,
+    *,
+    print_dialects: Optional[Callable[[], None]] = None,
+) -> None:
+    """Print one HELP topic by canonical name."""
+    if topic == 'DIALECTS':
+        if print_dialects is not None:
+            print_dialects()
+        else:
+            print('? HELP DIALECTS requires dialect printer')
+        return
+    _HELP_PRINTERS[topic]()
+
+
+def print_help(
+    topic: str = '',
+    *,
+    print_dialects: Optional[Callable[[], None]] = None,
+) -> None:
+    """Print HELP INDEX or a specific topic. Unknown topics list the index."""
+    canonical = normalize_help_topic(topic)
+    if canonical is None:
+        print('? Unknown HELP topic')
+        print()
+        _print_help_index()
+        return
+    if canonical == 'INDEX':
+        _print_help_index()
+        return
+    print_help_topic(canonical, print_dialects=print_dialects)
+
+
+__all__ = [
+    'HELP_MENU_ITEMS',
+    'normalize_help_topic',
+    'print_help',
+    'print_help_topic',
+]
+

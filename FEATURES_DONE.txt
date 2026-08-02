@@ -1,5 +1,8 @@
 P - 2026-07-12 1DLIFE.BAS + Phase 1 non-gfx control flow + DIM fixes (legacy mits GOTO-NEXT, bbc text-only)
 OK Phase 1 testing foundation started (test_control_flow + test_compositional)
+OK control multi-stmt regression 2026-07-26: TestForSameLineBody + TestIfColonTail
+  (IF false skips colon tail; FOR trailing body re-entry) + TestWhileAndRepeatForms
+  same-line WHILE:WEND + TestCaseWhenColon + TestOnErrorColonTail; README list
 
 OK Test hygiene + pytest phase markers (gfx tests moved, markers, stubs awareness improved)
 
@@ -16,7 +19,7 @@ OK RACE/ROADRACE playable: INKEY$(0) non-blocking poll; IF THEN GOTO allowed in 
 OK examples/games/roadrace.bbc + basics/ROADRACE.BAS with instructions screen first
 OK CORPUS_AUDIT refreshed (CORPUS_RUNNABLE restored; probe OK 11 / FAIL 15; probe timeout hang fixed)
 OK restored functional monorepo runtime from backup/runtime_old.py after incomplete modular split
--- BBCSDL parity: re-probe CORPUS_AUDIT (filters, jclock, piechart, welcome, …); hanoi demo path fixed 2026-07-26
+OK BBCSDL parity: CORPUS_AUDIT re-probe 2026-08-02 OK22 (polly/poem DEFER)
 -- PRINT array subscript expansion (known gap)
 OK modular runtime: BASICInterpreter = 8 mixins under runtime_parts/* + facade runtime.py (~50KB); monorepo archived backup/runtime_monolith.py; regenerator tools/split_runtime_mixins.py; phase1 green
 OK error diagnostics to stderr + config.errors_dual_stdout for tests; richer OPEN/IF/etc detail
@@ -54,3 +57,51 @@ OK jclock + filters corpus re-probe OK; saucer smoke OK after NOTX
 OK test_glued_bbc_syntax.py
 OK BBCSDL leading-underscore user vars/arrays (_BOX,_LINE); system _* only if in SYSTEM_VAR_SPEC
 OK flier corpus smoke OK (WAIT/REPEAT only stripped)
+OK USER APPROVAL saucer.txt (graphics) — user confirmed 2026-07-26 (shape OK; slow draw only)
+OK VDU Phase A: 17 (COLOUR), 20 (reset colours), 30/8-11/13 (cursor), 7 (bell), 26 (reset viewports soft)
+  tests: pytest test/test_vdu_phase_a.py (8 passed)
+OK VDU Phase B: 28 text viewport (store+cursor clamp/home), 24 graphics viewport (store; soft clip)
+OK VDU Phase C: unknown VDU 23,* consumes 9 params without error; 23,1 and 23,22 kept
+  tests: pytest test/test_vdu_phase_bc.py (9 passed); A+B+C = 17 passed
+OK VDU demos: examples/vdu/phase_{a,b,c}_*.bas + examples/vdu/README.md
+OK phase1 regression refreshed 2026-08-02: markers on VDU/session/detokenize/glued;
+  synthetic Russell fixture (wheel.bbc is text now); pytest -m "phase1 and not slow" → 113 passed
+OK --version / -V: version.py 1.00-dev + implementation status + MINIBASIC_DIR (process/User); test_version_flag phase0
+OK MODE 7 teletext test screen: examples/teletext/mode7_test_screen.bas + test_teletext_screen.py (phase0; xfail double-height/conceal)
+OK soccerball green-only fix: blank text cells no longer use COLOUR bg (was overpainting CIRCLE/PLOT);
+  rgb_dirty (sx,sy) present unpack fix; test_rgb_dirty_coords + soccerball canvas assert
+OK git usage: junction=OneDrive single repo; .gitignore probes/coverage/churn; GIT_QUICKSTART + DEVELOPMENT_GIT_USAGE rewritten;
+  untrack resource JSON from index; docs no longer say “develop in Programming then copy”
+
+OK phase0 + cumulative regression 2026-08-02:
+  phase0 = mini_basic, parsing, hanoi wrap, modes, dim, save_case, matrices, poem_load, dialect_hint, chained strings
+  conftest: -m phaseN expands to phase0..N; hanoi tests green (user-approved + wrap unit)
+  underscore user-var tests updated for BBCSDL; compact FOR xfail
+  pytest -m "phase0 and not slow" → 450 passed; -m "phase1 and not slow" → 563 passed
+-- Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)
+-- Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)
+-- 1.00 ship: version + RELEASE notes
+-- phase2: mark graphics suites when isolated
+
+OK piechart circular sectors: PLOT 85/181 centre+equal-radius rims tessellate arc (was chord triangle);
+  @vdu% !n tolerates spaces; tests test_plot_181_pie_sector + TestVduIndirection
+OK piechart sky bg: COLOR 15+128 keeps index 15 (not &7→gray); CLS uses custom palette
+OK piechart GSAVE no present flash; fast sector fill (numpy)
+OK welcome.bbc: ENVELOPE no-op (was ON ERROR → MODE 7 black); INKEY1 glue;
+  digit+AND/DIV after A% sub (0AND1); SOUND duration cap 1s; test_welcome_envelope
+OK welcome graphics = SDL/Archimedes (PROC LIST glue, VDU5 letters, disc, zaps)
+OK USER APPROVAL welcome.txt (general) — user confirmed 2026-08-02 (SDL+Arch+mini)
+OK basics/test_fps4.bas: soccerball-cost FPS bench (figure/FPS polish pending)
+
+OK piechart VDU5 labels: GCOL mode+colour (XOR 3,15) + clear rgb_pixels on palette write
+OK corpus re-probe 2026-08-02: piechart/saucer/squares/flier OK (loop-shorten W%-1 + saucer STEP);
+  CORPUS_AUDIT OK 22 / FAIL 2 (polly+poem DEFER only)
+
+OK VDU 23,22 user mode: charx/chary set text grid (squares 512;512;8,16); present without font assert
+
+OK squares.bbc speed: pure bitwise EOR/AND compile; nested int FOR + munching kernel;
+  no artificial work-FOR sleep; full 512x512 ~1s dummy pygame (was minutes); test_squares_speed
+
+OK USER APPROVAL squares.txt (graphics) — user confirmed 2026-08-02 (look + speed OK)
+
+OK docs/LANGUAGE_FEATURES_1.00.md — ship qualification + language/graphics baseline (2026-08-03)

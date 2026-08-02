@@ -1,0 +1,119 @@
+      REM Example of using the 'listlib' library, inspired by DeepSeek
+      REM By Richard Russell, https://www.bbcbasic.co.uk/, 22-Jul-2025
+      
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE PRINT 'REPORT$:END
+      
+      VDU 23,22,800;500;8,20,16,128
+      INSTALL @lib$ + "listlib"
+      LINE 800,0,800,998
+      COLOR 2,0,100,0
+      
+      REM Initialise a list with a mixture of different types
+      DIM myStuff(2)
+      myStuff() = 42, FN_sv("Hello"), 3.14 : REM int, str and float
+      
+      VDU 28,1,24,49,0
+      
+      PRINT "=== Original List ==="
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 1. Append
+      PRINT '"1. Append sublist [1, 2, 3]:"
+      DIM sublist(2) : sublist() = 1, 2, 3
+      PROC_listappend(myStuff(), FN_lv(sublist()))
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 2. Concatenate
+      PRINT '"2. Concatenate list [2, 3, 4]:"
+      sublist() = 2, 3, 4
+      PROC_listconcat(myStuff(), sublist())
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 3. Insert
+      PRINT '"3. Insert string 'world' at index 4:"
+      PROC_listinsert(myStuff(), FN_sv("world"), 4)
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 4. Clear
+      PRINT '"4. Clear the list temporarily (then restore):"
+      PROC_listcopy(backup(), myStuff())
+      PROC_listclear(myStuff())
+      COLOR 4 : PRINT FN_listprint(myStuff()); : COLOR 2
+      PRINT "  (the list length is now "; FN_listlen(myStuff()); ")"
+      PROC_listcopy(myStuff(), backup())
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      PROC_listclear(backup())
+      
+      REM 5. Index
+      PRINT '"5. Find the position of an item:"
+      sublist() = 1, 2, 3
+      COLOR 2
+      PRINT "The sublist [1, 2, 3] is at index "; FN_listindex(myStuff(), FN_lv(sublist()))
+      PRINT "The string  'world'   is at index "; FN_listindex(myStuff(), FN_sv("world"))
+      PRINT "The numeric 3.14      is at index "; FN_listindex(myStuff(), 3.14)
+      COLOR 0
+      
+      REM 6. Count
+      PRINT '"6. Count occurrences of an item:"
+      COLOR 2
+      PRINT "The string  'Hello'   occurs "; FN_listcount(myStuff(), FN_sv("Hello")); " time(s)"
+      PRINT "The sublist [1, 2, 3] occurs "; FN_listcount(myStuff(), FN_lv(sublist())); " time(s)"
+      COLOR 0
+      PROC_listclear(sublist())
+      
+      VDU 28,51,24,99,0
+      
+      REM 7. Count with recursion
+      PRINT "7. Count items, recursing into sublists:"
+      COLOR 2
+      items% = FN_listcount_recurse(myStuff(), 3)
+      PRINT "The numeric 3 occurs "; items%; " time(s)"
+      COLOR 0
+      
+      REM 8. Reverse
+      PRINT '"8. Reverse the list:"
+      PROC_listreverse(myStuff())
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 9. Reverse sublist
+      PRINT '"9. Reverse the sublist:"
+      list = FN_vl(myStuff(4)) : PROC_listreverse(list)
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 10. Type
+      PRINT '"10. Find the type of an item:"
+      COLOR 2
+      FOR index% = 4 TO 7
+        PRINT "The type of item "; index% " is '" FN_listtype(myStuff(index%)) "'"
+      NEXT
+      COLOR 0
+      
+      REM 11. Remove
+      PRINT '"11. Remove the first occurrence of 3.14:"
+      PROC_listremove(myStuff(), 3.14)
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      REM 12. Pop
+      PRINT '"12. Remove and return the item at index 4:"
+      popped = FN_listpop(myStuff(), 4)
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      COLOR 2 : PRINT "The popped item was "; FN_listitem(popped) : COLOR 0
+      list = FN_vl(popped) : PROC_listclear(list)
+      
+      REM 13. Delete
+      PRINT '"13. Delete the item at index 1:"
+      PROC_listdelete(myStuff(), 1)
+      COLOR 4 : PROC_listprint(myStuff()) : COLOR 0
+      
+      OFF
+      REPEAT WAIT 4 : UNTIL FALSE
+      END
+      
+      DEF FN_listcount_recurse(RETURN l%%, v) LOCAL I%,N%,t%%,l()
+      IF l%%!1 THEN PTR(l()) = l%% : N% = FN_listcount(l(), v) ELSE = 0
+      FOR I% = 0 TO DIM(l(),1)
+        IF FN_listtype(l(I%)) = "list" THEN
+          t%% = FN_vl(l(I%)) : N% += FN_listcount_recurse(t%%,v)
+        ENDIF
+      NEXT
+      = N%

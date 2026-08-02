@@ -1,14 +1,13 @@
-# Corpus audit (partial refresh 2026-07-26 agent)
-# Full 24-program re-probe still optional; notes from targeted probes.
-# display=none, loops shortened where noted.
-
-OK (20)
+# Corpus audit — 2026-08-02 23:27 (re-probe after piechart VDU5 labels + loop-shorten)
+# display=none, optimization_level=0, 20s timeout; loops shortened by corpus_audit_probe
+OK (22)
 soccerball.txt graphics
 tier_a_poem.txt samples
 illusion.txt graphics
 sine.txt graphics
+hanoi.txt games
+filters.txt general
 scarab.txt graphics
-squares.txt graphics
 persian.txt graphics
 polygon.txt graphics
 doodle.txt graphics
@@ -17,15 +16,13 @@ mmap.txt tools
 fern.txt graphics
 wheel.txt graphics
 spectrum.txt graphics
-animal.txt games
-hanoi.txt games
 jclock.txt graphics
-filters.txt general
-saucer.txt graphics  # NOTX glue fix 2026-07-26; full FOR is long (expected)
-flier.txt graphics   # leading _ identifiers (_BOX/_LINE) 2026-07-26
-
-FAIL (4)
-welcome.txt general :: partial — MODE/GCOL/NOT/A%AND glue improved; ENVELOPE unimplemented; remaining IF/PLOT edge cases
-piechart.txt graphics :: DIM Colour&() byte arrays / SUM / array fill / COSa glue — deferred
-polly.txt sounds :: ? Expression error: name REPEAT is not defined; ? OSCLI error
-poem.txt general :: ? audit timeout (20s) / long run
+animal.txt games
+welcome.txt general
+piechart.txt graphics
+saucer.txt graphics
+squares.txt graphics
+flier.txt graphics
+FAIL (2)
+polly.txt sounds :: DEFER SOUND/ENVELOPE + OSCLI DISPLAY (not a 1.00 blocker)
+poem.txt general :: DEFER interactive MODE7 / audit timeout (not a 1.00 blocker)

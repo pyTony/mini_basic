@@ -32,6 +32,8 @@ from mini_basic.bbc_modes import (
 )
 
 # BBC Micro / Agon style text colours (0-15); 16+ map to extended palette.
+# Colour 7 is white on the Beeb (not VGA light-gray). welcome GCOL 0,7 letters
+# must contrast with red CHR$255 blocks; gray-7 made them invisible on GCOL 135 paper.
 BBC_PALETTE: Tuple[Tuple[int, int, int], ...] = (
     (0, 0, 0),
     (180, 0, 0),
@@ -40,7 +42,7 @@ BBC_PALETTE: Tuple[Tuple[int, int, int], ...] = (
     (0, 0, 180),
     (180, 0, 180),
     (0, 180, 180),
-    (180, 180, 180),
+    (255, 255, 255),
     (80, 80, 80),
     (255, 0, 0),
     (0, 255, 0),
@@ -253,7 +255,7 @@ def count_framebuffer_pixels(
 
 
 class NullDisplay(DisplayBackend):
-    """No-op backend (terminal output handled elsewhere)."""
+    """No-op backend (``display=none`` / ``null``)."""
 
     def begin_run(self) -> None:
         return
@@ -305,6 +307,231 @@ class NullDisplay(DisplayBackend):
 
     def pump_events(self) -> None:
         return
+
+
+class TerminalDisplay(DisplayBackend):
+    """Text-cell backend for ``--display terminal``.
+
+    Streaming mode (default): each ``write``/``newline`` goes straight to
+    stdout so plain PRINT works under ``redirect_stdout`` / pipes.
+
+    After a ``goto`` (TAB/PRINT AT), switches to grid mode; ``present()``
+    repaints the full grid with ANSI. Restored after copy-paste recovery.
+    """
+
+    _ANSI_FG = (30, 31, 32, 33, 34, 35, 36, 37)
+    _ANSI_BG = (40, 41, 42, 43, 44, 45, 46, 47)
+
+    def __init__(self, text_cols: int = 80, text_rows: int = 30):
+        self.text_cols = max(1, int(text_cols))
+        self.text_rows = max(1, int(text_rows))
+        self._cursor_row = 0
+        self._cursor_col = 0
+        self._fg_colour = 7
+        self._bg_colour = 0
+        self._text: List[List[Tuple[str, int, int]]] = []
+        self._dirty = True
+        self._open = False
+        self._positioned = False
+        self._terminal_text = True
+        self._reset_text_grid()
+
+    def _blank_cell(self) -> Tuple[str, int, int]:
+        return (' ', self._fg_colour, self._bg_colour)
+
+    def _reset_text_grid(self) -> None:
+        blank = self._blank_cell()
+        self._text = [
+            [blank for _ in range(self.text_cols)] for _ in range(self.text_rows)
+        ]
+        self._cursor_row = 0
+        self._cursor_col = 0
+        self._dirty = True
+
+    def begin_run(self) -> None:
+        self._open = True
+        self._positioned = False
+        self._dirty = True
+
+    def end_run(self) -> None:
+        self.present(force=True)
+        self._open = False
+
+    def set_text_dimensions(self, cols: int, rows: int) -> None:
+        cols = max(1, int(cols))
+        rows = max(1, int(rows))
+        if cols != self.text_cols or rows != self.text_rows:
+            self.text_cols = cols
+            self.text_rows = rows
+            self._reset_text_grid()
+
+    def clear(self) -> None:
+        self._reset_text_grid()
+        self._dirty = True
+        if not self._positioned:
+            try:
+                sys.stdout.write('\x1b[2J\x1b[H')
+                sys.stdout.flush()
+            except Exception:
+                pass
+
+    def goto(self, row: int, col: int) -> None:
+        self._positioned = True
+        self._cursor_row = max(0, min(self.text_rows - 1, int(row)))
+        self._cursor_col = max(0, min(self.text_cols - 1, int(col)))
+        self._dirty = True
+
+    def write(self, text: str) -> None:
+        if not text:
+            return
+        if not self._positioned:
+            # Stream once to stdout; update grid/cursor without re-emitting.
+            try:
+                sys.stdout.write(text)
+                sys.stdout.flush()
+            except Exception:
+                pass
+            for ch in text:
+                if ch == '\n':
+                    self._grid_newline()
+                else:
+                    self._grid_put(ch)
+            return
+        for ch in text:
+            if ch == '\n':
+                self.newline()
+                continue
+            if self._cursor_col >= self.text_cols:
+                self.newline()
+            self._grid_put(ch)
+
+    def _grid_put(self, ch: str) -> None:
+        if self._cursor_col >= self.text_cols:
+            self._grid_newline()
+        r, c = self._cursor_row, self._cursor_col
+        self._text[r][c] = (ch, self._fg_colour, self._bg_colour)
+        self._cursor_col += 1
+        self._dirty = True
+
+    def _grid_newline(self) -> None:
+        self._cursor_row += 1
+        self._cursor_col = 0
+        if self._cursor_row >= self.text_rows:
+            self._text.pop(0)
+            self._text.append([self._blank_cell() for _ in range(self.text_cols)])
+            self._cursor_row = self.text_rows - 1
+        self._dirty = True
+
+    def newline(self) -> None:
+        if not self._positioned:
+            try:
+                sys.stdout.write('\n')
+                sys.stdout.flush()
+            except Exception:
+                pass
+        self._grid_newline()
+
+    @staticmethod
+    def _cell_parts(cell: object) -> Tuple[str, int, int]:
+        if not isinstance(cell, tuple) or not cell:
+            return ' ', 7, 0
+        ch = str(cell[0]) if cell[0] is not None else ' '
+        fg = int(cell[1]) if len(cell) > 1 else 7
+        bg = int(cell[2]) if len(cell) > 2 else 0
+        return ch, fg & 7, bg & 7
+
+    def present(self, *, force: bool = False) -> None:
+        if not self._positioned:
+            # Streaming mode already wrote through; nothing to repaint.
+            self._dirty = False
+            return
+        if not (force or self._dirty):
+            return
+        if not self._open and not force:
+            return
+        try:
+            out = sys.stdout
+            esc = '\x1b'
+            for r in range(self.text_rows):
+                out.write(f'{esc}[{r + 1};1H')
+                last_fg: Optional[int] = None
+                last_bg: Optional[int] = None
+                for cell in self._text[r]:
+                    ch, fg, bg = self._cell_parts(cell)
+                    if fg != last_fg or bg != last_bg:
+                        out.write(
+                            f'{esc}[0;{self._ANSI_FG[fg]};{self._ANSI_BG[bg]}m'
+                        )
+                        last_fg, last_bg = fg, bg
+                    out.write(ch if ch else ' ')
+                out.write(f'{esc}[0m{esc}[K')
+            cr = max(0, min(self.text_rows - 1, self._cursor_row))
+            cc = max(0, min(self.text_cols - 1, self._cursor_col))
+            out.write(f'{esc}[{cr + 1};{cc + 1}H')
+            out.flush()
+        except Exception:
+            pass
+        self._dirty = False
+
+    def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def poll(self) -> bool:
+        return True
+
+    def pump_events(self) -> None:
+        return
+
+    def set_mode(self, mode: int) -> None:
+        return
+
+    def set_colour(self, colour: int) -> None:
+        """BBC COLOUR / VDU 17: 0-127 text fg, 128-255 text bg (code-128)."""
+        code = int(colour) & 255
+        if code >= 128:
+            logical = code - 128
+            # Keep full 0..127 (piechart COLOR 15+128 → sky palette index 15).
+            # Classic Acorn flash bg is only 136-143 with logical 0-7.
+            self._bg_colour = logical & 255
+            self._text_flash = 136 <= code <= 143 and logical < 8
+        elif code >= 8:
+            self._fg_colour = (code - 8) & 7
+            self._text_flash = True
+        else:
+            self._fg_colour = code & 7
+            self._text_flash = False
+        # Stream ANSI so hanoi COLOUR bars + digits are visible in terminal mode.
+        if not self._positioned and self._open:
+            try:
+                fg = self._fg_colour
+                bg = self._bg_colour & 7
+                # Match pygame: black digits on light bars.
+                if bg in (3, 6, 7):
+                    fg = 0
+                elif fg == bg:
+                    fg = 7 if bg == 0 else 0
+                sys.stdout.write(
+                    f'\x1b[0;{self._ANSI_FG[fg]};{self._ANSI_BG[bg]}m'
+                )
+                sys.stdout.flush()
+            except Exception:
+                pass
+
+    def plot(self, x: int, y: int, colour: Optional[int] = None) -> None:
+        return
+
+    def define_sprite(self, sprite_id: int, pixels: Sequence[Sequence[int]]) -> None:
+        return
+
+    def draw_sprite(self, sprite_id: int, x: int, y: int) -> None:
+        return
+
+    def hold_open(self) -> None:
+        return
+
+    @property
+    def is_open(self) -> bool:
+        return self._open
 
 
 class _TeletextLineState:
@@ -379,6 +606,8 @@ class PygameDisplay(DisplayBackend):
         self._cursor_col = 0
         self._print_at_graphics = False
         self._graphics_print_layers: List[Tuple[str, int, int, int]] = []
+        # VDU 23,n,r0..r7 — user-defined 8×8 glyphs (welcome CHR$255 solid block).
+        self._user_chars: Dict[int, Tuple[int, ...]] = {}
         self._text: List[List[Tuple[str, int]]] = []
         self._sprites: Dict[int, object] = {}
         self._sprite_placements: List[Tuple[int, int, int]] = []
@@ -388,6 +617,8 @@ class PygameDisplay(DisplayBackend):
         self._clock = None
         self._open = False
         self._dirty = True
+        # True when text/sprites/mode need a full compose (not just a pixel patch).
+        self._compose_full = True
         self._text_flash = False
         self._gfx: Optional[BBCGraphics] = None
         self._palette_rgb: Dict[int, Tuple[int, int, int]] = {}
@@ -484,21 +715,28 @@ class PygameDisplay(DisplayBackend):
         prev_clip = self._canvas.get_clip()
         self._canvas.set_clip(pygame.Rect(x, y, cw, ch_h))
         try:
+            code = ord(ch) if ch else 0
+            user = self._user_chars.get(code)
+            if user is not None:
+                self._blit_user_char(user, colour, x, y, cw, ch_h)
+                return
             if self._use_mos_font():
                 blit_mos_char(
                     self._canvas,
                     ch,
-                    colour_to_rgb(colour),
+                    self._pixel_rgb(colour),
                     x,
                     y,
                     cell_w=cw,
                     cell_h=ch_h,
                 )
                 return
-            assert self._font is not None
+            self._ensure_text_font()
+            if self._font is None:
+                return
             # Fallback for non-standard cell sizes (antialiasing off on graphics).
             aa = not self.is_graphics_mode()
-            surf = self._font.render(ch, aa, colour_to_rgb(colour))
+            surf = self._font.render(ch, aa, self._pixel_rgb(colour))
             gw, gh = surf.get_size()
             if gw > cw or gh > ch_h:
                 # Clip to the cell — scaling glyphs makes MODE 1 captions unreadable.
@@ -511,6 +749,38 @@ class PygameDisplay(DisplayBackend):
             self._canvas.blit(surf, (x + x_off, y + y_off))
         finally:
             self._canvas.set_clip(prev_clip)
+
+    def define_user_char(self, code: int, rows: Tuple[int, ...]) -> None:
+        """VDU 23,n,r0..r7 — 8×8 bitmap for character n (welcome solid CHR$255)."""
+        code = int(code) & 0xFF
+        bits = tuple(int(r) & 0xFF for r in rows[:8])
+        if len(bits) < 8:
+            bits = bits + (0,) * (8 - len(bits))
+        self._user_chars[code] = bits
+        self.mark_compose_full()
+
+    def _blit_user_char(
+        self,
+        rows: Tuple[int, ...],
+        colour: int,
+        x: int,
+        y: int,
+        cell_w: int,
+        cell_h: int,
+    ) -> None:
+        assert self._canvas is not None
+        rgb = self._pixel_rgb(colour)
+        scale_y = max(1, cell_h // 8)
+        scale_x = max(1, cell_w // 8)
+        for row_i, row_byte in enumerate(rows[:8]):
+            for col_i in range(8):
+                if row_byte & (0x80 >> col_i):
+                    px = x + col_i * scale_x
+                    py = y + row_i * scale_y
+                    if scale_x == 1 and scale_y == 1:
+                        self._canvas.set_at((px, py), rgb)
+                    else:
+                        self._canvas.fill(rgb, (px, py, scale_x, scale_y))
 
     def _scale_surface(self, surface, target_w: int, target_h: int):
         """Upscale/downscale; integer ratios use crisp pixel replication."""
@@ -551,19 +821,23 @@ class PygameDisplay(DisplayBackend):
         return tall
 
     def _pixel_block_size(self) -> Tuple[int, int]:
-        """Screen pixels per logical pixel (width, height); height > width when par_h > par_w."""
+        """Screen pixels per logical pixel (width, height).
+
+        MODE 0 (par 1:2) is taller; MODE 5 (par 2:1) is wider. Stretch both axes.
+        """
         par_w = max(1, self._par_w)
         par_h = max(1, self._par_h)
-        pw = max(1, self.scale)
-        ph = max(1, self.scale * par_h // par_w)
+        pw = max(1, self.scale * par_w)
+        ph = max(1, self.scale * par_h)
         return pw, ph
 
     def _window_client_size_at_scale(self, scale: int) -> Tuple[int, int]:
         logical_w, logical_h = self._logical_canvas_size()
         par_w = max(1, self._par_w)
         par_h = max(1, self._par_h)
-        pw = max(1, scale)
-        ph = max(1, scale * par_h // par_w)
+        # MODE 5 was tiny: old formula only scaled height by par_h/par_w (//2 → 0).
+        pw = max(1, scale * par_w)
+        ph = max(1, scale * par_h)
         return logical_w * pw, logical_h * ph
 
     def _window_client_size(self) -> Tuple[int, int]:
@@ -584,7 +858,11 @@ class PygameDisplay(DisplayBackend):
         self._teletext_lines = [_TeletextLineState() for _ in range(self.text_rows)]
 
     def _blank_text_cell(self) -> Tuple[str, int, int, bool]:
-        return (' ', self._fg_colour, self._bg_colour, False)
+        # Unwritten cells use bg=0 so graphics-mode present() does not repaint the
+        # whole canvas with COLOUR background every frame (soccerball green-only).
+        # Explicit PRINT after COLOUR n+128 still stores the live bg via _store_text_cell
+        # (hanoi discs need coloured spaces).
+        return (' ', self._fg_colour, 0, False)
 
     @staticmethod
     def _decode_text_cell(cell: Tuple) -> Tuple[str, int, int, bool]:
@@ -655,7 +933,10 @@ class PygameDisplay(DisplayBackend):
             max_scale=99 if self.scale_locked else 8,
         )
         if self.scale_locked:
-            self.scale = max(1, min(self._requested_scale, max_fit))
+            # CLI --scale N: honour N exactly. Clamping to max_fit made --scale 3
+            # and --scale 4 identical on typical desktops (MODE 8 640×512 only
+            # fits 2× on 1080p/1440p height).
+            self.scale = max(1, self._requested_scale)
             win_w, win_h = self._window_client_size_at_scale(self.scale)
             self._screen = pygame.display.set_mode((win_w, win_h))
             self.pump_events()
@@ -724,6 +1005,26 @@ class PygameDisplay(DisplayBackend):
         except Exception:
             return win_h <= screen_h and win_w <= screen_w
 
+    @property
+    def is_open(self) -> bool:
+        return bool(self._open and self._screen is not None)
+
+    def mark_closed(self) -> None:
+        """User closed the window (X / Escape): free surfaces for a later reopen."""
+        if self._screen is not None:
+            try:
+                self._pygame.display.quit()
+            except Exception:
+                pass
+        self._screen = None
+        self._canvas = None
+        self._open = False
+        try:
+            if self._pygame.get_init():
+                self._pygame.quit()
+        except Exception:
+            pass
+
     def begin_run(self) -> None:
         if self._screen is None:
             self._open_window(center=True)
@@ -736,19 +1037,26 @@ class PygameDisplay(DisplayBackend):
         self.present()
 
     def end_run(self) -> None:
-        if self._open:
+        if self._open or self._screen is not None:
             pygame = self._pygame
             if self._screen is not None:
-                pygame.display.quit()
+                try:
+                    pygame.display.quit()
+                except Exception:
+                    pass
             self._screen = None
             self._canvas = None
-            if pygame.get_init():
-                pygame.quit()
+            try:
+                if pygame.get_init():
+                    pygame.quit()
+            except Exception:
+                pass
         self._open = False
 
     def clear(self) -> None:
         assert self._canvas is not None
-        self._canvas.fill(colour_to_rgb(self._bg_colour))
+        # Honour COLOR n,r,g,b custom palette (piechart sky = index 15).
+        self._canvas.fill(self._pixel_rgb(self._bg_colour))
         self._reset_text_grid()
         self._cursor_row = 0
         self._cursor_col = 0
@@ -759,6 +1067,7 @@ class PygameDisplay(DisplayBackend):
         self._graphics_print_layers = []
 
         self._dirty = True
+        self._compose_full = True
 
     def set_graphics_print_mode(self, enabled: bool) -> None:
         self._print_at_graphics = bool(enabled)
@@ -802,22 +1111,30 @@ class PygameDisplay(DisplayBackend):
         self._dirty = True
 
     def set_colour(self, colour: int) -> None:
-        """BBC COLOUR / VDU 17: <128 foreground, >=128 background (n-128).
+        """BBC COLOUR / VDU 17 text colour.
 
-        Codes 136/137 also toggle the text flash attribute (as on Archimedes /
-        VDU 136/137) while still setting background colours 8 and 9.
+        * ``0..7`` — foreground (and clear flash)
+        * ``8..15`` — flashing foreground (logical colour ``n-8``)
+        * ``128..255`` — background colour ``n-128`` (full index; MODE 8 palette)
+        * ``136..143`` with logical 0-7 — classic flashing background
+
+        ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray.
+        Hanoi MODE 3 still maps via ``map_mode_text_colour`` when blitting.
         """
         code = int(colour) & 255
-        if code == 136:
-            self._text_flash = True
-        elif code == 137:
-            self._text_flash = False
         if code >= 128:
-            self._bg_colour = code - 128
+            logical = code - 128
+            self._bg_colour = logical & 255
+            self._text_flash = 136 <= code <= 143 and logical < 8
             if self._gfx is not None:
                 self._gfx.gcol_bg = (0, self._bg_colour)
-        else:
-            self._fg_colour = code
+            return
+        if code >= 8:
+            self._fg_colour = (code - 8) & 7
+            self._text_flash = True
+            return
+        self._fg_colour = code
+        self._text_flash = False
 
     def goto(self, row: int, col: int) -> None:
         self._cursor_row = max(0, min(self.text_rows - 1, int(row)))
@@ -850,7 +1167,7 @@ class PygameDisplay(DisplayBackend):
                 self.newline()
             self._store_text_cell(ch)
             self._cursor_col += 1
-        self._dirty = True
+        self.mark_compose_full()
 
     def _teletext_line_state(self) -> _TeletextLineState:
         row = max(0, min(self._cursor_row, self.text_rows - 1))
@@ -946,7 +1263,7 @@ class PygameDisplay(DisplayBackend):
                 self._cursor_col += 1
                 continue
             self._cursor_col += 1
-        self._dirty = True
+        self.mark_compose_full()
 
     def _write_graphics_text(self, text: str) -> None:
         for ch in text:
@@ -964,35 +1281,88 @@ class PygameDisplay(DisplayBackend):
                 self.newline()
             self._store_text_cell(ch)
             self._cursor_col += 1
-        self._dirty = True
+        # Text is composed onto the graphics canvas only on a full rebuild.
+        # Patch presents (hand/line dirty rects) return early and skip
+        # _blit_text_grid — so PRINT must force compose_full or digital/title
+        # text never appears (Clock.bas MODE 8).
+        self.mark_compose_full()
 
     def _write_graphics_os_text(self, text: str) -> None:
-        """VDU 5: PRINT at the BBC graphics cursor using GCOL foreground colour."""
+        """VDU 5: PRINT at the BBC graphics cursor using full GCOL (mode + colour).
+
+        piechart uses ``GCOL 3,15`` (XOR) so labels invert against each slice —
+        solid mode-0 colour 15 (sky) was hard to read. Burn into the framebuffer
+        with the current GCOL action (not mode 0 only).
+        """
         if self._gfx is None or not text:
             return
-        colour = int(self._gfx.gcol_fg[1])
-        x_os = int(self._gfx.cursor_x)
-        y_os = int(self._gfx.cursor_y)
+        mode, colour = self._gfx.gcol_fg
+        gcol = (int(mode), int(colour) & 0xFF)
+        x_user = int(self._gfx.cursor_x)
+        y_user = int(self._gfx.cursor_y)
         step_x = self._effective_cell_width() * self._gfx.x_scale
         step_y = self._effective_cell_height() * self._gfx.y_scale
         for ch in text:
             if ch == '\n':
-                y_os -= step_y
+                y_user -= step_y
                 continue
-            self._graphics_print_layers.append((ch, colour, x_os, y_os))
-            x_os += step_x
-        self._gfx.cursor_x = x_os
-        self._gfx.cursor_y = y_os
+            self._plot_vdu5_glyph_to_gfx(ch, gcol, x_user, y_user)
+            x_user += step_x
+        self._gfx.cursor_x = x_user
+        self._gfx.cursor_y = y_user
         self._dirty = True
+        # Force full compose so a late VDU 5 label (e.g. test_fps4 "N fps") is not
+        # lost on a dirty-rect path that only has soccerball fill dirtied earlier.
+        self.mark_compose_full()
+
+    def _plot_vdu5_glyph_to_gfx(
+        self,
+        ch: str,
+        gcol: Tuple[int, int],
+        user_x: int,
+        user_y: int,
+    ) -> None:
+        """Plot one VDU 5 character into the palette framebuffer (top-left = cursor)."""
+        if self._gfx is None:
+            return
+        from mini_basic.bbc_font import glyph_rows
+
+        code = ord(ch) if ch else 0
+        rows = self._user_chars.get(code)
+        if rows is None:
+            rows = glyph_rows(ch)
+        cw = self._effective_cell_width()
+        ch_h = self._effective_cell_height()
+        scale_x = max(1, cw // 8)
+        scale_y = max(1, ch_h // 8)
+        # Cursor is top-left of cell in OS units (same as layer path).
+        sx0, sy0 = self._gfx._to_screen(int(user_x), int(user_y))
+        put = getattr(self._gfx, '_put_screen_pixel', None)
+        if put is None:
+            return
+        for row_i, row_byte in enumerate(rows[:8]):
+            for col_i in range(8):
+                if not (row_byte & (0x80 >> col_i)):
+                    continue
+                for dy in range(scale_y):
+                    for dx in range(scale_x):
+                        put(
+                            sx0 + col_i * scale_x + dx,
+                            sy0 + row_i * scale_y + dy,
+                            gcol,
+                        )
 
     def _blit_graphics_print_layers(self) -> None:
+        # Legacy path: layers may still hold text from older sessions; prefer empty.
         if not self._graphics_print_layers or self._gfx is None:
             return
         assert self._canvas is not None
-        ch_h = self._effective_cell_height()
-        for ch, colour, x_os, y_os in self._graphics_print_layers:
-            sx, sy = self._gfx._to_screen(x_os, y_os)
-            self._blit_glyph(ch, colour, sx, sy - ch_h + 1)
+        for ch, colour, abs_x, abs_y in self._graphics_print_layers:
+            if hasattr(self._gfx, '_absolute_os_to_screen'):
+                sx, sy = self._gfx._absolute_os_to_screen(abs_x, abs_y)
+            else:
+                sx, sy = self._gfx._to_screen(abs_x, abs_y)
+            self._blit_glyph(ch, colour, sx, sy)
 
     def newline(self) -> None:
         self._cursor_row += 1
@@ -1026,19 +1396,19 @@ class PygameDisplay(DisplayBackend):
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.plot_code(code, x, y)
+        # Pixel patch only — keep _compose_full false so present can blit dirty rect.
         self._dirty = True
 
     def move_absolute(self, x: int, y: int) -> None:
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.move_absolute(x, y)
-        self._dirty = True
+        # Cursor-only: no pixel change; avoid forcing a full recompose.
 
     def move_relative(self, dx: int, dy: int) -> None:
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.move_relative(dx, dy)
-        self._dirty = True
 
     def fill_rectangle(self, x: int, y: int, width: int, height: int) -> None:
         if not self._plot_enabled or self._gfx is None:
@@ -1046,11 +1416,39 @@ class PygameDisplay(DisplayBackend):
         self._gfx.fill_rectangle(x, y, width, height)
         self._dirty = True
 
-    def set_graphics_size(self, width: int, height: int) -> None:
+    def set_graphics_size(
+        self,
+        width: int,
+        height: int,
+        *,
+        charx: int = 8,
+        chary: int = 16,
+        ncols: int = 16,
+        charset: int = 0,
+    ) -> None:
+        """Resize graphics (VDU 23,22). charx/chary set text cell size and grid."""
         self.graphics_width = max(1, int(width))
         self.graphics_height = max(1, int(height))
+        cx = max(1, int(charx))
+        cy = max(1, int(chary))
+        self.cell_width = cx
+        self.cell_height = cy
+        self.text_cols = max(1, self.graphics_width // cx)
+        self.text_rows = max(1, self.graphics_height // cy)
+        self._plot_enabled = True
+        self._mode = 0  # custom / non-table mode
+        self._reset_text_grid()
+        self._cursor_row = 0
+        self._cursor_col = 0
         self._init_gfx()
-        self._dirty = True
+        if charset & 128:
+            self._fg_colour = 0
+            self._bg_colour = 7
+        self._refresh_font()
+        if self._screen is not None and self._open:
+            self._open_window(center=False)
+            self.clear()
+        self.mark_compose_full()
 
     def set_palette_rgb(self, index: int, rgb: Tuple[int, int, int]) -> None:
         self._palette_rgb[int(index)] = tuple(int(channel) for channel in rgb[:3])
@@ -1081,7 +1479,7 @@ class PygameDisplay(DisplayBackend):
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.draw_relative(dx, dy)
-        self._dirty = True
+        self._dirty = True  # patch present OK
 
     def draw_absolute(self, x: int, y: int) -> None:
         if not self._plot_enabled or self._gfx is None:
@@ -1093,16 +1491,21 @@ class PygameDisplay(DisplayBackend):
         if not self._plot_enabled:
             return
         self._sprite_placements = []
-        self._graphics_print_layers = []
+        # Do not clear VDU 5 print layers here — CLG does not erase prior
+        # graphics-cursor text on a real Beeb; welcome keeps DISC SYSTEM.
         if self._gfx is not None:
             self._gfx.clear_graphics()
-        self._dirty = True
+        self.mark_compose_full()
+
+    def set_graphics_viewport(self, x1: int, y1: int, x2: int, y2: int) -> None:
+        """VDU 24 — store window and apply to CLG clipping."""
+        if self._gfx is not None:
+            self._gfx.set_graphics_viewport(x1, y1, x2, y2)
 
     def set_graphics_origin(self, x: int, y: int) -> None:
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.set_origin(x, y)
-        self._dirty = True
 
     def point_colour(self, x: int, y: int) -> int:
         if not self._plot_enabled or self._gfx is None:
@@ -1148,8 +1551,7 @@ class PygameDisplay(DisplayBackend):
 
     def _render_text_mode(self) -> None:
         assert self._canvas is not None
-        if not self._use_mos_font():
-            assert self._font is not None
+        self._ensure_text_font()
         self._canvas.fill((0, 0, 0))
         if self.is_teletext_mode():
             self._blit_teletext_grid()
@@ -1202,7 +1604,9 @@ class PygameDisplay(DisplayBackend):
 
     def _blit_teletext_grid(self) -> None:
         assert self._canvas is not None
-        assert self._font is not None
+        self._ensure_text_font()
+        if self._font is None:
+            return
         flash_on = (self._pygame.time.get_ticks() // 500) % 2 == 0
         cw = self._effective_cell_width()
         ch_h = self._effective_cell_height()
@@ -1233,10 +1637,32 @@ class PygameDisplay(DisplayBackend):
                     continue
                 self._blit_glyph(ch, fg, x, y, clip_w=cw, clip_h=ch_h)
 
+    @staticmethod
+    def _contrasting_text_fg(fg: int, bg: int) -> int:
+        """Pick a readable glyph colour on COLOUR backgrounds (hanoi discs).
+
+        The original program never sets foreground — default white vanishes on
+        yellow/cyan/white bars. Prefer black on light bars, white on dark.
+        """
+        light = {3, 6, 7}  # yellow, cyan, white
+        if bg in light:
+            return 0
+        if fg == bg:
+            return 7 if bg == 0 else 0
+        return fg
+
+    def _ensure_text_font(self) -> None:
+        """Create pygame font when MOS 8×8 is not used (custom cell sizes)."""
+        if self._use_mos_font():
+            return
+        if self._font is None:
+            self._refresh_font()
+
     def _blit_text_grid(self) -> None:
         assert self._canvas is not None
-        if not self._use_mos_font():
-            assert self._font is not None
+        self._ensure_text_font()
+        if not self._use_mos_font() and self._font is None:
+            return  # no pygame yet — skip glyphs rather than assert
         cw = self._effective_cell_width()
         ch_h = self._effective_cell_height()
         flash_on = (self._pygame.time.get_ticks() // 500) % 2 == 0
@@ -1244,17 +1670,47 @@ class PygameDisplay(DisplayBackend):
             for col in range(self.text_cols):
                 cell = self._text[row][col]
                 ch, fg, bg, flash = self._decode_text_cell(cell)
-                if ch == ' ':
+                # Skip unwritten blanks (bg 0). Painted COLOUR backgrounds (hanoi)
+                # store non-zero bg on spaces and must still fill.
+                if ch == ' ' and bg == 0 and not flash:
                     continue
                 x, y = self._text_cell_origin(row, col)
                 fg = self._display_text_colour(fg)
                 bg = self._display_text_colour(bg)
-                self._canvas.fill(colour_to_rgb(bg), (x, y, cw, ch_h))
+                if bg != 0 or ch != ' ':
+                    self._canvas.fill(colour_to_rgb(bg), (x, y, cw, ch_h))
+                # Flash dark half: keep background, omit glyph (BBC-style).
                 if flash and not flash_on:
                     continue
-                self._blit_glyph(ch, fg, x, y, clip_w=cw, clip_h=ch_h)
+                if ch == ' ':
+                    continue
+                glyph_fg = self._contrasting_text_fg(fg, bg)
+                self._blit_glyph(ch, glyph_fg, x, y, clip_w=cw, clip_h=ch_h)
 
-    def _render_graphics_mode(self) -> None:
+    def _ensure_np_palette(self):
+        import numpy as np
+        if not hasattr(self, '_np_palette') or getattr(self, '_palette_dirty', True):
+            palette = []
+            for i in range(256):
+                custom = self._palette_rgb.get(i)
+                if custom:
+                    palette.append(custom)
+                elif i < len(BBC_PALETTE):
+                    palette.append(BBC_PALETTE[i])
+                else:
+                    palette.append((0, 0, 0))
+            self._np_palette = np.array(palette, dtype=np.uint8)
+            self._palette_dirty = False
+        return self._np_palette
+
+    def _pixels_as_numpy(self, pixels):
+        """View or copy framebuffer as uint8 ndarray (H, W)."""
+        import numpy as np
+        if getattr(self._gfx, 'pixels_is_numpy', False):
+            return pixels
+        return np.asarray(pixels, dtype=np.uint8)
+
+    def _render_graphics_mode(self, *, force_full: bool = True) -> None:
             assert self._canvas is not None and self._gfx is not None
             import time
             t0 = time.monotonic()
@@ -1262,51 +1718,118 @@ class PygameDisplay(DisplayBackend):
             pixels = self._gfx.pixels
             h = self.graphics_height
             w = self.graphics_width
+            dirty = None
+            if not force_full and hasattr(self._gfx, 'peek_dirty_rect'):
+                dirty = self._gfx.peek_dirty_rect()
+            # Patch path only for pure pixel updates (no text/sprites/print layers).
+            # force_full is set by mark_compose_full() after grid PRINT so text is
+            # not skipped by the early return below.
+            use_patch = (
+                dirty is not None
+                and not force_full
+                and not self._graphics_print_layers
+                and not self._sprite_placements
+            )
             try:
                 import numpy as np
-                if not hasattr(self, '_np_palette') or getattr(self, '_palette_dirty', True):
-                    palette = []
-                    for i in range(256):
-                        custom = self._palette_rgb.get(i)
-                        if custom:
-                            palette.append(custom)
-                        elif i < len(BBC_PALETTE):
-                            palette.append(BBC_PALETTE[i])
-                        else:
-                            palette.append((0, 0, 0))
-                    self._np_palette = np.array(palette, dtype=np.uint8)
-                    self._palette_dirty = False
-                t1 = time.monotonic()
-                idx = np.array(pixels, dtype=np.uint8)
-                t2 = time.monotonic()
-                rgb = self._np_palette[idx]
+                palette = self._ensure_np_palette()
+                idx = self._pixels_as_numpy(pixels)
                 rgb_layer = getattr(self._gfx, 'rgb_pixels', None)
+
+                if use_patch:
+                    x0, y0, x1, y1 = dirty
+                    # Expand 1px so scaled/adjacent ink does not leave holes.
+                    x0 = max(0, x0 - 1)
+                    y0 = max(0, y0 - 1)
+                    x1 = min(w - 1, x1 + 1)
+                    y1 = min(h - 1, y1 + 1)
+                    patch = idx[y0 : y1 + 1, x0 : x1 + 1]
+                    rgb = palette[patch]
+                    if rgb_layer is not None and self._gfx.rgb_dirty:
+                        # rgb_dirty entries are (sx, sy) screen coords (see bbc_graphics).
+                        for sx, sy in list(self._gfx.rgb_dirty):
+                            if y0 <= sy <= y1 and x0 <= sx <= x1:
+                                if 0 <= sy < h and 0 <= sx < w:
+                                    val = rgb_layer[sy][sx]
+                                    if val is not None:
+                                        rgb[sy - y0, sx - x0] = val
+                    if rgb.size:
+                        surf = pygame.surfarray.make_surface(
+                            np.transpose(rgb, (1, 0, 2))
+                        )
+                        self._canvas.blit(surf, (x0, y0))
+                    if hasattr(self._gfx, 'consume_dirty_rect'):
+                        self._gfx.consume_dirty_rect()
+                    t3 = time.monotonic()
+                    if DEBUG:
+                        print(
+                            f"DEBUG render patch: {x1-x0+1}x{y1-y0+1} "
+                            f"total={t3-t0:.3f}",
+                            flush=True,
+                        )
+                    return
+
+                t1 = time.monotonic()
+                rgb = palette[idx]
+                t2 = time.monotonic()
                 if rgb_layer is not None:
-                    for sy, sx in self._gfx.rgb_dirty:
-                        rgb[sy, sx] = rgb_layer[sy][sx]     
+                    # rgb_dirty entries are (sx, sy) screen coords (see bbc_graphics).
+                    for sx, sy in self._gfx.rgb_dirty:
+                        if 0 <= sy < h and 0 <= sx < w:
+                            val = rgb_layer[sy][sx]
+                            if val is not None:
+                                rgb[sy, sx] = val
                 surf = pygame.surfarray.make_surface(np.transpose(rgb, (1, 0, 2)))
                 self._canvas.blit(surf, (0, 0))
+                if hasattr(self._gfx, 'consume_dirty_rect'):
+                    self._gfx.consume_dirty_rect()
                 t3 = time.monotonic()
                 if DEBUG:
-                    print(f"DEBUG render: pixels_to_np={t2-t1:.3f} blit={t3-t2:.3f} total={t3-t0:.3f}", flush=True)
+                    print(
+                        f"DEBUG render full: blit={t3-t2:.3f} total={t3-t0:.3f}",
+                        flush=True,
+                    )
             except ImportError:
-                # Fallback to original slow method
-                self._canvas.fill((0, 0, 0))
+                # No numpy: still prefer dirty-rect updates over full scans.
                 rgb_layer = getattr(self._gfx, 'rgb_pixels', None)
+                if use_patch:
+                    x0, y0, x1, y1 = dirty
+                    x0 = max(0, x0 - 1)
+                    y0 = max(0, y0 - 1)
+                    x1 = min(w - 1, x1 + 1)
+                    y1 = min(h - 1, y1 + 1)
+                    for sy in range(y0, y1 + 1):
+                        for sx in range(x0, x1 + 1):
+                            colour = int(self._gfx.pixels[sy][sx])
+                            if rgb_layer is not None and rgb_layer[sy][sx] is not None:
+                                self._canvas.set_at((sx, sy), rgb_layer[sy][sx])
+                            else:
+                                self._canvas.set_at((sx, sy), self._pixel_rgb(colour))
+                    if hasattr(self._gfx, 'consume_dirty_rect'):
+                        self._gfx.consume_dirty_rect()
+                    return
+                self._canvas.fill((0, 0, 0))
                 for sy in range(self.graphics_height):
                     for sx in range(self.graphics_width):
-                        colour = self._gfx.pixels[sy][sx]
+                        colour = int(self._gfx.pixels[sy][sx])
                         if colour == 0:
                             continue
                         if rgb_layer is not None and rgb_layer[sy][sx] is not None:
                             self._canvas.set_at((sx, sy), rgb_layer[sy][sx])
                         else:
                             self._canvas.set_at((sx, sy), self._pixel_rgb(colour))
+                if hasattr(self._gfx, 'consume_dirty_rect'):
+                    self._gfx.consume_dirty_rect()
             self._blit_graphics_print_layers()
             self._blit_text_grid()
             self._blit_sprites()
-        
+
     def mark_dirty(self) -> None:
+        self._dirty = True
+
+    def mark_compose_full(self) -> None:
+        """Text / sprites / MODE changed — next present rebuilds the whole canvas."""
+        self._compose_full = True
         self._dirty = True
 
     def present(self, *, force: bool = False) -> None:
@@ -1316,19 +1839,27 @@ class PygameDisplay(DisplayBackend):
             logical_w, logical_h = self._logical_canvas_size()
             if self._canvas.get_width() != logical_w or self._canvas.get_height() != logical_h:
                 self._canvas = self._pygame.Surface((logical_w, logical_h))
+                self._compose_full = True
             if self.is_graphics_mode():
-                self._render_graphics_mode()
+                self._render_graphics_mode(force_full=force or self._compose_full)
             else:
                 self._render_text_mode()
+                self._compose_full = False
             target_w, target_h = self._screen.get_width(), self._screen.get_height()
             scaled = self._scale_surface(self._canvas, target_w, target_h)
             self._screen.fill((0, 0, 0))
             self._screen.blit(scaled, (0, 0))
             self._pygame.display.flip()
             self._dirty = False
+            self._compose_full = False
         if self._clock is not None:
             # fps_limit 0: measure interval only (no cap); >0: cap frame rate.
-            self._clock.tick(self.fps_limit if self.fps_limit > 0 else 0)
+            # During pure plot patches, skip tick when fps_limit would only add wait —
+            # still tick if a limit is set so we do not free-run the GPU path.
+            if self.fps_limit > 0:
+                self._clock.tick(self.fps_limit)
+            else:
+                self._clock.tick(0)
 
     def _update_mouse_state(self) -> None:
         if not self._open or self._gfx is None:
@@ -1387,13 +1918,13 @@ class PygameDisplay(DisplayBackend):
                         self._open = False
                         return ''
                     if event.type == pygame.TEXTINPUT:
+                        # Printables only via TEXTINPUT (not KEYDOWN too —
+                        # duplicate handling used to drop repeated digits).
                         for ch in event.text:
                             if not ch.isprintable():
                                 continue
                             if len(buffer) >= limit:
                                 break
-                            if buffer and buffer[-1] == ch:
-                                continue
                             buffer.append(ch)
                             self.write(ch)
                             self.present()
@@ -1419,16 +1950,8 @@ class PygameDisplay(DisplayBackend):
                             if tee is not None:
                                 tee('\b')
                         continue
-                    ch = pygame_keydown_char(pygame, event)
-                    if ch is not None and len(buffer) < limit:
-                        if buffer and buffer[-1] == ch:
-                            continue
-                        buffer.append(ch)
-                        self.write(ch)
-                        self.present()
-                        if tee is not None:
-                            tee(ch)
-                        continue
+                    # Ignore other KEYDOWN printables while TEXTINPUT is active.
+                    continue
                 if self._dirty:
                     self.present()
                 if self._clock is not None and self.fps_limit > 0:
@@ -1453,7 +1976,10 @@ class PygameDisplay(DisplayBackend):
     def capture_framebuffer(self) -> List[List[int]]:
         if self._gfx is None:
             return []
-        return [list(row) for row in self._gfx.pixels]
+        pixels = self._gfx.pixels
+        if getattr(self._gfx, 'pixels_is_numpy', False):
+            return pixels.tolist()
+        return [list(row) for row in pixels]
 
     def _surface_rgb_rows(self, surface) -> List[List[Tuple[int, int, int]]]:
         width = surface.get_width()
@@ -1557,8 +2083,10 @@ def create_display(
     caption: str = 'mini_basic',
     fps_limit: int = 60,
 ) -> DisplayBackend:
-    if backend in ('', 'terminal', 'none', 'null'):
+    if backend in ('none', 'null'):
         return NullDisplay()
+    if backend in ('', 'terminal'):
+        return TerminalDisplay(text_cols=text_cols, text_rows=text_rows)
     if backend == 'pygame':
         return PygameDisplay(
             text_cols=text_cols,

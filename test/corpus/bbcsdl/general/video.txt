@@ -1,0 +1,130 @@
+      REM Proof-of-principle video player for 'BBC BASIC for SDL 2.0' (no sound)
+      REM This plays only QuickTime (.mov) files with uncompressed UYVY encoding
+      REM Ver 1.01, by Richard Russell, http://www.rtrussell.co.uk/, 09-Nov-2023
+      
+      VIDEO$ = "http://www.rtrussell.co.uk/skate.mov"
+      XLEN = 720
+      YLEN = 576
+      ZLEN = 50
+      FPS = 25
+      
+      SDL_PIXELFORMAT_UYVY = &59565955
+      SDL_TEXTUREACCESS_STREAMING = &1
+      
+      REM. Resize window:
+      DIM rc{x%, y%, w%, h%}
+      rc.w% = 720 : rc.h% = 528
+      VDU 23,22,rc.w%;rc.h%;16,20,16,0 : OFF
+      
+      REM. Install and initialise libraries:
+      INSTALL @lib$+"stringlib"
+      INSTALL @lib$+"socklib"
+      PROC_initsockets
+      
+      ON CLOSE PROC_exitsockets : QUIT
+      ON ERROR PROC_exitsockets : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      
+      REM. Get base filename:
+      I% = FN_instrr(VIDEO$, "/", 0)
+      IF I% base$ = MID$(VIDEO$, I%+1) ELSE base$ = "temp.mov"
+      
+      REM. Check if local copy already exists:
+      mov$ = @tmp$ + base$
+      F% = OPENIN(mov$)
+      
+      REM. If not, download or copy to local file:
+      IF F% = 0 THEN
+        IF LEFT$(VIDEO$, 5) = "http:" THEN
+          PRINT "Downloading " base$ ;
+          PROChttpget(VIDEO$, mov$)
+        ELSE
+          PRINT "Copying " base$ "..." ;
+          OSCLI "COPY """ + VIDEO$ + """ """ + mov$ + """"
+        ENDIF
+        PRINT
+        F% = OPENIN(mov$)
+      ENDIF
+      IF F% = 0 PRINT "Couldn't open video file" : END
+      
+      REM. Get function pointers:
+      f%% = @hfile%(F%)
+      `SDL_LockTexture`   = SYS("SDL_LockTexture")
+      `SDL_UnlockTexture` = SYS("SDL_UnlockTexture")
+      `SDL_RenderCopy`    = SYS("SDL_RenderCopy")
+      `SDL_RWread`        = SYS("SDL_RWread")
+      IF `SDL_RWread` = 0 `SDL_RWread` = f%%!8 : IF @platform% AND &40 `SDL_RWread` = ](f%% + 16)
+      
+      REM. Create texture:
+      SYS "SDL_SetHint", "SDL_RENDER_SCALE_QUALITY", "best"
+      SYS "SDL_CreateTexture", @memhdc%, SDL_PIXELFORMAT_UYVY, SDL_TEXTUREACCESS_STREAMING, \
+      \                        XLEN, YLEN TO tex%%
+      IF tex%% = 0 PRINT "Couldn't create texture" : END
+      
+      REM. Play and loop video:
+      S% = XLEN * YLEN * 2
+      TIME = 0
+      REPEAT
+        frame% = (TIME * FPS / 100 + 0.5) MOD ZLEN
+        PTR#F% = frame% * S% + &30
+        SYS `SDL_LockTexture`, tex%%, FALSE, ^pixels%%, ^pitch%, @memhdc%
+        SYS `SDL_RWread`, @hfile%(F%), pixels%%, S%, 1
+        SYS `SDL_UnlockTexture`, tex%%, @memhdc%
+        SYS `SDL_RenderCopy`, @memhdc%, tex%%, FALSE, rc{}
+        *REFRESH
+      UNTIL FALSE
+      END
+      
+      DEF PROChttpget(url$, file$)
+      ON TIME LOCAL PRINT "."; : RETURN
+      IF (@platform% AND &F) = 5 PROChttpget_wasm(url$, file$) : ENDPROC
+      PROChttpget_sock(url$, file$)
+      ENDPROC
+      
+      DEF PROChttpget_sock(url$, file$)
+      LOCAL b$, F%, I%, J%, S%, host$, path$, ret$
+      b$ = STRING$(&1000, CHR$0)
+      S% = INSTR(url$,"//")
+      I% = INSTR(url$,"/",S%+2)
+      host$ = MID$(url$,S%+2,I%-S%-2)
+      path$ = MID$(url$,I%)
+      S% = FN_tcpconnect(host$, "80")
+      IF S% = FALSE OR S% = TRUE THEN ENDPROC
+      I% = FN_writelinesocket(S%,"GET "+path$+" HTTP/1.0")
+      I% = FN_writelinesocket(S%,"Host: "+host$)
+      I% = FN_writelinesocket(S%,"User-agent: BBC BASIC")
+      I% = FN_writelinesocket(S%,"Accept: */*")
+      I% = FN_writelinesocket(S%,"")
+      F% = OPENOUT(file$)
+      REPEAT
+        I% = FN_readsocket(S%,PTR(b$),&1000)
+        IF I% = 0 WAIT 1
+        IF I% > 0 ret$ += LEFT$(b$,I%)
+        IF I% < 0 OR LENret$ > &3FFF THEN
+          IF PTR#F% = 0 THEN
+            CASE VALMID$(ret$,9,255) OF
+              WHEN 200:
+                J% = INSTR(ret$,CHR$&D+CHR$&A+CHR$&D+CHR$&A)
+                IF J% ret$ = MID$(ret$,J%+4)
+              WHEN 301:
+                J% = INSTR(ret$,"Location:")
+                IF J% = 0 J% = INSTR(ret$,"location:")
+                IF J% CLOSE #F% : PROChttpget("http://"+host$+$(PTR(ret$)+J%+9), file$)
+            ENDCASE
+          ENDIF
+          BPUT#F%,ret$;
+          ret$ = ""
+        ENDIF
+      UNTIL I% < 0
+      CLOSE #F%
+      PROC_closesocket(S%)
+      ENDPROC
+      
+      DEF PROChttpget_wasm(url$, file$)
+      LOCAL F%
+      SYS "emscripten_async_wget", "https://bbcbasic.co.uk/bbcsdl/wasm/proxy/"+url$, file$
+      REPEAT
+        WAIT 10
+        F% = OPENIN(file$)
+      UNTIL F%
+      CLOSE #F%
+      ENDPROC

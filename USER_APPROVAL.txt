@@ -10,13 +10,15 @@
 [x] jclock.txt (graphics) — user confirmed 2026-07-26 (TIME$, SINRADT, MOUSE, scales)
 [x] filters.txt (general) — user confirmed 2026-07-26 (waveforms OK; ORIGIN al text fix)
 [x] flier.txt (graphics) — user confirmed 2026-07-26 (rotating ship; no interactive input by design)
+[x] saucer.txt (graphics) — user confirmed 2026-07-26 (shape OK; draw is slow but acceptable)
+[x] welcome.txt (general) — user confirmed 2026-08-02 (graphics match SDL + Archimedes; sound N/A)
+[x] squares.txt (graphics) — user confirmed 2026-08-02 (look OK; speed OK after nested FOR/kernel)
 
 # --- Ready for your approval (agent probe clean) ---
-[ ] saucer.txt (graphics)
-# note: saucer nested FOR is intentionally slow (not a hang)
+# (none)
 
 # --- Not ready (agent blockers) ---
-# welcome.txt — ENVELOPE; residual IF/PLOT
-# piechart.txt — Colour& byte arrays / SUM / array fill / COSa
-# polly.txt — REPEAT / OSCLI
-# poem.txt — audit timeout
+# piechart.txt — audit OK 2026-08-02; labels fixed; optional user visual confirm (not a ship blocker)
+# polly.txt — SOUND/ENVELOPE + OSCLI DISPLAY (deferred)
+# poem.txt — audit timeout / interactive MODE7 (deferred)
+

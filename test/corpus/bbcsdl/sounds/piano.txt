@@ -1,0 +1,175 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Polyphonic piano with sustain and release
+      REM. Version 2.1, Richard Russell, 23-Feb-2018
+      
+      MODE 9
+      *TEMPO 129
+      *SYS 6
+      VDU 5
+      Queue$ = ""
+      ON MOUSE Queue$ += FN_32(@msg%) + FN_32(@wparam%) + FN_32(@lparam%) : RETURN
+      
+      REM. Load data arrays
+      DIM F%(255), I%(255)
+      FOR N% = 32 TO 127
+        READ F%(N%)
+      NEXT
+      DATA 0,0,0,0,0,0,0,152,0,0,0,0,136,0,144,148
+      DATA 0,0,0,0,0,0,0,200,0,0,0,0,184,0,192,196
+      DATA 200,132,164,148,0,0,152,160,0,0,172,180,188,176,168,0
+      DATA 0,0,0,140,0,0,156,0,144,0,136,0, 80,0,0,0
+      DATA 152, 84,116,100,0,0,104,112,0,0,124,132,140,128,120,0
+      DATA 0,0,0, 92,0,0,108,0, 96,0, 88,0,128,0,0,0
+      FOR N% = 32 TO 127
+        READ I%(N%)
+      NEXT
+      DATA 99,49,50,18,19,20,53,80,39,40,22,25,103,24,104,105
+      DATA 40,49,50,18,19,20,53,37,22,39,88,88,103,25,104,105
+      DATA 72,66,101,83,51,35,68,84,85,38,70,71,87,102,86,55
+      DATA 56,17,52,82,36,54,100,34,67,69,98,57,121,41,53,24
+      DATA 46,66,101,83,51,35,68,84,85,38,70,71,87,102,86,55
+      DATA 56,17,52,82,36,54,100,34,67,69,98,57,121,41,53,24
+      
+      REM. Treble clef symbol
+      VDU 23,234,0,0,0,0,0,0,1,1
+      VDU 23,235,1,1,1,1,1,1,1,1
+      VDU 23,236,1,1,3,7,6,&E,&1C,&38
+      VDU 23,237,&78,&71,&73,&E7,&E6,&E6,&E6,&E6
+      VDU 23,238,&67,&33,&18,&F,3,0,0,&38
+      VDU 23,239,&7C,&7C,&78,&30,&19,6,0,0
+      VDU 23,240,0,&10,&38,&6C,&C4,&C4,&84,&84
+      VDU 23,241,&0C,&0C,&18,&18,&38,&30,&60,&C0
+      VDU 23,242,&C0,&80,&80,&80,&80,&80,&80,&80
+      VDU 23,243,&F0,&F8,&FC,&4E,&47,&43,&43,&43
+      VDU 23,244,&43,&46,&4C,&58,&E0,&20,&20,&20
+      VDU 23,245,&20,&20,&20,&40,&80,0,0,0
+      
+      REM. Draw the stave
+      VDU 32
+      RECTANGLE FILL 0,704,1280,272
+      GCOL 0
+      MOVE 20,944
+      VDU 234,240,10,8,8,235,241,10,8,8,236,242,10,8,8,237,243,10,8,8,238,244,10,8,8,239,245
+      LINE 0,800,1278,800
+      LINE 0,824,1278,824
+      LINE 0,848,1278,848
+      LINE 0,872,1278,872
+      LINE 0,896,1278,896
+      
+      IF POS : REM SDL thread sync
+      @vdu%!220 = 21
+      OSCLI "FONT """+@lib$+"FreeSans"""
+      
+      REM. Draw the keyboard
+      K$ = "\AZSXCFVGBNJMK,L./'"
+      FOR N% = 0 TO 18
+        M% = N%-(N%>4)-(N%>9)-(N%>16)
+        IF (M% AND 1) = 0 THEN
+          GCOL 7 : RECTANGLE FILL 90+(M%DIV2)*100,100,96,420
+          GCOL 4 : MOVE 120+(M%DIV2)*100,200 : PRINT MID$(K$,N%+1,1);
+        ENDIF
+      NEXT
+      FOR N% = 0 TO 18
+        M% = N%-(N%>4)-(N%>9)-(N%>16)
+        IF M% AND 1 THEN
+          GCOL 0 : RECTANGLE FILL 164+(M%DIV2)*100,260,48,260
+          GCOL 6 : MOVE 172+(M%DIV2)*100,300 : PRINT MID$(K$,N%+1,1);
+        ENDIF
+      NEXT
+      
+      REM. Helpful text
+      text$ = "Play the keyboard like a piano or use the touchscreen"
+      size% = WIDTH(text$)
+      GCOL 10 : MOVE 640-size%/2,632 : PRINT text$;
+      GCOL 0
+      
+      REM. Sustain and release envelopes
+      ENVELOPE 1,2,0,0,0,0,0,0,126,-1,-1,-1,126,120
+      ENVELOPE 2,2,0,0,0,0,0,0,0,-10,-10,-10,126,0
+      SOUND 1,0,0,0
+      
+      REM. Timer interrupt
+      K% = TRUE : L% = TRUE : M% = TRUE
+      ON TIME PROCtimer : RETURN
+      
+      REM. Main loop
+      A% = 0 : B% = 0 : C% = 0 : G% = TRUE : T% = -176 : TIME = 0
+      REPEAT
+        IF K%<>TRUE IF A% = FALSE IF K%<>Q% IF K%<>R% A% = -I%(K%) : IF INKEY(A%) P% = K% : K% = TRUE : SOUND 1,1,F%(P%),1 : PROCnote(F%(P%))
+        IF L%<>TRUE IF B% = FALSE IF L%<>P% IF L%<>R% B% = -I%(L%) : IF INKEY(B%) Q% = L% : L% = TRUE : SOUND 2,1,F%(Q%),1 : PROCnote(F%(Q%))
+        IF M%<>TRUE IF C% = FALSE IF M%<>P% IF M%<>Q% C% = -I%(M%) : IF INKEY(C%) R% = M% : M% = TRUE : SOUND 3,1,F%(R%),1 : PROCnote(F%(R%))
+        IF K%<>TRUE IF A% SOUND 1,2,F%(P%),1 : A% = FALSE : P% = 0
+        IF L%<>TRUE IF B% SOUND 2,2,F%(Q%),1 : B% = FALSE : Q% = 0
+        IF M%<>TRUE IF C% SOUND 3,2,F%(R%),1 : C% = FALSE : R% = 0
+        REPEAT WAIT 0
+          WHILE Queue$<>""
+            event$ = LEFT$(Queue$,12)
+            Queue$ = MID$(Queue$,13)
+            event%% = PTR(event$)
+            PROCtouch(event%%!0, event%%!4, event%%!8)
+          ENDWHILE
+          K% = INKEY(A%) : L% = INKEY(B%) : M% = INKEY(C%)
+        UNTIL K%<>TRUE OR L%<>TRUE OR M%<>TRUE
+      UNTIL FALSE
+      END
+      
+      REM. Draw the note
+      DEF PROCnote(N%) : LOCAL X%,Y% : IF N% = 0 ENDPROC
+      N% DIV= 4 : N% = N%-(N%>24)-(N%>29)-(N%>36)-(N%>41)-(N%>48)
+      X% = TIME-T% : Y% = 620+12*(N%DIV2)
+      IF N% AND 1 MOVE X%-48,Y%+20 : VDU 35
+      IF Y% > 848 THEN
+        VDU 25,4,X%;Y%-2;25,0,16;0;25,201,0;12;25,4,X%-16;Y%-80;25,5,X%-16;Y%;25,4,X%-14;Y%-80;25,5,X%-14;Y%;
+        IF (N% AND 2)=0 Y% -= 12
+        WHILE Y% >= 920 LINE X%-32,Y%,X%+30,Y% : Y% -= 24 : ENDWHILE
+      ELSE
+        VDU 25,4,X%;Y%-2;25,0,16;0;25,201,0;12;25,4,X%+10;Y%+80;25,5,X%+10;Y%;25,4,X%+12;Y%+80;25,5,X%+12;Y%;
+        IF (N% AND 2)=0 Y% += 12
+        WHILE Y% <= 776 LINE X%-32,Y%,X%+30,Y% : Y% += 24 : ENDWHILE
+      ENDIF
+      G% = FALSE : ENDPROC
+      
+      REM. Scroll the stave
+      DEF PROCtimer : IF G% THEN T% = TIME-176
+      WHILE (TIME-T%) >= 1180
+        T% += 25
+        RECTANGLE 120,728,1158,248 TO 95,728
+      ENDWHILE
+      ENDPROC
+      
+      DEF PROCtouch(M%,W%,L%) IF M%<&700 OR M%>&702 ENDPROC
+      LOCAL I%, P%, X%, Y%
+      PRIVATE tid%(),pit%() : DIM tid%(4),pit%(4)
+      X% = (L% AND &FFFF) * 2
+      Y% = (@vdu%!212 - (L% >>> 16)) * 2
+      IF Y%<100 OR Y%>520 OR X%<90 OR X%>1214 ENDPROC
+      P% = (X% - 90) DIV 100 * 2
+      P% += (P%>5) + (P%>11) + (P%>19)
+      P% = P% * 4 + 80
+      IF Y% > 260 IF X% >= 164 THEN
+        L% = (X% - 164) DIV 100
+        IF L%<>2 IF L%<>5 IF L%<>9 IF X% < L%*100 + 164 + 48 THEN
+          P% = L% * 2 + 1
+          P% += (P%>5) + (P%>11) + (P%>19)
+          P% = P% * 4 + 80
+        ENDIF
+      ENDIF
+      IF INKEY(-1) P% += 48
+      CASE M% OF
+        WHEN &700:
+          FOR I% = 1 TO 4
+            IF tid%(I%) = 0 tid%(I%) = W% : IF P% >= 80 SOUND I%,1,P%,1 : PROCnote(P%) : pit%(I%) = P% : ENDPROC
+          NEXT
+        WHEN &701:
+          FOR I% = 1 TO 4
+            IF tid%(I%) = W% tid%(I%) = 0 : IF P% >= 80 SOUND I%,2,P%,1
+          NEXT
+        WHEN &702:
+          FOR I% = 1 TO 4
+            IF tid%(I%) = W% IF pit%(I%) <> P% IF P% >= 80 SOUND I%,1,P%,1 : PROCnote(P%) : pit%(I%) = P%
+          NEXT
+      ENDCASE
+      ENDPROC
+      
+      DEF FN_32(N%) = CHR$(N%) + CHR$(N% >> 8) + CHR$(N% >> 16) + CHR$(N% >> 24)

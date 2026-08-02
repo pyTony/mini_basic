@@ -17,13 +17,18 @@ Previous development created many loose backup files (`runtime_fixed_*.py`, `run
 
 Before starting any fix session:
 
-1. Be in the **dev tree**: `C:\Users\Tony\Programming\mini_basic`
+1. Be in the **git tree** (OneDrive via junction):
+   ```powershell
+   cd C:\Users\Tony\mini_basic
+   git rev-parse --show-toplevel   # OneDrive path
+   # C:\Users\Tony\Programming\mini_basic is often an install copy — not the git home
+   ```
 2. Read the policy documents (every session):
    ```powershell
    Get-Content AGENT_POLICY.txt -TotalCount 80
    Get-Content DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md -TotalCount 50
    ```
-3. Ensure you are on a clean `master`:
+3. Ensure you are on a clean `master` (or create a branch from it):
    ```powershell
    git checkout master
    git status
@@ -118,26 +123,21 @@ Using `--no-ff` keeps the branch history visible in the log.
 
 ## Advanced Topics
 
-### Working Across the Two Trees
+### OneDrive junction (single tree)
 
-- **Primary work**: `Programming\mini_basic` (lighter, focused)
-- After significant progress, copy key changed files to the OneDrive source and commit there too:
-  ```powershell
-  Copy-Item Programming\mini_basic\mini_basic\runtime.py C:\Users\Tony\mini_basic\mini_basic\ -Force
-  cd C:\Users\Tony\mini_basic
-  git add mini_basic\runtime.py
-  git commit -m "fix: port rem-clean changes from dev tree"
-  ```
+- Work in `C:\Users\Tony\mini_basic` (junction → OneDrive). **One git repo only.**
+- `Programming\mini_basic` may be an install snapshot without `.git` — do not treat it as a second history to “port” into.
+- Details: `DEVELOPMENT_GIT_USAGE.md` §1.
 
 ### Large Directories & .gitignore
 
-Large directories (`test/`, `examples/`, `scripts/`, `lib/`) are intentionally noisy. Always stage specific files:
+Large directories (`test/`, `examples/`, `scripts/`) are noisy. Prefer explicit paths:
 
 ```powershell
-git add test/run_regression.py mini_basic/runtime.py
+git add mini_basic/ test/test_rgb_dirty_coords.py pytest.ini
 ```
 
-See `.gitignore` for generated files that should never be committed.
+Probes (`test/_probe_*.py`), coverage, and resource JSON are ignored (see root `.gitignore`).
 
 ### Using Git with Text Archives & dev_install
 

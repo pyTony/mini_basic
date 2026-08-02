@@ -259,11 +259,48 @@ def format_statement_part(part: str, fold: Fold) -> str:
     return _format_statement_body(stripped, fold)
 
 
+def glue_bbc_proc_fn_names(text: str) -> str:
+    """Re-glue PROC/FN to their names for Beeb / RISC OS source export.
+
+    Internal normalize inserts ``PROC SWOOSH`` for parsing; Archimedes BASIC
+    reports "Bad call of function/procedure" if a space remains between PROC
+    and the name (RISC OS manual: no spaces between PROC and the name).
+    """
+    text = re.sub(r'\bEND\s+PROC\b', 'ENDPROC', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bEND\s+FN\b', 'ENDFN', text, flags=re.IGNORECASE)
+    # DEF PROC NAME → DEFPROCNAME (space after DEF is optional; PROC+name must glue)
+    text = re.sub(
+        r'\bDEF\s+PROC\s+([A-Za-z_@])',
+        r'DEFPROC\1',
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r'\bDEF\s+FN\s+([A-Za-z_@])',
+        r'DEFFN\1',
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r'\bPROC\s+([A-Za-z_@])',
+        r'PROC\1',
+        text,
+        flags=re.IGNORECASE,
+    )
+    text = re.sub(
+        r'\bFN\s+([A-Za-z_@%])',
+        r'FN\1',
+        text,
+        flags=re.IGNORECASE,
+    )
+    return text
+
+
 def format_program_line(statement: str, fold: Fold) -> str:
     parts = _split_colon_statements(statement)
     formatted = ': '.join(format_statement_part(part, fold) for part in parts)
     formatted = re.sub(r'=\s*(["\'])', r'= \1', formatted)
-    return formatted
+    return glue_bbc_proc_fn_names(formatted)
 
 
 def fold_from_save_case(save_case: int) -> Fold:
@@ -275,4 +312,5 @@ __all__ = [
     'fold_from_save_case',
     'format_program_line',
     'format_statement_part',
+    'glue_bbc_proc_fn_names',
 ]

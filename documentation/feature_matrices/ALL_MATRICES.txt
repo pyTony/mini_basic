@@ -29,6 +29,49 @@
 
   + = yes   - = rejected in strict dialect   ~ = extension
 
+=== BBC BASIC family dialects (Beeb / RISC OS / BB4W / SDL / mini) ===
+  Beeb=BBC Micro MOS   ROS=Archimedes BASIC V/VI
+  BB4W=BBC BASIC for Windows   SDL=BBC BASIC for SDL   mini=this app (bbc mode)
+
+  Feature                      Beeb ROS  BB4W SDL  mini  notes
+  ---------------------------- ---- ---- ---- ---- ----  -----
+  PROC/FN glued to name         +    +    +    +    +    No space: PROCfoo not PROC foo (ROS: Bad call if spaced)
+  DEFPROC / DEF PROC            +    +    +    +    +    Both forms; PROC still glued to name after DEF
+  LIST spacing PROC name        +    +    +    +    +    Export must re-glue; mini LIST now glues for ROS paste
+  CASE / WHEN / OF              -    +    +    +    +    Not on classic Beeb MOS
+  WHILE / ENDWHILE              -    +    +    +    +    Beeb: REPEAT only
+  SYS / OSCLI *                 ~    +    +    +    ~    Beeb *FX; ROS SYS; BB4W/SDL rich SYS
+  @lib$ @dir$ path vars         -    -    +    +    ~    BB4W/SDL; mini stubs some
+  INSTALL / LIBRARY             -    ~    +    +    ~    BB4W/SDL library path
+  MODE 0–7 Beeb                 +    ~    +    +    +    ROS modes differ; MODE 7 teletext ROS ≠ Beeb
+  MODE 8+ (PC/SDL)              -    -    +    +    +    BB4W/SDL extended modes
+  VDU 5 graphics text           +    +    +    +    +    Cursor = top-left of cell (welcome letters)
+  VDU 23 redefine char          +    +    +    +    +    welcome CHR$255 solid block
+  VDU 24 graphics window        +    +    +    +    +    CLG clips to window (welcome red frame)
+  ORIGIN / VDU 29               +    +    +    +    +    welcome disc icon origin
+  PLOT 0–255 Beeb set           +    +    +    +    ~    mini subset + BB4W extras (CIRCLE…)
+  CIRCLE / ELLIPSE keywords     -    ~    +    +    +    Beeb: PLOT codes; ROS has some
+  GCOL action 0–7               +    +    +    +    +    Invert = PLOT …6; welcome zaps
+  Colour 7 = white              +    +    +    +    +    Not VGA gray; letters GCOL 0,7
+  INKEY / INKEY$                +    +    +    +    +    INKEY n cs; INKEY1 glued → INKEY(1)
+  ENVELOPE / SOUND              +    ~    +    +    ~    mini ENVELOPE no-op; SOUND limited
+  MOUSE                         -    +    +    +    +    Desktop / BB4W/SDL
+  ON CLOSE                      -    ~    +    +    +    Window close trap (SDL/BB4W)
+  Integer % vars                +    +    +    +    +    32-bit on classic; mini bigint option
+  DIV toward zero               +    +    +    +    ~    mini historically floor-div; check suite
+  TRUE = -1                     +    +    +    +    +    All BBC family
+  Line numbers required         +    -    -    -    ~    Beeb classic; ROS/BB4W unnumbered OK
+  Tokenized program files       +    +    +    +    +    Formats differ; mini detokenizes Beeb/SDL
+  welcome.bbc corpus            ~    ~    +    +    +    Written for SDL; ROS needs glued PROC LIST
+  Bare IF cond: body            +    +    +    +    +    IF(I%AND1)=0:PLOT… (no THEN)
+  ASC"B" without ( )            +    +    +    +    +    Glued string literal form
+
+  + = yes   - = no   ~ = partial / different
+
+  Archimedes paste tip: use  --list --dialect bbc --display none
+  (LIST re-glues PROCname). Do not hand-edit spaces into PROC names.
+  "Bad call of function/procedure" almost always means PROC Name with a space.
+
 === Trigonometry units ===
   Feature                      BB4W / dialect spec    mini   tested  notes
   ---------------------------- ---------------------- ----   ------  -----
@@ -100,7 +143,7 @@
   Structures           structure arrays and tags        RETURN struct from FN
   Pointers             ? ! $ $$ indirection             byte/word/string pointers
   Sound                SOUND / ENVELOPE / ADVAL audio   multi-channel synthesis
-  Teletext             MODE 7 / VDU teletext codes      SAA5050 mosaic mode
+  Teletext remainder   MODE 7 double-height / conceal / boxed extend existing teletext renderer
   Physics              FN_b2* Box2D bindings            corpus physics tier
   Network              URL fetch / Ceefax remote        needs HTTP client
   Compiler             BBC BASIC compiler / Crunch      not interpreter scope

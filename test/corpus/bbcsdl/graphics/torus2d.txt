@@ -1,0 +1,205 @@
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM  Torus 2D
+      REM  Version 1.2 // 16-Mar-2012
+      REM  Original BB4W + GFXLIB program by David Williams
+      REM  BBCSDL adaptation by Richard Russell 06-Mar-2024
+      
+      REM  Prevent the program window from being resized by the user
+      IF @platform% >= &2000500 SYS "SDL_SetWindowResizable", @hwnd%, FALSE, @memhdc%
+      
+      REM  Select a 640x512 display mode and switch off the flashing cursor
+      MODE 8
+      OFF
+      
+      REM  Initialise 2D graphics
+      INSTALL @lib$ + "gfxlib"
+      PROC_gfxInit
+      
+      REM  Install and initialise SORTLIB (which will be used to depth-sort the
+      REM  'vector balls' according to their Z coordinate)
+      INSTALL @lib$ + "sortlib"
+      Sort%% = FN_sortinit(1, 0)
+      
+      REM  Load-in the ball sprite (20x20 pixels)
+      ballSprite = FN_gfxLoadTexture( @dir$ + "ball3_20x20.bmp", 0 )
+      
+      REM  Define 'constants'
+      BALLSPERRING = 12
+      RINGRADIUS = 20
+      RINGDIST = 56
+      NUMRINGS = 32
+      NUMBALLS = NUMRINGS *  BALLSPERRING
+      
+      REM  Temporary arrays to hold the ring
+      DIM xyz(2), uvw(2)
+      
+      REM  Array to hold the balls' positions in '3D space'
+      DIM p(2, NUMBALLS - 1)
+      
+      REM  Array to hold the balls' positions *after* they've been rotated
+      DIM q(2, NUMBALLS - 1)
+      
+      REM  Array to hold each ball's ``normal vector``
+      DIM n(2, NUMBALLS - 1)
+      
+      REM  Array to hold each ball's rotated normal vector
+      DIM o(2, NUMBALLS - 1)
+      
+      REM  Array to hold each ball's brightness
+      DIM l(NUMBALLS - 1)
+      
+      REM  Rotation matrices
+      DIM a(2,2), b(2,2), c(2,2), r(2,2)
+      
+      REM  Define our 'light source' direction vector
+      DIM light(2)
+      light() = 20, 5, -10
+      light() /= MOD(light())
+      
+      REM  Set up a horizontally-scrolling starfield (four pixels per star)
+      numStars% = 100
+      DIM sx( numStars%-1 ), sy( numStars%-1 ), dx( numStars%-1 )
+      
+      FOR I% = 0 TO numStars%-1
+        sx( I% ) = 640.0 * RND(1)
+        sy( I% ) = 48 + (512.0 - 2*48) * RND(1)
+        dx( I% ) = 0.5 + 3.5*I%/numStars% - 0.5*RND(1)
+      NEXT I%
+      
+      REM  Define our 3D torus object
+      N% = 0
+      FOR T% = 0 TO NUMRINGS-1
+        r = 2*PI * T%/NUMRINGS
+        r() = COS(r), 0, SIN(r), 0, 1, 0, -SIN(r), 0, COS(r)
+        
+        FOR A% = 0 TO BALLSPERRING-1
+          xyz(0) = RINGRADIUS * SIN(2*PI * A%/BALLSPERRING)
+          xyz(1) = RINGRADIUS * COS(2*PI * A%/BALLSPERRING)
+          xyz(2) = 0.0
+          
+          uvw() = xyz() / MOD(xyz()) : REM Normal
+          xyz(0) += RINGDIST
+          
+          xyz() = xyz() . r()
+          uvw() = uvw() . r()
+          
+          p(0, N%) = xyz(0)
+          p(1, N%) = xyz(1)
+          p(2, N%) = xyz(2)
+          
+          n(0, N%) = uvw(0)
+          n(1, N%) = uvw(1)
+          n(2, N%) = uvw(2)
+          
+          N% += 1
+        NEXT A%
+      NEXT T%
+      
+      a = 2.0 * PI*RND(1) : REM  \
+      b = 2.0 * PI*RND(1) : REM   >---  rotation angles
+      c = 2.0 * PI*RND(1) : REM  /
+      
+      REM  Disable automatic program window refresh
+      *REFRESH OFF
+      
+      REPEAT
+        
+        REM  Clear the viewport
+        PROC_gfxClr(0, 0, 0)
+        
+        REM  Draw upper and lower blue borders
+        FOR Y% = 0 TO 47
+          C% = 255*(1 - Y%/47)
+          PROC_gfxRectangleSolid(0, Y%, 640, 1, 0, 0, C%)
+          PROC_gfxRectangleSolid(0, 511-Y%, 640, 1, 0, 0, C%)
+        NEXT
+        
+        REM  Update and draw the stars
+        PROCstars
+        
+        REM  Create the rotation matrix
+        a() = 1, 0, 0, 0, COS(a), -SIN(a), 0, SIN(a), COS(a)
+        b() = COS(b), 0, SIN(b), 0, 1, 0, -SIN(b), 0, COS(b)
+        c() = COS(c), -SIN(c), 0, SIN(c), COS(c), 0, 0, 0, 1
+        r() = b() . a()
+        r() = c() . r()
+        
+        REM  Rotate the 3D positions of the balls
+        REM  (and also rotate the normal vectors)
+        q() = r() . p()
+        o() = r() . n()
+        
+        REM  Sort the rotated ball positions according to their Z-coordinate
+        C% = NUMBALLS
+        CALL Sort%%, q(2,0), q(1,0), q(0,0), o(2,0), o(1,0), o(0,0)
+        
+        REM  Calc. angle between the ball's normal vector and light source vector
+        l() = light() . o()
+        l() = l() * 127 + 128
+        
+        REM  ===========================
+        REM  Draw the depth-sorted balls
+        REM  ===========================
+        
+        FOR I%=0 TO NUMBALLS-1
+          
+          REM  Calculate perspective factor
+          z = 280 / (200 + q(2,I%))
+          
+          REM  Calculate 2D viewport coordinates
+          X% = 304 + q(0,I%)*z
+          Y% = 240 + q(1,I%)*z
+          
+          REM  Calculate size and brightness
+          W% = 12 * z
+          L% = l(I%)
+          IF L% < &80 L% = &80
+          
+          REM  Plot the ball sprite (with variable brightness)
+          PROC_gfxPlotScaleFade(ballSprite, W%, W%, X%, Y%, L%)
+          
+        NEXT
+        
+        REM  Increment and check the rotation angles
+        a += 0.0292710182113
+        b += 0.0263168891711
+        c += 0.0221941538383
+        
+        IF a > 2*PI THEN a -= 2*PI
+        IF b > 2*PI THEN b -= 2*PI
+        IF c > 2*PI THEN c -= 2*PI
+        
+        REM  Update the screen (program window)
+        *REFRESH
+        
+      UNTIL FALSE
+      
+      REM Put in a PROC so that pt%() array will be aligned
+      DEF PROCstars
+      LOCAL I%, pt%()
+      DIM pt%( numStars%*4-1, 1 )
+      
+      FOR I% = 0 TO numStars%-1
+        IF sx(I%) > 640 sx(I%) -= 640
+        pt%(  I%*4, 0) = sx(I%) + 0.5
+        pt%(  I%*4, 1) = sy(I%) + 0.5
+        pt%(I%*4+1, 0) = sx(I%) + 1.5
+        pt%(I%*4+1, 1) = sy(I%) + 0.5
+        pt%(I%*4+2, 0) = sx(I%) + 0.5
+        pt%(I%*4+2, 1) = sy(I%) + 1.5
+        pt%(I%*4+3, 0) = sx(I%) + 1.5
+        pt%(I%*4+3, 1) = sy(I%) + 1.5
+      NEXT
+      sx() += dx()
+      
+      PROC_gfxPlotPixelList(pt%(), numStars%, numStars%*0, &40, &40, &40, 0, 0)
+      PROC_gfxPlotPixelList(pt%(), numStars%, numStars%*1, &80, &80, &80, 0, 0)
+      PROC_gfxPlotPixelList(pt%(), numStars%, numStars%*2, &C0, &C0, &C0, 0, 0)
+      PROC_gfxPlotPixelList(pt%(), numStars%, numStars%*3, &FF, &FF, &FF, 0, 0)
+      ENDPROC
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      ballSprite += 0 : IF ballSprite PROC_gfxDestroyTexture(ballSprite)
+      ENDPROC

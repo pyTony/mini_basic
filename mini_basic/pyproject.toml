@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mini_basic"
+version = "0.1.0"
+description = "BBC BASIC / Mini BASIC Interpreter"
+readme = "README.md"
+requires-python = ">=3.8"
+authors = [{name = "tonyv"}]
+
+[project.scripts]
+mini_basic = "mini_basic:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["mini_basic*"]
+namespaces = false
+
+[tool.setuptools.package-dir]
+mini_basic = "."

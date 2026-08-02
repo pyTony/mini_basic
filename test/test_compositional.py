@@ -363,5 +363,139 @@ class TestDeeperNesting4Plus(unittest.TestCase):
         # 4 levels of FOR + file I/O exercised with guaranteed exit (hard bounds)
 
 
+class TestDeeperDefFnComposition(unittest.TestCase):
+    """Deeper DEF FN variants: nested FN calls, string chains, arrays in bodies,
+    multi-line FN + PROC + file I/O under control nests. Phase 1 / non-gfx.
+    """
+
+    def _run_lines(self, lines, dialect="bbc", workdir=None):
+        interp = BASICInterpreter(InterpreterConfig(dialect=dialect, display="none"))
+        if workdir is not None:
+            interp.working_dir = workdir
+        else:
+            interp.working_dir = tempfile.gettempdir()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            for i, line in enumerate(lines, 1):
+                interp.set_program_line(i * 10, line)
+            interp.run()
+        return buf.getvalue()
+
+    def test_nested_numeric_fn_calls(self):
+        out = self._run_lines([
+            "DEF FNdouble(n%)=2*n%",
+            "DEF FNquad(n%)=FNdouble(FNdouble(n%))",
+            "PRINT FNquad(3)",
+            "END",
+        ])
+        self.assertNotIn("?", out)
+        self.assertIn("12", out)
+
+    def test_nested_string_fn_chain(self):
+        """Nested string FN must evaluate inner call (not return empty / raw text)."""
+        for dialect in ("bbc", "mini"):
+            out = self._run_lines([
+                'DEF FNwrap(s$)="["+s$+"]"',
+                'DEF FNtag(s$)=FNwrap(s$)+"!"',
+                'PRINT FNtag("A")',
+                "END",
+            ], dialect=dialect)
+            self.assertNotIn("?", out, f"dialect={dialect} out={out!r}")
+            self.assertIn("[A]!", out, f"dialect={dialect} out={out!r}")
+
+    def test_string_fn_identity_nest(self):
+        out = self._run_lines([
+            'DEF FNa(s$)=s$+"x"',
+            "DEF FNb(s$)=FNa(s$)",
+            'PRINT FNb("A")',
+            "END",
+        ])
+        self.assertNotIn("?", out)
+        self.assertIn("Ax", out)
+
+    def test_fn_body_array_index_expr(self):
+        """Single-line DEF with b(i%)+b(i%+1) must parse and run (no RecursionError)."""
+        out = self._run_lines([
+            "DIM b(3)",
+            "b(1)=4",
+            "b(2)=5",
+            "DEF FNsum2(i%)=b(i%)+b(i%+1)",
+            "PRINT FNsum2(1)",
+            "END",
+        ])
+        self.assertNotIn("?", out)
+        self.assertIn("9", out)
+
+    def test_multiline_fn_calls_fn(self):
+        out = self._run_lines([
+            "PRINT FNouter(3)",
+            "END",
+            "DEF FNinner(x%)",
+            "  =x%+1",
+            "DEF FNouter(y%)",
+            "  LOCAL t%",
+            "  t%=FNinner(y%)*2",
+            "  =t%",
+        ])
+        self.assertNotIn("?", out)
+        self.assertIn("8", out)
+
+    def test_fn_proc_file_deep_nest_exit(self):
+        """4-way composition: file I/O + nested FOR + FN + PROC with exit marker."""
+        with tempfile.TemporaryDirectory() as tmp:
+            out = self._run_lines([
+                "DIM a(5)",
+                'f=OPENOUT "dn.txt" : PRINT #f, 5 : CLOSE #f',
+                'g=OPENIN "dn.txt" : INPUT #g, seed% : CLOSE #g',
+                "s%=0",
+                "FOR i%=1 TO 2",
+                "  FOR j%=1 TO 2",
+                "    a(i%)=FNmix(seed%,i%,j%)",
+                "    PROCacc(a(i%))",
+                "  NEXT",
+                "NEXT",
+                'PRINT "DEEP_EXIT=";s%;",";a(1)',
+                "END",
+                "DEF FNmix(s%,i%,j%)=s%+i%*10+j%",
+                "DEF PROCacc(v%)",
+                "  s%=s%+v%",
+                "ENDPROC",
+            ], workdir=tmp)
+        self.assertNotIn("?", out)
+        self.assertIn("DEEP_EXIT=", out)
+        # seed 5; pairs (1,1)(1,2)(2,1)(2,2) -> a(1)=5+10+2=17 after last j for i=1
+        # s = (5+10+1)+(5+10+2)+(5+20+1)+(5+20+2) = 16+17+26+27 = 86
+        self.assertIn("DEEP_EXIT=86", out)
+        self.assertIn("17", out)
+
+    def test_recursive_fn_in_for_loop(self):
+        out = self._run_lines([
+            "s%=0",
+            "FOR i%=1 TO 3",
+            "  s%=s%+FNfact(i%)",
+            "NEXT",
+            'PRINT "FACT_SUM=";s%',
+            "END",
+            "DEF FNfact(n%)",
+            "IF n%<=1 THEN =1",
+            "=n%*FNfact(n%-1)",
+        ])
+        self.assertNotIn("?", out)
+        # 1+2+6 = 9
+        self.assertIn("FACT_SUM=9", out)
+
+    def test_fn_in_exit_for_condition(self):
+        out = self._run_lines([
+            "DEF FNlim()=2",
+            "FOR i%=1 TO 10",
+            "  IF i%>=FNlim() THEN EXIT FOR",
+            "NEXT",
+            'PRINT "X=";i%',
+            "END",
+        ])
+        self.assertNotIn("?", out)
+        self.assertIn("X=2", out)
+
+
 if __name__ == "__main__":
     unittest.main()

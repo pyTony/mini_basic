@@ -1,0 +1,159 @@
+      REM Conway's 'Game of Life': Shader version for BBC BASIC for SDL 2.0
+      REM Adapted from various examples at Shadertoy.com by Richard Russell
+      
+      REM Size of grid (max = window size, must be power-of-two for WebGL):
+      VDU 23,22,512;512;8,16,16,0
+      GridW% = 512
+      GridH% = 512
+      
+      REM Initial random pattern:
+      *REFRESH OFF
+      FOR C% = 1 TO 2048 : VDU 32+RND(94) : NEXT
+      OSCLI "GSAVE """ + @tmp$ + "initial.bmp"" 0,0," + STR$(GridW%*2) + "," + STR$(GridH%*2)
+      CLS
+      *REFRESH ON
+      
+      REM Install libraries:
+      INSTALL @lib$ + "shaderlib"
+      
+      REM Define constants:
+      GL_NEAREST = &2600
+      GL_FRAMEBUFFER = &8D40
+      GL_COLOR_ATTACHMENT0 = &8CE0
+      GL_FRAMEBUFFER_BINDING = &8CA6
+      
+      REM Create arrays and structures:
+      DIM Vertex$(10), Fragment$(999), Final$(10), Float{0%,1%}
+      
+      REM Fill vertex and fragment shader arrays from DATA statements:
+      PROC_readshader(Vertex$())
+      PROC_readshader(Fragment$())
+      PROC_readshader(Final$())
+      
+      REM Initialise window and get its size:
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup
+      VDU 26
+      IF POS REM SDL thread sync
+      ScrW% = @size.x%
+      ScrH% = @size.y%
+      
+      REM Ensure cleanup on exit:
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : REPORT : END
+      
+      REM Initialise shader library:
+      PROC_shaderinit(oVertex%, oFragment%)
+      SYS `glCreateShader`, GL_FRAGMENT_SHADER, @memhdc% TO oFinal%
+      `glGenFramebuffers` = FN_gpa("glGenFramebuffers")
+      `glBindFramebuffer` = FN_gpa("glBindFramebuffer")
+      `glFramebufferTexture2D` = FN_gpa("glFramebufferTexture2D")
+      `glDeleteFramebuffers` = FN_gpa("glDeleteFramebuffers")
+      `glGetIntegerv` = FN_gpa("glGetIntegerv")
+      
+      REM Compile shaders:
+      PROC_compileshader(oVertex%, Vertex$(), "Vertex")
+      PROC_compileshader(oFragment%, Fragment$(), "Fragment")
+      PROC_compileshader(oFinal%, Final$(), "Final")
+      
+      REM Link shaders:
+      oProgram1% = FN_useshaders(oVertex%, oFragment%)
+      oProgram2% = FN_useshaders(oVertex%, oFinal%)
+      
+      REM Get pointers to uniforms:
+      SYS `glGetUniformLocation`, oProgram1%, "iResolution", @memhdc% TO pResolution1%
+      SYS `glGetUniformLocation`, oProgram1%, "iChannel0",   @memhdc% TO pChannel0_1%
+      SYS `glGetUniformLocation`, oProgram2%, "iResolution", @memhdc% TO pResolution2%
+      SYS `glGetUniformLocation`, oProgram2%, "iChannel0",   @memhdc% TO pChannel0_2%
+      
+      REM Load and bind initial random texture:
+      SYS `glActiveTexture`, GL_TEXTURE0, @memhdc%
+      Texture1% = FN_loadtexture1(@tmp$ + "initial.bmp")
+      SYS `glTexParameteri`, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST, @memhdc%
+      Texture2% = FN_loadtexture1(@tmp$ + "initial.bmp")
+      SYS `glTexParameteri`, GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST, @memhdc%
+      IF Texture1% = 0 OR Texture2% = 0 ERROR 100, "Couldn't load initial.bmp"
+      SYS `glUniform1i`, pChannel0_1%, 0, @memhdc%
+      SYS `glUniform1i`, pChannel0_2%, 0, @memhdc%
+      
+      REM Create Framebuffer object:
+      DIM align{fbo%, fbid%}
+      SYS `glGenFramebuffers`, 1, ^align.fbo%, @memhdc%
+      oBuffer% = align.fbo%
+      IF oBuffer% = 0 ERROR 100, "Couldn't create framebuffer"
+      
+      REM Get default framebuffer ID:
+      SYS `glGetIntegerv`, GL_FRAMEBUFFER_BINDING, ^align.fbid%, @memhdc%
+      
+      REM Render loop:
+      REPEAT
+        REM Stage one: render to texture:
+        Float.0% = FN_f4(GridW%) : Float.1% = FN_f4(GridH%)
+        SYS `glBindFramebuffer`, GL_FRAMEBUFFER, oBuffer%, @memhdc%
+        SYS `glFramebufferTexture2D`, GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, \
+        \                                     GL_TEXTURE_2D, Texture2%, 0, @memhdc%
+        SYS `glBindTexture`, GL_TEXTURE_2D, Texture1%, @memhdc%
+        SYS `glUseProgram`, oProgram1%, @memhdc%
+        SYS `glUniform2fv`, pResolution1%, 1, Float{}, @memhdc%
+        SYS `glDrawArrays`, GL_TRIANGLES, 0, 6, @memhdc%
+        
+        REM Stage two: render to canvas:
+        Float.0% = FN_f4(ScrW%) : Float.1% = FN_f4(ScrH%)
+        SYS `glBindFramebuffer`, GL_FRAMEBUFFER, align.fbid%, @memhdc%
+        SYS `glBindTexture`, GL_TEXTURE_2D, Texture2%, @memhdc%
+        SYS `glUseProgram`, oProgram2%, @memhdc%
+        SYS `glUniform2fv`, pResolution2%, 1, Float{}, @memhdc%
+        PROC_render
+        
+        SWAP Texture1%, Texture2%
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      oBuffer%  += 0  : IF oBuffer%   SYS `glDeleteFramebuffers`, 1, ^oBuffer%, @memhdc%
+      Texture1% += 0  : IF Texture1%  SYS `glDeleteTextures`, 1, ^Texture1%, @memhdc%
+      Texture2% += 0  : IF Texture2%  SYS `glDeleteTextures`, 1, ^Texture2%, @memhdc%
+      oProgram2% += 0 : IF oProgram2% SYS `glDeleteProgram`, oProgram2%, @memhdc%
+      oFinal% += 0    : IF oFinal%    SYS `glDeleteShader`, oFinal%, @memhdc%
+      oProgram1% += 0 : oVertex% += 0 : oFragment% += 0
+      PROC_shaderexit(oProgram1%, oVertex%, oFragment%)
+      *REFRESH ON
+      ENDPROC
+      
+      REM Minimal vertex shader:
+      DATA "attribute vec4 vPosition;"
+      DATA "void main()"
+      DATA "{"
+      DATA "gl_Position = vPosition ;"
+      DATA "}"
+      DATA ""
+      
+      REM Intermediate fragment shader (outputs to texture):
+      DATA "uniform vec2 iResolution;"
+      DATA "uniform sampler2D iChannel0;"
+      
+      DATA "int cell( in vec2 p )"
+      DATA "{"
+      DATA "return (texture2D(iChannel0, p/iResolution.xy).g > 0.5 ) ? 1 : 0;"
+      DATA "}"
+      
+      DATA "void main()"
+      DATA "{"
+      DATA "vec2 px = gl_FragCoord.xy;"
+      DATA "int k = cell(px+vec2(-1,-1)) + cell(px+vec2(0,-1)) + cell(px+vec2(1,-1))"
+      DATA "      + cell(px+vec2(-1, 0))                       + cell(px+vec2(1, 0))"
+      DATA "      + cell(px+vec2(-1, 1)) + cell(px+vec2(0, 1)) + cell(px+vec2(1, 1));"
+      DATA "int e = cell(px);"
+      DATA "float f = (((k==2) && (e==1)) || (k==3)) ? 1.0 : 0.0;"
+      DATA "gl_FragColor = vec4( f, f, f, 1.0 );"
+      DATA "}"
+      DATA ""
+      
+      REM Final fragment shader (outputs to canvas):
+      DATA "uniform vec2 iResolution;"
+      DATA "uniform sampler2D iChannel0;"
+      DATA "void main()"
+      DATA "{"
+      DATA "gl_FragColor = texture2D(iChannel0, gl_FragCoord.xy/iResolution.xy);"
+      DATA "}"
+      DATA ""

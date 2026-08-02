@@ -1,0 +1,32 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM 'Fake' fractal fern
+      REM Original QBASIC program published in PC Magazine
+      REM BB4W version by David Williams
+      :
+      MODE 8
+      OFF
+      GCOL 2
+      :
+      x=0
+      y=0
+      :
+      FOR i%=1 TO 80000
+        r = RND(1)
+        :
+        CASE TRUE OF
+          WHEN r<=0.1 A=0: B=0: C=0: D=0.16: E=0: F=0
+          WHEN r>0.1 AND r<=0.86 A=.85: B=.04: C=-.04: D=.85: E=0: F=1.6
+          WHEN r>0.86 AND r<=0.93 A=.2: B=-.26: C=.23: D=.22: E=0: F=1.6
+          WHEN r>0.93 A=-.15: B =.28: C=.26: D=.24: E=0: F=.44
+        ENDCASE
+        :
+        newx=A*x+B*y+E
+        newy=C*x+D*y+F
+        x=newx
+        y=newy
+        MOVE 600+96*x, 32+96*y
+        DRAW 600+96*x, 32+96*y
+        :
+      NEXT i%
+      REPEAT WAIT 1 : UNTIL FALSE

@@ -1,0 +1,31 @@
+      MODE 8:OFF:ORIGIN 640,512
+      m1%=400
+      *REFRESH OFF
+      REPEAT
+        CLS
+        t% = (t%+1) MOD 360
+        FOR a1%=0 TO 345 STEP 15
+          x1%=m1%*SIN(a1%-t%)
+          y1%=m1%*COS(a1%-t%)
+          PROCbow(1536*a1%/360)
+          GCOL 1:CIRCLEFILL x1%,y1%,80
+          GCOL 0:CIRCLE x1%,y1%,80
+        NEXT
+        REPEAT WAIT 0 : UNTIL T%<>TIME
+        *REFRESH
+        T% = TIME
+      UNTIL FALSE
+      END
+      :
+      DEFPROCbow(N%)
+      CASE N% DIV 256 OF
+        WHEN 0: r%=255:g%=N% MOD 256:b%=0
+        WHEN 1: r%=255-(N% MOD 256):g%=255:b%=0
+        WHEN 2: r%=0:g%=255:b%=N% MOD 256
+        WHEN 3: r%=0:g%=255-(N% MOD 256):b%=255
+        WHEN 4: r%=N% MOD 256:g%=0:b%=255
+        WHEN 5: r%=255:g%=0:b%=255-(N% MOD 256)
+        OTHERWISE r%=128:g%=128:b%=128
+      ENDCASE
+      COLOR 1,r%,g%,b%
+      ENDPROC

@@ -1,0 +1,72 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Tumbling Teapot by Richard Russell, 21-Oct-2016
+      
+      INSTALL @lib$+"ogllib" : REM @lib$ + "webgllib"
+      
+      DIM pVB%(0)
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : CLEAR
+      VDU 20,26,12
+      
+      DIM pVB%(0), nv%(0), vf%(0), vl%(0), l%(0), m%(0), t%(0), y(0), p(0), r(0)
+      DIM X(0), Y(0), Z(0), eye(2), at(2)
+      
+      DIM D3Dlight8{Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi% }
+      
+      DIM D3Dmaterial8{Diffuse{r%,g%,b%,a%}, Ambient{r%,g%,b%,a%}, \
+      \ Specular{r%,g%,b%,a%}, Emissive{r%,g%,b%,a%}, Power% }
+      
+      REM. Initialise OpenGL:
+      pDevice% = FN_initgl(@hwnd%, 0, 1)
+      IF pDevice% = 0 ERROR 100, "Couldn't initialise OpenGL"
+      
+      REM. Load 3D object:
+      pVB%(0) = FN_load3d(pDevice%, @dir$+"teapot.fvf", nv%(0), vf%(0), vl%(0))
+      IF pVB%(0) = 0 ERROR 101, "Couldn't load 'teapot.fvf'"
+      
+      REM. Point-source light:
+      D3Dlight8.Type%=1 : REM. point source
+      D3Dlight8.Diffuse.r% =FN_f4(1)
+      D3Dlight8.Diffuse.g% =FN_f4(1)
+      D3Dlight8.Diffuse.b% =FN_f4(1)
+      D3Dlight8.Specular.r%=FN_f4(1)
+      D3Dlight8.Specular.g%=FN_f4(1)
+      D3Dlight8.Specular.b%=FN_f4(1)
+      D3Dlight8.Position.x%=FN_f4(0)
+      D3Dlight8.Position.y%=FN_f4(0)
+      D3Dlight8.Position.z%=FN_f4(4)
+      D3Dlight8.Range% =FN_f4(10)
+      D3Dlight8.Attenuation0%=FN_f4(1)
+      l%(0) = D3Dlight8{} - PAGE + !340
+      
+      REM. Shiny material:
+      D3Dmaterial8.Diffuse.r% =FN_f4(0)
+      D3Dmaterial8.Diffuse.g% =FN_f4(0.7)
+      D3Dmaterial8.Diffuse.b% =FN_f4(1)
+      D3Dmaterial8.Specular.r%=FN_f4(1)
+      D3Dmaterial8.Specular.g%=FN_f4(1)
+      D3Dmaterial8.Specular.b%=FN_f4(1)
+      D3Dmaterial8.Power%=FN_f4(100)
+      m%(0) = D3Dmaterial8{} - PAGE + !340
+      
+      REM. Render the tumbling object:
+      eye() = 0, 0, 9
+      at() = 0, 0, 0
+      REPEAT
+        y() = TIME/200
+        r() = TIME/80
+        PROC_render(pDevice%, &7F7F7F, 1, l%(), 1, m%(), t%(), pVB%(), nv%(), vf%(), vl%(), \
+        \ y(), p(), r(), X(), Y(), Z(), eye(), at(), PI/6, @vdu%!208/@vdu%!212, 1, 1000, 0)
+      UNTIL INKEY(1)=0
+      END
+      
+      DEF PROCcleanup
+      pVB%(0) += 0  : IF pVB%(0)  PROC_release(pVB%(0))
+      PROC_release(pDevice%)
+      *REFRESH ON
+      ENDPROC

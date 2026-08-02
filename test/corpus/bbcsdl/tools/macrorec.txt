@@ -1,0 +1,174 @@
+      REM Macro Recorder utility v0.01 for use with SDLIDE.bbc
+      REM R.T.Russell, http://www.rtrussell.co.uk/ 07-Sep-2023
+      
+      GUIscale = 2.0
+      I% = INSTR(@cmd$, "-scale") : IF I% GUIscale = VALMID$(@cmd$, I% + 6)
+      Darkmode% = INSTR(@cmd$, "-dark") <> 0
+      
+      REM!WC Constants:
+      SS_CENTER = 1
+      
+      ON ERROR ERROR 0, REPORT$ + " at line " + STR$ERL : QUIT
+      
+      INSTALL @lib$ + "dlglib"
+      INSTALL @lib$ + "stringlib"
+      
+      REM. Get INI file path:
+      IniFile$ = @usr$ + "sdlide.ini"
+      
+      REM. Get function key macros:
+      DIM Macro$(11)
+      FOR i% = 1 TO 11
+        Macro$(i%) = FNgetINIstring(IniFile$, "macro" + STR$(i%), "")
+      NEXT
+      
+      *ESC OFF
+      VDU 23,22,200*GUIscale;100*GUIscale;8,16,16,128+8 - (128 AND Darkmode%)
+      IF INKEY(-256) = &57 THEN
+        SYS "SetWindowText", @hwnd%, "SDLIDE Macro Recorder"
+        *FONT Courier New,12,B
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%, "SDLIDE Macro Recorder", @memhdc%
+        OSCLI "FONT """ + @lib$ + "DejaVuSansMono""," + STR$INT(11 * GUIscale / 2)
+      ENDIF
+      OFF
+      
+      PROC_setdialogpalette(Darkmode%)
+      VDU 23,0,10,0,0;0;0;
+      VDU 23,0,18,2,0;0;0;
+      OFF
+      
+      Dlg% = FN_newdialog("", 180, 92)
+      
+      PROC_groupbox(Dlg%,"Select Macro Key",100,8,1,164,40,0)
+      PROC_radiobutton(Dlg%,"F1",101,14,13,26,12,1)
+      PROC_radiobutton(Dlg%,"F2",102,40,13,26,12,0)
+      PROC_radiobutton(Dlg%,"F3",103,66,13,26,12,0)
+      PROC_radiobutton(Dlg%,"F4",104,92,13,26,12,0)
+      PROC_radiobutton(Dlg%,"F5",105,118,13,26,12,0)
+      PROC_radiobutton(Dlg%,"F6",106,144,13,26,12,0)
+      PROC_radiobutton(Dlg%,"F7",107,17,27,30,12,0)
+      PROC_radiobutton(Dlg%,"F8",108,47,27,30,12,0)
+      PROC_radiobutton(Dlg%,"F9",109,77,27,30,12,0)
+      PROC_radiobutton(Dlg%,"F10",110,107,27,30,12,0)
+      PROC_radiobutton(Dlg%,"Tab",111,137,27,30,12,0)
+      PROC_textbox(Dlg%,"",112,64,52,108,12,0)
+      PROC_static(Dlg%,"(restart SDLIDE to update macros)",113,8,72,160,16,SS_CENTER)
+      PROC_button(Dlg%,"Record",FN_setproc(PROCrecord()),8,50,50,15,0)
+      
+      PROC_registerdlgcallback(Dlg%, FNcallback())
+      
+      PROC_getdlgrect(Dlg%, X%, Y%, W%, H%)
+      IF INKEY(-256) = &57 THEN
+        DIM rc{l%,t%,r%,b%} : rc.r% = W% DIV 2 + 2 : rc.b% = H% DIV 2
+        SYS "AdjustWindowRect", rc{}, &CF0000, 0
+        SYS "SetWindowPos", @hwnd%, FALSE, X%, Y%, rc.r% - rc.l%, rc.b% - rc.t%, 6
+        SYS "ShowWindow", @hwnd%, 5
+      ELSE
+        SYS "SDL_SetWindowSize", @hwnd%, W% DIV 2 + 2, H% DIV 2, @memhdc%
+        SYS "SDL_ShowWindow", @hwnd%, @memhdc%
+      ENDIF
+      VDU 26
+      
+      IF FN_showdialogex(Dlg%, 0, H%, Darkmode%)
+      PROC_closedialog(Dlg%)
+      QUIT
+      
+      DEF PROCrecord(D%, R%)
+      LOCAL B%, F%, H%, I%, J%, K%, M%, W%, X%, Y%
+      ON MOUSE LOCAL OFF
+      PROC_getdlgitemrect(D%, R%, X%, Y%, W%, H%)
+      FOR I% = 101 TO 112
+        PROC_enabledlgitem(D%, I%, FALSE)
+      NEXT
+      PROC_setdlgitemtext(D%, 113, "(press Escape or click button to stop)")
+      PROC_setdlgitemtext(D%, R%, "Stop")
+      PROC_refreshdialog(D%)
+      FOR M% = 1 TO 11
+        IF FN_isdlgitemchecked(D%, 100 + M%) EXIT FOR
+      NEXT
+      IF M% <= 11 THEN
+        REPEAT
+          K% = INKEY(1)
+          IF K% = 27 EXIT REPEAT
+          IF K% > 0 THEN
+            IF NOT F% Macro$(M%) = ""
+            F% = TRUE
+            IF K% >= 128 Macro$(M%) += "|!" : K% -= 128
+            IF K% < 32   Macro$(M%) += "|"  : K% += 64
+            IF K% = 124  Macro$(M%) += "||" ELSE Macro$(M%) += CHR$(K%)
+            PROC_setdlgitemtext(D%, 112, Macro$(M%))
+            PROC_refreshdialog(D%)
+          ENDIF
+          MOUSE I%, J%, B%
+        UNTIL (B% AND 4) <> 0 AND I% >= X% AND J% >= Y% AND I% < X% + W% AND J% < Y% + H%
+      ENDIF
+      FOR I% = 101 TO 112
+        PROC_enabledlgitem(D%, I%, 1)
+      NEXT
+      PROC_setdlgitemtext(D%, 113, "(restart SDLIDE to update macros)")
+      PROC_setdlgitemtext(D%, R%, "Record")
+      PROC_refreshdialog(D%)
+      IF F% PROCputINIstring(IniFile$, "macro" + STR$(M%), Macro$(M%))
+      ENDPROC
+      
+      DEF FNcallback(D%, K%)
+      IF K% <> TRUE THEN = FALSE
+      PRIVATE M%
+      LOCAL I%
+      FOR I% = 1 TO 11
+        IF FN_isdlgitemchecked(D%, 100 + I%) EXIT FOR
+      NEXT
+      IF I% > 11 THEN = FALSE : REM Should not happen
+      IF M% = 0 THEN
+        M% = I%
+        PROC_setdlgitemtext(D%, 112, Macro$(M%))
+        PROC_refreshdialog(D%)
+      ENDIF
+      IF I% <> M% OR Macro$(M%) <> FN_getdlgitemtext(D%, 112) THEN
+        Macro$(M%) = FN_getdlgitemtext(D%, 112)
+        M% = I%
+        PROC_setdlgitemtext(D%, 112, Macro$(M%))
+        PROC_refreshdialog(D%)
+        PROCputINIstring(IniFile$, "macro" + STR$(M%), Macro$(M%))
+      ENDIF
+      = FALSE
+      
+      DEF FNgetINIstring(f$, k$, d$)
+      LOCAL F%, I%, a$
+      F% = OPENIN(f$)
+      IF F% = 0 THEN = d$
+      k$ = FN_lower(FN_trim(k$))
+      WHILE NOT EOF#F%
+        a$ = GET$#F%
+        I% = INSTR(a$, "=")
+        IF I% IF FN_lower(FN_trim(LEFT$(a$,I%-1))) = k$ d$ = FN_trim(MID$(a$,I%+1)) : EXIT WHILE
+      ENDWHILE
+      CLOSE #F%
+      IF ASC(d$) = &22 IF RIGHT$(d$) = """" d$ = EVAL(d$)
+      = d$
+      
+      DEF PROCputINIstring(f$, k$, v$)
+      LOCAL I%, P%, a$, d$
+      PRIVATE F% : IF F% ENDPROC
+      F% = OPENUP(f$)
+      IF F% = 0 F% = OPENOUT(f$)
+      IF F% = 0 ERROR 100, "Couldn't create INI file"
+      k$ = FN_lower(FN_trim(k$))
+      WHILE NOT EOF#F%
+        P% = PTR#F%
+        a$ = GET$#F%
+        I% = INSTR(a$, "=")
+        IF I% IF FN_lower(FN_trim(LEFT$(a$,I%-1))) = k$ d$ = MID$(a$,I%+1) : EXIT WHILE
+        IF a$ = ""  THEN PTR#F% = P% : IF BGET#F% = 0 THEN PTR#F% = P% : EXIT WHILE
+      ENDWHILE
+      IF d$ <> v$ THEN
+        a$ = GET$#F% TO 0
+        PTR#F% = P%
+        BPUT #F%, k$ + "=" + v$
+        BPUT #F%, a$ + CHR$0 ;
+        WHILE PTR#F% < EXT#F% BPUT#F%,0 : ENDWHILE
+      ENDIF
+      CLOSE #F%
+      F% = FALSE
+      ENDPROC

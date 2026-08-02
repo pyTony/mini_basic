@@ -1,0 +1,49 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE CLS:REPORT:STOP
+      
+      REM Demonstration of Finite Impulse Response filtering, R.T.Russell, 28-Feb-2025
+      REM Uses array slicing so requires a compatible version of BB4W or BBCSDL.
+      VDU 23,22,640;512;8,16,16,128
+      OFF
+      
+      REM Sampling rate = 640 cycles/active-picture-width, number of taps = 17
+      DIM in(639), lpf(16), bpf(16), out(0)
+      
+      REM Band edges: 0 4 34 320; desired amplitudes: 1 0; weights: 1 1
+      lpf() =        0.076183126, 0.033683023, 0.039634827, 0.045344527, 0.050345758, \
+      \ 0.054557371, 0.057785119, 0.059687346, 0.060284179, 0.059687346, 0.057785119, \
+      \ 0.054557371, 0.050345758, 0.045344527, 0.039634827, 0.033683023, 0.076183126
+      
+      REM Band edges: 0 2 39 41 80 320; desired amplitudes: 0 1 0; weights: 1000 100 1
+      bpf() =       -0.089656010,-0.072961312,-0.076599772,-0.058773495,-0.019864809, \
+      \ 0.032760147, 0.086284624, 0.125974260, 0.140746740, 0.125974260, 0.086284624, \
+      \ 0.032760147,-0.019864809,-0.058773495,-0.076599772,-0.072961312,-0.089656010
+      
+      PRINT " Original signal, sum of sinewaves at 4 c/apw and 40 c/apw:"
+      ORIGIN 0,864
+      FOR I% = 0 TO 639
+        in(I%) = SIN(4 * 2*PI*I%/640) + SIN(40 * 2*PI*I%/640)
+        IF I% > 0 DRAW I%*2,in(I%) * 50 ELSE MOVE I%*2,in(I%) * 50
+      NEXT
+      
+      PRINT TAB(0,9) " Running-average (boxcar) filter, 17 taps:"
+      ORIGIN 0,864-256
+      FOR I% = 8 TO 639-8
+        out = SUM(in(I%-8 TO I%+8)) / 17
+        IF I% > 8 DRAW I%*2,out * 50 ELSE MOVE I%*2,out * 50
+      NEXT
+      
+      PRINT TAB(0,17) " Optimised Finite Impulse Response low-pass filter, 17 taps:"
+      ORIGIN 0,864-512
+      FOR I% = 8 TO 639-8
+        out() = in(I%-8 TO I%+8) . lpf()
+        IF I% > 8 DRAW I%*2,out(0) * 50 ELSE MOVE I%*2,out(0) * 50
+      NEXT
+      
+      PRINT TAB(0,25) " Optimised Finite Impulse Response band-pass filter, 17 taps:"
+      ORIGIN 0,864-768
+      FOR I% = 8 TO 639-8
+        out() = in(I%-8 TO I%+8) . bpf()
+        IF I% > 8 DRAW I%*2,out(0) * 50 ELSE MOVE I%*2,out(0) * 50
+      NEXT
+      
+      REPEAT : WAIT 4 : UNTIL FALSE

@@ -50,7 +50,9 @@ Core components:
   1. Agent finishes a step → writes/updates CURRENT_TASK.txt, FEATURES_DONE.txt, etc.
   2. Next poll (or `python scripts/progress_heartbeat.py`) sees fingerprint change → full `update_project_status()`.
   3. Optional immediate rebuild after big edits: `update_project_status(...)` or `progress_heartbeat.py --force`.
-  4. Resource checks: `python scripts/verify_resources.py`.
+  4. Resource checks: `python scripts/verify_resources.py`
+     (includes Grok/agent leftover Python scan — AGENT_POLICY §5b).
+     Orphans: `python scripts/probe_agent_python.py` / `--kill-orphans`.
 
 No long-running daemons except the Windows scheduled task (fire-and-forget every 5 minutes).
 
@@ -152,7 +154,9 @@ Correctly listed here and reflected in the status files (as of latest):
 ```bash
 # Typical session
 cd mini_basic
-python scripts/verify_resources.py          # before heavy work
+python scripts/verify_resources.py          # before heavy work (+ agent-python scan)
+python scripts/probe_agent_python.py        # list hung Grok/agent Python leftovers
+# python scripts/probe_agent_python.py --kill-orphans
 # ... do work on current focus (one program) ...
 python test/verify_XXX_step.py              # agent snippets
 python -m pytest -q -m "phase1 and not slow" --timeout=20   # safe regression
@@ -183,7 +187,8 @@ write_agent_results(['OK wheel.txt :: all 2 snippet checks passed'])
 - Use `python run_program.py <name>` (prints user cmd) when ready for user.
 
 **Key scripts for autonomous work:**
-- `scripts/verify_resources.py`, `utils/agent_resource.py`
+- `scripts/verify_resources.py`, `scripts/probe_agent_python.py`, `utils/agent_resource.py`
+  (AGENT_POLICY §5b — regular probe for leftover Grok/agent Python processes)
 - `test/run_regression.py`, `test/verify_*_step.py`, `verify_program.py`
 - `scripts/compare_bbc_outputs.py`, `test/corpus_audit_probe.py`
 - `test/progress_runner.py:update_project_status(...)`

@@ -1,0 +1,422 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM 3D Forge model from turbosquid.com (free)
+      
+      SYS "SDL_SetWindowTitle", @hwnd%, "The Harmonious Blacksmith by G.F Handel", @memhdc%
+      
+      INSTALL @lib$ + "webgllib"
+      
+      DIM Object%(8), nVert%(8), vFormat%(8), vSize%(8), Texture%(8), Light%(0)
+      DIM Material%(8), Pan(8), Tilt(8), Roll(8), Xpos(8), Ypos(8), Zpos(8)
+      DIM Q1&(3), Q2&(3), Q3&(3), Q4&(3)
+      
+      DIM Light{(1)Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi%}
+      
+      PRINT "Please wait..."
+      *REFRESH
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE Resize% OR= (@msg% = 5) : RETURN
+      
+      Device% = 0
+      Resize% = FALSE
+      PROCcreatefvf
+      PROCinitrender
+      
+      *TEMPO 133
+      *STEREO 1,127
+      *STEREO 2,42
+      *STEREO 3,-42
+      *STEREO 0,-127
+      *VOICE 0,6
+      *VOICE 1,6
+      *VOICE 2,6
+      *VOICE 3,6
+      SOUND 1,0,0,10
+      
+      DIM snd{(3,50)a&,p&,d&}, p%(3), q%(3), cli$(3)
+      DIM cmajor&(7), scale%(7), acc%(7), flat&(7), sharp&(7)
+      cmajor&() = 88,96,52,60,68,72,80
+      flat&() = 0, &02, &12, &13, &1B, &5B, &5F, &7F
+      sharp&() = 0, &A0, &A4, &E4, &EC, &ED, &FD, &FF
+      dur% = 24
+      tempo = 4
+      ENVELOPE 1,1,0,0,0,0,0,0,64,0,0,-12,119,89
+      REPEAT
+        REPEAT
+          READ R$ : IF R$="" FOR I% = 1 TO 300 : PROCanimate : NEXT : RESTORE : READ R$
+          T$ += R$ : IF RIGHT$(T$) = "\" T$ = LEFT$(T$)
+        UNTIL RIGHT$(R$) <> "\"
+        acc%() = scale%()
+        clef% = 48 : voice% = 1
+        p%() = 0 : q%() = 0
+        WHILE T$<>""
+          I% = 1 : WHILE INSTR("0123456789",MID$(T$,I%,1)) I% += 1 : ENDWHILE
+          IF I% > 1 dur% = VALLEFT$(T$,I%-1) : T$ = MID$(T$,I%)
+          C$ = LEFT$(T$,1) : T$=MID$(T$,2)
+          CASE C$ OF
+            WHEN " ":
+            WHEN ";": T$ = ""
+            WHEN "[": T$ = ""
+            WHEN "P": T$ = MID$(T$,2)
+            WHEN "=": beat% = 0
+              WHILE ASC(T$)>=&30 AND ASC(T$)<=&39 beat% = beat% * 10 + ASC(T$)-&30
+                T$ = MID$(T$,2) : ENDWHILE
+              WHILE ADVAL(-5)<16 OR ADVAL(-6)<16 OR ADVAL(-7)<16 OR ADVAL(-8)<16
+                PROCanimate : ENDWHILE
+              CASE TRUE OF
+                WHEN beat% <= 60  tempo = 3 : *TEMPO 130
+                WHEN beat% <= 70  tempo = 4 : *TEMPO 131
+                WHEN beat% <= 100 tempo = 3 : *TEMPO 131
+                WHEN beat% <= 120 tempo = 4 : *TEMPO 133
+                WHEN beat% <= 130 tempo = 3 : *TEMPO 132
+                WHEN beat% <= 150 tempo = 2 : *TEMPO 131
+                WHEN beat% <= 170 tempo = 3 : *TEMPO 133
+              ENDCASE
+            WHEN "T": acc%() = scale%() : clef% = 48
+            WHEN "S": acc%() = scale%() : clef% = 0
+            WHEN "V": acc%() = scale%() : voice% = ASC(T$) - &30 : T$=MID$(T$,2)
+              voice% AND= 3
+            WHEN "W": wave% = VAL(T$) : T$ = MID$(T$,2)
+              WHILE ADVAL(-5-voice%)<16 PROCanimate : ENDWHILE
+              cli$(voice%) = "voice " + STR$voice% + "," + STR$(wave%)
+            WHEN "K": key% = ASC(T$) - &30 : T$=MID$(T$,2)
+              scale%() = 0
+              IF key% THEN
+                key$ = LEFT$(T$,1) : T$=MID$(T$,2)
+                CASE key$ OF
+                  WHEN "#": key& = sharp&(key%)
+                  WHEN "b","&": key& = flat&(key%)
+                ENDCASE
+                FOR I% = 0 TO 6
+                  IF key& AND (2^I%) scale%(I%) = -4 : IF key& AND &80 scale%(I%) = +4
+                NEXT
+              ENDIF
+              acc%() = scale%()
+            OTHERWISE
+              Note% = INSTR("ABCDEFG$",C$)-1
+              IF Note% < 0 ERROR 100, "Unrecognised command "+C$
+              octave% = 0
+              staccato = 0
+              ticks% = dur% / tempo
+              REPEAT
+                CASE LEFT$(T$,1) OF
+                  WHEN "#": acc%(Note%) = 4
+                  WHEN "%": acc%(Note%) = 0
+                  WHEN "&","b": acc%(Note%) =-4
+                  WHEN "+": octave% += 48
+                  WHEN "-": octave% -= 48
+                  WHEN ".": ticks% = dur% / tempo * 3/2
+                  WHEN ":": ticks% = dur% / tempo * 2/3
+                  WHEN ",": staccato = 1/4
+                  WHEN "'":  staccato = 1/8
+                  WHEN """": staccato = 1/8
+                  OTHERWISE: EXIT REPEAT
+                ENDCASE
+                T$=MID$(T$,2)
+              UNTIL FALSE
+              pitch% = cmajor&(Note%) + acc%(Note%) + clef% + octave%
+              IF pitch% < 0 pitch% += 48
+              IF Note% = 7 pitch% = 0
+              IF pitch% < 0 OR pitch% > 255 ERROR 100, "Pitch out of range: "+STR$pitch%
+              IF ticks% < 0 OR ticks% > 254 ERROR 100, "Duration out of range: "+STR$ticks%
+              gap% = INT(ticks% * staccato) + 0.5
+              snd{(voice%,p%(voice%))}.p& = pitch%
+              snd{(voice%,p%(voice%))}.d& = ticks% - gap%
+              p%(voice%) += 1
+              IF gap% THEN
+                snd{(voice%,p%(voice%))}.p& = 0
+                snd{(voice%,p%(voice%))}.d& = gap%
+                p%(voice%) += 1
+              ENDIF
+          ENDCASE
+        ENDWHILE
+        WHILE ADVAL(-5)=0 OR ADVAL(-6)=0 OR ADVAL(-7)=0 OR ADVAL(-8)=0
+          PROCanimate
+        ENDWHILE
+        IF p%(0)<>q%(0) OR p%(1)<>q%(1) OR p%(2)<>q%(2) OR p%(3)<>q%(3) THEN
+          SOUND &300,0,0,0 : SOUND &301,0,0,0 : SOUND &302,0,0,0 : SOUND &303,0,0,0
+          FOR v% = 0 TO 3
+            IF cli$(v%)<>"" OSCLI(cli$(v%)) : cli$(v%) = ""
+          NEXT
+          REPEAT
+            stall% = TRUE
+            FOR v% = 0 TO 3
+              IF q%(v%) < p%(v%) IF ADVAL(-5-v%) THEN
+                stall% = FALSE
+                IF snd{(v%,q%(v%))}.p& = 0 THEN
+                  SOUND v%+&1000,1,0,snd{(v%,q%(v%))}.d&
+                ELSE
+                  SOUND v%,1,snd{(v%,q%(v%))}.p&,snd{(v%,q%(v%))}.d&
+                ENDIF
+                q%(v%) += 1
+              ENDIF
+            NEXT v%
+            IF stall% PROCanimate
+          UNTIL p%(0)=q%(0) AND p%(1)=q%(1) AND p%(2)=q%(2) AND p%(3)=q%(3)
+        ENDIF
+      UNTIL FALSE
+      END
+      
+      DEF PROCcreatefvf
+      LOCAL C%, F%, V%, a, b, c, x, y, z, p(), q(), r(), v() : DIM p(2,2), q(2,2), r(2,2), v(2)
+      
+      REM Create the smoke as a Flexible Vertex Format file:
+      F% = OPENOUT(@tmp$+"smoke.fvf")
+      BPUT #F%,&B8 : BPUT #F%,&B: BPUT #F%,0 : BPUT #F%,0 : REM Vertex count
+      BPUT #F%,&42 : BPUT #F%,0 : BPUT #F%,16: BPUT #F%,0 : REM Vertex format and size
+      FOR V% = 1 TO 1000
+        C% = 127 + RND(128)
+        y = RND(30)  : x = (1+y/10)*(RND(1)-0.5) : z = (1+y/10)*(RND(1)-0.5)
+        a = 2*PI*RND(1)  : b= 2*PI*RND(1) : c = 2*PI*RND(1)
+        p() = 1, 0, 0, 0, COSa, -SINa, 0, SINa, COSa
+        q() = COSb, 0, SINb, 0, 1, 0, -SINb, 0, COSb
+        r() = COSc, -SINc, 0, SINc, COSc, 0, 0, 0, 1
+        v() = 0.3,0.3,0.3 : v() = p() . v() : v() = q() . v() : v() = r() . v()
+        PROC4(F%,x+v(0)) : PROC4(F%,y+v(1)) : PROC4(F%,z+v(2)) : REM xyz coordinates
+        BPUT#F%,C% : BPUT#F%,C% : BPUT#F%,C% : BPUT#F%,&FF
+        a += 2*PI/3 : b += 2*PI/3 : c += 2*PI/3
+        p() = 1, 0, 0, 0, COSa, -SINa, 0, SINa, COSa
+        q() = COSb, 0, SINb, 0, 1, 0, -SINb, 0, COSb
+        r() = COSc, -SINc, 0, SINc, COSc, 0, 0, 0, 1
+        v() = 0.3,0.3,0.3 : v() = p() . v() : v() = q() . v() : v() = r() . v()
+        PROC4(F%,x+v(0)) : PROC4(F%,y+v(1)) : PROC4(F%,z+v(2)) : REM xyz coordinates
+        BPUT#F%,C% : BPUT#F%,C% : BPUT#F%,C% : BPUT#F%,&FF
+        a += 2*PI/3 : b += 2*PI/3 : c += 2*PI/3
+        p() = 1, 0, 0, 0, COSa, -SINa, 0, SINa, COSa
+        q() = COSb, 0, SINb, 0, 1, 0, -SINb, 0, COSb
+        r() = COSc, -SINc, 0, SINc, COSc, 0, 0, 0, 1
+        v() = 0.3,0.3,0.3 : v() = p() . v() : v() = q() . v() : v() = r() . v()
+        PROC4(F%,x+v(0)) : PROC4(F%,y+v(1)) : PROC4(F%,z+v(2)) : REM xyz coordinates
+        BPUT#F%,C% : BPUT#F%,C% : BPUT#F%,C% : BPUT#F%,&FF
+      NEXT
+      CLOSE #F%
+      ENDPROC
+      
+      DEF PROCanimate
+      LOCAL bgcolour%, nobjects%, viewangle, aspectratio, mindist, maxdist, cameraroll
+      LOCAL I%, wind, veer, camera(), lookat() : DIM camera(2), lookat(2)
+      
+      lookat() = 44, 30, 0
+      bgcolour% = &FF90B0FF
+      nobjects% = DIM(Object%(),1) + 1
+      viewangle = PI/4
+      aspectratio = @vdu%!208/@vdu%!212
+      mindist = 10.0
+      maxdist = 1000.0
+      cameraroll = 0
+      wind = RAD(5) * (SIN(TIME/200) + 1.0) : veer = PI/2 * SIN(TIME/100)
+      FOR I% = 1 TO DIM(Ypos(),1)
+        Ypos(I%) += 0.15 * RND(1) : IF Ypos(I%) > 70 Ypos(I%) -= 30
+        Tilt(I%) = wind * COS(veer + Pan(I%)) : Roll(I%) = wind * SIN(veer + Pan(I%))
+        Xpos(I%) = 44 - (Ypos(I%) - 66) * TAN(wind * SIN(veer))
+        Zpos(I%) = 32 + (Ypos(I%) - 66) * TAN(wind * COS(veer))
+      NEXT
+      camera() = 58+120*SIN(TIME/1000), 60, 120*COS(TIME/1000)
+      
+      Light{(0)}.Position.x% = FN_f4(camera(0))
+      Light{(0)}.Position.y% = FN_f4(camera(1))
+      Light{(0)}.Position.z% = FN_f4(camera(2))
+      
+      PROC_render(Device%, bgcolour%, 1, Light%(), nobjects%, Material%(), Texture%(), \
+      \ Object%(), nVert%(), vFormat%(), vSize%(), Pan(), Tilt(), Roll(), Xpos(), Ypos(), Zpos(), \
+      \ camera(), lookat(), viewangle, aspectratio, mindist, maxdist, cameraroll)
+      
+      IF Resize% Resize% = FALSE : PROCcleanup : PROCinitrender
+      ENDPROC
+      
+      DEF PROCinitrender
+      LOCAL I%
+      IF POS REM SDL thread sync
+      VDU 26
+      
+      Device% = FN_initgl(@hwnd%, 1, 1)
+      IF Device% = 0 ERROR 100, "Can't initialise 3D library"
+      
+      REM Load the 3D objects:
+      Object%(0) = FN_load3d(Device%, @dir$+"forge.fvf", nVert%(0), vFormat%(0), vSize%(0))
+      IF Object%(0) = 0 ERROR 100, "Can't load forge.fvf"
+      
+      Object%(1) = FN_load3d(Device%, @tmp$+"smoke.fvf", nVert%(1), vFormat%(1), vSize%(1))
+      IF Object%(1) = 0 ERROR 100, "Can't load smoke.fvf"
+      
+      FOR I% = 2 TO DIM(Object%(),1)
+        Object%(I%)  = Object%(1)
+        nVert%(I%)   = nVert%(1)
+        vFormat%(I%) = vFormat%(1)
+        vSize%(I%)   = vSize%(1)
+      NEXT
+      
+      FOR I% = 1 TO DIM(Object%(),1)
+        Ypos(I%) = 40 + 2*I%
+        Pan(I%) = RAD(RND(360))
+      NEXT
+      
+      REM Load the textures:
+      Texture%(0) = FN_loadtexture(Device%, @dir$ + "forge.jpg")
+      IF Texture%(0) = 0 ERROR 100, "Can't load forge.jpg"
+      
+      REM. Point-source Light:
+      Light{(0)}.Type% = 1              : REM. point source
+      Light{(0)}.Ambient.r% = FN_f4(0.5)  : REM. ambient colour RGB
+      Light{(0)}.Ambient.g% = FN_f4(0.5)
+      Light{(0)}.Ambient.b% = FN_f4(0.5)
+      Light{(0)}.Ambient.a% = FN_f4(1)
+      Light{(0)}.Diffuse.r% = FN_f4(1.0)  : REM. diffuse colour RGB
+      Light{(0)}.Diffuse.g% = FN_f4(1.0)
+      Light{(0)}.Diffuse.b% = FN_f4(1.0)
+      Light{(0)}.Diffuse.a% = FN_f4(1)
+      Light{(0)}.Specular.r% = FN_f4(0.2) : REM. specular colour RGB
+      Light{(0)}.Specular.g% = FN_f4(0.2)
+      Light{(0)}.Specular.b% = FN_f4(0.2)
+      Light{(0)}.Range% = FN_f4(200)     : REM. range
+      Light{(0)}.Attenuation0% = FN_f4(1) : REM. attenuation (constant)
+      Light%(0) = Light{(0)} - PAGE + !340
+      
+      ENDPROC
+      
+      DEF PROCcleanup
+      IF ^Object%() THEN
+        Object%(0) += 0  : IF Object%(0)  PROC_release(Object%(0))  : Object%(0) = 0
+        Object%(1) += 0  : IF Object%(1)  PROC_release(Object%(1))  : Object%(1) = 0
+      ENDIF
+      IF ^Texture%() THEN
+        Texture%(0) += 0 : IF Texture%(0) PROC_release(Texture%(0)) : Texture%(0) = 0
+      ENDIF
+      Device% += 0       : IF Device%     PROC_release(Device%)     : Device% = 0
+      *REFRESH ON
+      ENDPROC
+      
+      DEF PROC4(F%,a) : LOCAL A% : A%=FN_f4(a)
+      BPUT #F%,A% : BPUT #F%,A%>>8 : BPUT#F%,A%>>16 : BPUT#F%,A%>>24
+      ENDPROC
+      
+      DATA ";AIR WITH VARIATIONS 'THE HARMONIOUS BLACKSMITH'"
+      DATA ";G.F. HANDEL"
+      DATA "; (P) (C) 1977 SOFTWARE TECHNOLOGY CORP."
+      DATA ";TRANSCODED BY R.T.RUSSELL."
+      
+      DATA ";<1"
+      DATA "K4# =150"
+      DATA ";THEME"
+      DATA "PA"
+      DATA "V3S24E.-24$"
+      
+      DATA "PB"
+      DATA "T24EGFBG12FE V2S48G24BF$G V3S48E24DB-48E"
+      DATA "T24FBG48C+B24A# V2T48F-24E.12E24D.12D48C V3S24EDEE-FGEF"
+      DATA "T24B.12$ V2T24D. V3S24B-."
+      
+      DATA "T24EGFBG12FE V2S48G24BF$G V3S48E24DB-48E"
+      DATA "T24FBG48C+B24A# V2T48F-24E.12E24D.12D48C V3S24EDEE-FGEF"
+      DATA "T24B.12$ V2T24D. V3S24B-."
+      
+      DATA "PD"
+      DATA "T24B12E+B24C+B12GBE+B V2T24EG48E24$B- V3S24GEAB$E"
+      DATA "T24C+B12GBE+D+'D+C+'C+B'BA6GA12B V2S24E+BBB+E+BD+B \"
+      DATA "V3S24AGEGAGFE"
+      DATA "T48F24BEFE12BGFE V2S48D+24$BC+B$B V3S24B-A-G-GAG$G"
+      DATA "T12FD24EB12EFDAGF24G12FE V2S24C+B$BABTED V3S24AG$G-F-E-B-B--"
+      DATA "T24E.12$ V2S24B. V3S24E-."
+      DATA ";VAR. I"
+      
+      DATA "PE"
+      DATA "T12EB-GB-FB-BB-GB-EB- V2S24$GED$G V3S24E-E48FE"
+      DATA "T12FB-BB-GEC+EDC+BDCEBA# V2S48FE24FGEF V3S24ED$G"
+      DATA "T48B V2TF V3S12B-FBF"
+      
+      DATA "T12EB-GB-FB-BB-GB-EB- V2S24$GED$G V3S24E-E48FE"
+      DATA "T12FB-BB-GEC+EDC+BDCEBA# V2S48FE24FGEF V3S24ED$G"
+      DATA "T48B V2TF V3S12B-FBF"
+      
+      DATA "PG"
+      DATA "T12EBE+BC+EAEBEE+E V2S48GAG V3S24$48E.24$E"
+      DATA "T12C+EAEBEE+EC+EBEADEG V2S24AC+48B24C+$AG V3S48E.24EAGFE"
+      DATA "T12FB-DB-BEGE+C+EAD+BEGE+ V2S24DFGBAC+$B V3S24B-A-G-48E.24GE"
+      DATA "T12C+EAD+BEGE+ADEF24GF V2S48A24$BAGT12EB-DA- V3S24EC+GEFEB-B--"
+      DATA "T48E V2S48B V3S12E-B-EF"
+      DATA ";VAR. II"
+      
+      DATA "PH"
+      DATA "T48BBB V2T24EGFAGE V3S12GBEBDBB-BEBGB"
+      DATA "T48BBB24BA# V2T24FAGEFD48C V3S12DBB-BEBGBDBB-BEGCF"
+      DATA "T48BBBB V2T48D24EGFDEG V3S12B-BA%BGBEBDFB-DG-B-E-E"
+      DATA "T48BBB24BA# V2T24FDEGFD48C V3S12DFB-DG-B-E-EDFB-DECFF-"
+      DATA "T48B V2T48D V3S12B-FBA%"
+      
+      DATA "PI"
+      DATA "T48E+E+E+ V2T24GBAC+BG V3S12GTEDECESAE+GE+EE+"
+      DATA "T48E+24$G$$$E V2T24AC+BE+C+BAG V3S12C+E+AE+GE+EE+AE+GE+FD+EB"
+      DATA "T48FBC+B V2T48D24$E$E$E V3S12B-BA-AG-6ED24E12A-6ED24E12G-6ED24E"
+      DATA "T48C+B12DAGF24G12FE V2T24$E$E$$ED V3S12A-6ED24E12G-6ED24E12F-DEA-24B-B--"
+      DATA "T48E V2S48B V3S12E-G-B-E"
+      DATA ";VAR. III"
+      
+      DATA "PJ"
+      DATA "T8GABEFGDEFB-BAGABEFG V2S48EBE V3S24$G$D$G"
+      DATA "T8DEFB-BAGA#BC+D+E+FGABC+D+C+D+BFBA V2S48BE- V3S24$D$EEDEF"
+      DATA "T8BFDB-BA% V2S48B- V3S24$D"
+      
+      DATA "T8GABEFGDEFB-BAGABEFG V2S48EBE V3S24$G$D$G"
+      DATA "T8DEFB-BAGA#BC+D+E+FGABC+D+C+D+BFBA V2S48BE- V3S24$D$EEDEF"
+      DATA "T8BFDB-BA% V2S48B- V3S24$D"
+      
+      DATA "PL"
+      DATA "T8GABEE+D+C+D+E+ABC+GABEE+D+ V2S48EAE+ V3S24$G$C+$G"
+      DATA "T8C+D+E+ABC+BC+D+E+F+G+ABC+BC+AGAGFGF V2S48ATE24EDEC V3S24$C+$GFFEA"
+      DATA "T8DFEDEFB-CDEFGCDEFGADEFGAB V2S48B$A-B- V3S24$AGE$F$G"
+      DATA "T8EFGABC+D+E+F+AGFE+D+C+BAGFGEB-ED V2S48CB-G- V3S24$A$DEGA-B-"
+      DATA "T8EB-G-24E- V2S48E-"
+      DATA ";VAR. IV"
+      
+      DATA "PM"
+      DATA "T48B.24B48B V2T24EGFDEG V3S8GABEFGDEFB-CDG-A-B-E-B-E"
+      DATA "T24BBBE+E+D+48C+ V2T24FDEG8A#BC+FFB24BA \"
+      DATA "V3S8DEFB-FAGABCDEF-G-A-#B-CDEFGCFE"
+      DATA "T48B V2T24$D V3S8DEFB-BA%"
+      
+      DATA "T48B.24B48B V2T24EGFDEG V3S8GABEFGDEFB-CDG-A-B-E-B-E"
+      DATA "T24BBBE+E+D+48C+ V2T24FDEG8A#BC+FFB24BA \"
+      DATA "V3S8DEFB-FAGABCDEF-G-A-#B-CDEFGCFE"
+      DATA "T48B V2T24$D V3S8DEFB-BA%"
+      
+      DATA "PO"
+      DATA "T24BE+48C+B V2T24EGEAAG V3S8GABEFGABC+FGAGABEFG"
+      DATA "T48C+B24C+AAG V2T24BAAGEFFE V3S8ABC+FGAGABEFGAGAFEFDCB-EDE"
+      DATA "T48FB24BAFBV2T24EDEGCFDGV3S8B-CB-A-B-A-G-B-G-E-G-E-A-CA-F-A-F-B-DB-G-B-G-"
+      DATA "T24BA48A24A12GF24ED V2T24E$F+D+12BD+E+A24G12FE \"
+      DATA "V3S8CECFAFDFDB-DB-12EB-CA-24B-B--"
+      DATA "T48E V2S48B V3S12E-B-EF"
+      DATA ";VAR. V"
+      
+      DATA "PP"
+      DATA "T6BAGFEDCB-BAGFEDCB-48B V2S48GFE+ V3S48ED6E-F-G-A-B-CDE"
+      DATA "T48B12B-6CDEFGA#BAGFEDCB-12CEBA V2T48D V3S6B-CDEFGAB24GEDGEF"
+      DATA "T48B V2T48D V3S12B-FBA%"
+      
+      DATA "T6BAGFEDCB-BAGFEDCB-48B V2S48GFE+ V3S48ED6E-F-G-A-B-CDE"
+      DATA "T48B12B-6CDEFGA#BAGFEDCB-12CEBA V2T48D V3S6B-CDEFGAB24GEDGEF"
+      DATA "T48B V2T48D V3S12B-FBA%"
+      
+      DATA "PR"
+      DATA "T6E+D+C+BAGFEE+D+C+BAGFEE+D+C+BAGFE V2S48BC+B V3S48GAG"
+      DATA "T6E+D+C+BAGFEE+D+C+BAGFE24A.12B24G.12A V2S48C+B12$C+24D+12$B24E+ \"
+      DATA "V3S48AG24FB-EE-"
+      DATA "T48F6B-CDEFGABCDEFGABC+DEFGABC+D+ V2T24D.12C24S$E$F$G \"
+      DATA "V3S12B-DFA-48G-A-B-"
+      DATA "T12E+6D+C+BAGFEGBAGFED12CEAGGFED V2S24$E$E$C$B-- V3S48CG-A-B-"
+      DATA "T48E6EFGABC+D+E+24C+A6EFGABC+D+E+ V2S48BEE+ \"
+      DATA "V3S12E-6F-G-A-B-CD24$G-6A-B-CDEFGA24GE"
+      DATA "T24C+A6EFGABC+D+E+24C+B24A.12G V2T48E$12$E$E$DE \"
+      DATA "V3S6A-B-CDEFGA24GEAGFE"
+      DATA "T48F6BAGFEDCB-C+BAGFEDCD+C+BAGFED V2S12$BD+F+24$E$F$G \"
+      DATA "V3S12B-DFA-48G-A-B-"
+      DATA "T6E+D+C+BAGFEB+A+G+F+E+D+C+BAGFEDCSBA12GE+FD+ V2S24$E$E$F \"
+      DATA "V3 S48CG-A-24B-B--"
+      DATA "T6$$$B-96E V2S6$EGG96G V3S64E-."
+      
+      DATA ""

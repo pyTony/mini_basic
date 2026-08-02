@@ -1,0 +1,264 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM OpenGL BBC One World Logo in BBC BASIC for SDL2.0
+      REM (C) R.T.Russell 2018, http://www.rtrussell.co.uk/
+      
+      HIMEM = PAGE + 4000000
+      SYS "SDL_SetWindowTitle", @hwnd%, "BBC OWL (COW) rendered in real-time using OpenGL", @memhdc%
+      INSTALL @lib$ + "ogllib" : REM @lib$ + "webgllib"
+      
+      VDU 26,20,12 : OFF
+      OSCLI "DISPLAY """ + @dir$ + "bbcowl.png"" 0,0,1024,1024"
+      GCOL 4,0 : RECTANGLE FILL 0,0,1024,1024
+      COLOR 4,0,46,100 : GCOL 2,4 : RECTANGLE FILL 0,0,1024,1024
+      OSCLI "GSAVE """ + @tmp$ + "blue.bmp"" 0,0,1024,1024"
+      CLS : PRINT "Please wait..."
+      
+      F% = OPENOUT(@tmp$+"logo.fvf")
+      PROC4(F%, 6) : REM vertex count
+      PROC4(F%, &00240152) : REM vertex format and size
+      PROC4(F%,FN_f4(-1.0)) : PROC4(F%,FN_f4(+0.5)) : PROC4(F%,0)
+      PROC4(F%,0)           : PROC4(F%,0)           : PROC4(F%,FN_f4(-1))
+      PROC4(F%,&FFFFFF)     : PROC4(F%,0)           : PROC4(F%,FN_f4(1))
+      PROC4(F%,FN_f4(-1.0)) : PROC4(F%,FN_f4(-0.5)) : PROC4(F%,0)
+      PROC4(F%,0)           : PROC4(F%,0)           : PROC4(F%,FN_f4(-1))
+      PROC4(F%,&FFFFFF)     : PROC4(F%,0)           : PROC4(F%,0)
+      PROC4(F%,FN_f4(+1.0)) : PROC4(F%,FN_f4(+0.5)) : PROC4(F%,0)
+      PROC4(F%,0)           : PROC4(F%,0)           : PROC4(F%,FN_f4(-1))
+      PROC4(F%,&FFFFFF)     : PROC4(F%,FN_f4(1))    : PROC4(F%,FN_f4(1))
+      PROC4(F%,FN_f4(-1.0)) : PROC4(F%,FN_f4(-0.5)) : PROC4(F%,0)
+      PROC4(F%,0)           : PROC4(F%,0)           : PROC4(F%,FN_f4(-1))
+      PROC4(F%,&FFFFFF)     : PROC4(F%,0)           : PROC4(F%,0)
+      PROC4(F%,FN_f4(+1.0)) : PROC4(F%,FN_f4(-0.5)) : PROC4(F%,0)
+      PROC4(F%,0)           : PROC4(F%,0)           : PROC4(F%,FN_f4(-1))
+      PROC4(F%,&FFFFFF)     : PROC4(F%,FN_f4(1))    : PROC4(F%,0)
+      PROC4(F%,FN_f4(+1.0)) : PROC4(F%,FN_f4(+0.5)) : PROC4(F%,0)
+      PROC4(F%,0)           : PROC4(F%,0)           : PROC4(F%,FN_f4(-1))
+      PROC4(F%,&FFFFFF)     : PROC4(F%,FN_f4(1))    : PROC4(F%,FN_f4(1))
+      CLOSE #F%
+      
+      file% = OPENOUT(@tmp$+"gold.fvf")
+      PROC4(file%, 6144) : REM vertex count
+      PROC4(file%, &00240152) : REM vertex format and size
+      PROCtriangulate(5, file%,  1,  0,  0,   0,  0,  1,   0,  1,  0, FALSE)
+      PROCtriangulate(5, file%,  0,  1,  0,   0,  0,  1,  -1,  0,  0, FALSE)
+      PROCtriangulate(5, file%, -1,  0,  0,   0,  0,  1,   0, -1,  0, FALSE)
+      PROCtriangulate(5, file%,  0, -1,  0,   0,  0,  1,   1,  0,  0, FALSE)
+      PROCtriangulate(5, file%,  1,  0,  0,   0,  1,  0,   0,  0, -1, FALSE)
+      PROCtriangulate(5, file%,  0,  1,  0,  -1,  0,  0,   0,  0, -1, FALSE)
+      PROCtriangulate(5, file%, -1,  0,  0,   0, -1,  0,   0,  0, -1, FALSE)
+      PROCtriangulate(5, file%,  0, -1,  0,   1,  0,  0,   0,  0, -1, FALSE)
+      CLOSE #file%
+      
+      file% = OPENOUT(@tmp$+"blue.fvf")
+      PROC4(file%, 6144) : REM vertex count
+      PROC4(file%, &00240152) : REM vertex format and size
+      PROCtriangulate(5, file%,  1,  0,  0,   0,  0,  1,   0,  1,  0, TRUE)
+      PROCtriangulate(5, file%,  0,  1,  0,   0,  0,  1,  -1,  0,  0, TRUE)
+      PROCtriangulate(5, file%, -1,  0,  0,   0,  0,  1,   0, -1,  0, TRUE)
+      PROCtriangulate(5, file%,  0, -1,  0,   0,  0,  1,   1,  0,  0, TRUE)
+      PROCtriangulate(5, file%,  1,  0,  0,   0,  1,  0,   0,  0, -1, TRUE)
+      PROCtriangulate(5, file%,  0,  1,  0,  -1,  0,  0,   0,  0, -1, TRUE)
+      PROCtriangulate(5, file%, -1,  0,  0,   0, -1,  0,   0,  0, -1, TRUE)
+      PROCtriangulate(5, file%,  0, -1,  0,   1,  0,  0,   0,  0, -1, TRUE)
+      CLOSE #file%
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : CLEAR
+      VDU 20,26,12
+      
+      GL_BLEND = &0BE2
+      GL_SRC_ALPHA = &0302
+      GL_ONE_MINUS_SRC_ALPHA = &0303
+      
+      DIM l%(4), b%(2), n%(2), f%(2), s%(2), m%(2), t%(2), y(2), p(2), r(2), X(2), Y(2), Z(2), e(2), a(2)
+      
+      d% = FN_initgl(@hwnd%, 2, 1)
+      IF d% = 0 ERROR 100, "Can't initialise OpenGL"
+      SYS FN_gpa("glEnable"),GL_BLEND,@memhdc%
+      SYS FN_gpa("glBlendFunc"),GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,@memhdc%
+      
+      b%(0) = FN_load3d(d%, @tmp$+"blue.fvf", n%(0), f%(0), s%(0))
+      IF b%(0) = 0 ERROR 100, "Can't load blue.fvf"
+      
+      b%(1) = FN_load3d(d%, @tmp$+"gold.fvf", n%(1), f%(1), s%(1))
+      IF b%(1) = 0 ERROR 100, "Can't load gold.fvf"
+      
+      b%(2) = FN_load3d(d%, @tmp$+"logo.fvf", n%(2), f%(2), s%(2))
+      IF b%(2) = 0 ERROR 100, "Can't load logo.fvf"
+      
+      t%(0) = FN_loadtexture(d%, @tmp$+"blue.bmp")
+      IF t%(0) = 0 ERROR 100, "Can't load blue.bmp"
+      
+      t%(1) = FN_loadtexture(d%, @dir$+"bbcowl.png")
+      IF t%(1) = 0 ERROR 100, "Can't load bbcowl.png"
+      
+      t%(2) = FN_loadtexture(d%, @dir$+"bbc1logo.bmp")
+      IF t%(2) = 0 ERROR 100, "Can't load bbc1logo.bmp"
+      
+      DIM light{(4) Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi%}
+      
+      DIM material{(2) Diffuse{r%,g%,b%,a%}, Ambient{r%,g%,b%,a%}, \
+      \     Specular{r%,g%,b%,a%}, Emissive{r%,g%,b%,a%}, Power%}
+      
+      light{(0)}.Type% = 1 : REM point source
+      light{(0)}.Diffuse.r% = FN_f4(1)
+      light{(0)}.Diffuse.g% = FN_f4(1)
+      light{(0)}.Diffuse.b% = FN_f4(1)
+      light{(0)}.Position.z% = FN_f4(-1000)
+      l%(0) = light{(0)} - PAGE + !340
+      
+      light{(1)}.Type% = 1 : REM point source
+      light{(1)}.Specular.r% = FN_f4(.6)
+      light{(1)}.Specular.g% = FN_f4(.6)
+      light{(1)}.Specular.b% = FN_f4(.6)
+      light{(1)}.Position.x% = FN_f4(-10)
+      light{(1)}.Position.y% = FN_f4(100)
+      light{(1)}.Position.z% = FN_f4(-100)
+      light{(1)}.Range% = FN_f4(200)
+      light{(1)}.Attenuation0% = FN_f4(1.0)
+      l%(1) = light{(1)} - PAGE + !340
+      
+      light{(2)}.Type% = 1 : REM point source
+      light{(2)}.Diffuse.r% = FN_f4(2)
+      light{(2)}.Diffuse.g% = FN_f4(2)
+      light{(2)}.Diffuse.b% = FN_f4(2)
+      light{(2)}.Position.x% = FN_f4(-4)
+      light{(2)}.Position.y% = FN_f4(4)
+      light{(2)}.Position.z% = FN_f4(5)
+      light{(2)}.Range% = FN_f4(200)
+      light{(2)}.Attenuation0% = FN_f4(1)
+      l%(2) = light{(2)} - PAGE + !340
+      
+      light{(3)}.Type% = 1 : REM point source
+      light{(3)}.Diffuse.r% = FN_f4(2)
+      light{(3)}.Diffuse.g% = FN_f4(2)
+      light{(3)}.Diffuse.b% = FN_f4(2)
+      light{(3)}.Position.x% = FN_f4(4)
+      light{(3)}.Position.y% = FN_f4(4)
+      light{(3)}.Position.z% = FN_f4(5)
+      light{(3)}.Range% = FN_f4(200)
+      light{(3)}.Attenuation0% = FN_f4(1)
+      l%(3) = light{(3)} - PAGE + !340
+      
+      light{(4)}.Type% = 1 : REM point source
+      light{(4)}.Diffuse.r% = FN_f4(2)
+      light{(4)}.Diffuse.g% = FN_f4(2)
+      light{(4)}.Diffuse.b% = FN_f4(2)
+      light{(4)}.Position.x% = FN_f4(0)
+      light{(4)}.Position.y% = FN_f4(-5)
+      light{(4)}.Position.z% = FN_f4(5)
+      light{(4)}.Range% = FN_f4(200)
+      light{(4)}.Attenuation0% = FN_f4(1)
+      l%(4) = light{(4)} - PAGE + !340
+      
+      REM. Blue sphere:
+      material{(0)}.Diffuse.r% = FN_f4(1)
+      material{(0)}.Diffuse.g% = FN_f4(1)
+      material{(0)}.Diffuse.b% = FN_f4(1)
+      material{(0)}.Diffuse.a% = FN_f4(1)
+      m%(0) = material{(0)} - PAGE + !340
+      
+      REM. Specular gold sphere:
+      material{(1)}.Diffuse.r% = FN_f4(1.00)
+      material{(1)}.Diffuse.g% = FN_f4(0.82)
+      material{(1)}.Diffuse.b% = FN_f4(0.55)
+      material{(1)}.Diffuse.a% = FN_f4(1.0)
+      material{(1)}.Specular.r% = FN_f4(0.8) : REM. specular colour RGB
+      material{(1)}.Specular.g% = FN_f4(0.8)
+      material{(1)}.Specular.b% = FN_f4(0.8)
+      material{(1)}.Specular.a% = FN_f4(0.8)
+      material{(1)}.Power% = FN_f4(20): REM. specular 'power'
+      m%(1) = material{(1)} - PAGE + !340
+      
+      REM. BBC1 logo:
+      material{(2)}.Diffuse.r% = FN_f4(1)
+      material{(2)}.Diffuse.g% = FN_f4(1)
+      material{(2)}.Diffuse.b% = FN_f4(1)
+      material{(2)}.Diffuse.a% = FN_f4(1)
+      m%(2) = material{(2)} - PAGE + !340
+      
+      e() = 0, 0, -9
+      a() = 0, 0, 0
+      Y(0) = 0.5 : Y(1) = Y(0)
+      Y(2) = -1.15
+      Z(2) = 1.5
+      REPEAT
+        y(0) = -TIME/191 : y(1) = y(0)
+        PROC_render(d%, &00000000, 5, l%(), 3, m%(), t%(), b%(), n%(), f%(), s%(), \
+        \ y(), p(), r(), X(), Y(), Z(), e(), a(), 0.41, @vdu%!208/@vdu%!212, 1, 1000, 0)
+      UNTIL INKEY(1)=0
+      END
+      
+      DEF PROCcleanup
+      t%(0) += 0:IF t%(0) PROC_release(t%(0))
+      t%(1) += 0:IF t%(1) PROC_release(t%(1))
+      t%(2) += 0:IF t%(2) PROC_release(t%(2))
+      b%(0) += 0:IF b%(0) PROC_release(b%(0))
+      b%(1) += 0:IF b%(1) PROC_release(b%(1))
+      b%(2) += 0:IF b%(2) PROC_release(b%(2))
+      d% += 0   :IF d%    PROC_release(d%)
+      *REFRESH ON
+      ENDPROC
+      
+      DEF PROCtriangulate(L%, F%, x0, y0, z0, x1, y1, z1, x2, y2, z2, I%)
+      L% -= 1
+      IF L% THEN
+        LOCAL a(), b(), c() : DIM a(2), b(2), c(2)
+        a(0) = x0 + x2 : a(1) = y0 + y2 : a(2) = z0 + z2 : a() /= MOD(a())
+        b(0) = x0 + x1 : b(1) = y0 + y1 : b(2) = z0 + z1 : b() /= MOD(b())
+        c(0) = x1 + x2 : c(1) = y1 + y2 : c(2) = z1 + z2 : c() /= MOD(c())
+        PROCtriangulate(L%, F%, x0, y0, z0, b(0), b(1), b(2), a(0), a(1), a(2), I%)
+        PROCtriangulate(L%, F%, b(0), b(1), b(2), x1, y1, z1, c(0), c(1), c(2), I%)
+        PROCtriangulate(L%, F%, a(0), a(1), a(2), b(0), b(1), b(2), c(0), c(1), c(2), I%)
+        PROCtriangulate(L%, F%, a(0), a(1), a(2), c(0), c(1), c(2), x2, y2, z2, I%)
+      ELSE
+        LOCAL u0, u1, u2, v0, v1, v2
+        PROCvertex(x0, y0, z0, u0, v0)
+        PROCvertex(x1, y1, z1, u1, v1)
+        PROCvertex(x2, y2, z2, u2, v2)
+        IF (u1 - u0) > 0.5 u0 += 1
+        IF (u0 - u1) > 0.5 u1 += 1
+        IF (u2 - u1) > 0.5 u1 += 1
+        IF (u1 - u2) > 0.5 u2 += 1
+        IF (u0 - u2) > 0.5 u2 += 1
+        IF (u2 - u0) > 0.5 u0 += 1
+        IF I% THEN
+          PROC4(F%, FN_f4(-x2)) : PROC4(F%, FN_f4(z2)) : PROC4(F%, FN_f4(y2))
+          PROC4(F%, FN_f4(x2))  : PROC4(F%, FN_f4(-z2)): PROC4(F%, FN_f4(-y2))
+          PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u2*0.98+0.01)) : PROC4(F%, FN_f4(v2))
+          PROC4(F%, FN_f4(-x1)) : PROC4(F%, FN_f4(z1)) : PROC4(F%, FN_f4(y1))
+          PROC4(F%, FN_f4(x1))  : PROC4(F%, FN_f4(-z1)): PROC4(F%, FN_f4(-y1))
+          PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u1*0.98+0.01)) : PROC4(F%, FN_f4(v1))
+          PROC4(F%, FN_f4(-x0)) : PROC4(F%, FN_f4(z0)) : PROC4(F%, FN_f4(y0))
+          PROC4(F%, FN_f4(x0))  : PROC4(F%, FN_f4(-z0)): PROC4(F%, FN_f4(-y0))
+          PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u0*0.98+0.01)) : PROC4(F%, FN_f4(v0))
+        ELSE
+          PROC4(F%, FN_f4(-x0)) : PROC4(F%, FN_f4(z0)) : PROC4(F%, FN_f4(y0))
+          PROC4(F%, FN_f4(-x0)) : PROC4(F%, FN_f4(z0)) : PROC4(F%, FN_f4(y0))
+          PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u0*0.98+0.01)) : PROC4(F%, FN_f4(v0))
+          PROC4(F%, FN_f4(-x1)) : PROC4(F%, FN_f4(z1)) : PROC4(F%, FN_f4(y1))
+          PROC4(F%, FN_f4(-x1)) : PROC4(F%, FN_f4(z1)) : PROC4(F%, FN_f4(y1))
+          PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u1*0.98+0.01)) : PROC4(F%, FN_f4(v1))
+          PROC4(F%, FN_f4(-x2)) : PROC4(F%, FN_f4(z2)) : PROC4(F%, FN_f4(y2))
+          PROC4(F%, FN_f4(-x2)) : PROC4(F%, FN_f4(z2)) : PROC4(F%, FN_f4(y2))
+          PROC4(F%, &FFFFFF)    : PROC4(F%, FN_f4(u2*0.98+0.01)) : PROC4(F%, FN_f4(v2))
+        ENDIF
+      ENDIF
+      ENDPROC
+      
+      DEF PROCvertex(x, y, z, RETURN u, RETURN v)
+      u = FNatan2(x, y) / PI / 2 + 0.5
+      v = FNatan2(z, SQR(x^2 + y^2)) / PI + 0.5
+      ENDPROC
+      
+      DEF FNatan2(y,x) : ON ERROR LOCAL = SGN(y)*PI/2
+      IF x>0 THEN = ATN(y/x) ELSE IF y>0 THEN = ATN(y/x)+PI ELSE = ATN(y/x)-PI
+      
+      DEF PROC4(F%, A%)
+      BPUT#F%,A% : BPUT#F%,A%>>8 : BPUT#F%,A%>>16 : BPUT#F%,A%>>24
+      ENDPROC

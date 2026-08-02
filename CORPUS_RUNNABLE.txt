@@ -1,0 +1,36 @@
+# BBCSDL corpus programs treated as "ALL runnable" for mini_basic audit.
+# Format (under ALL): <filename> <folder>
+# Generated from bbcsdl_scan tier A + selected tier B (score<=28).
+# Refresh with: python test/corpus_audit_probe.py
+
+ALL runnable
+# --- tier A (closest to Acorn-portable) ---
+# Note: Ceefax.txt / nounce.txt are fetch placeholders ("Could not fetch file.") — not real programs.
+soccerball.txt graphics
+tier_a_poem.txt samples
+illusion.txt graphics
+saucer.txt graphics
+sine.txt graphics
+hanoi.txt games
+filters.txt general
+scarab.txt graphics
+squares.txt graphics
+flier.txt graphics
+persian.txt graphics
+polygon.txt graphics
+doodle.txt graphics
+polydots.txt graphics
+mmap.txt tools
+# --- tier B (partial blockers; still tracked for parity) ---
+fern.txt graphics
+welcome.txt general
+wheel.txt graphics
+spectrum.txt graphics
+jclock.txt graphics
+piechart.txt graphics
+animal.txt games
+polly.txt sounds
+poem.txt general
+
+NOT runnable
+# Intentionally deferred: Box2D, OpenGL, heavy SYS/INSTALL (scan tier C/D)

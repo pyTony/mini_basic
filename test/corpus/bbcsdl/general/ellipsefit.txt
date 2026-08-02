@@ -1,0 +1,156 @@
+      REM Program to demonstrate deriving an axis-aligned ellipse from four points
+      REM Version 1.0 by Richard Russell, http://www.rtrussell.co.uk/, 17-Nov-2019
+      REM Compatible with both 'BBC BASIC for Windows' and 'BBC BASIC for SDL 2.0'
+      
+      BB4W% = INKEY$(-256) == "W"
+      VDU 23,22,640;500;8,20,16,128+8
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      IF BB4W% THEN
+        INSTALL @lib$ + "GDIPLIB"
+        PROC_gdipinit
+        *FONT Arial, 18
+      ELSE
+        INSTALL @lib$ + "aagfxlib"
+        OSCLI "FONT """ + @lib$ + "DejaVuSans"", 18"
+      ENDIF
+      INSTALL @lib$ + "arraylib"
+      OFF : VDU 5
+      
+      DIM X(3), Y(3)
+      
+      Cx = 500 + RND(300)
+      Cy = 350 + RND(300)
+      Rx = 200 + RND(100)
+      Ry = 200 + RND(100)
+      
+      FOR I% = 0 TO 3
+        Alpha += RAD(45 + RND(45))
+        X(I%) = Rx * COS(Alpha) + Cx
+        Y(I%) = Ry * SIN(Alpha) + Cy
+      NEXT
+      
+      title$ = "Drag the points to resize the axis-aligned ellipse"
+      title% = (1280 - WIDTH(title$)) / 2
+      fault$ = "No ellipse passes through all four points"
+      fault% = (1280 - WIDTH(fault$)) / 2
+      range$ = "Ellipse is too big to draw"
+      range% = (1280 - WIDTH(range$)) / 2
+      
+      *REFRESH OFF
+      selected% = -1
+      oldX% = 0
+      oldY% = 0
+      oldB% = 0
+      REPEAT
+        CLS
+        GCOL 0 : VDU 30 : PLOT 0, title%, 0 : PRINT title$;
+        code% = FNellipse4p(X(), Y())
+        
+        FOR I% = 0 TO 3
+          IF BB4W% THEN
+            IF I% = selected% C% = &FF008000 ELSE C% = &FF0000FF
+            brush% = FN_gdipcreatebrush(C%)
+            PROC_gdipsector(brush%, X(I%), Y(I%), 16, 16, 0, 360)
+            PROC_gdipdeletebrush(brush%)
+          ELSE
+            IF I% = selected% C% = &FF008000 ELSE C% = &FFFF0000
+            PROC_aasector(X(I%), Y(I%), 16, 16, 0, 360, C%)
+          ENDIF
+        NEXT
+        
+        CASE code% OF
+          WHEN 1: GCOL 1 : VDU 30,11 : PLOT 0, fault%, 0 : PRINT fault$;
+          WHEN 2: GCOL 1 : VDU 30,11 : PLOT 0, range%, 0 : PRINT range$;
+        ENDCASE
+        
+        change% = FALSE
+        REPEAT
+          MOUSE X%, Y%, B%
+          
+          IF B% IF B% <> oldB% THEN
+            near% = -1
+            dist% = &7FFFFFFF
+            oldsel% = selected%
+            FOR I% = 0 TO 3
+              D% = (X% - X(I%))^2 + (Y% - Y(I%))^2
+              IF D% < dist% dist% = D% : near% = I%
+            NEXT
+            IF dist% < 50*50 selected% = near% ELSE selected% = -1
+            IF selected% <> oldsel% change% = TRUE
+            oldX% = X% : oldY% = Y%
+          ENDIF
+          
+          IF B% IF selected% >= 0 THEN
+            IF X% <> oldX% X(selected%) += X% - oldX% : change% = TRUE
+            IF Y% <> oldY% Y(selected%) += Y% - oldY% : change% = TRUE
+          ENDIF
+          
+          oldX% = X% : oldY% = Y% : oldB% = B%
+          
+          CASE INKEY(1) OF
+            WHEN 9,129:   selected% = (selected% + 3) MOD 4   : change% = TRUE
+            WHEN 155,128: selected% = (selected% + 1) MOD 4   : change% = TRUE
+            WHEN 136: IF selected% >= 0 X(selected%) -= 4 : change% = TRUE
+            WHEN 137: IF selected% >= 0 X(selected%) += 4 : change% = TRUE
+            WHEN 138: IF selected% >= 0 Y(selected%) -= 4 : change% = TRUE
+            WHEN 139: IF selected% >= 0 Y(selected%) += 4 : change% = TRUE
+            OTHERWISE:
+          ENDCASE
+          
+          IF BB4W% SYS "InvalidateRect", @hwnd%, FALSE
+          *REFRESH
+          
+        UNTIL change%
+        
+      UNTIL FALSE
+      END
+      
+      REM Calculate and draw an axis-aligned ellipse from four points:
+      DEF FNellipse4p(x(), y())
+      LOCAL a, b, c, x, y, pen%, lhs(), rhs(), pqu()
+      DIM lhs(2,2), rhs(2), pqu(2)
+      IF DIM(x(),1) <> 3 OR DIM(y(),1) <> 3 THEN = 3
+      
+      lhs() = y(0)^2-y(1)^2, x(0)^2-x(1)^2, -2*(x(0)-x(1)), \
+      \       y(0)^2-y(2)^2, x(0)^2-x(2)^2, -2*(x(0)-x(2)), \
+      \       y(0)^2-y(3)^2, x(0)^2-x(3)^2, -2*(x(0)-x(3))
+      
+      rhs() = 2*(y(0)-y(1)), 2*(y(0)-y(2)), 2*(y(0)-y(3))
+      
+      PROC_invert(lhs())
+      
+      pqu() = lhs() . rhs()
+      
+      REM Find centre of ellipse:
+      x = pqu(2) / pqu(1)
+      y = 1 / pqu(0)
+      
+      x() -= x
+      y() -= y
+      
+      REM Find radii of ellipse:
+      ON ERROR LOCAL x() += x : y() += y : = 1
+      c = (x(0)^2 * y(3)^2 - x(3)^2 * y(0)^2)
+      a = SQR(c / (y(3)^2 - y(0)^2))
+      b = SQR(c / (x(0)^2 - x(3)^2))
+      
+      x() += x
+      y() += y
+      
+      IF a > 32767 OR b > 1000 THEN = 2
+      IF BB4W% THEN
+        pen% = FN_gdipcreatepen(&FFFF0000, 0, 6)
+        PROC_gdiparc(pen%, x, y, a, b, 0, 360)
+        PROC_gdipdeletepen(pen%)
+      ELSE
+        PROC_aaarc(x, y, a, b, 0, 360, 6, &FF0000FF, 0)
+      ENDIF
+      = 0
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      *REFRESH ON
+      IF BB4W% PROC_gdipexit
+      ENDPROC

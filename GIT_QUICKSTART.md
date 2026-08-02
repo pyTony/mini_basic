@@ -1,73 +1,87 @@
-# Git Quick Start: Independent Fixes (mini_basic)
+# Git Quick Start (mini_basic)
 
-Follow the **exact same agent/LLM process** you already use (`AGENT_POLICY.txt` + `DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md`), but **always on a git branch**.
+## Where the repo lives
 
-This replaces the old habit of creating loose `runtime_fixed_*.py` files. Git history becomes your clean version record.
+| Path | What it is |
+|------|------------|
+| `C:\Users\Tony\mini_basic` | **Junction** → OneDrive tree |
+| `D:\1\OneDrive - FFWPU-Fin\mini_basic` | **Real folder + `.git`** (source of truth) |
 
-## 5-Minute Workflow
+They are the **same working tree**. Edit either path; one `git status`, one history.
 
 ```powershell
-# 1. Start here (dev tree)
-cd C:\Users\Tony\Programming\mini_basic
+cd C:\Users\Tony\mini_basic   # or the OneDrive path — same repo
+git status
+git rev-parse --show-toplevel   # shows OneDrive path
+```
+
+`C:\Users\Tony\Programming\mini_basic` may be a **separate install copy** (not necessarily a git repo). Do **not** treat it as a second source of truth unless you intentionally put a clone there.
+
+## Daily rules
+
+1. **One repo** — the OneDrive junction tree only.
+2. **Branch for work** — never commit feature work straight to `master` during a fix.
+3. **Small commits** — one focus (AGENT_POLICY); prefer explicit `git add paths`.
+4. **Ignore noise** — probes, `__pycache__`, coverage, OneDrive junk (see `.gitignore`).
+5. **Track the package** — almost all of `mini_basic/` must be versioned (mixins, util, tests). Untracked runtime = broken history.
+
+## 5-minute fix workflow
+
+```powershell
+cd C:\Users\Tony\mini_basic
 git checkout master
-git pull 2>$null
+git pull 2>$null   # if remote configured
 
-# 2. Read the rules (do this every session)
-Get-Content AGENT_POLICY.txt -TotalCount 80
-Get-Content DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md -TotalCount 30
+git checkout -b fix/short-description
+
+# work… then:
+python -m pytest -q -m "phase1 and not slow" --timeout=45
+
+git add mini_basic/ test/test_relevant.py FEATURES_DONE.txt CURRENT_TASK.txt
+git status   # review: no _probe_*, no .coverage, no huge PDFs unless intended
+git commit -m "fix: short description
+
+- What changed
+- Tests: pytest -m phase1 …"
 ```
 
-```powershell
-# 3. Create a focused branch for ONE thing
-git checkout -b fix/rem-clean-handling
-# Examples: fix/bare-numbered-lines, fix/goto-unwind, fix/modulo
-```
+After user approval of a whole program/feature:
 
 ```powershell
-# 4. Work the normal way
-# - Single focus only
-# - Run tests: python test/run_regression.py -v
-# - Update status files + call update_project_status()
-# - Use verify scripts for agent checks
-# - Wait for real user run + approval
-```
-
-```powershell
-# 5. Commit often
-git add mini_basic/runtime.py CURRENT_TASK.txt DEBUG_STEP.txt
-git commit -m "fix: clean REM handling for whole-line comments
-
-- Early return for REM-only lines
-- Passes regression
-- Single focus (see AGENT_POLICY)
-- Refs: DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md"
-```
-
-```powershell
-# 6. After user final approval
 git checkout master
-git pull
-git merge --no-ff fix/rem-clean-handling -m "merge: fix/rem-clean-handling (user approved)"
-git tag fix-rem-clean-2026-07-09
-git branch -d fix/rem-clean-handling
+git merge --no-ff fix/short-description -m "merge: fix/short-description"
+git branch -d fix/short-description
 ```
 
-## Golden Rules
+## What to commit vs ignore
 
-- **Never** commit directly to `master` during a fix.
-- One branch = one focused TODO item.
-- Merge only after user explicitly approves the whole program.
-- Use the dev tree (`Programming/mini_basic`) for daily work.
-- After important changes, copy key files to the OneDrive source and commit there too.
+| Commit | Ignore |
+|--------|--------|
+| `mini_basic/**/*.py` (package) | `test/_probe_*.py`, `test/_debug_*.py` |
+| Focused `test/test_*.py` | `.coverage`, `test/logs/`, `__pycache__` |
+| `FEATURES_DONE.txt`, `CURRENT_TASK.txt`, policy docs | `.resource_*.json`, `RESOURCE_CHECK.txt` |
+| Small examples under `examples/` (demos) | Huge game asset trees if thrashing OneDrive |
+| `pytest.ini`, `.gitignore` | Generated `dist/` text parts unless shipping |
 
-## Next Steps (Advanced)
+## MINIBASIC_DIR vs git
 
-See the full instructions and examples in the `docs/git/` subdirectory:
+- **`MINIBASIC_DIR`** = where launchers/install point (may be `C:\Users\Tony\mini_basic`).
+- **Git toplevel** = always the OneDrive path (junction target).
+- `python -m mini_basic --version` shows both package path and `MINIBASIC_DIR`.
 
-- `docs/git/INDEPENDENT_FIXES.md` — complete process with examples
-- `docs/git/BRANCHING.md` — recommended branch naming and merge strategy
-- `DEVELOPMENT_GIT_USAGE.md` — full git guide for the project
+## Rescue: “I can’t find my changes”
 
-Start every session by creating a branch. Git will keep the clean history automatically.
+```powershell
+cd C:\Users\Tony\mini_basic
+(Get-Item .).Target          # should show OneDrive path
+git status
+git branch -vv
+# Untracked package files?
+git status -u --short -- mini_basic/
+```
 
-For questions on the autonomous process, re-read `DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md`.
+## More detail
+
+- `DEVELOPMENT_GIT_USAGE.md` — full guide (updated for junction layout)
+- `docs/git/INDEPENDENT_FIXES.md` — branch naming / agent checklist
+- `AGENT_POLICY.txt` — single focus, status BEGIN/END

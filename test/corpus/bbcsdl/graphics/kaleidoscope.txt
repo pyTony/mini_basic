@@ -1,0 +1,234 @@
+      REM Semi-Realistic Kaleidoscope
+      REM By Richard Russell, http://www.rtrussell.co.uk/
+      REM Adapted from an original program by David Williams
+      REM Requires BBC BASIC for SDL 2.0 and SDL 2.0.6 or later
+      
+      MODE 8 : OFF
+      
+      ScrW% = 640
+      ScrH% = 512
+      
+      ON ERROR PROCcleanup : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      SDL_BLENDMODE_NONE = 0
+      SDL_BLENDMODE_BLEND = 1
+      SDL_TEXTUREACCESS_TARGET = 2
+      SDL_BLENDFACTOR_ZERO = 1
+      SDL_BLENDFACTOR_ONE = 2
+      SDL_BLENDFACTOR_DST_ALPHA = 9
+      SDL_BLENDOPERATION_ADD = 1
+      CASE @platform% AND &F OF
+        WHEN 0,1,2: PIXELFORMAT = &16362004 : REM ARGB8888
+        WHEN 3,4,5: PIXELFORMAT = &16762004 : REM ABGR8888
+      ENDCASE
+      
+      INSTALL @lib$ + "aagfxlib"
+      
+      nDiscs% = 100
+      DIM disc{( nDiscs%-1 ) move%, x, y, r, x2, y2, dx, dy, rgb}
+      DIM rect{ x%, y%, w%, h% }, maskx(2), masky(2)
+      
+      SYS "SDL_SetHint", "SDL_RENDER_SCALE_QUALITY", "linear"
+      SYS "SDL_ComposeCustomBlendMode", SDL_BLENDFACTOR_ONE, SDL_BLENDFACTOR_ZERO, SDL_BLENDOPERATION_ADD, \
+      \   SDL_BLENDFACTOR_DST_ALPHA, SDL_BLENDFACTOR_ZERO, SDL_BLENDOPERATION_ADD TO BlendMode%
+      
+      imgSz% = 512
+      SYS "SDL_CreateTexture", @memhdc%, PIXELFORMAT, SDL_TEXTUREACCESS_TARGET, imgSz%, imgSz% TO img%%
+      SYS "SDL_SetTextureBlendMode", img%%, BlendMode% TO result%
+      IF result% ERROR 100, "Custom Blend Mode not supported"
+      
+      bm1Sz% = 512
+      SYS "SDL_CreateTexture", @memhdc%, PIXELFORMAT, SDL_TEXTUREACCESS_TARGET, bm1Sz%, bm1Sz% TO bm1%%
+      SYS "SDL_SetTextureBlendMode", bm1%%, SDL_BLENDMODE_BLEND
+      
+      maskSz% = 512
+      SYS "SDL_CreateTexture", @memhdc%, PIXELFORMAT, SDL_TEXTUREACCESS_TARGET, maskSz%, maskSz% TO mask%%
+      SYS "SDL_SetTextureBlendMode", mask%%, SDL_BLENDMODE_NONE
+      
+      SYS "SDL_CreateTexture", @memhdc%, PIXELFORMAT, SDL_TEXTUREACCESS_TARGET, 1, 2 TO gradient%%
+      SYS "SDL_SetHint", "SDL_RENDER_SCALE_QUALITY", "nearest"
+      
+      REM Create special textures:
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      ON ERROR LOCAL IF FALSE THEN
+        REM Create equilateral triangle mask texture:
+        SYS "SDL_SetRenderTarget", @memhdc%, mask%%
+        SYS "SDL_SetRenderDrawColor", @memhdc%, 0, 0, 0, 0
+        SYS "SDL_RenderClear", @memhdc%
+        maskx() = maskSz%, maskSz% - 512*SINRAD30, maskSz% + 512*SINRAD30
+        masky() = maskSz%, maskSz% - 512*COSRAD30, maskSz% - 512*COSRAD30
+        PROC_aapolygon(3, maskx(), masky(), &FF000000)
+        REM Create two-pixel texture (for background gradient):
+        SYS "SDL_SetRenderTarget", @memhdc%, gradient%%
+        SYS "SDL_SetRenderDrawColor", @memhdc%, &20, &80, &20, &FF
+        SYS "SDL_RenderClear", @memhdc%
+        SYS "SDL_SetRenderDrawColor", @memhdc%, &20, &20, &80, &FF
+        SYS "SDL_RenderDrawPoint", @memhdc%, 0, 0
+      ELSE
+        SYS "SDL_SetRenderTarget", @memhdc%, target%%
+        RESTORE ERROR : ERROR ERR, REPORT$
+      ENDIF : RESTORE ERROR
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      
+      REM Initialise discs:
+      FOR I% = 0 TO nDiscs%-1
+        disc{(I%)}.move% = FALSE
+        disc{(I%)}.x = 2*RND(imgSz%) - imgSz%
+        disc{(I%)}.y = 2*RND(imgSz%) - imgSz%
+        disc{(I%)}.r = 16 + RND(40)
+        CASE RND(12) OF
+          WHEN  1 : disc{(I%)}.rgb = &FFFF0000
+          WHEN  2 : disc{(I%)}.rgb = &FF00FF00
+          WHEN  3 : disc{(I%)}.rgb = &FF0000FF
+          WHEN  4 : disc{(I%)}.rgb = &FFFF00FF
+          WHEN  5 : disc{(I%)}.rgb = &FFFFFF00
+          WHEN  6 : disc{(I%)}.rgb = &FF00FFFF
+          WHEN  7 : disc{(I%)}.rgb = &FFFF8000
+          WHEN  8 : disc{(I%)}.rgb = &FF0080FF
+          WHEN  9 : disc{(I%)}.rgb = &FF00FF80
+          WHEN 10 : disc{(I%)}.rgb = &FF80FF00
+          WHEN 11 : disc{(I%)}.rgb = &FF8080FF
+          WHEN 12 : disc{(I%)}.rgb = &FFFFFFFF
+        ENDCASE
+      NEXT I%
+      
+      TIME = 0
+      
+      moveDiscsTime% = 500
+      
+      *REFRESH OFF
+      
+      REPEAT
+        
+        T% = TIME
+        
+        REM Rotational angle# of discs texture:
+        angle# = 720*SIN(T%/1000 + PI/5*SIN(T%/1050+0.345))*SIN(T%/950 + PI/8*SIN(T%/800-1.25))
+        
+        REM Draw discs and update their positions:
+        SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+        ON ERROR LOCAL IF FALSE THEN
+          SYS "SDL_SetRenderTarget", @memhdc%, img%%
+          SYS "SDL_SetRenderDrawColor", @memhdc%, 0, 0, 0, 0
+          SYS "SDL_RenderClear", @memhdc%
+          FOR I% = 0 TO nDiscs%-1
+            x = imgSz% + disc{(I%)}.x * COSRADangle# + disc{(I%)}.y * SINRADangle#
+            y = imgSz% + disc{(I%)}.x * SINRADangle# - disc{(I%)}.y * COSRADangle#
+            r = disc{(I%)}.r : w = 256
+            IF y - r < imgSz% IF x + r > imgSz% - w IF x - r < imgSz% + w THEN
+              PROC_aasector(x, y, r+3, r+3, 0, 360, &FF000000)
+              PROC_aasector(x, y, r, r, 0, 360, disc{(I%)}.rgb)
+            ENDIF
+            IF disc{(I%)}.move% THEN
+              disc{(I%)}.x += disc{(I%)}.dx
+              disc{(I%)}.y += disc{(I%)}.dy
+              IF (disc{(I%)}.x - disc{(I%)}.x2)^2 +  (disc{(I%)}.y - disc{(I%)}.y2)^2 < 0.5^2 THEN
+                disc{(I%)}.move% = FALSE
+              ENDIF
+            ENDIF
+          NEXT I%
+          REM Mask using equilateral triangle mask texture:
+          SYS "SDL_SetRenderTarget", @memhdc%, bm1%%
+          SYS "SDL_SetRenderDrawColor", @memhdc%, 0, 0, 0, 0
+          SYS "SDL_RenderClear", @memhdc%
+          SYS "SDL_RenderCopy", @memhdc%, mask%%, FALSE, FALSE
+          SYS "SDL_RenderCopy", @memhdc%, img%%, FALSE, FALSE
+        ELSE
+          SYS "SDL_SetRenderTarget", @memhdc%, target%%
+          RESTORE ERROR : ERROR ERR, REPORT$
+        ENDIF : RESTORE ERROR
+        SYS "SDL_SetRenderTarget", @memhdc%, target%%
+        
+        REM If it's time to move the discs, then set new target positions:
+        IF TIME > moveDiscsTime% THEN
+          FOR I% = 0 TO nDiscs%-1
+            disc{(I%)}.move% = TRUE
+            disc{(I%)}.x2 = 2*RND(imgSz%) - imgSz%
+            disc{(I%)}.y2 = 2*RND(imgSz%) - imgSz%
+            dx = disc{(I%)}.x2 - disc{(I%)}.x
+            dy = disc{(I%)}.y2 - disc{(I%)}.y
+            dist = SQR( dx^2 + dy^2 )
+            disc{(I%)}.dx = dx / dist
+            disc{(I%)}.dy = dy / dist
+          NEXT I%
+          moveDiscsTime% = TIME + 1000 + RND(1000)
+        ENDIF
+        
+        REM Clear the window (actually fill it with a colour gradient):
+        rect.w% = ScrW%
+        rect.h% = ScrH%
+        rect.x% = 0
+        rect.y% = 0
+        SYS "SDL_RenderCopy", @memhdc%, gradient%%, FALSE, rect{}
+        
+        REM Draw six equilateral triangle textures:
+        rect.w% = bm1Sz%
+        rect.h% = bm1Sz%
+        rect.x% = ScrW% DIV 2 - rect.w% DIV 2
+        rect.y% = ScrH% DIV 2 - rect.h% DIV 2
+        SYS "SDL_RenderCopy", @memhdc%, bm1%%, FALSE, rect{}
+        
+        angle# = 0
+        IF @platform% AND &40 THEN
+          IF angle#=0 ?(^angle#+7)=&80
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, angle#, FALSE, 2
+        ELSE
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, !^angle#, !(^angle#+4), FALSE, 2
+        ENDIF
+        
+        angle# = +60
+        IF @platform% AND &40 THEN
+          IF angle#=0 ?(^angle#+7)=&80
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, angle#, FALSE, 3
+        ELSE
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, !^angle#, !(^angle#+4), FALSE, 3
+        ENDIF
+        
+        angle# = -60
+        IF @platform% AND &40 THEN
+          IF angle#=0 ?(^angle#+7)=&80
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, angle#, FALSE, 3
+        ELSE
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, !^angle#, !(^angle#+4), FALSE, 3
+        ENDIF
+        
+        angle# = +60
+        IF @platform% AND &40 THEN
+          IF angle#=0 ?(^angle#+7)=&80
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, angle#, FALSE, 1
+        ELSE
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, !^angle#, !(^angle#+4), FALSE, 1
+        ENDIF
+        
+        angle# = -60
+        IF @platform% AND &40 THEN
+          IF angle#=0 ?(^angle#+7)=&80
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, angle#, FALSE, 1
+        ELSE
+          SYS "SDL_RenderCopyEx", @memhdc%, bm1%%, FALSE, rect{}, !^angle#, !(^angle#+4), FALSE, 1
+        ENDIF
+        
+        REM Draw enclosing hexagon:
+        R% = 512
+        FOR I% = 0 TO 5
+          x1 = ScrW% + R%*COSRAD(60 * I%)
+          y1 = ScrH% + R%*SINRAD(60 * I%)
+          x2 = ScrW% + R%*COSRAD(60 * (I%+1))
+          y2 = ScrH% + R%*SINRAD(60 * (I%+1))
+          PROC_aaline(x1, y1, x2, y2, 4, &FF000000, 0)
+        NEXT I%
+        
+        *REFRESH
+        
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      gradient%% += 0 : IF gradient%% SYS "SDL_DestroyTexture", gradient%%, @memhdc% : gradient%% = 0
+      mask%% += 0     : IF mask%%     SYS "SDL_DestroyTexture", mask%%, @memhdc%     : mask%% = 0
+      bm1%% += 0      : IF bm1%%      SYS "SDL_DestroyTexture", bm1%%, @memhdc%      : bm1%% = 0
+      img%% += 0      : IF img%%      SYS "SDL_DestroyTexture", img%%, @memhdc%      : img%% = 0
+      SYS "SDL_SetHint", "SDL_RENDER_SCALE_QUALITY", "nearest"
+      ENDPROC

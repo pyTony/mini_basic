@@ -1,0 +1,324 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+   10 REM POEM/Now Press Return
+   12 REM Program by Andrew Chapman and Jerry Temple-Fry (NETHERHALL SCHOOL) and Richard G Warner
+   14 REM For BBC Model A Microcomputer 16K Minimum
+   16 REM "Now Press Return" by Roger McGough (Copyright � Roger McGough 1981) is
+   18 REM reproduced by permission of PFD (www.pfd.co.uk) on behalf of Roger McGough
+   50 @vdu%?74 AND= &7F : MODE7
+   60 CLS:REM ON ERROR GOTO 800
+  100 PROCTITLEPAGE
+  110 DIM C$(4):C$(1)=CHR$&82:C$(2)=CHR$&83:C$(3)=CHR$&86:C$(4)=CHR$&87
+  115 ENVELOPE 1,1,0,0,0,0,0,0,126,-4,0,-126,126,0
+  120 G$=CHR$(&91):B$=CHR$(8):D$=CHR$(10)
+  140 D%=180
+  150 A$=STRING$(51," ")
+  200 PROCENDREAD(4,4)
+  210 DATA I explain quietly.You,Hear me shouting.You,Try a new tack.I,Feel old wounds re-open.
+  220 DATA You see both sides.I,See your blinkers.I,Am placatory.You,Sense a new selfishness.
+  230 DATA I am a dove.You,Recognise the hawk.You,Offer an olive branch.I,Feel the thorns.
+  240 DATA You bleed.I,See crocodile tears.I,Withdraw.You,Feel the impact.
+  300 DIM W1$(17),S1(17),W2$(7),W3$(9),GONE(10)
+  310 FOR Z%=1 TO 17:READ W1$(Z%),S1(Z%):NEXT
+  320 DATA input,2,cursor,2,output,2,micro,2,interface,3,transducer,3
+  330 DATA transistor,3,buffer,3,hardware,2,diode,2,COBOL,2,BASIC,2,FORTRAN,2
+  340 DATA analogue,3,digital,3,parity,3,PASCAL,2
+  350 FOR Z%=1 TO 7:READ W2$(Z%):NEXT
+  360 DATA stack,port,PROM,ROM,byte,chip,hex
+  370 FOR Z%=1 TO 9:READ W3$(Z%):NEXT
+  380 DATA walk the dog,take a bath,park the Jag,write a letter,levitate
+  390 DATA meditate,swing the cat,loiter with intent,jog in the park
+  400 DIM N$(6),LK$(6)
+  410 FOR Z%=1 TO 6:READ N$(Z%),LK$(Z%):NEXT
+  420 DATA Hunt,Who sailed down the Thames in a punt
+  430 DATA Skinner,Who took a gorilla to dinner
+  440 DATA Cleef,Who swallowed a set of false teef
+  450 DATA Diana,Who practised each day on the piano
+  460 DATA Jake,Who said 'There has been a mistake'
+  470 DATA Fletcher,Who tried to make love on a stretcher
+  600 PROCRETURN:GOTO 1000
+  800 REM IF ERR<>17 THEN REPORT:PRINT" in line ";ERL:END
+  900 CLS
+  920 CHAIN @dir$+"../tools/touchide"
+ 1000 PROCCLEAR
+ 1010 PROCLINE("Here is a poem for us both to play")
+ 1020 PROCLINE("First let us introduce ourselves.")
+ 1030 PROCLINE("My name is Roger. What's yours?")
+ 1040 PROCLINE("Tell me and then press RETURN.")
+ 1100 PRINTTAB(2,16);:PROCGPI(0,30)
+ 1110 IF A$="" THEN 1100
+ 1120 IF RIGHT$(A$,1)=" " THEN A$=LEFT$(A$,LEN(A$)-1):GOTO1110
+ 1130 IF LEFT$(A$,1)=" " THEN A$=RIGHT$(A$,LEN(A$)-1):GOTO1130
+ 1140 NAME$=A$:IF LEN(A$)<13 THEN 1200
+ 1150 PRINTTAB(2,18);STRING$(36," ")'STRING$(38," ")
+ 1160 PRINTTAB(2,18);"Haven't you a nickname? I'll never"
+ 1170 PRINT"  remember all that. Please try again."
+ 1180 PROCWAIT(2):GOTO1100
+ 1200 PROCCLEAR
+ 1210 PROCLINE("Hello "+NAME$+", nice to have your input.")
+ 1220 PROCLINE("Because you have a gentle touch")
+ 1230 PROCLINE("I think I can trust you. I need help.")
+ 1240 PROCLINE("Press RETURN and I'll tell you a secret.")
+ 1250 PROCRETURN
+ 1300 PROCCLEAR
+ 1310 PROCLINE("I don't like the poems they're making me write")
+ 1320 PROCLINE("I really don't like them at all.")
+ 1330 PROCLINE("Heirograffiti I don't understand")
+ 1340 PROCLINE("Scrawled on a silicon wall.")
+ 1350 PROCRETURN
+ 1400 PROCCLEAR
+ 1410 PROCLINE("I feel like a software malfunction")
+ 1420 PROCLINE("I really don't like it one bit.")
+ 1430 PROCLINE("Dictating mysterious messages")
+ 1440 PROCLINE("For this new machine to transmit.")
+ 1450 PROCRETURN
+ 1500 PROCCLEAR
+ 1510 PROCLINE("I don't like the poems they filter through me")
+ 1520 PROCLINE("Using words I never would use,")
+ 1530 PROCRAND1:PROCLINE(A$):IF LEN(A$)<37 THEN PRINT
+ 1540 PROCLINE("I'm enslaved by an alien muse.")
+ 1550 PROCWAIT(.5):PROCRAND1:PROCRANDLINE(A$,13)
+ 1560 PROCRWAIT:IF Y%>0 THEN 1550
+ 1700 PROCCLEAR
+ 1710 PROCLINE("A BBC  microcomputer")
+ 1720 PROCLINE("Has me trapped without hope of escape.")
+ 1730 PROCLINE("A poet adrift in a microcosmos")
+ 1740 PROCLINE("Of an endless loop of tape.")
+ 1750 PROCRETURN
+ 1800 PROCCLEAR
+ 1810 PROCLINE("You can do whatever you like")
+ 1820 PROCLINE("When I'm at your beck and call.")
+ 1830 PROCRAND2:PROCLINE(A$):IF LEN(A$)<37 THEN PRINT
+ 1840 PROCLINE("I'm your servant and don't like it at all.")
+ 1850 PROCWAIT(.5):PROCRAND2:PROCRANDLINE(A$,12)
+ 1860 PROCRWAIT:IF Y%>0 THEN 1850
+ 2000 PROCCLEAR
+ 2010 PROCLINE("Sorry, "+NAME$+" about that outburst.")
+ 2020 PROCLINE("I know I shouldn't get emotional")
+ 2030 PROCLINE("However, I'm back in control now.")
+ 2040 PROCLINE("Shall we write a limerick together?")
+ 2050 PRINTTAB(2,17);:PROCYESORNO:IF Y%<0 THEN 2050
+ 2060 IF Y%=1 THEN 2100
+ 2070 PRINTTAB(2,17);"Pity - you missed the best bit."
+ 2080 PROCRETURN:PROCCLEAR:GOTO2700
+ 2100 PROCCLEAR
+ 2110 PROCLINE("There was a young man or lady -")
+ 2120 PROCLINE("You choose and then press RETURN")
+ 2130 PRINTTAB(2,12);:PROCGPI(0,4)
+ 2140 IF FNLEQ(A$,"M")=TRUE THEN P$="man":Q$="his":GOTO2200
+ 2150 IF FNLEQ(A$,"L")=TRUE THEN P$="lady":Q$="her":GOTO2200
+ 2160 GOTO2130
+ 2200 PROCCLEAR
+ 2210 PROCLINE("There was a young "+P$+" called")
+ 2220 A$="":FOR Z%=1 TO 6:A$=A$+N$(Z%)
+ 2230   IF Z%<6 THEN A$=A$+"/"
+ 2240 NEXT:PROCLINE(A$+" - you choose")
+ 2250 PROCLINE("And then press RETURN.")
+ 2260 PRINTTAB(2,15);:PROCGPI(0,8):Y%=1
+ 2270 IF FNLEQ(A$,LEFT$(N$(Y%),1)) THEN 2300
+ 2280 IF Y%=6 THEN 2260
+ 2290 Y%=Y%+1:GOTO2270
+ 2300 PROCCLEAR
+ 2310 PROCLINE("There was a young "+P$+" called "+N$(Y%))
+ 2320 PROCLINE(LK$(Y%))
+ 2330 PROCLINE("But then "+Q$+" computer")
+ 2340 PROCLINE("Took out a six shooter")
+ 2350 PROCLINE("Which erased the young "+P$+" called "+N$(Y%)+".")
+ 2360 PROCWAIT(2):PROCPISTOL:PROCRETURN
+ 2500 PROCCLEAR
+ 2510 PROCLINE("Oh dear. My sincere apologies, "+NAME$)
+ 2520 PROCLINE("I really can't stand violence.")
+ 2530 PROCLINE("I don't know what came over me")
+ 2540 PROCLINE("Perhaps I've been working too hard lately.")
+ 2550 PROCRETURN
+ 2600 PROCCLEAR
+ 2610 PROCLINE("Will you forgive me? - say yes or no")
+ 2620 PRINTTAB(2,10);:PROCYESORNO:IF Y%<0 THEN 2620
+ 2630 PRINTTAB(0,10);
+ 2640 PROCLINE("Thank you. And how typical of you.")
+ 2650 PROCRETURN:PRINTTAB(0,12);
+ 2700 PROCLINE("Here's a poem of mine about two people")
+ 2710 PROCLINE("Who also find it difficult to communicate.")
+ 2720 PROCRETURN
+ 3000 C%=1:FOR V=1 TO 4
+ 3010   PROCENDVERSE(V,V,V,V):NEXT
+ 3100 FOR I=1 TO 4:GONE(I)=FNVNUM(I,I,I,I)
+ 3110 NEXT
+ 3120 FOR I=5 TO 8:GONE(I)=0:NEXT
+ 3130 U=1:LA=4:LB=4:LC=4:LD=4
+ 3140 PROCKCL
+ 3200 A=RND(4):IF A=LA THEN 3200
+ 3210 B=RND(2)*2:IF A MOD 2=1 THEN B=B-1
+ 3220 IF B=LB THEN 3210
+ 3230 C=B
+ 3240 D=RND(4):IF D=LD THEN 3240
+ 3250 J=FNVNUM(A,B,C,D):I=1
+ 3260 IF J=GONE(I) THEN 3200
+ 3270 I=I+1:IF I<9 THEN 3260
+ 3280 IF U MOD 4<>1 THEN 3300
+ 3290 C%=C%+1:IF C%>4 THEN C%=1
+ 3300 PROCENDVERSE(A,B,C,D)
+ 3310 LA=A:LB=B:LC=C:LD=D
+ 3320 GONE(U)=FNVNUM(A,B,C,D)
+ 3330 U=U+1:IF U=9 THEN U=1
+ 3340 IF Y%=0 THEN 3200
+ 4000 PROCCLEAR
+ 4010 PROCLINE("Thank you for playing the poem.")
+ 4020 PROCLINE("Without you I would have drowned")
+ 4030 PROCLINE("In an eternal sea of technology.")
+ 4040 PROCLINE("Going round")
+ 4100 X=13:Y=14:MX=37:NX=2:MY=22:NY=2:I=1
+ 4110 PROCNEXTCHAR:PRINTTAB(X,Y);:IF CH$=" " THEN PRINTC$(C%); ELSE PRINTCH$;
+ 4120 IF X<MX THEN X=X+1:GOTO4110
+ 4130 MX=MX-2
+ 4140 Y=Y+1:IF Y=MY THEN MY=MY-2:GOTO4170
+ 4150 PROCNEXTCHAR:PRINTTAB(X-1,Y);C$(C%);CH$:GOTO4140
+ 4170 PROCNEXTCHAR:IF CH$=" " THEN 4190
+ 4180 PRINTTAB(X-1,Y);C$(C%);CH$
+ 4190 IF X>NX THEN X=X-1:GOTO4170
+ 4200 NX=NX+2:IF NY=12 THEN 4300
+ 4210 Y=Y-1:PRINTTAB(X-1,Y);C$(C%);:IF Y=NY THEN NY=NY+2:GOTO4110
+ 4220 PROCNEXTCHAR:PRINTCH$;CHR$(&87);:GOTO4210
+ 4300 PROCRETURN
+ 4900 PROCCLEAR
+ 4910 PROCLINE("Such is the power of the computer")
+ 4920 PROCLINE("Such is the loneliness of the poet.")
+ 4930 PROCLINE("A plastic daffodil in a Grecian urn")
+ 4940 PROCLINE("Goodbye "+NAME$+". Now press RETURN.")
+ 4950 PROCRETURN:GOTO900
+ 5000 DEFPROCRAND1
+ 5010 A$="Like ":GONE(1)=0:GONE(2)=0
+ 5020 FOR Z%=1 TO 3
+ 5030   Y%=RND(17):IF GONE(1)=Y% OR GONE(2)=Y% THEN 5030
+ 5040   IF Z%<3 THEN 5070
+ 5050   IF S1(Y%)<>2 THEN 5030
+ 5060   A$=A$+W1$(Y%):GOTO5090
+ 5070   GONE(Z%)=Y%
+ 5080   A$=A$+W1$(Y%)+", ":IF S1(Y%)=2 THEN A$=A$+"and "
+ 5090 NEXT:A$=A$+" and "+W2$(RND(7))
+ 5099 ENDPROC
+ 5200 DEFPROCRAND2
+ 5210 Y%=RND(9):Z%=RND(9):IF Y%=Z% THEN 5210
+ 5230 A$="You can "+W3$(Y%)+" or "+W3$(Z%)
+ 5299 ENDPROC
+ 5500 DEFPROCENDVERSE(A,B,C,D)
+ 5520 I=C%:PROCCLEAR:C%=I
+ 5530 PROCENDLINE(A,1)
+ 5540 PROCENDLINE(B,2)
+ 5550 PROCENDLINE(C,3)
+ 5560 PROCENDLINE(D,4)
+      IF INKEY$(-256)="S" OR INKEY$(-256)="s" THEN *OSK ON
+ 5570 Y%=INKEY(100):IF Y%<0 THEN Y%=0:GOTO5599
+ 5580 IF Y%<>13 THEN 5570
+ 5599 ENDPROC
+ 5600 DEFPROCENDLINE(S,L)
+ 5610 PROCENDREAD(S,L)
+ 5620 PRINT" ";C$(C%);
+ 5630 FOR I=1 TO LEN(L$)
+ 5640   PRINTMID$(L$,I,1);:PROCWAIT(.01)
+ 5650   IF MID$(L$,I,1)="." THEN PROCWAIT(.6):PRINT" ";
+ 5660 NEXT:PRINT'
+ 5699 ENDPROC
+ 5800 DEFPROCENDREAD(S,L)
+ 5810 RESTORE:FOR I=1 TO S*4+L-4:READL$:NEXT
+ 5899 ENDPROC
+ 5900 DEFFNVNUM(A,B,C,D)
+ 5910 =A*64+B*16+C*4+D
+ 6000 DEFPROCPISTOL
+ 6010 FOR I=1 TO 10:GONE(I)=FALSE:NEXT
+ 6020 FOR I=1 TO 6
+ 6030   REPEAT X=RND(10):UNTIL GONE(X)=FALSE:GONE(X)=TRUE:X=X*3+2
+ 6040   PRINTTAB(X,2);G$;"z";CHR$(255);"5";B$;B$;B$;B$;D$;G$;CHR$(255);".";B$;B$;B$;D$;G$;"5";B$;B$;D$;G$;"5"
+ 6050   REPEAT UNTIL ADVAL(-5)=16:SOUND 0,1,6,20
+ 6060   FOR J=8 TO 19:PRINTTAB(X-1,J);CHR$(&81);"*";C$(C%):PROCWAIT(0.01)
+ 6070     PRINTTAB(X-1,J);"   ":NEXT
+ 6080   FOR J=2 TO 7:PRINTTAB(X,J);"    ":NEXT:NEXT
+ 6099 ENDPROC
+ 6800 DEFPROCNEXTCHAR
+ 6810 CH$=MID$(" and round",I,1)
+ 6820 IF I>1 THEN 6840
+ 6830 C%=C%+1:IF C%>4 THEN C%=1
+ 6840 IF I=10 THEN I=1 ELSE I=I+1
+ 6899 WAIT 4:ENDPROC
+ 7000 DEFPROCRETURN
+ 7020 PRINTTAB(37,23);:PROCON:PROCKCL
+ 7030 X$=GET$:IF ASC(X$)<>13 THEN 7030
+ 7040 PROCOFF
+ 7099 ENDPROC
+ 7100 DEFPROCCLEAR
+ 7110 CLS:PRINTTAB(0,8);:T%=0:C%=RND(4)
+ 7199 ENDPROC
+ 7200 DEFPROCLINE(L$)
+ 7220 PRINT" ";C$(C%);
+ 7230 IF LEN(L$)>36 THEN 7300
+ 7240 REPEAT WAIT 1:UNTIL TIME-T%>D%
+ 7250 PRINTL$:GOTO7390
+ 7300 I=36
+ 7310 IF ASC(MID$(L$,I,1))>64 THEN I=I-1:GOTO7310
+ 7320 IF MID$(L$,I,1)=" " THEN I=I-1
+ 7330 REPEAT WAIT 1:UNTIL TIME-T%>D%
+ 7340 PRINTLEFT$(L$,I)
+ 7350 IF MID$(L$,I,1)=" " THEN I=I+1:GOTO7350
+ 7360 PRINTC$(C%);STRING$(35-LEN(L$)+I," ");RIGHT$(L$,LEN(L$)-I)
+ 7390 PRINT:T%=TIME
+ 7399 ENDPROC
+ 7500 DEFPROCRWAIT
+ 7510 PRINTTAB(37,23);:PROCON:T%=TIME
+      IF INKEY$(-256)="S" OR INKEY$(-256)="s" THEN *OSK ON
+ 7520 A$=INKEY$(1):IF A$=CHR$(13) THEN Y%=0:GOTO7590
+ 7530 IF TIME-T%<250 THEN 7520
+ 7540 Y%=1
+ 7590 PROCOFF
+ 7599 ENDPROC
+ 7600 DEFPROCRANDLINE(A$,N)
+ 7610 PRINTTAB(2,N);STRING$(78," ");TAB(0,N);CHR$(7);
+ 7620 C%=RND(4):T%=0:PROCLINE(A$)
+ 7699 ENDPROC
+ 7900 DEFFNLEQ(A$,E$)
+ 7910 IF LEFT$(A$,1)=E$ OR LEFT$(A$,1)=CHR$(ASC(E$)+32) THEN =TRUE
+ 7920 =FALSE
+ 7999 ENDPROC
+ 8000 DEFPROCDBL(X$,X,Y)
+ 8010 PRINTTAB(X-1,Y);CHR$(141);X$
+ 8020 PRINTTAB(X-1,Y+1);CHR$(141);X$
+ 8099 ENDPROC
+ 8100 DEFPROCWAIT(X)
+ 8110 LOCAL Z
+ 8120 Z=TIME
+ 8130 REPEAT:WAIT 1:UNTIL TIME-Z>X*100
+ 8199 ENDPROC
+ 8200 DEFPROCSPACE
+ 8220 PRINTTAB(3,22);"Press the SPACE BAR to continue";:PROCKCL
+ 8240 REPEAT UNTIL GET$=" "
+ 8299 ENDPROC
+ 8300 DEFPROCTITLEPAGE
+ 8310 CLS:PROCDBL("Now press RETURN....",8,8):PROCDBL("a poem by ROGER McGOUGH",6,14)
+ 8399 ENDPROC
+ 8800 DEFPROCKCL
+ 8810 REPEAT UNTIL INKEY(0)=-1
+ 8899 ENDPROC
+ 8900 DEFPROCOFF
+ 8910 OFF:ENDPROC
+ 8950 DEFPROCON
+ 8960 ON:ENDPROC
+ 9000 DEFPROCGPI(F2,ML):REM General Purpose Input Routine
+ 9010 LOCALB,B$
+ 9020 A$=""
+ 9030 PRINTSTRING$(ML," ");STRING$(ML+1,CHR$(8));C$(RND(4));:PROCON:PROCKCL
+ 9040 B$=GET$:B=ASC(B$):IF B=13 THEN 9190
+ 9050 IF B=127 AND A$="" THEN 9040
+ 9060 IF B=127 THEN A$=LEFT$(A$,LEN(A$)-1):PRINTB$;:GOTO9040
+ 9070 IF LEN(A$)=ML OR B<32 OR B>126 THEN 9170
+ 9080 IF F2=0 OR B=32 OR (B>=48 AND B<=57) THEN 9180
+ 9170 PRINTCHR$(7);:GOTO9040
+ 9180 PRINTB$;:A$=A$+B$:GOTO9040
+ 9190 PROCOFF
+ 9199 ENDPROC
+ 9200 DEFPROCYESORNO
+ 9210 LOCALB$
+ 9220 PROCGPI(0,3)
+ 9230 B$=LEFT$(A$,1)
+ 9240 Y%=-1
+ 9250 IF B$="Y" OR B$="y" THEN Y%=1
+ 9260 IF B$="N" OR B$="n" THEN Y%=0
+ 9299 ENDPROC

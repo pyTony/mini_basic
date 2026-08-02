@@ -1,0 +1,238 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Sudoku, R.T.Russell 28-Dec-2008, 07-Jun-2010, 24-Nov-2010, 22-Feb-2021, 20-Apr-2021
+      
+      VDU 23,22,453;500;8,20,16,128
+      ORIGIN 0,48 : OFF
+      
+      PRINT "  Solve  Reveal  Count  File   Load   Grid   Tidy   New";
+      
+      DIM A%(8,8),Q%(8,8)
+      A%() = %111111111
+      Q%() = A%()
+      
+      FOR L% = 0 TO 9:P% = L%*100
+        LINE 2,P%+2,902,P%+2
+        IF (L% MOD 3)=0 LINE 2,P%,902,P% : LINE 2,P%+4,902,P%+4
+        LINE P%+2,2,P%+2,902
+        IF (L% MOD 3)=0 LINE P%,2,P%,902 : LINE P%+4,2,P%+4,902
+      NEXT
+      
+      VDU 28,1,24,55,24
+      GCOL 11:RECTANGLE FILL 0,-96,905,95
+      COLOR 128+11
+      PRINT "Click Solve at any time to check correctness";
+      
+      Grid% = FALSE
+      Entry% = FALSE
+      Reveal% = FALSE
+      Click% = -1
+      ON MOUSE Click% = 10 : RETURN
+      
+      PROCshow
+      C% = 0 : R% = 8
+      REPEAT
+        GCOL 4,0
+        IF Entry% RECTANGLE FILL C%*100+6,R%*100+4,94,94
+        REPEAT
+          K% = INKEY(1)
+          IF K%=-1 SWAP Click%,K%
+        UNTIL K%<>-1
+        IF Entry% RECTANGLE FILL C%*100+6,R%*100+4,94,94
+        CASE K% OF
+          WHEN 10:
+            MOUSE X%,Y%,B%
+            CASE TRUE OF
+              WHEN Y% > 900 Click% = X% DIV 112 + 1
+              WHEN Y% < 0   Click% = &31 + (X% DIV 101)
+              WHEN X%>=0 AND Y%>=0 AND X%<900 AND Y%<900:
+                C% = X%DIV100 : R% = Y%DIV100
+                P% = A%(R%,C%)
+                IF Grid% IF NOT Reveal% IF P% AND (P%-1) THEN
+                  X% = ((X%-6)MOD100)DIV32 : Y% = ((Y%-4)MOD100)DIV32
+                  A%(R%,C%) EOR= 2^(X%+6-Y%*3)
+                  PROCcell(A%(),R%,C%,4)
+                ENDIF
+                IF NOT Reveal% THEN
+                  Entry% = TRUE
+                  CLS
+                  PRINT "   1     2     3     4     5     6     7     8     9";
+                ENDIF
+              WHEN Y% < 0
+                CLS : Entry% = FALSE
+            ENDCASE
+          WHEN 1,&53,&73,3,&43,&63:
+            CLS : Entry% = FALSE : PRINT "Working...";
+            Q%() = A%()
+            TIME = 0 : S% = FNsolve(Q%(),K%=1 OR K%=&53 OR K%=&73) : CLS
+            IF K%=1 OR K%=&53 OR K%=&73 THEN
+              IF S% THEN
+                PRINT "Solved: click Reveal to show solution";
+              ELSE
+                PRINT "Impossible";
+              ENDIF
+            ELSE
+              IF S%=1 THEN
+                PRINT "There is 1 solution";
+              ELSE
+                PRINT "There are ";
+                IF TIME > 3000 PRINT "at least ";
+                PRINT ;S%" solutions";
+              ENDIF
+            ENDIF
+          WHEN 2,&52,&72: Entry% = FALSE : Reveal% EOR= TRUE : PROCshow
+            CLS : IF Reveal% PRINT "Click Reveal again to hide solution";
+          WHEN 4,&46,&66:
+            Reveal% = FALSE : PROCshow
+            F% = OPENOUT(@usr$+"sudoku.dat")
+            FOR R% = 0 TO 8
+              FOR C% = 0 TO 8
+                PRINT #F%,A%(R%,C%)
+              NEXT
+            NEXT
+            CLOSE #F%
+            CLS : PRINT "Click Load to restore saved snapshot";
+          WHEN 5,&4C,&6C:
+            F% = OPENIN(@usr$+"sudoku.dat")
+            IF F%=0 F% = OPENIN(@dir$+"sudoku.dat")
+            FOR R% = 0 TO 8
+              FOR C% = 0 TO 8
+                IF F% INPUT #F%,A%(R%,C%)
+              NEXT
+            NEXT
+            CLOSE #F%
+            CLS : Reveal% = FALSE : PROCshow
+          WHEN 6,&47,&67: Grid% EOR= TRUE : PROCshow
+            CLS : IF NOT Reveal% IF Grid% PRINT "Click on small numbers to eliminate them";
+          WHEN 7,&54,&74: D% = FNsolve(A%(),1) : PROCshow
+            CLS : IF NOT Grid% PRINT "Show grid to see result of tidy";
+          WHEN 8,&4E,&6E: PROCnew : Q%() = A%()
+            Entry% = FALSE : Reveal% = FALSE : CLS : PROCshow
+          WHEN 32,49,50,51,52,53,54,55,56,57:
+            IF Entry% IF NOT Reveal% THEN
+              IF K%=32 A%(R%,C%) = %111111111 ELSE A%(R%,C%) = 1 << (K%-49)
+              PROCcell(A%(),R%,C%,4)
+            ENDIF
+          WHEN 136: C% -= 1 : IF C%<0 C% = 8 : R% += 1 : IF R%>8 R% = 0
+          WHEN 137: C% += 1 : IF C%>8 C% = 0 : R% -= 1 : IF R%<0 R% = 8
+          WHEN 138: R% -= 1 : IF R%<0 R% = 8 : C% += 1 : IF C%>8 C% = 0
+          WHEN 139: R% += 1 : IF R%>8 R% = 0 : C% += 1 : IF C%>8 C% = 0
+        ENDCASE
+      UNTIL FALSE
+      
+      DEF PROCshow
+      LOCAL C%,R%
+      FOR C% = 0 TO 8
+        FOR R% = 0 TO 8
+          IF Reveal% PROCcell(Q%(),R%,C%,2) ELSE PROCcell(A%(),R%,C%,4)
+        NEXT
+      NEXT
+      ENDPROC
+      
+      DEF PROCcell(P%(),R%,C%,K%)
+      LOCAL P%,G%
+      P% = P%(R%,C%)
+      GCOL 15
+      RECTANGLE FILL C%*100+4,R%*100+4,94,94
+      IF P% AND (P%-1) THEN
+        IF NOT Grid% ENDPROC
+        GCOL 7
+        FOR G% = 1 TO 2
+          LINE C%*100+6,R%*100+G%*32+4,C%*100+98,R%*100+G%*32+4
+          LINE C%*100+G%*32+4,R%*100+6,C%*100+G%*32+4,R%*100+98
+        NEXT
+        GCOL K%
+        FOR G% = 0 TO 8
+          MOVE C%*100+12+(G%MOD3)*32,R%*100+98-(G%DIV3)*32
+          IF P% AND 2^G% VDU 5,G%+49,4
+        NEXT
+      ELSE
+        GCOL K%
+        @vdu%!220 = 37
+        OSCLI "FONT """+@lib$+"FreeSans"""
+        IF P% P% = LOGP%/LOG2+1.5
+        MOVE C%*100+30,R%*100+90
+        VDU 5,P%+48,4
+        *FONT
+      ENDIF
+      ENDPROC
+      
+      DEF FNsolve(P%(),F%)
+      LOCAL C%,D%,M%,N%,R%,X%,Y%,Q%()
+      DIM Q%(8,8)
+      REPEAT
+        Q%() = P%()
+        FOR R% = 0 TO 8
+          FOR C% = 0 TO 8
+            D% = P%(R%,C%)
+            IF (D% AND (D%-1))=0 THEN
+              M% = NOT D%
+              FOR X% = 0 TO 8
+                IF X%<>C% P%(R%,X%) AND= M%
+                IF X%<>R% P%(X%,C%) AND= M%
+              NEXT
+              FOR X% = C%DIV3*3 TO C%DIV3*3+2
+                FOR Y% = R%DIV3*3 TO R%DIV3*3+2
+                  IF X%<>C% IF Y%<>R% P%(Y%,X%) AND= M%
+                NEXT
+              NEXT
+            ENDIF
+          NEXT
+        NEXT
+        Q%() -= P%()
+      UNTIL SUMQ%()=0
+      IF F% = 1 THEN = 0
+      M% = 10
+      FOR R% = 0 TO 8
+        FOR C% = 0 TO 8
+          D% = P%(R%,C%)
+          IF D%=0 M% = 0
+          IF D% AND (D%-1) THEN
+            N% = 0
+            REPEAT N% += D% AND 1
+              D% DIV= 2
+            UNTIL D% = 0
+            IF N%<M% M% = N% : X% = C% : Y% = R%
+          ENDIF
+        NEXT
+      NEXT
+      IF M%=0 THEN = 0
+      IF M%=10 THEN = 1
+      D% = 0
+      FOR M% = 0 TO 8
+        IF P%(Y%,X%) AND (2^M%) THEN
+          Q%() = P%()
+          Q%(Y%,X%) = 2^M%
+          C% = FNsolve(Q%(),F%)
+          D% += C%
+          IF C% IF F% P%() = Q%() : = D%
+          IF NOT F% IF TIME > 3000 EXIT FOR
+        ENDIF
+      NEXT
+      = D%
+      
+      DEF PROCnew
+      LOCAL I%,P%,R%,C%,S%,r&()
+      DIM r&(80)
+      FOR I% = 0 TO 80 : r&(I%) = I% : NEXT
+      FOR I% = 0 TO 80 : SWAP r&(I%),r&(RND(81)-1) : NEXT
+      A%() = %111111111
+      FOR I% = 0 TO 8
+        A%(r&(I%) DIV 9,r&(I%) MOD 9) = 1 << I%
+      NEXT
+      IF FNsolve(A%(), TRUE) <> 1 STOP
+      CLS
+      FOR I% = 0 TO 80
+        PRINT TAB(0,0) "Generating new puzzle "; 81-I%; "...";
+        REM Remove cells and check it is still solvable
+        R% = r&(I%) DIV 9 : C% = r&(I%) MOD 9
+        P% = %111111111
+        SWAP A%(R%,C%),P%
+        Q%() = A%()
+        TIME = 2800
+        S% = FNsolve(Q%(), FALSE)
+        IF S%<>1 OR TIME > 3000 A%(R%,C%) = P% : REM Put last removal back
+      NEXT I%
+      PROCshow
+      CLS
+      ENDPROC

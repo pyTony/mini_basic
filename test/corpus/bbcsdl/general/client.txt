@@ -1,0 +1,51 @@
+      REM A very simple chat client to demonstrate the use of 'socklib'
+      REM v1.1, 06-Oct-2017, Richard Russell http://www.rtrussell.co.uk/
+      
+      INSTALL @lib$ + "socklib"
+      PROC_initsockets
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR ON ERROR OFF : PROCcleanup : PRINT REPORT$ : END
+      
+      INPUT "Enter server's IP address (aaa.bbb.ccc.ddd): " server$
+      
+      REM. Attempt to make a connection:
+      socket% = FN_tcpconnect(server$, "50343")
+      IF socket% <= 0 PRINT "Couldn't connect to server "; server$ : END
+      
+      PRINT "Connected to server "; FN_getpeername(socket%)
+      PRINT "Start typing to chat..."
+      
+      REPEAT
+        key$ = INKEY$(1)
+        IF key$ <> "" THEN
+          COLOR 4
+          IF ASCkey$ = &D THEN
+            chat$ = ""
+          ELSE
+            exec% = OPENOUT(@tmp$ + "client.tmp")
+            BPUT #exec%, key$;
+            CLOSE #exec%
+            OSCLI "exec """ + @tmp$ + "client.tmp"""
+            INPUT LINE "" chat$
+          ENDIF
+          result% = FN_writelinesocket(socket%, chat$)
+          IF result% < 0 EXIT REPEAT
+        ENDIF
+        
+        result% = FN_readlinesocket(socket%, 4, chat$)
+        IF result% > 0 THEN
+          COLOR 1
+          PRINT chat$
+        ENDIF
+      UNTIL result% < 0
+      
+      COLOR 0
+      PRINT "Server closed connection, or error."
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      socket% += 0 : IF socket% PROC_closesocket(socket%) : socket% = 0
+      PROC_exitsockets
+      ENDPROC

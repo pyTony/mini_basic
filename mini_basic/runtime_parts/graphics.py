@@ -249,16 +249,37 @@ class RuntimeGraphicsMixin:
             return max(0, len(text)) * int(getattr(self._display, 'cell_width', 8))
         return max(0, len(text)) * 8
 
-    def _set_custom_graphics_mode(self, width: int, height: int) -> None:
+    def _set_custom_graphics_mode(
+        self,
+        width: int,
+        height: int,
+        *,
+        charx: int = 8,
+        chary: int = 16,
+        ncols: int = 16,
+        charset: int = 0,
+    ) -> None:
+        """BBCSDL VDU 23,22,width;height;charx,chary,ncols,charset."""
         self.config.graphics_width = max(1, int(width))
         self.config.graphics_height = max(1, int(height))
         self._graphics_mode = 0
         self._ensure_display()
         if self._display_enabled() and hasattr(self._display, 'set_graphics_size'):
-            self._display.set_graphics_size(
-                self.config.graphics_width,
-                self.config.graphics_height,
-            )
+            try:
+                self._display.set_graphics_size(
+                    self.config.graphics_width,
+                    self.config.graphics_height,
+                    charx=charx,
+                    chary=chary,
+                    ncols=ncols,
+                    charset=charset,
+                )
+            except TypeError:
+                # Older/test stubs without keyword params.
+                self._display.set_graphics_size(
+                    self.config.graphics_width,
+                    self.config.graphics_height,
+                )
 
     def pump_display_idle(self) -> bool:
         """Keep the pygame window alive while the REPL waits for input.
@@ -411,6 +432,16 @@ class RuntimeGraphicsMixin:
             return
         if self._display_backend_name() != 'terminal':
             return
+        from mini_basic.util.session import session_supports_gui
+
+        if not session_supports_gui():
+            if announce:
+                print(
+                    'Graphics skipped (text-only session; '
+                    'use --display pygame if a window is available, '
+                    'or unset MINIBASIC_NO_GRAPHICS / set DISPLAY)'
+                )
+            return
         self.config.display = 'pygame'
         self.config.hold_display_open = True
         _apply_pygame_display_defaults(self.config)
@@ -450,6 +481,15 @@ class RuntimeGraphicsMixin:
         if env:
             return self._bbc_path_with_trailing_sep(env)
         return self._bbc_path_with_trailing_sep(os.path.expanduser('~'))
+
+    def _bbc_at_tmp(self) -> str:
+        """BBCSDL ``@tmp$`` — temp directory with trailing separator (piechart GSAVE)."""
+        env = os.environ.get('BBCSDL_TMP', '').strip()
+        if env:
+            return self._bbc_path_with_trailing_sep(env)
+        import tempfile
+
+        return self._bbc_path_with_trailing_sep(tempfile.gettempdir())
 
     def _ansi_fg_for_bbc_colour(self, colour: int) -> str:
         if colour < 8:
@@ -836,9 +876,15 @@ class RuntimeGraphicsMixin:
     def _inkey_code_wait(self, timeout_cs: float) -> float:
         if timeout_cs < 0:
             return self._inkey_bbc_negative_scan(int(timeout_cs))
-        # Make prior PRINT/TAB visible before waiting (same-line REPEAT:PRINT:INKEY loops).
+        # Make prior PRINT/TAB/PLOT visible before waiting (same-line REPEAT:PRINT:INKEY
+        # loops; welcome PROCPLOT ends with D%=INKEY2 as a frame delay so invert zaps
+        # are seen — terminal present alone is a no-op for pygame).
         self._flush_program_output()
         self._present_terminal_display()
+        if timeout_cs > 0 and self._display_enabled():
+            # Force: rate-limited flush was dropping every invert frame of the swoosh
+            # (draw+erase finish inside one interval → only the final erase shows).
+            self._flush_display(force=True)
         if timeout_cs == 0:
             # INKEY$(0) / INKEY(0): non-blocking poll.
             # Official Acorn docs call n=0 an indefinite wait, but classic game

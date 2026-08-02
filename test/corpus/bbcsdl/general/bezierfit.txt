@@ -1,0 +1,144 @@
+      REM Program to demonstrate fitting a PolyBézier curve to several data points
+      REM Version 1.0 by Richard Russell, http://www.rtrussell.co.uk/, 19-Nov-2019
+      REM Compatible with both 'BBC BASIC for Windows' and 'BBC BASIC for SDL 2.0'
+      
+      BB4W% = INKEY$(-256) == "W"
+      VDU 23,22,640;500;8,20,16,128+8
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      IF BB4W% THEN
+        INSTALL @lib$ + "GDIPLIB"
+        PROC_gdipinit
+        *FONT Arial, 18
+      ELSE
+        INSTALL @lib$ + "aagfxlib"
+        OSCLI "FONT """ + @lib$ + "DejaVuSans"", 18"
+      ENDIF
+      INSTALL @lib$ + "arraylib"
+      OFF : VDU 5
+      
+      DIM X(9), Y(9)
+      Y(0) = 500 : X(9) = 1280 : Y(9) = 500
+      FOR I% = 1 TO 8
+        X(I%) = (I%-1) * 160 + RND(160)
+        Y(I%) = 300 + RND(300)
+      NEXT
+      
+      title$ = "Drag the points to make a new polyBézier curve"
+      title% = (1280 - WIDTH(title$)) / 2
+      
+      *REFRESH OFF
+      selected% = 0
+      oldB% = 0
+      oldX% = 0
+      oldY% = 0
+      REPEAT
+        CLS
+        GCOL 0 : VDU 30 : PLOT 0, title%, 0 : PRINT title$;
+        
+        FOR I% = 0 TO 9
+          PROCbezierspline(X(I%), Y(I%), I% = 0)
+        NEXT
+        
+        FOR I% = 1 TO 8
+          IF BB4W% THEN
+            IF I% = selected% C% = &FF008000 ELSE C% = &FF0000FF
+            brush% = FN_gdipcreatebrush(C%)
+            PROC_gdipsector(brush%, X(I%), Y(I%), 16, 16, 0, 360)
+            PROC_gdipdeletebrush(brush%)
+          ELSE
+            IF I% = selected% C% = &FF008000 ELSE C% = &FFFF0000
+            PROC_aasector(X(I%), Y(I%), 16, 16, 0, 360, C%)
+          ENDIF
+        NEXT
+        
+        change% = FALSE
+        REPEAT
+          MOUSE X%, Y%, B%
+          
+          IF B% IF B% <> oldB% THEN
+            near% = -1
+            dist% = &7FFFFFFF
+            oldsel% = selected%
+            FOR I% = 1 TO 8
+              D% = (X% - X(I%))^2 + (Y% - Y(I%))^2
+              IF D% < dist% dist% = D% : near% = I%
+            NEXT
+            IF dist% < 50*50 selected% = near% ELSE selected% = 0
+            IF selected% <> oldsel% change% = TRUE
+            oldX% = X% : oldY% = Y%
+          ENDIF
+          
+          IF B% IF selected% > 0 THEN
+            IF X% <> oldX% X(selected%) += X% - oldX% : change% = TRUE
+            IF Y% <> oldY% Y(selected%) += Y% - oldY% : change% = TRUE
+          ENDIF
+          
+          oldX% = X% : oldY% = Y% : oldB% = B%
+          
+          CASE INKEY(1) OF
+            WHEN 9,129:   selected% += 1 : change% = TRUE : IF selected% > 8 selected% = 1
+            WHEN 155,128: selected% -= 1 : change% = TRUE : IF selected% < 1 selected% = 8
+            WHEN 136: IF selected% > 0 X(selected%) -= 4 : change% = TRUE
+            WHEN 137: IF selected% > 0 X(selected%) += 4 : change% = TRUE
+            WHEN 138: IF selected% > 0 Y(selected%) -= 4 : change% = TRUE
+            WHEN 139: IF selected% > 0 Y(selected%) += 4 : change% = TRUE
+          ENDCASE
+          
+          IF BB4W% SYS "InvalidateRect", @hwnd%, FALSE
+          *REFRESH
+          
+        UNTIL change%
+        
+      UNTIL FALSE
+      END
+      
+      REM Calculate and draw a PolyBézier curve from a set of data points:
+      DEF PROCbezierspline(x, y, F%)
+      LOCAL pen%, cpx(), cpy()
+      PRIVATE N%, x(),y() : IF F% N% = 0
+      DIM x(3), y(3), cpx(2), cpy(2)
+      
+      x() = x(1), x(2), x(3), x
+      y() = y(1), y(2), y(3), y
+      
+      N% += 1 : IF N% < 4 ENDPROC
+      
+      PROCcpcalc(x(), cpx())
+      PROCcpcalc(y(), cpy())
+      
+      IF BB4W% THEN
+        pen% = FN_gdipcreatepen(&FFFF0000, 0, 6)
+        PROC_gdipbezier(pen%, x(1), y(1), cpx(1), cpy(1), cpx(2), cpy(2), x(2), y(2))
+        PROC_gdipdeletepen(pen%)
+      ELSE
+        PROC_aabezier(x(1), y(1), cpx(1), cpy(1), cpx(2), cpy(2), x(2), y(2), 6, &FF0000FF, 0)
+      ENDIF
+      ENDPROC
+      
+      REM Calculate control points:
+      DEF PROCcpcalc(v(), cp())
+      LOCAL I%, b, rhs(), tmp()
+      DIM rhs(2), tmp(2)
+      rhs(0) = v(0) + 2*v(1)
+      rhs(1) = 4*v(1) + 2*v(2)
+      rhs(2) = (8*v(2) + v(3)) / 2
+      b = 2
+      cp(0) = rhs(0) / b
+      FOR I% = 1 TO 2
+        tmp(I%) = 1 / b
+        IF I% = 1 b = 4.0 - tmp(I%) ELSE b = 3.5 - tmp(I%)
+        cp(I%) = (rhs(I%) - cp(I%-1)) / b
+      NEXT
+      FOR I% = 1 TO 2
+        cp(2-I%) -= tmp(3-I%) * cp(3-I%)
+      NEXT
+      cp(2) = 2*v(2) - cp(2)
+      ENDPROC
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      *REFRESH ON
+      IF BB4W% PROC_gdipexit
+      ENDPROC

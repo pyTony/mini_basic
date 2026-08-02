@@ -1,0 +1,1105 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM  --------------
+      REM  Dropperz v1.04
+      REM  Original by DW
+      REM  Adapted by RTR
+      REM  --------------
+      
+      HIMEM = PAGE + 2000000
+      SOUND OFF
+      VDU 23,22,640;512;8,16,16,8
+      OFF
+      *HEX 64
+      
+      REM  set the window title
+      titlebar$ = "DROPPERZ"
+      SYS "SDL_SetWindowTitle", @hwnd%, titlebar$, @memhdc%
+      
+      FX21$ = "FX 21,0"
+      Turbo% = TRUE       :REM  if Turbo% = FALSE during main game loop, then the CPU may be allowed to breathe (a little)
+      Backdrop% = TRUE    :REM  for those with slower computers (or if they don't like my artwork)
+      SoundFX% = (@platform% AND &FFFF00) >= &400 :REM  plink, plink, plink (SDL 2.0.4 or later)
+      ScrW% = 640
+      ScrH% = 512
+      NumDropperz% = 1
+      MaxNumDropperz% = 10
+      MaxNumObjectsPerLevel% = 1000
+      MaxNumOnScreenObjects% = 60
+      MaxNumBullets% = 30
+      MaxNumExplosions% = 10
+      BulletPtr% = 0
+      HiScore% = 0
+      
+      DIM Dropper{( MaxNumDropperz%-1 ) moving%, x, new_x%, acc, vel, dir_sign%, min_gap_size&, initial_rest_time&, rest_time&, drop_flag%, drop_object_type&, drop_delay&}
+      DIM ObjectSeq%( MaxNumObjectsPerLevel%-1 ): REM pre-determined sequence of objects that will fall during the current game level
+      DIM ObjectList{( MaxNumOnScreenObjects%-1 ) active%, type&, shootable%, value%, x, y, xv, yv, xa, ya, max_xv}: REM in-game object definitions
+      DIM Points{( 20 ) active%, type%, x%, y%, count&}
+      DIM Explosion{( MaxNumExplosions%-1 ) active%, x%, y%, frame&}
+      DIM Bullet{( MaxNumBullets%-1 ) active%, x, y, xv, yv}
+      DIM ObjSprHLUT%%( 30 )   :REM 'Object' sprite handle lookup table
+      DIM ExpSprLUT%%( 8 )     :REM 'Exploding fireball' sprite handles lookup table
+      DIM PointSprLUT%%( 60 )  :REM 'Points scored' sprite handles lookup table
+      DIM DigitSprHLUT%%( 9 )  :REM 'Digit' sprite handles lookup table
+      DIM BulletSetPLUT%%( 4 )
+      DIM ChanceTable%( 100 )
+      
+      PROC_bullet_set0 : BulletSetPLUT%%() = ^PROC_bullet_set0, ^PROC_bullet_set1, ^PROC_bullet_set2, ^PROC_bullet_set3, ^PROC_bullet_set4
+      
+      INSTALL @lib$ + "audiolib" : PROC_initAudio
+      PROC_load_resources
+      
+      REM  Object type codes
+      REM  =================
+      REM     0. nothing
+      REM     1. black bomb
+      REM     2. green bomb
+      REM     3. red bomb
+      REM     4. blue bomb
+      REM     5. rock
+      REM     6. apple   (10 pts)
+      REM     7. orange  (15 pts)
+      REM     8. banana  (20 pts)
+      REM     9. pear    (25 pts)
+      REM    10. pineapple (30 pts)
+      REM    11. cherries  (35 pts)
+      REM    12. grapes    (40 pts)
+      REM    13.     <reserved>
+      REM    14.     <reserved>
+      REM    15.     <reserved>
+      REM    16. purple coin  (100 pts)
+      REM    17. silver coin  (200 pts)
+      REM    18. gold coin    (300 pts)
+      REM    19. level token
+      REM    20. mystery
+      REM    21. extra life
+      REM    22. weapon I
+      REM    23. weapon II
+      REM    24. weapon III
+      REM    25. death pod
+      REM    26.     <reserved>
+      REM    27. slow-down pill
+      REM    28. speed-up pill
+      REM    29. freeze pill
+      REM    30. protection bubble
+      
+      REPEAT
+        
+        Level% = 1
+        Lives% = 10
+        Score% = 0
+        
+        PROC_title_page
+        
+        REPEAT
+          Quit% = FALSE
+          LevelTokens% = 0
+          PROC_setup_level
+          PROC_game
+          Level% += 1
+        UNTIL Quit% OR Lives%<1 OR Level%>16
+        
+        IF Lives%<1 THEN
+          *REFRESH ON
+          PROC_text(56, "GAME OVER", 1, -1, 32+ScrH%DIV2 )
+          WAIT 200
+        ENDIF
+        
+        IF Level%>16 AND Lives%>0 AND Quit%=FALSE PROC_game_completed
+        
+        IF Score%>HiScore% HiScore% = Score%
+      UNTIL FALSE
+      END
+      :
+      :
+      :
+      :
+      DEF PROC_game
+      LOCAL i%, j%, freeze%, slowpill%, fastpill%, toggler%, toggler2%, msx%, msy%, msz%
+      
+      *REFRESH OFF
+      
+      ObjectSeqPtr% = 0
+      ObjectListPtr% = 0
+      bucket_width% = 64
+      bucket_x = ScrW% DIV 2
+      bucket_y% = 48
+      bucket_acc0 = 1.0
+      bucket_acc = bucket_acc0
+      bucket_vel = 0
+      bucket_damp0 = 0.5
+      bucket_damp = bucket_damp0
+      bubble% = TRUE
+      bubble_start% = 800
+      bubble_count% = 250
+      fire_delay% = 0
+      fire_delay_start% = 25
+      fire_key% = 0
+      count%=0
+      flushcount%=100
+      weaponset% = 0
+      
+      freeze% = FALSE
+      slowpill% = FALSE
+      fastpill% = FALSE
+      toggler% = TRUE
+      toggler2% = TRUE
+      
+      REPEAT
+        toggler%=NOTtoggler%
+        count%-=1: IF count%<0 count%=&F: toggler2%=NOTtoggler2%
+        fire_delay%-=1: IF fire_delay%<0 fire_delay%=0
+        flushcount%-=1: IF flushcount%<0 flushcount%=&64 OSCLI FX21$
+        
+        IF toggler2% ObjSprHLUT%%(25)=spr_deathpod1%% ELSE ObjSprHLUT%%(25)=spr_deathpod2%%
+        
+        IF Backdrop% OSCLI BMP$ ELSE CLS
+        
+        PROC_handle_dropper
+        
+        FOR i%=0 TO MaxNumOnScreenObjects%-1
+          IF ObjectList{(i%)}.active% PROC_handle_object( i% )
+        NEXT i%
+        
+        IF NOT freeze% OR freeze% AND toggler% OSCLI "MDISPLAY "+STR$~spr_bucket%%+" "+STR$(2*INTbucket_x)+",80,128,32,FF8000"
+        IF slowpill% OR fastpill% pillcount%-=1: IF pillcount%<=0 slowpill%=FALSE: fastpill%=FALSE: bucket_acc=bucket_acc0: bucket_damp=bucket_damp0
+        IF freeze% pillcount%-=1: IF pillcount%<=0 freeze%=FALSE
+        
+        IF bubble% PROC_bubble
+        
+        IF NOT freeze% THEN
+          IF INKEY-26 bucket_vel -= bucket_acc
+          IF INKEY-122 bucket_vel += bucket_acc
+          IF INKEY-92 weaponset%=4  :REM awesome firepower
+          IF NOT fire_key% IF INKEY-98 OR INKEY-74 IF fire_delay%=0 IF weaponset%<>0 PROC(BulletSetPLUT%%(weaponset%)): fire_key%=TRUE: fire_delay%=fire_delay_start%: IF SoundFX% PROC_playSound(Sound_laser)
+          MOUSE msx%, msy%, msz%
+          IF msz% THEN
+            CASE TRUE OF
+              WHEN msy% >= 224:
+                IF NOT fire_key% IF fire_delay%=0 IF weaponset%<>0 PROC(BulletSetPLUT%%(weaponset%)): fire_key%=TRUE: fire_delay%=fire_delay_start%: IF SoundFX% PROC_playSound(Sound_laser)
+              WHEN msx% < 2*bucket_x + 48: bucket_vel -= bucket_acc
+              WHEN msx% > 2*bucket_x + 80: bucket_vel += bucket_acc
+              OTHERWISE: bucket_vel DIV= 2
+            ENDCASE
+          ELSE
+            IF NOT INKEY-98 IF NOT INKEY-73 fire_key% = FALSE
+          ENDIF
+        ENDIF
+        IF INKEY-56 PROC_pause_game
+        IF INKEY-17 PROC_quit_game
+        
+        bucket_x += bucket_vel
+        bucket_vel += -SGNbucket_vel*bucket_damp
+        IF ABSbucket_vel>8 bucket_vel=8*SGNbucket_vel
+        IF bucket_x<0 bucket_x=0: bucket_vel=0
+        IF bucket_x>&240 bucket_x=&240: bucket_vel=0
+        
+        REM check if any objects have collided with the bucket; if so, call the collision handler
+        objindex% = TRUE
+        FOR i%=0 TO MaxNumOnScreenObjects%-1 IF ObjectList{(i%)}.active% IF ObjectList{(i%)}.x>bucket_x-&20 AND ObjectList{(i%)}.x<bucket_x+&3F AND ObjectList{(i%)}.y>bucket_y%-&20 AND ObjectList{(i%)}.y<bucket_y% objindex%=i%: i%=MaxNumOnScreenObjects%-1
+        NEXT
+        IF NOT objindex% PROC_handle_collision( ObjectList{(objindex%)}.type&, objindex% )
+        
+        REM handle 'POINTS' sprites
+        FOR i%=0 TO &13
+          IF Points{(i%)}.active% OSCLI "MDISPLAY "+STR$~PointSprLUT%%(Points{(i%)}.type%DIV5)+" "+STR$(2*Points{(i%)}.x%)+","+STR$(2*Points{(i%)}.y%-32)+",64,32,FF8000" : Points{(i%)}.y%+=2: Points{(i%)}.count&-=1: IF Points{(i%)}.count&=0 Points{(i%)}.active%=FALSE
+        NEXT i%
+        
+        REM handle 'explosion' sprites
+        FOR i%=0 TO MaxNumExplosions%-1
+          IF Explosion{(i%)}.active% OSCLI "MDISPLAY "+STR$~ExpSprLUT%%(Explosion{(i%)}.frame&)+" "+STR$(2*Explosion{(i%)}.x%)+","+STR$(2*Explosion{(i%)}.y%-&80)+",128,128,FF8000" : Explosion{(i%)}.frame&+=1: IF Explosion{(i%)}.frame&>7 Explosion{(i%)}.active%=FALSE
+        NEXT i%
+        
+        FOR j%=0 TO MaxNumBullets%-1
+          IF Bullet{(j%)}.active% THEN
+            OSCLI "MDISPLAY "+STR$~spr_bullet%%+" "+STR$(2*INTBullet{(j%)}.x)+","+STR$(2*INTBullet{(j%)}.y-&20)+",32,32,FF8000"
+            Bullet{(j%)}.x+=Bullet{(j%)}.xv
+            Bullet{(j%)}.y+=Bullet{(j%)}.yv
+            IF Bullet{(j%)}.y>ScrH% Bullet{(j%)}.active%=FALSE ELSE PROC_kill_who(j%)
+          ENDIF
+        NEXT j%
+        
+        PROC_display_digits( Score%, &10, &1EA )
+        PROC_display_digits( Lives%, &246, &1EA )
+        
+        IF LevelTokens%>0 FOR i%=0 TO LevelTokens%-1 : OSCLI "MDISPLAY "+STR$~spr_lev%%+" "+STR$(36*i%)+",4,32,32,FF8000" : NEXT i%
+        
+        *REFRESH
+      UNTIL FN_delay_mode OR Lives%<1 OR LevelTokens%>=5 OR Quit%
+      
+      *REFRESH ON
+      PROC_fade
+      
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_setup_level
+      LOCAL pt%, lev$, o%, i%, j%, wd%, tloop&, chance&
+      
+      level$ = "LEVEL " + STR$Level%
+      
+      *REFRESH ON
+      PROC_fade: CLS
+      
+      IF SoundFX% PROC_playSound(Sound_rev)
+      
+      *REFRESH OFF
+      VDU 5: GCOL 3
+      FOR pt%=10 TO 64 STEP 2
+        CLS
+        OSCLI "FONT """ + @lib$+"DejaVuSans"", "+STR$pt%
+        wd% = WIDTH(level$)
+        MOVE ScrW%-wd%DIV2, ScrH%+pt%
+        PRINT level$
+        WAIT 0
+        *REFRESH
+      NEXT pt%
+      VDU 4
+      *REFRESH ON
+      
+      IF SoundFX% PROC_playSound(Sound_pop)
+      
+      WAIT 200 : CLS
+      
+      PointsListPtr% = 0 : FOR i%=0 TO 19 : Points{( i% )}.active% = FALSE : NEXT i%
+      ExpPtr% = 0 : FOR i%=0 TO MaxNumExplosions%-1 : Explosion{( i% )}.active% = FALSE : NEXT i%
+      BulletPtr% = 0 : FOR i%=0 TO MaxNumBullets%-1 : Bullet{( i% )}.active% = FALSE : NEXT i%
+      
+      RESTORE : REPEAT READ lev$ UNTIL lev$="L"+STR$Level% OR lev$="***"
+      IF lev$="***" VDU 7 : STOP
+      
+      READ NumDropperz%
+      
+      REM initialise Dropperz
+      FOR i%=0 TO NumDropperz%-1
+        Dropper{(i%)}.moving%             = FALSE
+        Dropper{(i%)}.x                   = RND( ScrW% )
+        Dropper{(i%)}.new_x%              = Dropper{(i%)}.x
+        Dropper{(i%)}.acc                 = 0.5 + 0.6*RND(1)
+        Dropper{(i%)}.vel                 = 0.0
+        Dropper{(i%)}.dir_sign%           = FN_rnd_sgn
+        Dropper{(i%)}.min_gap_size&       = 32 + RND(100)
+        Dropper{(i%)}.initial_rest_time&  = 15
+        Dropper{(i%)}.rest_time&          = 0
+        Dropper{(i%)}.drop_flag%          = FALSE
+        Dropper{(i%)}.drop_delay&         = RND(10)
+      NEXT i%
+      
+      REM  I should be shot for this...
+      o% = 1
+      ChanceTable%() = 0
+      FOR tloop& = 1 TO 30
+        READ t_&, chance&
+        IF chance&<>0 THEN
+          FOR j%=1 TO chance&
+            ChanceTable%( o% ) = tloop&
+            o% += 1
+          NEXT j%
+        ENDIF
+      NEXT tloop&
+      
+      REM  generate pre-determined object sequence
+      FOR i%=0 TO MaxNumObjectsPerLevel%-1
+        ObjectSeq%( i% ) = ChanceTable%( RND(100) )
+      NEXT i%
+      
+      FOR i%=0 TO MaxNumOnScreenObjects%-1
+        ObjectList{( i% )}.active% = FALSE
+      NEXT i%
+      
+      FOR i%=1 TO 20 : ObjectSeq%( 100 + RND(400) ) = 19 : NEXT i%
+      FOR i%=1 TO 30 : ObjectSeq%( RND(500) ) = 20 : NEXT i%
+      
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_game_completed
+      LOCAL s, i%, y%
+      
+      *REFRESH ON
+      PROC_fade: CLS
+      *REFRESH OFF
+      
+      FOR i%=1 TO 100
+        s = 4*RND(1)
+        OSCLI "MDISPLAY "+STR$~spr_dropper%%+" "+STR$(2*RND(ScrW%+8*64)-8*64)+","+STR$(2*RND(ScrH%+8*32)-8*32)+","+STR$(2*INT(s*64))+","+STR$(2*INT(s*32))+",FF8000"
+      NEXT i%
+      
+      GCOL 2, 1: RECTANGLE FILL 0, 0, 2*ScrW%, 2*ScrH%
+      
+      FOR y%=0 TO 512 STEP 5
+        GCOL 0,0: LINE 0, 2*y%, 2*ScrW%, 2*y%
+        GCOL 2,6: LINE 0, 2*y%+2, 2*ScrW%, 2*y%+2: LINE 0, 2*y%-2, 2*ScrW%, 2*y%-2
+      NEXT y%
+      
+      PROC_text(36, "GAME COMPLETED", 7, -1, 160+ScrH%DIV2 )
+      PROC_text(24, "Well done !", 3, -1, 48+ScrH%DIV2 )
+      PROC_text(24, "You have successfully wiped out", 2, -1, ScrH%DIV2-32 )
+      PROC_text(24, "the entire Dropperian species.", 2, -1, ScrH%DIV2-76 )
+      PROC_text(12, "Tap or press <SPACE BAR> to continue", 6, -1, 450-13*32 )
+      
+      *REFRESH
+      *REFRESH ON
+      
+      WAIT 100
+      PROC_flush
+      REPEAT
+      UNTIL INKEY(2)=32 OR INKEY-10 OR INKEY-73
+      PROC_fade: CLS
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_quit_game
+      LOCAL key$
+      *REFRESH ON
+      *REFRESH
+      GCOL 2, 4
+      RECTANGLE FILL 0, 0, 2*ScrW%, 2*ScrH%
+      PROC_text(48, "QUIT", 3, -1, 64+ScrH%DIV2 )
+      PROC_text(24, "Are you sure? (Y/N)", 7, -1, ScrH%DIV2-32 )
+      REPEAT
+        PROC_flush
+        key$ = GET$
+        IF INSTR("Yy", key$) Quit%=TRUE ELSE Quit%=FALSE
+      UNTIL Quit% OR key$<>""
+      IF Quit% THEN
+        CLS
+      ELSE
+        *REFRESH OFF
+      ENDIF
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_pause_game
+      VDU 7
+      PROC_text(36, "PAUSED", 3, -1, 12+ScrH%DIV2 )
+      *REFRESH ON
+      *REFRESH
+      REPEAT UNTIL INKEY-54 OR INKEY(1)=0
+      VDU 7
+      *REFRESH OFF
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_bubble
+      GCOL 7
+      bubble_count%-=1
+      IF bubble_count%>=150 CIRCLE 2*(INTbucket_x+bucket_width%DIV2), 2*bucket_y%, 64
+      IF bubble_count%<150 AND toggler% CIRCLE 2*(INTbucket_x+bucket_width%DIV2), 2*bucket_y%, 64
+      IF bubble_count%=0 bubble%=FALSE
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_kill_who(j%)
+      LOCAL k%, x%, y%
+      FOR k%=0 TO MaxNumOnScreenObjects%-1
+        IF ObjectList{(k%)}.active% AND ObjectList{(k%)}.shootable% THEN
+          bx% = Bullet{(j%)}.x
+          by% = Bullet{(j%)}.y
+          x% = ObjectList{(k%)}.x
+          y% = ObjectList{(k%)}.y
+          IF bx%>=x%-16 AND bx%<=32+x% AND by%>=y% AND by%<=48+y% THEN
+            ObjectList{(k%)}.active%=FALSE
+            Bullet{(j%)}.active%=FALSE
+            CASE ObjectList{(k%)}.type& OF
+              WHEN 1,2,3,4 PROC_create_explosion(x%-16,36+y%): PROC_create_points( 10*ObjectList{(k%)}.type&, x%, 20+y% )
+              OTHERWISE PROC_create_points(ObjectList{(k%)}.value%,x%,32+y%): OSCLI "MDISPLAY "+STR$~spr_flash2%%+" "+STR$(2*(x%-12))+","+STR$(2*(y%-112))+",128,128,FF8000" : IF SoundFX% PROC_playSound(Sound_crack)
+            ENDCASE
+            EXIT FOR : REM quick exit from loop
+          ENDIF
+        ENDIF
+      NEXT k%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_create_bullet(x, y, xv, yv)
+      Bullet{(BulletPtr%)}.active% = TRUE
+      Bullet{(BulletPtr%)}.x = x
+      Bullet{(BulletPtr%)}.y = y
+      Bullet{(BulletPtr%)}.xv = xv
+      Bullet{(BulletPtr%)}.yv = yv
+      BulletPtr%+=1
+      IF BulletPtr%>=MaxNumBullets% BulletPtr%=0
+      fire_delay%=fire_delay_start%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_bullet_set0
+      REM ...
+      ENDPROC
+      :
+      DEF PROC_bullet_set1
+      PROC_create_bullet(24+bucket_x,16+bucket_y%,0,4)
+      fire_delay% = fire_delay_start%
+      ENDPROC
+      :
+      DEF PROC_bullet_set2
+      PROC_create_bullet(12+bucket_x,16+bucket_y%,0,5)
+      PROC_create_bullet(36+bucket_x,16+bucket_y%,0,5)
+      fire_delay% = fire_delay_start%
+      ENDPROC
+      :
+      DEF PROC_bullet_set3
+      PROC_create_bullet(12+bucket_x,16+bucket_y%,-1.2,6)
+      PROC_create_bullet(24+bucket_x,16+bucket_y%,0,6.5)
+      PROC_create_bullet(36+bucket_x,16+bucket_y%,+1.2,6)
+      fire_delay% = fire_delay_start%
+      ENDPROC
+      :
+      DEF PROC_bullet_set4
+      PROC_create_bullet(bucket_x-5,16+bucket_y%,-2.6,5)
+      PROC_create_bullet(5+bucket_x,16+bucket_y%,-1.9,6)
+      PROC_create_bullet(12+bucket_x,16+bucket_y%,-1.2,6.5)
+      PROC_create_bullet(24+bucket_x,16+bucket_y%,0,7)
+      PROC_create_bullet(36+bucket_x,16+bucket_y%,1.2,6.5)
+      PROC_create_bullet(43+bucket_x,16+bucket_y%,1.9,6)
+      PROC_create_bullet(56+bucket_x,16+bucket_y%,2.6,5)
+      fire_delay% = fire_delay_start%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_handle_collision( t&, i& )
+      LOCAL val%
+      ObjectList{( i& )}.active% = FALSE
+      val%=ObjectList{(i&)}.value%
+      IF val%=-1 PROC_fatal_collision(i&) ELSE PROC_create_points(val%, ObjectList{(i&)}.x, 16+ObjectList{(i&)}.y): IF val%>0 AND SoundFX% PROC_playSound(Sound_dong)
+      CASE t& OF
+        WHEN 20: PROC_mystery
+        WHEN 19: LevelTokens% += 1: IF SoundFX% PROC_playSound(Sound_levelup)
+        WHEN 21: Lives%+=1: IF SoundFX% PROC_playSound(Sound_bell)
+        WHEN 22,23,24: weaponset%=t&-21: IF SoundFX% PROC_playSound(Sound_snd)
+        WHEN 25: IF SoundFX% PROC_playSound(Sound_alien)
+        WHEN 27:
+          IF NOT bubble% slowpill%=TRUE: fastpill%=FALSE: bucket_acc=0.25*bucket_acc0: bucket_damp=0.25*bucket_damp0: pillcount%=300: IF SoundFX% PROC_playSound(Sound_bum)
+          IF bubble% ObjectList{( i& )}.active% = TRUE
+        WHEN 28:
+          IF NOT bubble% fastpill%=TRUE: slowpill%=FALSE: bucket_acc=4*bucket_acc0: fastpill%=TRUE: pillcount%=300: IF SoundFX% PROC_playSound(Sound_bum)
+          IF bubble% ObjectList{( i& )}.active% = TRUE
+        WHEN 29:
+          IF NOT bubble% freeze%=TRUE: pillcount%=200: IF SoundFX% PROC_playSound(Sound_bum)
+          IF bubble% ObjectList{( i& )}.active% = TRUE
+        WHEN 30: bubble%=TRUE: bubble_count%=bubble_start%: IF SoundFX% PROC_playSound(Sound_bell)
+      ENDCASE
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_mystery
+      LOCAL q%
+      q% = RND( 7 )
+      CASE q% OF
+        WHEN 1: PROC_create_points( 100, bucket_x, bucket_y% ): IF SoundFX% PROC_playSound(Sound_dong)
+        WHEN 2: PROC_create_points( 200, bucket_x, bucket_y% ): IF SoundFX% PROC_playSound(Sound_dong)
+        WHEN 3: PROC_create_points( 300, bucket_x, bucket_y% ): IF SoundFX% PROC_playSound(Sound_dong)
+        WHEN 4: LevelTokens% += 1: IF SoundFX% PROC_playSound(Sound_levelup)
+        WHEN 5: Lives%+=1: IF SoundFX% PROC_playSound(Sound_bell)
+        WHEN 6: bubble%=TRUE: bubble_count%=bubble_start%: IF SoundFX% PROC_playSound(Sound_bell)
+        WHEN 7: weaponset%=4: PROC_bullet_set4: IF SoundFX% PROC_playSound(Sound_laser)
+      ENDCASE
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_create_points( t_%, xx%, yy% )
+      IF t_%<=0 ENDPROC
+      Score% += t_%
+      Points{( PointsListPtr% )}.active% = TRUE
+      Points{( PointsListPtr% )}.type% = t_%
+      Points{( PointsListPtr% )}.x% = xx%
+      Points{( PointsListPtr% )}.y% = yy%
+      Points{( PointsListPtr% )}.count& = 100
+      PointsListPtr% += 1
+      IF PointsListPtr% > 19 PointsListPtr% = 0
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_fatal_collision( i& )
+      IF NOT bubble% THEN
+        IF SoundFX% PROC_playSound(Sound_explosion)
+        IF ExpPtr% > 9 ExpPtr% = 0
+        Explosion{( ExpPtr% )}.active% = TRUE
+        Explosion{( ExpPtr% )}.x% = ObjectList{( i& )}.x-16
+        Explosion{( ExpPtr% )}.y% = 32+ObjectList{( i& )}.y
+        Explosion{( ExpPtr% )}.frame& = 1
+        Lives% -= 1
+        ExpPtr% += 1
+        weaponset% = 0
+        bubble% = TRUE
+        bubble_count% = 80
+      ELSE
+        ObjectList{( i& )}.active% = TRUE
+      ENDIF
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_create_explosion( x_%, y_% )
+      IF SoundFX% PROC_playSound(Sound_explosion)
+      IF ExpPtr% > MaxNumExplosions%-1 ExpPtr% = 0
+      Explosion{( ExpPtr% )}.active% = TRUE
+      Explosion{( ExpPtr% )}.x% = x_%
+      Explosion{( ExpPtr% )}.y% = y_%
+      Explosion{( ExpPtr% )}.frame& = 1
+      ExpPtr% += 1
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_handle_dropper
+      LOCAL i%
+      FOR i%=0 TO NumDropperz%-1
+        
+        IF Dropper{(i%)}.moving% THEN
+          Dropper{(i%)}.vel += Dropper{(i%)}.dir_sign%*Dropper{(i%)}.acc
+          Dropper{(i%)}.x += Dropper{(i%)}.vel
+          IF Dropper{(i%)}.dir_sign%=-1 AND Dropper{(i%)}.x<=Dropper{(i%)}.new_x% OR Dropper{(i%)}.dir_sign%=1 AND Dropper{(i%)}.x>=Dropper{(i%)}.new_x% Dropper{(i%)}.moving% = FALSE: Dropper{(i%)}.x = Dropper{(i%)}.new_x%
+        ELSE
+          IF Dropper{(i%)}.drop_flag% AND Dropper{(i%)}.rest_time&=Dropper{(i%)}.drop_delay& PROC_create_new_object
+        ENDIF
+        
+        OSCLI "MDISPLAY "+STR$~spr_dropper%%+" "+STR$(2*INTDropper{(i%)}.x-&40)+",864,128,64,FF8000"
+        
+        IF Dropper{(i%)}.rest_time&=0 AND NOT Dropper{(i%)}.moving% PROC_handle_dropper_decide(i%)
+        IF Dropper{(i%)}.rest_time&>0 AND NOT Dropper{(i%)}.moving% Dropper{(i%)}.rest_time&-=1
+        
+      NEXT i%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_handle_dropper_decide(i%)
+      REM decide if an object is to be dropped
+      IF NumDropperz%=1 OR RND(NumDropperz%)>NumDropperz%DIV2 Dropper{(i%)}.drop_flag%=TRUE ELSE Dropper{(i%)}.drop_flag%=FALSE
+      REM set new destination x position
+      REPEAT Dropper{(i%)}.new_x%=RND(ScrW%-32) UNTIL ABS(Dropper{(i%)}.x-Dropper{(i%)}.new_x%)>=Dropper{(i%)}.min_gap_size&
+      REM reset common Dropper params
+      Dropper{(i%)}.dir_sign% = SGN(Dropper{(i%)}.new_x% - Dropper{(i%)}.x)
+      Dropper{(i%)}.vel = 0
+      Dropper{(i%)}.moving% = TRUE
+      Dropper{(i%)}.rest_time& = Dropper{(i%)}.initial_rest_time&
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_create_new_object
+      LOCAL i%, t&
+      t&=ObjectSeq%(ObjectSeqPtr%)
+      CASE t& OF
+        WHEN 1: PROC_define_object( t&, TRUE, -1, Dropper{(i%)}.x, 440, 0, -0.5-RND(100)/100, 0, 0, 0 )
+        WHEN 2: PROC_define_object( t&, TRUE, -1, Dropper{(i%)}.x, 440, 0, -0.8-RND(100)/100, 0.1, 0, 1.0 )
+        WHEN 3: PROC_define_object( t&, TRUE, -1, Dropper{(i%)}.x, 440, 0, -1.2-RND(100)/100, 0.2, 0, 2.0 )
+        WHEN 4: PROC_define_object( t&, TRUE, -1, Dropper{(i%)}.x, 440, 0, -1.8-RND(100)/100, 0.8, 0, 4.0 )
+        WHEN 5: PROC_define_object( t&, FALSE, -1, Dropper{(i%)}.x, 440, 0, -5.0, 0, 0, 0 )
+        WHEN 6: PROC_define_object( t&, TRUE, 10, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 7: PROC_define_object( t&, TRUE, 15, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 8: PROC_define_object( t&, TRUE, 20, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 9: PROC_define_object( t&, TRUE, 25, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 10: PROC_define_object( t&, TRUE, 30, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 11: PROC_define_object( t&, TRUE, 35, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 12: PROC_define_object( t&, TRUE, 40, Dropper{(i%)}.x, 440, 0, -2.0-RND(100)/100, 0, 0, 0 )
+        WHEN 16: PROC_define_object( t&, TRUE, 100, Dropper{(i%)}.x, 440, 0, -0.5, 0, 0, 0 )
+        WHEN 17: PROC_define_object( t&, TRUE, 200, Dropper{(i%)}.x, 440, 0, -0.5, 0, 0, 0 )
+        WHEN 18: PROC_define_object( t&, TRUE, 300, Dropper{(i%)}.x, 440, 0, -0.5, 0, 0, 0 )
+        WHEN 19: PROC_define_object( t&, FALSE, 0, Dropper{(i%)}.x, 440, 0, -3.5, 0, 0, 0 )
+        WHEN 20: PROC_define_object( t&, FALSE, 0, Dropper{(i%)}.x, 440, 0, -1.3, 0, 0, 0 )
+        WHEN 21: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -2.0, 0, 0, 0 )
+        WHEN 22: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -1.2, 0, 0, 0 )
+        WHEN 23: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -1.2, 0, 0, 0 )
+        WHEN 24: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -1.2, 0, 0, 0 )
+        WHEN 25: PROC_define_object( t&, FALSE, 0, Dropper{(i%)}.x, 440, 0, -1.1, 0, 0, 0 )
+        WHEN 27: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -1.4, 0, 0, 0 )
+        WHEN 28: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -1.4, 0, 0, 0 )
+        WHEN 29: PROC_define_object( t&, TRUE, 0, Dropper{(i%)}.x, 440, 0, -1.4, 0, 0, 0 )
+        WHEN 30: PROC_define_object( t&, FALSE, 0, Dropper{(i%)}.x, 440, 0, -2.0, 0, 0, 0 )
+      ENDCASE
+      Dropper{(i%)}.drop_flag% = FALSE
+      ObjectSeqPtr% += 1
+      IF ObjectSeqPtr%>MaxNumObjectsPerLevel%-1 ObjectSeqPtr%=0
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_define_object( t&, s%, v%, x, y, xv, yv, xa, ya, max_xv)
+      ObjectList{( ObjectListPtr% )}.active% = TRUE
+      ObjectList{( ObjectListPtr% )}.type& = t&
+      ObjectList{( ObjectListPtr% )}.shootable% = s%
+      ObjectList{( ObjectListPtr% )}.value% = v%
+      ObjectList{( ObjectListPtr% )}.x = x
+      ObjectList{( ObjectListPtr% )}.y = y
+      ObjectList{( ObjectListPtr% )}.xv = xv
+      ObjectList{( ObjectListPtr% )}.yv = yv
+      ObjectList{( ObjectListPtr% )}.xa = xa
+      ObjectList{( ObjectListPtr% )}.ya = ya
+      ObjectList{( ObjectListPtr% )}.max_xv = max_xv
+      ObjectListPtr% += 1
+      IF ObjectListPtr%>MaxNumOnScreenObjects%-1 ObjectListPtr%=0
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_handle_object( ptr% )
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%(ObjectList{(ptr%)}.type&)+" "+STR$(2*INTObjectList{(ptr%)}.x)+","+STR$(2*INTObjectList{(ptr%)}.y)+",64,64,FF8000"
+      ObjectList{( ptr% )}.y += ObjectList{( ptr% )}.yv
+      IF ObjectList{( ptr% )}.type&=&19 AND ObjectList{( ptr% )}.y<-32 Lives%-=1: ObjectList{( ptr% )}.active%=FALSE: IF SoundFX% PROC_playSound(Sound_bum)
+      IF ObjectList{( ptr% )}.xa <> 0 THEN
+        ObjectList{( ptr% )}.xv += ObjectList{( ptr% )}.xa*SGN(bucket_x - ObjectList{( ptr% )}.x)
+        IF ABSObjectList{( ptr% )}.xv >= ObjectList{( ptr% )}.max_xv ObjectList{( ptr% )}.xv = SGN(ObjectList{( ptr% )}.xv)*ObjectList{( ptr% )}.max_xv
+        ObjectList{( ptr% )}.x += ObjectList{( ptr% )}.xv
+      ENDIF
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_display_digits( n%, x%, y% )
+      LOCAL j%, n$
+      n$=STR$n%
+      FOR j%=1 TO LENn$
+        OSCLI "MDISPLAY "+STR$~DigitSprHLUT%%(ASCMID$(n$,j%,1)-&30)+" "+STR$(2*x%)+","+STR$(2*y%-32)+",32,32,FF8000"
+        x% += &10
+      NEXT j%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_title_page
+      
+      LOCAL update_ticks%, mouse_press%, update_title_page_contents%, go%, msx%, msy%, msz%
+      
+      update_ticks% = TRUE
+      mouse_press% = FALSE
+      update_title_page_contents% = TRUE
+      wait% = 100
+      
+      REPEAT
+        
+        IF update_title_page_contents% THEN
+          CLS
+          PROC_draw_title_page_contents
+          update_title_page_contents% = FALSE
+          update_ticks% = TRUE
+          PROC_flush
+        ENDIF
+        
+        IF update_ticks% THEN
+          IF Backdrop% OSCLI "MDISPLAY "+STR$~spr_tick%%+" 336,34,48,48,FF8000" ELSE OSCLI "MDISPLAY "+STR$~spr_cross%%+" 336,34,48,48,FF8000"
+          IF SoundFX%  OSCLI "MDISPLAY "+STR$~spr_tick%%+" 700,34,48,48,FF8000" ELSE OSCLI "MDISPLAY "+STR$~spr_cross%%+" 700,34,48,48,FF8000"
+          IF Turbo%  OSCLI "MDISPLAY "+STR$~spr_tick%%+" 1100,34,48,48,FF8000" ELSE OSCLI "MDISPLAY "+STR$~spr_cross%%+" 1100,34,48,48,FF8000"
+          update_ticks% = FALSE
+        ENDIF
+        
+        go% = FALSE
+        
+        MOUSE msx%, msy%, msz%
+        IF msz%=0 mouse_press% = FALSE
+        IF msz%<>0 AND NOT mouse_press% THEN
+          IF msx%>=96  AND msx%<=398 AND msy%>=18 AND msy%<=100 Backdrop% EOR= TRUE : update_ticks%=TRUE : mouse_press%=TRUE: IF SoundFX% PROC_playSound(Sound_cowbell)
+          IF msx%>=500 AND msx%<=766 AND msy%>=18 AND msy%<=100 AND (@platform% AND &FFFF00) >= &400 SoundFX% EOR= TRUE : update_ticks%=TRUE : mouse_press%=TRUE: IF SoundFX% PROC_playSound(Sound_cowbell)
+          IF msx%>=972 AND msx%<=1162 AND msy%>=34 AND msy%<=84 Turbo% EOR= TRUE : update_ticks%=TRUE : mouse_press%=TRUE: IF SoundFX% PROC_playSound(Sound_cowbell)
+          IF msx%>=100 AND msx%<=1180 AND msy%>=188 go%=TRUE
+          IF msx%>=100 AND msx%<=1180 AND msy%>=124 AND msy%<=178 PROC_instructions: update_title_page_contents% = TRUE: PROC_flush
+        ENDIF
+        
+        CASE INKEY(1) OF
+          WHEN 13,32: IF wait%=0 go% = TRUE
+          WHEN 73,105,138: PROC_instructions : update_title_page_contents% = TRUE : wait% = 100
+          WHEN 9:
+            REPEAT
+              VDU 7
+              INPUT "Level (1 - 16) ";Level%
+              valid% = Level%>=1 AND Level%<=16
+            UNTIL valid%
+        ENDCASE
+        
+        IF wait% > 0 wait% -= 1 : *FX 21, 0
+        
+      UNTIL go%
+      
+      IF SoundFX% PROC_playSound(Sound_button)
+      PROC_fade
+      
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_draw_title_page_contents
+      LOCAL x%, y%, i%, sz%
+      
+      REM the title page will be displayed only when everything on it has been drawn (makes things look nicer)
+      *REFRESH OFF
+      
+      REM draw verticle row of aliens
+      FOR y%=0 TO 512 STEP 32
+        OSCLI "MDISPLAY " + STR$~spr_dropper%% + " 0," + STR$(y%*2) + ",128,64,FF8000"
+        OSCLI "MDISPLAY " + STR$~spr_dropper%% + " " + STR$(ScrW%*2-128)+ "," + STR$(y%*2) + ",128,64,FF8000"
+      NEXT y%
+      
+      REM draw horizontal row of aliens
+      FOR x%=64 TO 640-128 STEP 64
+        OSCLI "MDISPLAY" + STR$~spr_dropper%% + " " + STR$(x%*2) + ",0,128,64,FF8000"
+        OSCLI "MDISPLAY" + STR$~spr_dropper%% + " " + STR$(x%*2) + "," + STR$(ScrH%*2-64) + ",128,64,FF8000"
+      NEXT x%
+      
+      REM draw 60 random objects at random scales
+      FOR i%=1 TO 60
+        sz% = 2*RND( 32 )
+        OSCLI "MDISPLAY " + STR$~ObjSprHLUT%%(5 + RND(7)) + " " + STR$(128+2*RND(ScrW%-156)) + "," + STR$(64+2*RND(ScrH%-96)) + "," + STR$sz% + "," + STR$sz% + ",FF8000"
+      NEXT i%
+      
+      REM darken the area on which the random objects are plotted
+      GCOL 2, 8: RECTANGLE FILL 2*64, 2*32, 2*(ScrW%-128), 2*(ScrH%-64)
+      
+      REM display the game title banner
+      OSCLI "DISPLAY """ + @dir$ + ".Resources/graphics/titleimg"" " + STR$(ScrW%-490) + "," + STR$(ScrH%*2-310) + ",978,214,FF8000"
+      
+      REM display various text
+      PROC_text(16, "Background:", 3, 48, 40 )
+      PROC_text(16, "Sound FX:", 3, 250, 40 )
+      PROC_text(16, "Turbo:", 3, 486, 40 )
+      PROC_text(16, "Hi Score: " + STRING$(6-LENSTR$HiScore%,"0") + STR$HiScore%, 9, -1, 340 )
+      PROC_text(24, "Can you save Planet Earth from", 3, -1, 290 )
+      PROC_text(24, "the unspeakable terror?", 3, -1, 250 )
+      PROC_text(16, "Use the left/right arrow keys or drag the defender", 7, -1, 196 )
+      PROC_text(16, "Press <Z> or tap to fire (if weapon token collected)", 7, -1, 166 )
+      PROC_text(16, "Tap here or press <SPACE BAR> to play", 6, -1, 126 )
+      PROC_text(16, "Tap here or press <I> or ↓ for instructions", 2, -1, 88 )
+      
+      
+      REM display the title page
+      *REFRESH
+      *REFRESH ON
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_instructions
+      LOCAL y%, i%, sz%
+      
+      IF SoundFX% PROC_playSound(Sound_cowbell)
+      
+      PROC_fade: CLS
+      
+      *REFRESH OFF
+      OSCLI "MDISPLAY " + STR$~spr_dropper%% + " 0,-32,1280,1024,FF8000"
+      REM GCOL 0, 0 : FOR y%=0 TO ScrH% STEP 2 : LINE 0, 2*y%, 2*ScrW%, 2*y% : NEXT y%
+      GCOL 2, 4 : RECTANGLE FILL 0, 0, 2*ScrW%, 2*ScrH%
+      GCOL 3, 8 : FOR y%=0 TO ScrH% STEP 2 : LINE 0, 2*y%, 2*ScrW%, 2*y% : NEXT y%
+      PROC_text(36, "Introduction", 7, -1, 512 )
+      PROC_text(18, "It is the Year 2016, and the people of Britain are", 3, -1, 450 )
+      PROC_text(18, "living in the clutches of an oppressive and intrusive", 3, -1, 450-1*32 )
+      PROC_text(18, "fully-fledged Police State (exactly as predicted).", 3, -1, 450-2*32 )
+      PROC_text(18, "In 2012, an initially benevolent race of alien beings, known", 3, -1, 450-3*32 )
+      PROC_text(18, "as the Dropperz, opted to settle in Orwellian Britain, but", 3, -1, 450-4*32 )
+      PROC_text(18, "quickly found themselves frustrated by the level of", 3, -1, 450-5*32 )
+      PROC_text(18, "Authoritarian interference in their daily, law-abiding lives,", 3, -1, 450-6*32 )
+      PROC_text(18, "so they mounted a peaceful protest at Trafalgar Square.", 3, -1, 450-7*32 )
+      PROC_text(18, "Big mistake.", 9, -1, 450-8*32 )
+      PROC_text(18, "The Leader was arrested under the existing Anti-", 3, -1, 450-9*32 )
+      PROC_text(18, "Terror Laws and subsequently executed for treason.", 3, -1, 450-10*32 )
+      PROC_text(18, "Now the Dropperz have waged war on the human race.", 3, -1, 450-11*32 )
+      PROC_text(18, "They WILL avenge the execution of their Leader.", 3, -1, 450-12*32 )
+      PROC_text(12, "Tap or press <SPACE BAR> to continue", 6, -1, 450-13*32 )
+      *REFRESH
+      *REFRESH ON
+      :
+      WAIT 100
+      PROC_flush
+      REPEAT
+      UNTIL INKEY(2)=32 OR INKEY-10 OR INKEY-73
+      REPEAT UNTIL INKEY(0)=-1
+      IF SoundFX% PROC_playSound(Sound_cowbell)
+      PROC_fade: CLS
+      :
+      *REFRESH OFF
+      :
+      REM draw 60 random objects at random scales
+      FOR i%=1 TO 60
+        sz%=2*RND( 32 )
+        OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%(5 + RND(7))+" "+STR$(2*(32+RND(ScrW%-156)))+","+STR$(2*(32+RND(ScrH%-156)))+","+STR$sz%+","+STR$sz%+",FF8000"
+      NEXT i%
+      :
+      REM darken the area on which the random objects are plotted
+      GCOL 2, 8: RECTANGLE FILL 0, 0, 2*ScrW%, 2*ScrH%
+      :
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 1 )+" 32,"+STR$(2*(438-0*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 2 )+" 32,"+STR$(2*(438-1*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 3 )+" 32,"+STR$(2*(438-2*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 4 )+" 32,"+STR$(2*(438-3*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 5 )+" 32,"+STR$(2*(438-4*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~spr_deathpod1%%  +" 32,"+STR$(2*(438-5*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 6 )+" 32,"+STR$(2*(438-6*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 7 )+" 32,"+STR$(2*(438-7*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 8 )+" 32,"+STR$(2*(438-8*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 9 )+" 32,"+STR$(2*(438-9*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%(20 )+" 32,"+STR$(2*(438-10*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 10 )+" 680,"+STR$(2*(438-0*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 11 )+" 680,"+STR$(2*(438-1*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 12 )+" 680,"+STR$(2*(438-2*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 16 )+" 680,"+STR$(2*(438-3*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 17 )+" 680,"+STR$(2*(438-4*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 18 )+" 680,"+STR$(2*(438-5*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 19 )+" 680,"+STR$(2*(438-6*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 21 )+" 680,"+STR$(2*(438-7*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 30 )+" 680,"+STR$(2*(438-8*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 22 )+" 680,"+STR$(2*(438-9*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 23 )+" 748,"+STR$(2*(438-9*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 24 )+" 816,"+STR$(2*(438-9*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 27 )+" 680,"+STR$(2*(438-10*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 28 )+" 748,"+STR$(2*(438-10*34))+",64,64,FF8000"
+      OSCLI "MDISPLAY "+STR$~ObjSprHLUT%%( 29 )+" 816,"+STR$(2*(438-10*34))+",64,64,FF8000"
+      :
+      PROC_text(18, "Instructions", 7, -1, 506 )
+      PROC_text(12, "Grey bomb  (lethal)", 6, 64, 470-0*34-8 )
+      PROC_text(12, "Green bomb  (lethal)", 6, 64, 470-1*34-8 )
+      PROC_text(12, "Red bomb  (lethal)", 6, 64, 470-2*34-8 )
+      PROC_text(12, "Blue bomb  (lethal)", 6, 64, 470-3*34-8 )
+      PROC_text(12, "Rock  (lethal, not shootable)", 6, 64, 470-4*34-8 )
+      PROC_text(12, "Death Pod  (mandatory capture)", 9, 64, 470-5*34-8 )
+      PROC_text(12, "Apple  (10 points)", 6, 64, 470-6*34-8 )
+      PROC_text(12, "Orange  (15 points)", 6, 64, 470-7*34-8 )
+      PROC_text(12, "Banana  (20 points)", 6, 64, 470-8*34-8 )
+      PROC_text(12, "Pear  (25 points)", 6, 64, 470-9*34-8 )
+      PROC_text(12, "Mystery!  (not shootable)", 6, 64, 470-10*34-8 )
+      PROC_text(12, "Pineapple  (30 points)", 6, 390, 470-0*34-8 )
+      PROC_text(12, "Cherries  (35 points)", 6, 390, 470-1*34-8 )
+      PROC_text(12, "Grapes  (40 points)", 6, 390, 470-2*34-8 )
+      PROC_text(12, "Purple coin  (100 points)", 6, 390, 470-3*34-8 )
+      PROC_text(12, "Silver coin  (200 points)", 6, 390, 470-4*34-8 )
+      PROC_text(12, "Gold coin  (300 points)", 6, 390, 470-5*34-8 )
+      PROC_text(12, "Level-Up token  (5 required)", 3, 390, 470-6*34-8 )
+      PROC_text(12, "Extra life", 6, 390, 470-7*34-8 )
+      PROC_text(12, "Protection shield  (not shootable)", 6, 390, 470-8*34-8 )
+      PROC_text(12, "Firepower", 6, 456, 470-9*34-8 )
+      PROC_text(12, "Slow, Fast & Freeze pills", 6, 456, 470-10*34-8 )
+      PROC_text(12, "Failure to capture a Death Pod results in loss of one life (they are not shootable)", 2, -1, 84 )
+      PROC_text(12, "Five Level-Up tokens are required to progress to the next level", 2, -1, 60 )
+      PROC_text(12, "Tap or press <SPACE BAR> to continue", 6, -1, 450-13*32 )
+      *REFRESH
+      *REFRESH ON
+      :
+      WAIT 100
+      PROC_flush
+      REPEAT
+      UNTIL INKEY(2)=32 OR INKEY-10 OR INKEY-73
+      IF SoundFX% PROC_playSound(Sound_cowbell)
+      PROC_fade
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_text( PT%, txt$, col%, x%, y% )
+      LOCAL wd%
+      VDU 5
+      OSCLI "FONT """+@lib$+"FreeSans"", "+STR$(INT(PT%))
+      IF x%=-1 THEN
+        wd% = WIDTH( txt$ )
+        x% = (ScrW% - wd%DIV2)DIV2
+      ENDIF
+      GCOL 0
+      MOVE 2*(x%-2), 2*(y%+2) : PRINT txt$
+      MOVE 2*x%, 2*(y%+2)     : PRINT txt$
+      MOVE 2*(x%+2), 2*(y%+2) : PRINT txt$
+      MOVE 2*(x%-2), 2*y%     : PRINT txt$
+      MOVE 2*(x%+2), 2*y%     : PRINT txt$
+      MOVE 2*(x%-2), 2*(y%-2) : PRINT txt$
+      MOVE 2*x%, 2*(y%-2)     : PRINT txt$
+      MOVE 2*(x%+2), 2*(y%-2) : PRINT txt$
+      GCOL col%
+      MOVE 2*x%, 2*y% : PRINT txt$
+      *FONT
+      VDU 4
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROC_fade
+      LOCAL y%
+      FOR y% = 0 TO 256
+        GCOL 2, 4
+        LINE 0, 2*y%, 2*ScrW%, 2*y%
+        LINE 0, 2*(ScrH%-y%), 2*ScrW%, 2*(ScrH%-y%)
+        GCOL 0, 0
+        LINE 0, 2*y%, 2*ScrW%, 2*y%
+        LINE 0, 2*(ScrH%-y%), 2*ScrW%, 2*(ScrH%-y%)
+        WAIT 0
+      NEXT y%
+      *REFRESH
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF FN_load_spr( path$ )
+      LOCAL F%, b%%
+      F% = OPENIN( path$ )
+      IF F% = 0 ERROR 100, "Couldn't load " + path$
+      DIM b%% EXT#F%
+      CLOSE #F%
+      OSCLI "LOAD """ + path$ + """ " + STR$~b%%
+      = b%%
+      :
+      :
+      :
+      :
+      DEF FN_delay_mode
+      IF NOT Turbo% IF NOT INKEY(1) =FALSE
+      =FALSE
+      :
+      :
+      :
+      :
+      DEF PROC_flush
+      *FX 15, 1
+      *FX 21, 0
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF FN_rnd_sgn
+      IF RND(2)=1 THEN =-1 ELSE =1
+      :
+      :
+      :
+      :
+      DEF PROC_load_resources
+      CLS
+      PROC_text(16, "Please wait...", 7, -1, 32+ScrH%DIV2 )
+      
+      background%%       = FN_load_spr( @dir$ + ".Resources/graphics/background.gif" )
+      BMP$ = "MDISPLAY " + STR$~background%% + " 0,0,1280,1024"
+      spr_lev%%          = FN_load_spr( @dir$ + ".Resources/graphics/minilevel.bmp" )
+      spr_tick%%         = FN_load_spr( @dir$ + ".Resources/graphics/tick.bmp" )
+      spr_cross%%        = FN_load_spr( @dir$ + ".Resources/graphics/cross.bmp" )
+      spr_dropper%%      = FN_load_spr( @dir$ + ".Resources/graphics/dropper.bmp" )
+      spr_bucket%%       = FN_load_spr( @dir$ + ".Resources/graphics/bucket.bmp" )
+      spr_deathpod1%%    = FN_load_spr( @dir$ + ".Resources/graphics/25_deathpod.bmp" )
+      spr_deathpod2%%    = FN_load_spr( @dir$ + ".Resources/graphics/25_deathpod2.bmp" )
+      spr_bullet%%       = FN_load_spr( @dir$ + ".Resources/graphics/bullet.bmp" )
+      spr_flash2%%       = FN_load_spr( @dir$ + ".Resources/graphics/flash2.bmp" )
+      ObjSprHLUT%%( 0 )  = 0
+      ObjSprHLUT%%( 1 )  = FN_load_spr( @dir$ + ".Resources/graphics/01_greybomb.bmp" )
+      ObjSprHLUT%%( 2 )  = FN_load_spr( @dir$ + ".Resources/graphics/02_greenbomb.bmp" )
+      ObjSprHLUT%%( 3 )  = FN_load_spr( @dir$ + ".Resources/graphics/03_redbomb.bmp" )
+      ObjSprHLUT%%( 4 )  = FN_load_spr( @dir$ + ".Resources/graphics/04_bluebomb.bmp" )
+      ObjSprHLUT%%( 5 )  = FN_load_spr( @dir$ + ".Resources/graphics/05_rock.bmp" )
+      ObjSprHLUT%%( 6 )  = FN_load_spr( @dir$ + ".Resources/graphics/06_apple.bmp" )
+      ObjSprHLUT%%( 7 )  = FN_load_spr( @dir$ + ".Resources/graphics/07_orange.bmp" )
+      ObjSprHLUT%%( 8 )  = FN_load_spr( @dir$ + ".Resources/graphics/08_banana.bmp" )
+      ObjSprHLUT%%( 9 )  = FN_load_spr( @dir$ + ".Resources/graphics/09_pear.bmp" )
+      ObjSprHLUT%%( 10 ) = FN_load_spr( @dir$ + ".Resources/graphics/10_pineapple.bmp" )
+      ObjSprHLUT%%( 11 ) = FN_load_spr( @dir$ + ".Resources/graphics/11_cherries.bmp" )
+      ObjSprHLUT%%( 12 ) = FN_load_spr( @dir$ + ".Resources/graphics/12_grapes.bmp" )
+      ObjSprHLUT%%( 13 ) = 0 :REM <reserved>
+      ObjSprHLUT%%( 14 ) = 0 :REM <reserved>
+      ObjSprHLUT%%( 15 ) = 0 :REM <reserved>
+      ObjSprHLUT%%( 16 ) = FN_load_spr( @dir$ + ".Resources/graphics/16_purplecoin.bmp" )
+      ObjSprHLUT%%( 17 ) = FN_load_spr( @dir$ + ".Resources/graphics/17_silvercoin.bmp" )
+      ObjSprHLUT%%( 18 ) = FN_load_spr( @dir$ + ".Resources/graphics/18_goldcoin.bmp" )
+      ObjSprHLUT%%( 19 ) = FN_load_spr( @dir$ + ".Resources/graphics/19_level.bmp" )
+      ObjSprHLUT%%( 20 ) = FN_load_spr( @dir$ + ".Resources/graphics/20_mystery.bmp" )
+      ObjSprHLUT%%( 21 ) = FN_load_spr( @dir$ + ".Resources/graphics/21_xtralife.bmp" )
+      ObjSprHLUT%%( 22 ) = FN_load_spr( @dir$ + ".Resources/graphics/22_firepower1.bmp" )
+      ObjSprHLUT%%( 23 ) = FN_load_spr( @dir$ + ".Resources/graphics/23_firepower2.bmp" )
+      ObjSprHLUT%%( 24 ) = FN_load_spr( @dir$ + ".Resources/graphics/24_firepower3.bmp" )
+      ObjSprHLUT%%( 25 ) = 0 :REM dynamically allocated
+      ObjSprHLUT%%( 26 ) = 0 :REM <reserved>
+      ObjSprHLUT%%( 27 ) = FN_load_spr( @dir$ + ".Resources/graphics/27_slowpill.bmp" )
+      ObjSprHLUT%%( 28 ) = FN_load_spr( @dir$ + ".Resources/graphics/28_fastpill.bmp" )
+      ObjSprHLUT%%( 29 ) = FN_load_spr( @dir$ + ".Resources/graphics/29_freezepill.bmp" )
+      ObjSprHLUT%%( 30 ) = FN_load_spr( @dir$ + ".Resources/graphics/30_bubble.bmp" )
+      PointSprLUT%%(2)   = FN_load_spr( @dir$ + ".Resources/graphics/10points.bmp" )
+      PointSprLUT%%(3)   = FN_load_spr( @dir$ + ".Resources/graphics/15points.bmp" )
+      PointSprLUT%%(4)   = FN_load_spr( @dir$ + ".Resources/graphics/20points.bmp" )
+      PointSprLUT%%(5)   = FN_load_spr( @dir$ + ".Resources/graphics/25points.bmp" )
+      PointSprLUT%%(6)   = FN_load_spr( @dir$ + ".Resources/graphics/30points.bmp" )
+      PointSprLUT%%(7)   = FN_load_spr( @dir$ + ".Resources/graphics/35points.bmp" )
+      PointSprLUT%%(8)   = FN_load_spr( @dir$ + ".Resources/graphics/40points.bmp" )
+      PointSprLUT%%(20)  = FN_load_spr( @dir$ + ".Resources/graphics/100points.bmp" )
+      PointSprLUT%%(40)  = FN_load_spr( @dir$ + ".Resources/graphics/200points.bmp" )
+      PointSprLUT%%(60)  = FN_load_spr( @dir$ + ".Resources/graphics/300points.bmp" )
+      ExpSprLUT%%(1)     = FN_load_spr( @dir$ + ".Resources/graphics/exp1.bmp" )
+      ExpSprLUT%%(2)     = FN_load_spr( @dir$ + ".Resources/graphics/exp2.bmp" )
+      ExpSprLUT%%(3)     = FN_load_spr( @dir$ + ".Resources/graphics/exp3.bmp" )
+      ExpSprLUT%%(4)     = FN_load_spr( @dir$ + ".Resources/graphics/exp4.bmp" )
+      ExpSprLUT%%(5)     = FN_load_spr( @dir$ + ".Resources/graphics/exp5.bmp" )
+      ExpSprLUT%%(6)     = FN_load_spr( @dir$ + ".Resources/graphics/exp6.bmp" )
+      ExpSprLUT%%(7)     = FN_load_spr( @dir$ + ".Resources/graphics/exp7.bmp" )
+      DigitSprHLUT%%(0)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_0.bmp" )
+      DigitSprHLUT%%(1)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_1.bmp" )
+      DigitSprHLUT%%(2)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_2.bmp" )
+      DigitSprHLUT%%(3)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_3.bmp" )
+      DigitSprHLUT%%(4)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_4.bmp" )
+      DigitSprHLUT%%(5)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_5.bmp" )
+      DigitSprHLUT%%(6)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_6.bmp" )
+      DigitSprHLUT%%(7)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_7.bmp" )
+      DigitSprHLUT%%(8)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_8.bmp" )
+      DigitSprHLUT%%(9)  = FN_load_spr( @dir$ + ".Resources/graphics/digit_9.bmp" )
+      
+      Sound_alien        = FN_loadWAV( @dir$ + ".Resources/sound/alien.wav", 22050, 1 )
+      Sound_bell         = FN_loadWAV( @dir$ + ".Resources/sound/bell.wav", 22050, 1 )
+      Sound_bum          = FN_loadWAV( @dir$ + ".Resources/sound/bum.wav", 22050, 1 )
+      Sound_button       = FN_loadWAV( @dir$ + ".Resources/sound/button.wav", 22050, 1 )
+      Sound_cowbell      = FN_loadWAV( @dir$ + ".Resources/sound/cowbell.wav", 22050, 1 )
+      Sound_crack        = FN_loadWAV( @dir$ + ".Resources/sound/crack.wav", 22050, 1 )
+      Sound_dong         = FN_loadWAV( @dir$ + ".Resources/sound/dong.wav", 22050, 1 )
+      Sound_explosion    = FN_loadWAV( @dir$ + ".Resources/sound/explosion.wav", 22050, 1 )
+      Sound_laser        = FN_loadWAV( @dir$ + ".Resources/sound/laser.wav", 22050, 1 )
+      Sound_levelup      = FN_loadWAV( @dir$ + ".Resources/sound/levelup.wav", 22050, 1 )
+      Sound_pop          = FN_loadWAV( @dir$ + ".Resources/sound/pop.wav", 22050, 1 )
+      Sound_rev          = FN_loadWAV( @dir$ + ".Resources/sound/rev.wav", 22050, 1 )
+      Sound_snd          = FN_loadWAV( @dir$ + ".Resources/sound/snd.wav", 22050, 1 )
+      ENDPROC
+      :
+      :
+      :
+      DATA "L1", 1, 1,29 , 2,0 , 3,0 , 4,0 , 5,5 , 6,34 , 7,5 , 8,5 , 9,5 , 10,5, 11,0 , 12,0 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1, 21,1 , 22,2 , 23,2 , 24,3 , 25,0 , 26,0 , 27,0 , 28,0 , 29,0 , 30,0
+      DATA "L2", 1, 1,22 , 2,1 , 3,1 , 4,0 , 5,5 , 6,29 , 7,5 , 8,5 , 9,5 , 10,5, 11,2 , 12,0 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,1 , 22,2 , 23,2 , 24,3 , 25,6 , 26,0 , 27,0 , 28,0 , 29,0 , 30,2
+      DATA "L3", 2, 1,19 , 2,1 , 3,2 , 4,0 , 5,7 , 6,26 , 7,5 , 8,5 , 9,5 , 10,5, 11,2 , 12,5 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,1 , 22,1 , 23,1 , 24,3 , 25,3 , 26,0 , 27,1 , 28,1 , 29,1 , 30,2
+      DATA "L4", 2, 1,17 , 2,4 , 3,3 , 4,0 , 5,7 , 6,2 , 7,5 , 8,5 , 9,5 , 10,5, 11,23 , 12,5 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,1 , 25,5 , 26,0 , 27,1 , 28,1 , 29,1 , 30,2
+      DATA "L5", 3, 1,9 , 2,5 , 3,4 , 4,3 , 5,9 , 6,2 , 7,5 , 8,5 , 9,5 , 10,5, 11,23 , 12,5 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,1 , 25,3 , 26,0 , 27,2 , 28,1 , 29,2 , 30,3
+      DATA "L6", 3, 1,9 , 2,5 , 3,4 , 4,2 , 5,9 , 6,2 , 7,5 , 8,4 , 9,4 , 10,5, 11,20 , 12,5 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,1 , 25,5 , 26,0 , 27,2 , 28,1 , 29,2 , 30,7
+      DATA "L7", 3, 1,7 , 2,6 , 3,4 , 4,5 , 5,7 , 6,2 , 7,5 , 8,5 , 9,4 , 10,4, 11,20 , 12,5 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,2 , 25,3 , 26,0 , 27,2 , 28,1 , 29,2 , 30,8
+      DATA "L8", 4, 1,8 , 2,7 , 3,5 , 4,3 , 5,6 , 6,2 , 7,5 , 8,5 , 9,4 , 10,4, 11,5 , 12,20 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,2 , 25,3 , 26,0 , 27,2 , 28,1 , 29,2 , 30,8
+      DATA "L9", 4, 1,5 , 2,7 , 3,5 , 4,3 , 5,6 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,5 , 12,20 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,5 , 25,5 , 26,0 , 27,3 , 28,1 , 29,2 , 30,10
+      DATA "L10", 5, 1,7 , 2,7 , 3,5 , 4,1 , 5,6 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,5 , 12,20 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,1 , 19,0 , 20,1 , 21,2 , 22,1 , 23,1 , 24,5 , 25,3 , 26,0 , 27,5 , 28,1 , 29,2 , 30,10
+      DATA "L11", 5, 1,5 , 2,5 , 3,3 , 4,12 , 5,9 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,5 , 12,16 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,3 , 19,0 , 20,5 , 21,2 , 22,1 , 23,1 , 24,5 , 25,1 , 26,0 , 27,2 , 28,1 , 29,2 , 30,5
+      DATA "L12", 5, 1,1 , 2,1 , 3,1 , 4,15 , 5,7 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,5 , 12,15 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,3 , 19,0 , 20,8 , 21,2 , 22,1 , 23,1 , 24,5 , 25,5 , 26,0 , 27,4 , 28,1 , 29,2 , 30,6
+      DATA "L13", 6, 1,0 , 2,0 , 3,0 , 4,16 , 5,15 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,5 , 12,18 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,3 , 19,0 , 20,8 , 21,2 , 22,1 , 23,1 , 24,5 , 25,2 , 26,0 , 27,2 , 28,1 , 29,2 , 30,2
+      DATA "L14", 7, 1,0 , 2,0 , 3,0 , 4,17 , 5,15 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,3 , 12,16 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,2 , 19,0 , 20,8 , 21,2 , 22,1 , 23,1 , 24,5 , 25,3 , 26,0 , 27,2 , 28,1 , 29,1 , 30,6
+      DATA "L15", 8, 1,0 , 2,0 , 3,0 , 4,17 , 5,15 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,5 , 12,14 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,2 , 19,0 , 20,8 , 21,2 , 22,1 , 23,1 , 24,5 , 25,3 , 26,0 , 27,2 , 28,1 , 29,1 , 30,6
+      DATA "L16", 9, 1,0 , 2,0 , 3,0 , 4,22 , 5,15 , 6,2 , 7,5 , 8,3 , 9,4 , 10,1, 11,2 , 12,16 , 13,0 , 14,0 , 15,0 , 16,1 , 17,1 , 18,4 , 19,0 , 20,3 , 21,2 , 22,1 , 23,1 , 24,5 , 25,2 , 26,0 , 27,2 , 28,1 , 29,1 , 30,6
+      DATA "***"

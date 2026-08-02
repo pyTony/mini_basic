@@ -1,36 +1,63 @@
-10 REM Analogue clock — wall time (TIME$), 12 o'clock at top
-20 REM Copied from basics/Clock.bas (working). RIGHT$(TIME$,8) → HH:MM:SS
-30 REM even when TIME$ is full BBC "Day,dd Mon yyyy.hh:mm:ss"
-40 REM *REFRESH removed (BBCSDL-only); works on mini_basic + other emulators
-50 MODE 2
-60 VDU 23,1,0;0;0;0;
-70 REPEAT
-80   REM CLS each frame optional — omit for less flicker
-90   T$ = TIME$
-100   T$ = RIGHT$(T$,8)
-110   HOUR24% = VAL(MID$(T$,1,2))
-120   HOUR% = HOUR24% MOD 12
-130   MINUTE% = VAL(MID$(T$,4,2))
-140   SECOND% = VAL(MID$(T$,7,2))
-150   GCOL 0,7
-160   CIRCLE 640,512,300
-170   FOR I% = 0 TO 11
-180     A = RAD(90 - I% * 30)
-190     MOVE 640 + COS(A) * 240,512 + SIN(A) * 240
-200     DRAW 640 + COS(A) * 310,512 + SIN(A) * 310
-210   NEXT
-220   A = RAD(90 - HOUR% * 30 - MINUTE% * 0.5)
-230   GCOL 0,1
-240   MOVE 640,512: DRAW 640 + COS(A) * 110,512 + SIN(A) * 110
-250   A = RAD(90 - MINUTE% * 6 - SECOND% * 0.1)
-260   GCOL 0,2
-270   MOVE 640,512: DRAW 640 + COS(A) * 190,512 + SIN(A) * 190
-280   A = RAD(90 - SECOND% * 6)
-290   GCOL 0,4
-300   MOVE 640,512: DRAW 640 + COS(A) * 240,512 + SIN(A) * 240
-310   COLOUR 7
-320   PRINT TAB(2,1);"Analogue Clock"
-330   PRINT TAB(6,2);HOUR24%;":";MINUTE%;":";SECOND%
-340   WAIT 1
-350 UNTIL FALSE
-360 END
+10 REM Analogue clock — wall time (TIME$), 12 at top
+20 REM MODE 8 square pixels; hands GCOL 3 XOR undraw (no CLS flash)
+30 REM Digital HH:MM:SS updated each second
+40 MODE 8
+50 OFF
+60 ORIGIN 640,512
+70 CX%=0: CY%=0
+80 CLS
+90 GCOL 0,7
+100 CIRCLE CX%,CY%,300
+110 FOR I%=0 TO 11
+120   A=RAD(90-I%*30)
+130   MOVE CX%+COS(A)*240,CY%+SIN(A)*240
+140   DRAW CX%+COS(A)*310,CY%+SIN(A)*310
+150 NEXT
+160 COLOUR 7
+170 PRINT TAB(32,0);"Analogue Clock"
+180 PS%=-1: PM%=-1: PH%=-1
+190 REPEAT
+200   T$=RIGHT$(TIME$,8)
+210   HOUR24%=VAL(MID$(T$,1,2))
+220   HOUR%=HOUR24% MOD 12
+230   MINUTE%=VAL(MID$(T$,4,2))
+240   SECOND%=VAL(MID$(T$,7,2))
+250   IF SECOND%<>PS% THEN PROCupdate
+260   WAIT 1
+270 UNTIL FALSE
+280 END
+290 :
+300 DEF PROCupdate
+310   IF PS%>=0 THEN PROCsec(PS%):PROCmin(PM%,PS%):PROChour(PH%,PM%)
+320   PROChour(HOUR%,MINUTE%)
+330   PROCmin(MINUTE%,SECOND%)
+340   PROCsec(SECOND%)
+350   PS%=SECOND%:PM%=MINUTE%:PH%=HOUR%
+360   PROCdigital
+370 ENDPROC
+380 :
+390 DEF PROCdigital
+400   COLOUR 7
+410   H$=STR$(HOUR24%):IF HOUR24%<10 H$="0"+H$
+420   M$=STR$(MINUTE%):IF MINUTE%<10 M$="0"+M$
+430   S$=STR$(SECOND%):IF SECOND%<10 S$="0"+S$
+440   PRINT TAB(34,1);H$;":";M$;":";S$
+450 ENDPROC
+460 :
+470 DEF PROCsec(S%)
+480   GCOL 3,4
+490   A=RAD(90-S%*6)
+500   MOVE CX%,CY%:DRAW CX%+COS(A)*240,CY%+SIN(A)*240
+510 ENDPROC
+520 :
+530 DEF PROCmin(M%,S%)
+540   GCOL 3,2
+550   A=RAD(90-M%*6-S%*0.1)
+560   MOVE CX%,CY%:DRAW CX%+COS(A)*190,CY%+SIN(A)*190
+570 ENDPROC
+580 :
+590 DEF PROChour(H%,M%)
+600   GCOL 3,1
+610   A=RAD(90-H%*30-M%*0.5)
+620   MOVE CX%,CY%:DRAW CX%+COS(A)*110,CY%+SIN(A)*110
+630 ENDPROC

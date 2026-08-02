@@ -104,6 +104,21 @@ from .helpers import (
 class RuntimeCoreMixin:
     """Mixin providing core-related BASICInterpreter methods."""
 
+    def dprint(self, *args, **kwargs) -> None:
+        """Debug print available on every mixin (defined on Core, first in MRO).
+
+        Implementation: ``mini_basic.util.debug.dprint`` — stderr + mini_basic.log.
+        Free function form when you only have config::
+
+            from mini_basic.util.debug import dprint
+            dprint(config, "msg", value)
+        """
+        from ..util.debug import dprint as _dprint
+
+        sep = kwargs.get('sep', ' ')
+        end = kwargs.get('end', '\n')
+        _dprint(self.config, *args, sep=sep, end=end)
+
     def __init__(self, config: Optional[InterpreterConfig] = None):
         self.config = config or InterpreterConfig()
 
@@ -197,6 +212,9 @@ class RuntimeCoreMixin:
         self._program_source_numbered: Optional[bool] = None
         self._display = None
         self._display_live = False
+        self._run_interrupt_watch = False
+        self._text_viewport = None
+        self._graphics_viewport = None
         self._graphics_mode = 8
         self.array_storage: Dict[Tuple[str, VarKind], ArrayStorage] = {}
         self.struct_defs: Dict[str, Dict[str, VarKind]] = {}
@@ -319,9 +337,47 @@ class RuntimeCoreMixin:
             )
         return expr
 
+    def _bbcsdl_vdu_word(self, offset: int) -> int:
+        """BBCSDL ``@vdu%!offset`` system structure (common piechart/aspect fields).
+
+        208 / 212 = graphics width / height in *pixels* (wiki). With OS scale 2
+        those values sit at the screen centre in OS coordinates — piechart uses
+        them as Cx%/Cy%. 220 ≈ character height in OS units.
+        """
+        width = int(self.config.graphics_width or 640)
+        height = int(self.config.graphics_height or 512)
+        y_scale = 2
+        try:
+            from ..bbc_modes import bbc_os_scales
+
+            _xs, y_scale = bbc_os_scales(width, height)
+        except Exception:
+            pass
+        cell_h = 8
+        if self._display_enabled() and hasattr(self._display, 'cell_height'):
+            cell_h = int(getattr(self._display, 'cell_height', 8) or 8)
+        table = {
+            208: width,
+            212: height,
+            220: cell_h * max(1, y_scale),
+        }
+        return int(table.get(int(offset), 0))
+
     def _substitute_bbcsdl_special_vars(self, expr: str) -> str:
         width = self.config.graphics_width or 1280
         height = self.config.graphics_height or 1024
+        # @vdu%!n indirection before bare @vdu%
+        def _vdu_ind(match: re.Match) -> str:
+            return str(self._bbcsdl_vdu_word(int(match.group(1))))
+
+        # Allow spaces around % / ! so broken unglue forms like ``@VDU %!220``
+        # still resolve (piechart label MOVE).
+        expr = re.sub(
+            r'(?<![A-Za-z0-9_])@vdu\s*%\s*!\s*(\d+)',
+            _vdu_ind,
+            expr,
+            flags=re.IGNORECASE,
+        )
         replacements = {
             '@platform%': '64' if sys.maxsize > 2 ** 32 else '0',
             '@hwnd%': '1',
@@ -579,9 +635,13 @@ class RuntimeCoreMixin:
                 ]
             else:
                 # (?!%) so a%% is not partially matched as a% + %.
+                # (?<![@A-Za-z0-9_]) not bare \b: word-boundary after @ would
+                # match ``vdu%`` inside BBCSDL ``@vdu%!220`` (piechart MOVE).
                 patterns = [
                     re.compile(
-                        r'\b' + re.escape(name_root) + r'\s*%(?!%)(?!\d)(?!\()',
+                        r'(?<![@A-Za-z0-9_])'
+                        + re.escape(name_root)
+                        + r'\s*%(?!%)(?!\d)(?!\()',
                         id_flags,
                     )
                 ]
@@ -696,6 +756,17 @@ class RuntimeCoreMixin:
         if self._display_backend_name() != 'terminal':
             return
         self._enable_pygame_display(announce=announce)
+
+    def _check_user_interrupt(self) -> None:
+        """Abort RUN if Ctrl+C or ESC was pressed in the launching terminal."""
+        if not getattr(self, '_run_interrupt_watch', False):
+            return
+        from mini_basic.util.session import terminal_interrupt_pending
+
+        kind = terminal_interrupt_pending()
+        if kind is None:
+            return
+        raise KeyboardInterrupt
 
     def _maybe_auto_enable_pygame_from_text(
         self,
@@ -1093,7 +1164,9 @@ class RuntimeCoreMixin:
             return self._bbc_at_lib()
         if upper == '@USR$':
             return self._bbc_at_usr()
-        if upper == 'TIME$':                     # <-- ADD THIS
+        if upper == '@TMP$':
+            return self._bbc_at_tmp()
+        if upper == 'TIME$':
             return self._time_string()
         if self._expr_has_array_ref(expr):
             expr = self._substitute_array_references(expr)
@@ -1143,10 +1216,13 @@ class RuntimeCoreMixin:
         comp_match = self._COMPOUND_ASSIGN_RE.match(text)
         if comp_match:
             lhs = comp_match.group(1).strip()
+            # Reject "OR= 8" as a statement — keyword-only LHS (piechart compact IF)
+            if re.fullmatch(r'(OR|AND|EOR|XOR|DIV|MOD|NOT)', lhs, re.IGNORECASE):
+                return False
             if self._parse_array_lvalue(lhs) is not None:
                 return True
             if re.match(
-                rf'^({self._VAR_BASE_PATTERN})([%$!#]?)$',
+                rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)$',
                 lhs,
                 flags=self._identifier_re_flags(),
             ):
@@ -1154,10 +1230,12 @@ class RuntimeCoreMixin:
             return False
         if '=' in text:
             lhs = text.split('=', 1)[0].strip()
+            if re.fullmatch(r'(OR|AND|EOR|XOR|DIV|MOD|NOT)', lhs, re.IGNORECASE):
+                return False
             if self._parse_array_lvalue(lhs) is not None:
                 return True
             if re.match(
-                rf'^({self._VAR_BASE_PATTERN})([%$!#]?)$',
+                rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)$',
                 lhs,
                 flags=self._identifier_re_flags(),
             ):
@@ -1233,7 +1311,24 @@ class RuntimeCoreMixin:
             best = (condition, statement)
         if best is not None:
             return best
+        # welcome: ``IF(I%AND1)=0:PLOT …`` — colon splits IF from body; condition
+        # alone must still parse (body runs via trailing colon stmts).
+        stripped = then_part.strip()
+        if stripped and self._looks_like_if_condition_only(stripped):
+            return stripped, ''
         raise ValueError('invalid IF syntax')
+
+    def _looks_like_if_condition_only(self, text: str) -> bool:
+        """True when text is a bare IF condition (no THEN, no trailing statement)."""
+        text = text.strip()
+        if not text or self._looks_like_statement(text):
+            return False
+        if self._find_then_keyword(text) is not None:
+            return False
+        # Comparisons or parenthesized predicates, e.g. (I%AND1)=0
+        if re.search(r'(<>|<=|>=|<|>|=)', text):
+            return True
+        return bool(re.search(r'\b(AND|OR|NOT|EOR|XOR)\b', text, re.IGNORECASE))
 
     def _if_error_detail(self, rest: str) -> str:
         """Extra hint for common compact-IF mistakes (esp. DEF FN returns)."""
@@ -1299,6 +1394,12 @@ class RuntimeCoreMixin:
 
     def _get_system_var(self, name: str) -> float:
         key = self._canonical_system_var_name(name) or name
+        # BBC ON ERROR: ERR / ERL must work in compiled IF conditions (piechart).
+        upper = str(key).upper()
+        if upper == 'ERR':
+            return float(getattr(self, 'error_code_num', 0) or 0)
+        if upper == 'ERL':
+            return float(getattr(self, 'error_line_num', 0) or 0)
         if key == '_case_sensitive':
             override = self.config.identifiers_case_sensitive
             if override is None:
@@ -1342,6 +1443,17 @@ class RuntimeCoreMixin:
         for name in _SYSTEM_VAR_SPEC:
             if re.search(rf'(?<![A-Za-z0-9_]){re.escape(name)}\b', expr):
                 found.append(name)
+        # BBC runtime error status (not underscore system vars; used in ON ERROR IF ERR=…)
+        for name in ('ERR', 'ERL'):
+            if re.search(rf'(?<![A-Za-z0-9_]){name}(?![A-Za-z0-9_$])', expr, re.IGNORECASE):
+                # Keep source casing for eval namespace key (BBC uses ERR/ERL).
+                m = re.search(
+                    rf'(?<![A-Za-z0-9_])({name})(?![A-Za-z0-9_$])',
+                    expr,
+                    re.IGNORECASE,
+                )
+                if m and m.group(1) not in found:
+                    found.append(m.group(1))
         return tuple(found)
 
     def _identifiers_case_sensitive(self) -> bool:
@@ -1933,6 +2045,7 @@ class RuntimeCoreMixin:
         self._maybe_auto_enable_pygame_from_program(announce=True)
         self._ensure_display()
 
+        self._run_interrupt_watch = True
         try:
             self._run_program_loop(0)
         except KeyboardInterrupt:
@@ -1943,6 +2056,7 @@ class RuntimeCoreMixin:
             # Do not let the Python exception leak as a traceback to the user.
             pass
         finally:
+            self._run_interrupt_watch = False
             self._flush_program_output()
             if not self.stopped:
                 self._close_file_channels()
@@ -1977,12 +2091,17 @@ class RuntimeCoreMixin:
             self._clear_stop_state()
             return
 
+        self._run_interrupt_watch = True
         try:
             self._run_program_loop(start_index)
+        except KeyboardInterrupt:
+            self._run_aborted = True
+            print('\nGoodbye!')
         except BasicRuntimeError:
             # Error already printed
             pass
         finally:
+            self._run_interrupt_watch = False
             self._flush_program_output()
             if not self.stopped:
                 self._close_file_channels()
