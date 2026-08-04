@@ -351,6 +351,7 @@ class RuntimeProgramMixin:
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
+        self._parse_command_cache = {}          # <-- add this line
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()
@@ -654,6 +655,10 @@ class RuntimeProgramMixin:
         return aliases[match.group(1).upper()]
 
     def _parse_command(self, line: str) -> Tuple[str, str]:
+        cache_key = line
+        cached = self._parse_command_cache.get(cache_key)
+        if cached is not None:
+            return cached
         line = self._normalize_hash_file_commands(line.strip())
         line = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', line, flags=re.IGNORECASE)
         line = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', line, flags=re.IGNORECASE)
@@ -668,7 +673,9 @@ class RuntimeProgramMixin:
             name = proc_match.group(1)
             args = proc_match.group(2)
             rest = name if args is None else f'{name}({args})'
-            return 'PROC', rest
+            result = ('PROC', rest)
+            self._parse_command_cache[cache_key] = result
+            return result
         if self.config.dialect == 'bbc':
             match = self._RE_PARSE_CMD_BBC.match(line)
         else:
@@ -700,8 +707,12 @@ class RuntimeProgramMixin:
             cmd = match.group(1).upper()
             if cmd == 'ELIF':
                 cmd = 'ELSEIF'
-            return cmd, match.group(2)
-        return '', line.strip()
+            result = (cmd, match.group(2))
+            self._parse_command_cache[cache_key] = result
+            return result
+        result = ('', line.strip())
+        self._parse_command_cache[cache_key] = result
+        return result
 
     def _parse_case_header(self, rest: str) -> str:
         match = re.match(r'^(.+?)\s+OF\s*$', rest.strip(), re.IGNORECASE)

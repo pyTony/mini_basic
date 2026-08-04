@@ -193,6 +193,7 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries: List[Tuple[re.Pattern, str]] = []
         self._var_subst_float_entries: List[Tuple[re.Pattern, str]] = []
         self._compiled_expr_cache: Dict[Tuple[str, bool], CompiledExpr] = {}
+        self._parse_command_cache: Dict[str, Tuple[str, str]] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
         self._ansi_bg_cache: Dict[int, str] = {}
         self._ansi_reset_text: Optional[str] = None
