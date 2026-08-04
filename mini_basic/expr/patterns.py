@@ -54,7 +54,7 @@ RE_NUMERIC_FUNC_CALL = re.compile(
 
 # User-defined functions FNname( ... ).
 RE_FN_CALL = re.compile(
-    rf'(?<![A-Za-z0-9_])FN_?({VAR_BASE_PATTERN})(%|\$)?\s*\(',
+    rf'(?<![A-Za-z0-9_])FN_?({VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\(',
     re.IGNORECASE,
 )
 

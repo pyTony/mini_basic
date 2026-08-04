@@ -106,7 +106,7 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_header(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN({self._VAR_BASE_PATTERN})(%|\$)?\s*\((.*)\)\s*$',
+            rf'^FN({self._VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\((.*)\)\s*$',
             rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -137,7 +137,7 @@ class RuntimeDefsMixin:
 
     def _def_fn_header_return_suffix(self, header_rest: str) -> Optional[str]:
         match = re.match(
-            rf'^FN({self._VAR_BASE_PATTERN})(%|\$)?\s*\(',
+            rf'^FN({self._VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\(',
             header_rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -163,8 +163,7 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_rest(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN({self._VAR_BASE_PATTERN})(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',
-            rest.strip(),
+            rf'^FN({self._VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',            rest.strip(),
             flags=re.IGNORECASE,
         )
         if not match:

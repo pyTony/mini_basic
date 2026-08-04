@@ -121,11 +121,11 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         r'^(PRINT#|INPUT#|WRITE#|CLOSE#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|OFF|ON|MOVE|DRAW|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE)\s*(.*)$',
     )
     _RE_PROC_CALL = re.compile(
-        r'^PROC_?\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\((.*)\))?$',
+        r'^PROC_?\s*([A-Za-z][A-Za-z0-9_]*|[0-9]+)\s*(?:\((.*)\))?$',
         re.IGNORECASE,
     )
     _RE_DEF_PROC = re.compile(
-        r'^PROC_?\s*([A-Za-z][A-Za-z0-9_]*)\s*(?:\((.*)\))?$',
+        r'^PROC_?\s*([A-Za-z][A-Za-z0-9_]*|[0-9]+)\s*(?:\((.*)\))?$',
         re.IGNORECASE,
     )
     _RE_ARRAY_HEAD = _RE_ARRAY_HEAD
