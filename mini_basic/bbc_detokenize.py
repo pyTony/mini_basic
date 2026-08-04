@@ -117,7 +117,6 @@ def _needs_space_after_keyword(keyword: str, nxt: Optional[int], fmt: str) -> bo
         return False
     if keyword not in _KEYWORDS_NEED_SPACE_AFTER:
         return False
-    #print(f"DEBUG: keyword={keyword!r} nxt={nxt!r} ({chr(nxt) if 32<=nxt<127 else '?'})")  # TEMP
     if nxt in (0x0D, 0x3A, 0x28, 0x29, 0x2C, 0x3B):
         return False
     if nxt == 0x22:
