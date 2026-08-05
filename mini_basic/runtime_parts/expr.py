@@ -884,34 +884,30 @@ class RuntimeExprMixin:
     def _allocate_array_storage(self, dims: List[int], kind: VarKind) -> ArrayStorage:
         bounds = tuple(int(d) for d in dims)
         lower_bound = self.option_base
-        if any(b < lower_bound for b in bounds):
-            raise ValueError('invalid DIM bounds')
-        self._check_dim_memory(bounds, kind)
-        if len(bounds) == 1:
-            size = bounds[0] - lower_bound + 1
-            try:
-                if kind == 'str':
-                    return bounds, lower_bound, [''] * size
-                if kind == 'int':
-                    zero = 0 if self._bigint_enabled() else 0.0
-                    return bounds, lower_bound, [zero] * size
-                return bounds, lower_bound, [0.0] * size
-            except MemoryError as exc:
-                raise ValueError('Out of memory') from exc
-        if len(bounds) == 2:
-            rows = bounds[0] - lower_bound + 1
-            cols = bounds[1] - lower_bound + 1
-            try:
-                if kind == 'str':
-                    return bounds, lower_bound, [[''] * cols for _ in range(rows)]
-                if kind == 'int':
-                    zero = 0 if self._bigint_enabled() else 0.0
-                    return bounds, lower_bound, [[zero] * cols for _ in range(rows)]
-                return bounds, lower_bound, [[0.0] * cols for _ in range(rows)]
-            except MemoryError as exc:
-                raise ValueError('Out of memory') from exc
-        raise ValueError('unsupported DIM rank')
 
+        if any(b < lower_bound for b in bounds):
+            raise ValueError("invalid DIM bounds")
+
+        self._check_dim_memory(bounds, kind)
+
+        if kind == "str":
+            default = ""
+        elif kind == "int":
+            default = 0 if self._bigint_enabled() else 0.0
+        else:
+            default = 0.0
+
+        def build(level: int):
+            size = bounds[level] - lower_bound + 1
+            if level == len(bounds) - 1:
+                return [default for _ in range(size)]
+            return [build(level + 1) for _ in range(size)]
+
+        try:
+            return bounds, lower_bound, build(0)
+        except MemoryError as exc:
+            raise ValueError("Out of memory") from exc
+        
     def _array_get(self, base: str, kind: VarKind, indices: List[int]) -> object:
         key = self._resolve_array_key(base, kind)
         if key not in self.array_storage:
@@ -923,9 +919,10 @@ class RuntimeExprMixin:
             if index < lower_bound or index > bound:
                 raise ValueError('subscript out of range')
         storage_indices = [self._array_storage_index(index, lower_bound) for index in indices]
-        if len(bounds) == 1:
-            return data[storage_indices[0]]
-        return data[storage_indices[0]][storage_indices[1]]
+        obj = data
+        for idx in storage_indices:
+            obj = obj[idx]
+        return obj
 
     def _array_set(self, base: str, kind: VarKind, indices: List[int], value: object) -> None:
         key = self._resolve_array_key(base, kind)
@@ -938,10 +935,11 @@ class RuntimeExprMixin:
             if index < lower_bound or index > bound:
                 raise ValueError('subscript out of range')
         storage_indices = [self._array_storage_index(index, lower_bound) for index in indices]
-        if len(bounds) == 1:
-            data[storage_indices[0]] = value
-            return
-        data[storage_indices[0]][storage_indices[1]] = value
+        obj = data
+        for idx in storage_indices[:-1]:
+            obj = obj[idx]
+
+        obj[storage_indices[-1]] = value
 
     def _eval_array_indices(self, indices_expr: str) -> List[int]:
         return [int(self._eval_numeric(part.strip())) for part in self._split_args(indices_expr)]
@@ -982,8 +980,6 @@ class RuntimeExprMixin:
             # SAFEGUARD FOR DIM: If the array doesn't exist in the environment yet, 
             # leave it entirely untouched and advance past it.
             # Patched: Convert name and suffix to a valid array storage key tuple
-            _chk_kind = self._array_kind_from_suffix(suffix)
-            _chk_key = self._resolve_array_key(array_name, _chk_kind)
             _chk_kind = self._array_kind_from_suffix(suffix)
             _chk_key = self._resolve_array_key(array_name, _chk_kind)
             if _chk_key not in self.array_storage:
@@ -2108,12 +2104,20 @@ class RuntimeExprMixin:
             raise ValueError('DIM dimension out of range')
         return float(bounds[dim_index - 1])
 
+    def _sum_recursive(self, obj):
+        if isinstance(obj, list):
+            total = 0.0
+            for item in obj:
+                total += self._sum_recursive(item)
+            return total
+        return float(obj)
+
     def _sum_array_value(self, arg: Optional[str]) -> float:
         if arg is None or not arg.strip():
             raise ValueError('SUM requires an array argument')
         arg = arg.strip()
         ref_match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})([%$!#]?)\s*\((.+)\)\s*$',
+            rf'^({self._VAR_BASE_PATTERN})([%$!#]?)\s*\((.*)\)\s*$',
             arg,
             flags=re.IGNORECASE,
         )
@@ -2121,6 +2125,10 @@ class RuntimeExprMixin:
             base = self._validate_var_base(ref_match.group(1))
             kind = self._array_kind_from_suffix(ref_match.group(2))
             bounds, lower_bound, data = self._get_array_storage_entry(base, kind)
+            subscripts = ref_match.group(3).strip()
+
+            if not subscripts:
+                return self._sum_recursive(data)
             ranges = self._parse_array_subscript_ranges(ref_match.group(3))
             if len(ranges) != len(bounds):
                 raise ValueError('SUM subscript count mismatch')
@@ -2147,15 +2155,7 @@ class RuntimeExprMixin:
                         )
                 return total
             raise ValueError('SUM requires a 1D or 2D array slice')
-        base, kind = self._parse_array_ref(arg)
-        bounds, _, data = self._get_array_storage_entry(base, kind)
-        if len(bounds) != 1:
-            raise ValueError('SUM requires a 1D array')
-        total = 0.0
-        for value in data:
-            total += float(value)
-        return total
-
+ 
     def _dim_single_array(self, decl: str) -> None:
         self.dprint(f"\n[DEBUG DIM] Entering _dim_single_array with decl: {repr(decl)}")
 
