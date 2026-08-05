@@ -10,8 +10,10 @@ __pycache__/
 dist/
 build/
 .venv/
+.venv-pack/
 venv/
 ENV/
+mini_basic.egg-info/
 
 # Coverage / test noise
 .coverage
