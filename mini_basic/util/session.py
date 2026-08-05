@@ -7,7 +7,14 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from typing import Optional
+
+# Poll keyboard for ESC/Ctrl+C at most this often (tight BASIC loops call
+# _check_user_interrupt every line; msvcrt.kbhit every call cost seconds on
+# mandelbrot-class programs). 20 Hz is still responsive for interactive stop.
+_INTERRUPT_POLL_INTERVAL_S = 0.05
+_last_interrupt_poll_mono: float = 0.0
 
 
 def session_supports_gui() -> bool:
@@ -46,12 +53,21 @@ def terminal_interrupt_pending() -> Optional[str]:
 
     Returns ``'ctrl-c'``, ``'esc'``, or ``None`` if no interrupt key is waiting.
     Safe to call when stdin is not a TTY (always returns None).
+
+    Rate-limited so dense interpreter loops do not call ``kbhit``/``select``
+    hundreds of thousands of times per second.
     """
+    global _last_interrupt_poll_mono
     try:
         if not sys.stdin.isatty():
             return None
     except Exception:
         return None
+
+    now = time.monotonic()
+    if (now - _last_interrupt_poll_mono) < _INTERRUPT_POLL_INTERVAL_S:
+        return None
+    _last_interrupt_poll_mono = now
 
     if sys.platform == 'win32':
         return _windows_interrupt_pending()

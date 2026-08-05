@@ -6,8 +6,9 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-# Pre-1.00 development line; bump when shipping RELEASE_1.00.
-__version__ = '1.00-dev'
+# PEP 440 (PyPI). Keep in sync with root pyproject.toml.
+# 1.0.0.dev0 = pre-1.0 packaging line; set to 1.0.0 when tagging a release.
+__version__ = '1.0.0.dev0'
 
 # Short implementation snapshot (keep in sync with FEATURES_DONE / plan).
 _IMPLEMENTATION_STATUS = (
@@ -19,6 +20,7 @@ _IMPLEMENTATION_STATUS = (
     'not full SAA5050 / double-height / conceal completeness); '
     'Russell .bbc detokenize; text-only session skip of auto-pygame; '
     'phase0+phase1 pytest regression. '
+    'SOUND/ENVELOPE: silent stubs (optional capped wait on SOUND; no audio engine). '
     'Not RISC OS: SYS/WIMP/assembler/full sound/Ceefax.'
 )
 

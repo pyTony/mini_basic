@@ -3,9 +3,30 @@
 Python BASIC interpreter with multi-dialect support (especially BBC BASIC / BBCSDL-style),
 REPL/CLI, file I/O, and optional graphics (terminal / pygame).
 
-**CLI entry points:** `python -m mini_basic` · `python mini_basic.py` · `mb.py`
+**CLI entry points:** `python -m mini_basic` · `mini-basic` / `minibasic` (after pip install) · `python mini_basic.py` · `mb.py`
 
-## Quick start
+Version: see `mini_basic/version.py` / `pyproject.toml` (PEP 440, e.g. `1.0.0.dev0`).
+
+## Install (pip / wheel)
+
+The **wheel contains only the interpreter package** (not examples, tests, or tools).
+
+```bash
+# From a built wheel (local):
+pip install dist/mini_basic-*.whl
+
+# Optional graphics / Windows REPL completion:
+pip install "mini-basic[display]"
+pip install "mini-basic[all]"
+
+mini-basic --version
+python -m mini_basic path/to/program.bas
+```
+
+Build locally: `python -m build` — details in [`docs/PACKAGING.md`](docs/PACKAGING.md).  
+Full demo trees still use the repo or text-archive installer (`tools/install.ps1`), not the PyPI wheel.
+
+## Quick start (from a source checkout)
 
 ```bash
 # Text / default display

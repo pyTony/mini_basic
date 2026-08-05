@@ -1,0 +1,12 @@
+    10 M = 0: C = 0
+    20 FOR M = 0 TO 15
+    30 MODE M
+    35 PRINT "MODE ";M
+    40 FOR C = 0 TO 800
+    50 FOR K = 1 TO 100: NEXT
+    60 COLOUR C: PRINT CHR$(ASC("0") + M);
+    70 NEXT C
+    75 PRINT
+    80 INPUT "NEXT",DUMMY$
+    90 NEXT M
+   100 END

@@ -1,0 +1,66 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 30-Jan-2013
+      
+      MODE 8 : OFF
+      ORIGIN 640,512
+      
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = 0.0
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01011, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 0.0, 0.0, 0.0, 0.1, 0.1)
+      
+      planet%% = FN_b2CircleFixture(ground%%, 0.0, 0.0, 5.0, 0.0, 0.0, 1.0)
+      
+      nMoons% = 10.0
+      Radius = 12.0
+      DIM moon%%(nMoons%-1)
+      FOR i% = 0 TO nMoons%-1
+        a = i% / nMoons% * 2 * PI
+        x = Radius * COS(a)
+        y = Radius * SIN(a)
+        moon%%(i%) = FN_b2DynamicBody(myWorld%%, x, y, a, 0, 0, 0, 0, 0)
+        disc%% = FN_b2CircleFixture(moon%%(i%), 0, 0, 1.0, 0.0, 0.0, RND(1))
+      NEXT i%
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      massPlanet = 25 * PI
+      G = 0.5
+      
+      *REFRESH OFF
+      REPEAT
+        CLS
+        
+        FOR i% = 0 TO nMoons%-1
+          PROC_b2GetBody(moon%%(i%), x, y, a)
+          massMoon = FN_b2GetMass(moon%%(i%))
+          r = SQR(x^2 + y^2)
+          g = G * massMoon * massPlanet / r^2
+          IF FN_b2IsAwake(moon%%(i%)) AND 1 THEN
+            PROC_b2Push(moon%%(i%), -g * x / r , -g * y / r, x, y)
+          ENDIF
+        NEXT
+        
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2DebugDraw(myWorld%%)
+        *REFRESH
+        WAIT 1
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC

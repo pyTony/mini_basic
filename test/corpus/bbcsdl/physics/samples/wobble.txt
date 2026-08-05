@@ -1,0 +1,68 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 27-Jan-2013
+      
+      MODE 8 : OFF
+      ORIGIN 640,100
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = 0.0
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01011, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 0.0, -10.1, 0.0, 16.0, 0.1)
+      
+      DIM body%%(3), joint%%(7)
+      
+      body%%(0) = FN_b2DynamicBody(myWorld%%, -5.0, +5.0, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(body%%(0), 0, 0, 0, 0.5, 0.5, 0.1, 0, 1.0)
+      body%%(1) = FN_b2DynamicBody(myWorld%%, +5.0, +5.0, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(body%%(1), 0, 0, 0, 0.5, 0.5, 0.1, 0, 1.0)
+      body%%(2) = FN_b2DynamicBody(myWorld%%, +5.0, 15.0, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(body%%(2), 0, 0, 0, 0.5, 0.5, 0.1, 0, 1.0)
+      body%%(3) = FN_b2DynamicBody(myWorld%%, -5.0, 15.0, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(body%%(3), 0, 0, 0, 0.5, 0.5, 0.1, 0, 1.0)
+      
+      joint%%(0) = FN_b2DistanceJoint(myWorld%%, ground%%, body%%(0), -10.0, 0.0, -5.5, 4.5, 2.0, 0.0)
+      joint%%(1) = FN_b2DistanceJoint(myWorld%%, ground%%, body%%(1), +10.0, 0.0, +5.5, 4.5, 2.0, 0.0)
+      joint%%(2) = FN_b2DistanceJoint(myWorld%%, ground%%, body%%(2), +10.0, 20.0, +5.5, 15.5, 2.0, 0.0)
+      joint%%(3) = FN_b2DistanceJoint(myWorld%%, ground%%, body%%(3), -10.0, 20.0, -5.5, 15.5, 2.0, 0.0)
+      joint%%(4) = FN_b2DistanceJoint(myWorld%%, body%%(0), body%%(1), -4.5, 5.5, +4.5, 5.5, 2.0, 0.0)
+      joint%%(5) = FN_b2DistanceJoint(myWorld%%, body%%(1), body%%(2), +4.5, 5.5, +4.5, 14.5, 2.0, 0.0)
+      joint%%(6) = FN_b2DistanceJoint(myWorld%%, body%%(2), body%%(3), +4.5, 14.5, -4.5, 14.5, 2.0, 0.0)
+      joint%%(7) = FN_b2DistanceJoint(myWorld%%, body%%(3), body%%(0), -4.5, 14.5, -4.5, 5.5, 2.0, 0.0)
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      perturb% = FALSE
+      ON MOUSE perturb% = TRUE : RETURN
+      *REFRESH OFF
+      GCOL 2
+      VDU 5
+      REPEAT
+        CLS
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2DebugDraw(myWorld%%)
+        MOVE -300,0 : PRINT "Click or tap or press SPACE to perturb"
+        *REFRESH
+        WAIT 1
+        PROC_b2GetBody(body%%(0), x, y, a)
+        IF INKEY(0)=32 perturb% = TRUE
+        IF perturb% perturb% = FALSE : PROC_b2Poke(body%%(0), 40.0, 40.0, x, y)
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC
+      

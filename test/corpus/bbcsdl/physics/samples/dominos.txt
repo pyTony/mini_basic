@@ -1,0 +1,77 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 27-Jan-2013
+      
+      MODE 8 : OFF
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = -9.8
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01011, 24)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 16.0, 0.1, 0.0, 16.0, 0.1)
+      
+      FOR i% = 0 TO 9
+        domino%% = FN_b2DynamicBody(myWorld%%, i% + 8.6, 11.25, 0, 0, 0, 0, 0, 0)
+        fixture%% = FN_b2BoxFixture(domino%%, 0, 0, 0, 0.1, 1.0, 0.1, 0, 20.0)
+      NEXT
+      
+      platform%% = FN_b2StaticBox(myWorld%%, 13.0, 10.0, 0.0, 7.0, 0.25)
+      slope%% = FN_b2BoxFixture(ground%%, -1.0, 5.8, 0.3, 7.5, 0.25, 0.1, 0, 20.0)
+      
+      box%% = FN_b2StaticBox(myWorld%%, 6.25, 4.0, 0.0, 0.25, 1.5)
+      
+      seesaw%% = FN_b2DynamicBody(myWorld%%, 12.4, 1.0, -0.15, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(seesaw%%, 0, 0, 0, 6.0, 0.125, 0.1, 0, 10.0)
+      pivot%% = FN_b2RevoluteJoint(myWorld%%, ground%%, seesaw%%, 12.4, 1.0, -0.15, 0.30)
+      
+      pendulum%% = FN_b2DynamicBody(myWorld%%, 3.0, 15.0, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(pendulum%%, 0, 0, 0, 0.25, 0.25, 0.0, 0, 10.0)
+      joint%% = FN_b2RevoluteJoint(myWorld%%, box%%, pendulum%%, 6.5, 15.0, 0, 0)
+      
+      box%% = FN_b2DynamicBody(myWorld%%, 19.8, 3.0, 0, 0, 0, 0, 0, 0)
+      side%% = FN_b2BoxFixture(box%%, 0.0, -0.9, 0, 1.0, 0.1, 0.1, 0, 10.0)
+      side%% = FN_b2BoxFixture(box%%, -0.9, 0.0, 0, 0.1, 1.0, 0.1, 0, 10.0)
+      side%% = FN_b2BoxFixture(box%%, 0.9, 0.0, 0, 0.1, 1.0, 0.1, 0, 10.0)
+      joint%% = FN_b2RevoluteJoint(myWorld%%, ground%%, box%%, 19.4, 2.0, 0, 0)
+      
+      lid%% = FN_b2DynamicBody(myWorld%%, 19.8, 4.1, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(lid%%, 0.0, 0.0, 0, 1.0, 0.1, 0.1, 0, 10.0)
+      hinge%% = FN_b2RevoluteJoint(myWorld%%, box%%, lid%%, 20.8, 4.0, -PI/2, 0)
+      
+      prop%% = FN_b2DynamicBody(myWorld%%, 20.2, 1.0, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(prop%%, 0.0, 0.0, 0, 0.1, 0.89, 0.1, 0, 10.0)
+      joint%% = FN_b2DistanceJoint(myWorld%%, seesaw%%, prop%%, 18.5, 0.01, 20.2, 0.01, 0, 0)
+      
+      Radius = 0.2
+      FOR i% = 0 TO 3
+        ball%% = FN_b2DynamicBody(myWorld%%, 19.4 + 2 * Radius * i%, 2.4, 0, 0, 0, 0, 0, 0)
+        disc%% = FN_b2CircleFixture(ball%%, 0, 0, Radius, 0.1, 0.0, 10.0)
+      NEXT
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      *REFRESH OFF
+      REPEAT
+        CLS
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2DebugDraw(myWorld%%)
+        *REFRESH
+        WAIT 1
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC
+      

@@ -40,7 +40,8 @@ class FeatureMatrixTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             paths = write_matrix_files(__import__('pathlib').Path(tmp))
-            self.assertEqual(len(paths), 8)
+            # 01, 01b, 02–07, ALL_MATRICES
+            self.assertEqual(len(paths), 9)
             all_path = __import__('pathlib').Path(tmp) / 'ALL_MATRICES.txt'
             self.assertTrue(all_path.is_file())
             content = all_path.read_text(encoding='utf-8')

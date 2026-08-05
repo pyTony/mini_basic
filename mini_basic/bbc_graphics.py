@@ -287,18 +287,34 @@ class BBCGraphics:
         self.cursor_y += int(dy)
 
     def fill_rectangle(self, x: int, y: int, width: int, height: int) -> None:
+        """Fill axis-aligned rect in OS units by painting each *screen* pixel once.
+
+        Iterating OS units under scale>1 rewrote the same pixels many times and
+        made Mandelbrot-style block fills unusably slow (and easy to time out).
+        """
         gcol = self.gcol_fg
-        left = int(x)
-        right = int(x) + int(width)
-        bottom = int(y)
-        top = int(y) + int(height)
-        if left > right:
-            left, right = right, left
-        if bottom > top:
-            bottom, top = top, bottom
-        for yy in range(bottom, top + 1):
-            for xx in range(left, right + 1):
-                self._put_pixel(xx, yy, gcol)
+        x0, y0 = int(x), int(y)
+        x1, y1 = x0 + int(width), y0 + int(height)
+        corners = (
+            self._to_screen(x0, y0),
+            self._to_screen(x1, y0),
+            self._to_screen(x0, y1),
+            self._to_screen(x1, y1),
+        )
+        sxs = [c[0] for c in corners]
+        sys_ = [c[1] for c in corners]
+        left, right = min(sxs), max(sxs)
+        top, bottom = min(sys_), max(sys_)
+        # Inclusive OS range maps to inclusive screen bounds; clamp to FB.
+        left = max(0, left)
+        top = max(0, top)
+        right = min(self.width - 1, right)
+        bottom = min(self.height - 1, bottom)
+        if left > right or top > bottom:
+            return
+        for sy in range(top, bottom + 1):
+            for sx in range(left, right + 1):
+                self._put_screen_pixel(sx, sy, gcol)
 
     def draw_relative(self, dx: int, dy: int) -> None:
         self.plot_code(1, int(dx), int(dy))

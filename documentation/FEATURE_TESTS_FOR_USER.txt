@@ -1,0 +1,77 @@
+FEATURE TESTS FOR USER VERIFICATION
+===================================
+Final approval is yours. Automated tests check math/pixels; you confirm visually.
+
+Run all automated checks:
+  cd mini_basic
+  python -m unittest test.test_mini_basic test.test_graphics_confirm -v
+
+Regenerate feature matrices:
+  python -m mini_basic.feature_matrices
+
+View matrices:
+  documentation/feature_matrices/ALL_MATRICES.txt
+  REPL: MATRIX  (dialect structure only)
+
+----------------------------------------------------------------------
+1. DATA deferred READ (manual: ARRAY_MATRIX.txt)
+   Test: test_data_deferred_expression_read
+         test_data_deferred_read_evaluates_variables
+   Expect: READ A,B from DATA P,T with P=3 T=6 prints 36
+           p=2 q=-p p*3 sums to 6
+   Try:   DATA -p, t  with variables set before READ
+
+----------------------------------------------------------------------
+2. Matrix comma-fill (manual: ARRAY_MATRIX.txt)
+   Test: test_matrix_comma_fill_rotation_y
+   Expect: b() = COS(b),0,-SIN(b)... matches Python rotation_matrix_y_degrees(0.5)
+   Try:   DIM m(1,1) : angle=45 : m()=COS(angle),-SIN(angle),SIN(angle),COS(angle)
+
+----------------------------------------------------------------------
+3. Matrix dot multiply
+   Test: test_matrix_dot_multiply_matches_left_factor
+   Expect: c()=b().c() with c()=identity equals b() exactly
+   Try:   c()=b().c() when c() starts as non-identity (in-place overlap)
+
+----------------------------------------------------------------------
+4. SUM with TO slice
+   Test: test_sum_array_slice_to_range
+   Expect: SUM(tmp(1,1 TO 3)) = 9
+   Try:   negative step, row 0 slice, out-of-range (should error)
+
+----------------------------------------------------------------------
+5. Trigonometry units (manual: TRIGONOMETRY.txt)
+   Test: test_math_trig_and_pi, test_sinrad_cosrad_radians
+   Expect: SIN(0)=0 COS(0)=1 (degrees); SINRAD(PI/2)=1 (radians)
+   Try:   PRINT SIN(90) should be 1; PRINT SINRAD(90) is NOT 1
+
+----------------------------------------------------------------------
+6. CIRCLE / CIRCLEFILL (manual: CIRCLE.txt)
+   Test: test_circle_fill_pixel_count_matches_area
+         test_circle_outline_thinner_than_fill
+         test_circlefill_alias_matches_circle_fill
+   Expect: filled area ~ pi*(r/x_scale)^2 pixels in MODE 8
+   Try visually:
+     mini_basic --pygame --scale 2
+     MODE 8 : OFF : ORIGIN 320,256 : GCOL 3 : CIRCLE FILL 0,0,80
+
+----------------------------------------------------------------------
+7. Corpus programs (result checks, not just no error)
+   soccerball.txt
+     Test: test_soccerball_rotation_changes_projected_z
+     Expect: tmp[0][0] differs from xyz[0][0] after one frame
+     Try:   mini_basic --pygame test/corpus/bbcsdl/graphics/soccerball.txt
+
+   wheel.txt
+     Test: test_wheel_for_loop_sets_spoke_coordinates
+     Expect: |X1|,|Y1| > 50 after the FOR loop that places the colour discs
+     Try:   mini_basic --pygame test/corpus/bbcsdl/graphics/wheel.txt
+
+----------------------------------------------------------------------
+8. Known gaps (corner cases welcome)
+   PRINT array element: PRINT a(0,0) may print literal text
+   @ispal% is stubbed to 0 (high color) — real palette not queried
+   Corpus "ALL runnable (24)" not fully audited yet
+
+Report issues: note program line, expected vs actual, dialect.
+Manuals: documentation/manuals/README.txt

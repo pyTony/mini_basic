@@ -17,6 +17,7 @@ from ..constants import NUMERIC_BUILTIN_FUNC_RE
 # Variable names: letter followed by letters, digits, or underscore.
 # BBCSDL / BB4W allow leading underscore (flier: DIM _BOX(4,2)).
 VAR_BASE_PATTERN = r'[_A-Za-z][A-Za-z0-9_]*'
+PROC_FN_NAME_PATTERN = rf'({VAR_BASE_PATTERN}|[0-9]+)'
 RE_VAR_BASE_FULL = re.compile(r'^[_A-Za-z][A-Za-z0-9_]*$')
 
 # Arithmetic and condition normalisation.
@@ -54,7 +55,7 @@ RE_NUMERIC_FUNC_CALL = re.compile(
 
 # User-defined functions FNname( ... ).
 RE_FN_CALL = re.compile(
-    rf'(?<![A-Za-z0-9_])FN_?({VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\(',
+    rf'(?<![A-Za-z0-9_])FN_?{PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
     re.IGNORECASE,
 )
 
@@ -75,6 +76,7 @@ RE_FILE_FUNC_BBC = re.compile(
 
 __all__ = [
     'NUMERIC_BUILTIN_FUNC_RE',
+    'PROC_FN_NAME_PATTERN',
     'RE_ARRAY_HEAD',
     'RE_COND_EQ',
     'RE_COND_NE',

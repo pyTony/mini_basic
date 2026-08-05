@@ -1,0 +1,72 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 26-Jan-2013
+      
+      *TEMPO 2
+      SOUND 0, 0, 0, 0
+      ENVELOPE 1, 1, 0, 0, 0, 0, 0, 0, 120, -4, -4, -4, 126, 0
+      MODE 8 : OFF
+      
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = -9.8
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01011, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 16.0, 0.1, 0.0, 16.0, 0.1)
+      
+      body%% = FN_b2DynamicBody(myWorld%%, 16.0, 20.0, PI/4, 0, 0, 0, 0, 0)
+      piece1%% = FN_b2BoxFixture(body%%, -0.5, 0, 0, 0.5, 0.5, 0.2, 0.0, 1.0)
+      piece2%% = FN_b2BoxFixture(body%%, +0.5, 0, 0, 0.5, 0.5, 0.2, 0.0, 1.0)
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      *REFRESH OFF
+      broken% = FALSE
+      REPEAT
+        CLS
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        
+        IF NOT broken% THEN
+          contact%% = FN_b2ContactListBody(body%%)
+          WHILE contact%%
+            IF FN_b2IsTouching(contact%%) THEN
+              PROC_b2GetContact(contact%%, fixture1%%, fixture2%%, child1%%, child2%%)
+              body1%% = FN_b2GetBody(fixture1%%)
+              body2%% = FN_b2GetBody(fixture2%%)
+              PROC_b2GetVelocity(body1%%, vx1, vy1, va)
+              PROC_b2GetVelocity(body2%%, vx2, vy2, va)
+              mass = FN_b2GetMass(body%%)
+              IF mass * ((vx1-vx2)^2+(vy1-vy2)^2) > 8 broken% = TRUE : EXIT WHILE
+            ENDIF
+            contact%% = FN_b2NextContact(contact%%)
+          ENDWHILE
+          IF broken% THEN
+            SOUND 0,1,4,20
+            PROC_b2GetVelocity(body%%, vx, vy, va)
+            PROC_b2GetBody(body%%, x, y, a)
+            PROC_b2DestroyFixture(body%%, piece2%%)
+            newbody%% = FN_b2DynamicBody(myWorld%%, x, y, a, vx, vy, va, 0, 0)
+            piece2%% = FN_b2BoxFixture(newbody%%, +0.5, 0, 0, 0.5, 0.5, 0.2, 0.0, 1.0)
+          ENDIF
+        ENDIF
+        
+        PROC_b2DebugDraw(myWorld%%)
+        *REFRESH
+        WAIT 1
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC

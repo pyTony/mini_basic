@@ -1,0 +1,22 @@
+# Source distribution: package code + license + minimal docs only.
+include LICENSE
+include README.md
+include pyproject.toml
+include MANIFEST.in
+recursive-include mini_basic *.py
+recursive-include mini_basic py.typed
+global-exclude *.py[cod] __pycache__ *.so *~
+prune mini_basic/__pycache__
+# Never ship tests, tools, examples, or agent trees in the sdist.
+prune test
+prune tools
+prune utils
+prune scripts
+prune examples
+prune basics
+prune documentation
+prune docs
+prune archives
+prune dist_archive
+prune backup
+prune mcps

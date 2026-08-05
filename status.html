@@ -37,20 +37,20 @@
 </head>
 <body>
 <h1>mini_basic Progress Dashboard</h1>
-<p class="meta">work sync #71 • Updated: 2026-08-03 00:07:28</p>
+<p class="meta">work sync #74 • Updated: 2026-08-03 06:40:18</p>
 
 <section class="current">
     <h2> Currently Working On</h2>
-    <div class="line active">Program: <strong>None</strong></div>
-    <div class="line">Focus: None - idle; LANGUAGE_FEATURES_1.00.md written</div>
-    <div class="line stamp">Started: 2026-08-03 00:07</div>
+    <div class="line active">Program: <strong>corpus audit</strong></div>
+    <div class="line">Focus: kbhit throttle; corpus menu status blurbs; fix phase0 fails</div>
+    <div class="line stamp">Started: 2026-08-03 06:40</div>
 
     <h3>TODOs for this program</h3>
     <ul>
         <li class="todo">PRINT array subscript expansion (known gap)</li>
         <li class="todo">Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)</li>
         <li class="todo">Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)</li>
-        <li class="todo">1.00 ship: version + RELEASE notes</li>
+        <li class="todo">1.00 ship: tag 1.0.0 + RELEASE notes when ready (packaging/wheel ready as 1.0.0.dev0)</li>
         <li class="todo">phase2: mark graphics suites when isolated</li>
     </ul>
 </section>
@@ -58,14 +58,14 @@
 <section class="workload-warn">
     <h2> Agent Workload</h2>
     <div class="workload-action workload-reduce">REDUCE workload — one small step, display=none, no parallel audits</div>
-    <div class="line">Level: <strong>WARN</strong> • checked 2026-08-03 00:07:28</div>
-    <div class="line">RSS 37 MB • peak 283 MB • system free 20986 MB • load 35% • CPU ~8%</div>
+    <div class="line">Level: <strong>WARN</strong> • checked 2026-08-03 06:40:18</div>
+    <div class="line">RSS 37 MB • peak 283 MB • system free 21174 MB • load 35% • CPU ~8%</div>
     <div class="line">peak RSS 283 MB &gt;= 260 MB</div>
 </section>
 
 <section class="approval">
     <h2> User Final Approval (whole programs)</h2>
-    <div class="line">Focus: <strong>None</strong> • 0 program(s) ready for your OK • 0 still agent-side</div>
+    <div class="line">Focus: <strong>corpus audit</strong> • 0 program(s) ready for your OK • 0 still agent-side</div>
     <div class="line muted">Approve whole programs only. Run the program yourself (mini_basic.py) with varied inputs; verify_program.py is agent-only. Reply OK in chat; agent marks [x] in USER_APPROVAL.txt</div>
     <div class="line muted">No whole program ready for your OK yet.</div>
     <h3>Recently approved</h3>
@@ -80,13 +80,13 @@
 
 <section class="success">
     <h2>✅ Confirmed Working</h2>
-    <div class="line done">piechart VDU5 labels: GCOL mode+colour (XOR 3,15) + clear rgb_pixels on palette write</div>
-    <div class="line done">corpus re-probe 2026-08-02: piechart/saucer/squares/flier OK (loop-shorten W%-1 + saucer STEP);</div>
-    <div class="line done">VDU 23,22 user mode: charx/chary set text grid (squares 512;512;8,16); present without font assert</div>
-    <div class="line done">squares.bbc speed: pure bitwise EOR/AND compile; nested int FOR + munching kernel;</div>
-    <div class="line done">USER APPROVAL squares.txt (graphics) - user confirmed 2026-08-02 (look + speed OK)</div>
-    <div class="line done">docs/LANGUAGE_FEATURES_1.00.md - ship qualification + language/graphics baseline (2026-08-03)</div>
-    <div class="line">... (71 more confirmed)</div>
+    <div class="line done">PyPI packaging (local): root pyproject.toml MIT license wheel/sdist 1.0.0.dev0;</div>
+    <div class="line done">documentation/MINIBASIC_BBC_BASIC_Manual.html - mini_basic edition of BBC manual (build_minibasic_manual.py; style from BBC_BASIC_Manual.html)</div>
+    <div class="line done">docs: SOUND/ENVELOPE limited behaviour (silent stubs + optional wait) in LANGUAGE_FEATURES + MINIBASIC manual</div>
+    <div class="line done">interrupt poll throttle 50ms (session.terminal_interrupt_pending) - mandelbrot2 ~14s vs ~20s</div>
+    <div class="line done">corpus menu tags [OK]/[DEFER]/[SLOW]/[NEW] via CORPUS_RUNNABLE blurbs</div>
+    <div class="line done">phase0 fails: BBC int round tests; CONT AND pure-bitwise float coerce; matrix count 9</div>
+    <div class="line">... (77 more confirmed)</div>
 </section>
 
 <section class="pending">
@@ -94,7 +94,7 @@
     <div class="line">PRINT array subscript expansion (known gap)</div>
     <div class="line">Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)</div>
     <div class="line">Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)</div>
-    <div class="line">1.00 ship: version + RELEASE notes</div>
+    <div class="line">1.00 ship: tag 1.0.0 + RELEASE notes when ready (packaging/wheel ready as 1.0.0.dev0)</div>
     <div class="line">phase2: mark graphics suites when isolated</div>
     <div class="line">16 deferred features (WIMP, ASM, SYS...)</div>
     <div class="line">Corpus audit: 22 OK, 2 FAIL (of 24 claimed runnable)</div>
@@ -102,14 +102,14 @@
 
 <section>
     <h2> Recent Work Log</h2>
+    <div class="line stamp">2026-08-03 06:40:18 — END kbhit 50ms throttle; corpus menu OK/DEFER/SLOW/NEW; 4 phase0 fails fixed</div>
+    <div class="line stamp">2026-08-03 06:37:34 — BEGIN kbhit throttle + corpus menu status + phase0 fails</div>
+    <div class="line stamp">2026-08-03 00:20:10 — END PyPI packaging: wheel+sdist 1.0.0.dev0; clean venv smoke OK; PACKAGING.md</div>
+    <div class="line stamp">2026-08-03 00:18:06 — BEGIN PyPI local packaging: root pyproject + wheel smoke</div>
     <div class="line stamp">2026-08-03 00:07:28 — END docs/LANGUAGE_FEATURES_1.00.md: clean 1.00 language features + ship qualification</div>
     <div class="line stamp">2026-08-03 00:06:28 — BEGIN 1.00 language features document</div>
     <div class="line stamp">2026-08-03 00:01:37 — USER APPROVAL squares.txt (graphics) — look OK + speed OK after nested-FOR/kernel</div>
     <div class="line stamp">2026-08-02 23:58:29 — END squares.bbc speed: bitwise compile + nested FOR kernel; ~1s full 512 (SDL-class)</div>
-    <div class="line stamp">2026-08-02 23:50:00 — BEGIN squares.bbc speed: approach SDL &lt;5s</div>
-    <div class="line stamp">2026-08-02 23:33:02 — END squares.bbc: VDU 23,22 char size + text grid; no more font assert on present</div>
-    <div class="line stamp">2026-08-02 23:31:40 — BEGIN squares.bbc: fix assert font None on VDU 23,22 custom size</div>
-    <div class="line stamp">2026-08-02 23:27:38 — END corpus re-probe: piechart/saucer/squares/flier all OK; CORPUS_AUDIT OK22 FAIL2 polly+poem DEFER</div>
 </section>
 
 <section>
@@ -121,7 +121,7 @@
 
 </section>
 
-<div class="line muted">last work 2026-08-03 00:07:28 · status work pending tests not all pass 5 todo items · resources warn: RSS 37 MB (peak 283) reduce workload</div>
+<div class="line muted">last work 2026-08-03 06:40:18 · status work pending tests not all pass 5 todo items · resources warn: RSS 37 MB (peak 283) reduce workload</div>
 
 </body>
 </html>

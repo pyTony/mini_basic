@@ -1,0 +1,8 @@
+10 REM ON ERROR GOTO + RESUME NEXT (fragile READ past end of DATA)
+20 ON ERROR GOTO 900
+30 DATA 1, 2
+40 READ A, B, C
+50 PRINT "done A="; A; " B="; B
+60 END
+900 PRINT "Trapped READ error, ERL="; _erl
+910 RESUME NEXT

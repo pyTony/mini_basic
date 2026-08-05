@@ -201,7 +201,7 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             '+',
             '~',
-            'mini ENVELOPE no-op; SOUND limited',
+            'ENVELOPE no-op; SOUND silent + optional wait (no audio)',
         ),
         (
             'MOUSE',

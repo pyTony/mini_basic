@@ -1,0 +1,83 @@
+# PyPI / pip packaging for the mini_basic *interpreter package only*.
+# Full demo trees stay in the repo (or text-archive dist); they are not in the wheel.
+#
+# Build:  python -m build
+# Smoke:  pip install dist/mini_basic-*.whl
+#         mini-basic --version
+#         python -m mini_basic --help
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mini-basic"
+# Keep in sync with mini_basic/version.py (PEP 440; 1.00-dev → 1.0.0.dev0).
+version = "1.0.0.dev0"
+description = "Multi-dialect BASIC interpreter with BBC-style graphics (optional pygame)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "tonyv" }]
+keywords = [
+    "BASIC",
+    "BBC BASIC",
+    "BBCSDL",
+    "interpreter",
+    "education",
+    "retro",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Education",
+    "Topic :: Software Development :: Interpreters",
+]
+# Core install is text/terminal only. Graphics and Windows REPL extras are optional.
+dependencies = []
+
+[project.optional-dependencies]
+display = ["pygame-ce>=2.5.0"]
+repl = ["pyreadline3>=3.5.0; platform_system == 'Windows'"]
+all = [
+    "pygame-ce>=2.5.0",
+    "pyreadline3>=3.5.0; platform_system == 'Windows'",
+]
+
+[project.urls]
+Homepage = "https://github.com/local/mini_basic"
+Documentation = "https://github.com/local/mini_basic/blob/master/docs/LANGUAGE_FEATURES_1.00.md"
+# Replace Homepage when a public remote exists.
+
+[project.scripts]
+mini-basic = "mini_basic:main"
+minibasic = "mini_basic:main"
+mini_basic = "mini_basic:main"
+
+[tool.setuptools]
+include-package-data = false
+# Only the importable package — no tests, examples, tools, or agent files.
+packages = [
+    "mini_basic",
+    "mini_basic.expr",
+    "mini_basic.features",
+    "mini_basic.format",
+    "mini_basic.repl",
+    "mini_basic.runtime_parts",
+    "mini_basic.util",
+]
+
+[tool.setuptools.package-data]
+# No non-Python data files required at runtime (fonts are Python tables).
+mini_basic = ["py.typed"]

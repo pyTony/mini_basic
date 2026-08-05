@@ -17,7 +17,11 @@ DEFERRED_ROWS: List[DeferredRow] = [
     ('Structures', 'DIM struct{} / TYPE', 'user-defined record types'),
     ('Structures', 'structure arrays and tags', 'RETURN struct from FN'),
     ('Pointers', '? ! $ $$ indirection', 'byte/word/string pointers'),
-    ('Sound', 'SOUND / ENVELOPE / ADVAL audio', 'multi-channel synthesis'),
+    (
+        'Sound',
+        'Real SOUND / ENVELOPE / ADVAL audio',
+        'multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait',
+    ),
     # MODE 7 teletext: partial impl in display.py (_write_teletext, mosaics).
     # Remaining: full SAA5050 parity (double-height 140/141, conceal, boxed, etc.).
     ('Teletext remainder', 'MODE 7 double-height / conceal / boxed', 'extend existing teletext renderer'),

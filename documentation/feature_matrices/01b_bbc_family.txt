@@ -23,7 +23,7 @@
   GCOL action 0–7               +    +    +    +    +    Invert = PLOT …6; welcome zaps
   Colour 7 = white              +    +    +    +    +    Not VGA gray; letters GCOL 0,7
   INKEY / INKEY$                +    +    +    +    +    INKEY n cs; INKEY1 glued → INKEY(1)
-  ENVELOPE / SOUND              +    ~    +    +    ~    mini ENVELOPE no-op; SOUND limited
+  ENVELOPE / SOUND              +    ~    +    +    ~    ENVELOPE no-op; SOUND silent + optional wait (no audio)
   MOUSE                         -    +    +    +    +    Desktop / BB4W/SDL
   ON CLOSE                      -    ~    +    +    +    Window close trap (SDL/BB4W)
   Integer % vars                +    +    +    +    +    32-bit on classic; mini bigint option

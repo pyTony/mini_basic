@@ -14,7 +14,7 @@
   Structures           DIM struct{} / TYPE              user-defined record types
   Structures           structure arrays and tags        RETURN struct from FN
   Pointers             ? ! $ $$ indirection             byte/word/string pointers
-  Sound                SOUND / ENVELOPE / ADVAL audio   multi-channel synthesis
+  Sound                Real SOUND / ENVELOPE / ADVAL audio multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait
   Teletext remainder   MODE 7 double-height / conceal / boxed extend existing teletext renderer
   Physics              FN_b2* Box2D bindings            corpus physics tier
   Network              URL fetch / Ceefax remote        needs HTTP client

@@ -80,7 +80,7 @@ OK phase0 + cumulative regression 2026-08-02:
   pytest -m "phase0 and not slow" → 450 passed; -m "phase1 and not slow" → 563 passed
 -- Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)
 -- Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)
--- 1.00 ship: version + RELEASE notes
+-- 1.00 ship: tag 1.0.0 + RELEASE notes when ready (packaging/wheel ready as 1.0.0.dev0)
 -- phase2: mark graphics suites when isolated
 
 OK piechart circular sectors: PLOT 85/181 centre+equal-radius rims tessellate arc (was chord triangle);
@@ -105,3 +105,15 @@ OK squares.bbc speed: pure bitwise EOR/AND compile; nested int FOR + munching ke
 OK USER APPROVAL squares.txt (graphics) — user confirmed 2026-08-02 (look + speed OK)
 
 OK docs/LANGUAGE_FEATURES_1.00.md — ship qualification + language/graphics baseline (2026-08-03)
+
+OK PyPI packaging (local): root pyproject.toml MIT license wheel/sdist 1.0.0.dev0;
+  only mini_basic package; extras display/repl; docs/PACKAGING.md; clean-venv smoke OK
+  (mini-basic --version + PRINT 6*7). Old install.ps1 text-archive still separate.
+
+OK documentation/MINIBASIC_BBC_BASIC_Manual.html — mini_basic edition of BBC manual (build_minibasic_manual.py; style from BBC_BASIC_Manual.html)
+
+OK docs: SOUND/ENVELOPE limited behaviour (silent stubs + optional wait) in LANGUAGE_FEATURES + MINIBASIC manual
+
+OK interrupt poll throttle 50ms (session.terminal_interrupt_pending) — mandelbrot2 ~14s vs ~20s
+OK corpus menu tags [OK]/[DEFER]/[SLOW]/[NEW] via CORPUS_RUNNABLE blurbs
+OK phase0 fails: BBC int round tests; CONT AND pure-bitwise float coerce; matrix count 9

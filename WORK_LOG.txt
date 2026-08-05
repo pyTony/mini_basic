@@ -48,3 +48,7 @@
 2026-08-03 00:01:37 USER USER APPROVAL squares.txt (graphics) — look OK + speed OK after nested-FOR/kernel
 2026-08-03 00:06:28 WORK BEGIN 1.00 language features document
 2026-08-03 00:07:28 WORK END docs/LANGUAGE_FEATURES_1.00.md: clean 1.00 language features + ship qualification
+2026-08-03 00:18:06 WORK BEGIN PyPI local packaging: root pyproject + wheel smoke
+2026-08-03 00:20:10 WORK END PyPI packaging: wheel+sdist 1.0.0.dev0; clean venv smoke OK; PACKAGING.md
+2026-08-03 06:37:34 WORK BEGIN kbhit throttle + corpus menu status + phase0 fails
+2026-08-03 06:40:18 WORK END kbhit 50ms throttle; corpus menu OK/DEFER/SLOW/NEW; 4 phase0 fails fixed

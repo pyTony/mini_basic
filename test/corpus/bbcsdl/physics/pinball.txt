@@ -1,0 +1,333 @@
+      REM. 3D pinball - Demonstrates combining Box2D physics with 3D rendering
+      REM. v1.3 (C) Richard Russell, http://www.rtrussell.co.uk/, 19-Jan-2023
+      REM. '3D Low Poly Pinball : Future World' by Bloo3D from turbosquid.com
+      REM. MODEL MAY NOT BE USED FOR ANOTHER PURPOSE WITHOUT BEING REPURCHASED
+      REM. This program is compatible with both BBCSDL & BB4W (plus libraries)
+      
+      REM!Embed @lib$+"box2dlib", @lib$+"box2ddbg", @lib$+"ogllib", @lib$+"gleslib", @lib$+"webgllib"
+      REM!Embed @dir$+".pinball/ball.fvf",@dir$+".pinball/flipper1.fvf",@dir$+".pinball/flipper2.fvf"
+      REM!Embed @dir$+".pinball/plunger.fvf",@dir$+".pinball/pinball.fvf",@dir$+".pinball/pinball.jpg"
+      REM!Embed @dir$+".pinball/bumper1.dat",@dir$+".pinball/bumper2.dat",@dir$+".pinball/bumper3.dat"
+      REM!Embed @dir$+".pinball/bumper4.dat",@dir$+".pinball/bumper5.dat",@dir$+".pinball/bumper6.dat"
+      REM!Embed @dir$+".pinball/bumper7.dat",@dir$+".pinball/bumper8.dat",@dir$+".pinball/bumper9.dat"
+      REM!Embed @dir$+".pinball/bumper10.dat"
+      
+      VIEW3D = TRUE
+      VDU 23,22,800;600;8,16,16,0
+      ENVELOPE 1,1,10,-10,0,3,3,1,126,0,-126,-126,80,0
+      SOUND 1,0,0,0
+      
+      title$ = "3D Pinball - Space for plunger, Left and Right Shift for flippers; " + \
+      \        "PgUp, PgDn and Cursor keys to change viewpoint."
+      
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      IF HIMEM > PAGE + 48000 INSTALL @lib$+"box2ddbg"
+      IF INKEY$(-256) = "W" THEN
+        SYS "SetWindowText", @hwnd%, title$
+      ELSE
+        *SYS 2
+        SYS "SDL_SetWindowTitle", @hwnd%, title$, @memhdc%
+      ENDIF
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$
+      ON CLOSE PROCcleanup : QUIT
+      ON MOVE IF @msg% <> 5 RETURN ELSE Resize% = TRUE : RETURN
+      ON MOUSE PROCtouch(@msg%, @lparam%) : RETURN
+      IF INSTR(@usr$, "rtrussell.pinball") OR INSTR(@lib$, @dir$) THEN *ESC OFF
+      
+      gravity_x = 0.0
+      gravity_y = -14
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      
+      IF HIMEM > PAGE + 48000 PROC_b2DebugInit(myWorld%%, %01011, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 20.0, 0.4, 0.0, 20.0, 0.1)
+      
+      REM Static bodies:
+      gate1%% = FN_b2StaticBox(myWorld%%, 16.3, 29.0, 0.0, 0.2, 0.2)
+      gate2%% = FN_b2StaticBox(myWorld%%, 23.7, 28.6, 0.0, 0.2, 0.2)
+      
+      lwall%% = FN_b2BoxFixture(ground%%, -7.5, 7.0, 0, 0.20, 7.0, 0.0, 0, 1.0)
+      rwall%% = FN_b2BoxFixture(ground%%, +7.2, 11.5, 0, 0.05, 11.5, 0.0, 0, 1.0)
+      barrier%% = FN_b2BoxFixture(ground%%, +6.1, 7.0, 0, 0.20, 7.0, 0.0, 0, 1.0)
+      lapron%% = FN_b2BoxFixture(ground%%, -5.0, 5.0, 0.92, 0.05, 3.3, 0.0, 0, 1.0)
+      rapron%% = FN_b2BoxFixture(ground%%, +3.4, 4.5, -0.92, 0.05, 3.3, 0.0, 0, 1.0)
+      wire1%% = FN_b2BoxFixture(ground%%, -4.5, 7.0, 0.92, 0.1, 1.4, 0.0, 0, 1.0)
+      wire2%% = FN_b2BoxFixture(ground%%, +3.4, 7.0, -0.92, 0.1, 1.4, 0.0, 0, 1.0)
+      wire3%% = FN_b2BoxFixture(ground%%, -5.7, 9.6, 0, 0.1, 1.8, 0.0, 0, 1.0)
+      wire4%% = FN_b2BoxFixture(ground%%, +4.6, 9.6, 0, 0.1, 1.8, 0.0, 0, 1.0)
+      peg1%% = FN_b2CircleFixture(ground%%, -1.5, 27.6, 0.2, 0.0, 0, 1.0)
+      peg2%% = FN_b2CircleFixture(ground%%,  1.5, 27.6, 0.2, 0.0, 0, 1.0)
+      
+      mushroom1%% = FN_b2CircleFixture(ground%%, -1.4, 23.7, 0.4, 0.0, 1.8, 1.0)
+      mushroom2%% = FN_b2CircleFixture(ground%%, +2.8, 23.7, 0.4, 0.0, 1.8, 1.0)
+      mushroom3%% = FN_b2CircleFixture(ground%%, +0.7, 20.6, 0.4, 0.0, 1.8, 1.0)
+      
+      DIM xc(55), yc(55), bumper%%(10)
+      
+      REM Bumpers:
+      FOR b% = 1 TO 10
+        f% = OPENIN(@dir$ + ".pinball/bumper" + STR$(b%) + ".dat")
+        IF f% = 0 ERROR 100, "Couldn't load bumper" + STR$(b%) + ".dat"
+        INPUT #f%, n%
+        FOR i% = 0 TO n%-1
+          INPUT #f%, xc(i%), yc(i%)
+        NEXT
+        CLOSE #f%
+        bumper%%(b%) = FN_b2ChainFixture(ground%%, n%, xc(), yc(), 0, -(b% < 3) * 0.9, 1.0, TRUE)
+      NEXT b%
+      
+      REM Dynamic bodies:
+      plunger%% = FN_b2DynamicBody(myWorld%%, 26.7, 3.0, 0, 0, 0, 1.0, 0, 0)
+      fixture1%% = FN_b2BoxFixture(plunger%%, 0, 0, 0.0, 0.3, 0.6, 1.0, 0.0, 1.0)
+      slider%% = FN_b2PrismaticJoint(myWorld%%, ground%%, plunger%%, 26.7, 3.0, 0.0, 1.0, -2.0, 0.0)
+      
+      ball%% = FN_b2DynamicBody(myWorld%%, 26.7, 4.0, 0, 0, 0, 0.1, 0, 0)
+      fixture2%% = FN_b2CircleFixture(ball%%, 0.0, 0.0, 0.4, 0.0, 0.0, 1.0)
+      PROC_b2SetBullet(ball%%, TRUE)
+      
+      xc() = -0.3, +2.3, +2.3, -0.3 : yc() = -0.35, -0.2, +0.2, +0.35
+      lflipper%% = FN_b2DynamicBody(myWorld%%, 16.8, 6.2, 0, 0, 0, 1.0, 0, 0)
+      fixture3%% = FN_b2PolygonFixture(lflipper%%, 4, xc(), yc(), 0.0, 0, 1.0)
+      lpivot%% = FN_b2RevoluteJoint(myWorld%%, ground%%, lflipper%%, 16.8, 6.2, -0.44, 0.44)
+      rflipper%% = FN_b2DynamicBody(myWorld%%, 22.0, 6.2, PI, 0, 0, 1.0, 0, 0)
+      fixture4%% = FN_b2PolygonFixture(rflipper%%, 4, xc(), yc(), 0.0, 0, 1.0)
+      rpivot%% = FN_b2RevoluteJoint(myWorld%%, ground%%, rflipper%%, 22.0, 6.2, -0.44, 0.44)
+      
+      REM Active bumpers (light and sound):
+      bumper%%() = mushroom1%%, mushroom2%%, mushroom3%%, bumper%%(1), bumper%%(2)
+      xc() = 18.6, 22.8, 20.7, 22.8, 16.0 : yc() = 23.7, 23.7, 20.6, 9.5, 9.5
+      
+      REPEAT
+        Resize% = FALSE
+        Touch% = 0
+        
+        REM. (Re-)initialise 3D system:
+        IF VIEW3D THEN
+          CASE TRUE OF
+            WHEN INKEY$(-256) = "W":      INSTALL @lib$ + "d3dliba"
+            WHEN (@platform% AND &F) < 3: INSTALL @lib$ + "webgllib"
+            OTHERWISE:                    INSTALL @lib$ + "ogllib"
+          ENDCASE
+          
+          DIM pVB%(4), nv%(4), vf%(4), vl%(4), l%(4), m%(4), Tex%(4), y(4), p(4), r(4)
+          DIM X(4), Y(4), Z(4), eye(2), at(2), n(2)
+          
+          VDU 20,26,12
+          PRINT "Please wait..."
+          *REFRESH
+          
+          REM. Initialise 3D library:
+          IF INKEY$(-256)="W" pDevice% = FN_initd3d(@hwnd%,1,1) ELSE pDevice% = FN_initgl(@hwnd%,1,1)
+          IF pDevice% = 0 ERROR 100, "Couldn't initialise 3D library"
+          
+          REM. Load 3D objects:
+          pVB%(0) = FN_load3d(pDevice%, @dir$+".pinball/pinball.fvf", nv%(0), vf%(0), vl%(0))
+          IF pVB%(0) = 0 ERROR 101, "Couldn't load 'pinball.fvf'"
+          pVB%(1) = FN_load3d(pDevice%, @dir$+".pinball/flipper1.fvf", nv%(1), vf%(1), vl%(1))
+          IF pVB%(1) = 0 ERROR 101, "Couldn't load 'flipper1.fvf'"
+          pVB%(2) = FN_load3d(pDevice%, @dir$+".pinball/flipper2.fvf", nv%(2), vf%(2), vl%(2))
+          IF pVB%(2) = 0 ERROR 101, "Couldn't load 'flipper2.fvf'"
+          pVB%(3) = FN_load3d(pDevice%, @dir$+".pinball/plunger.fvf", nv%(3), vf%(3), vl%(3))
+          IF pVB%(3) = 0 ERROR 101, "Couldn't load 'plunger.fvf'"
+          pVB%(4) = FN_load3d(pDevice%, @dir$+".pinball/ball.fvf", nv%(4), vf%(4), vl%(4))
+          IF pVB%(4) = 0 ERROR 101, "Couldn't load 'ball.fvf'"
+          
+          REM. Load texture:
+          Tex%(0) = FN_loadtexture(pDevice%, @dir$+".pinball/pinball.jpg")
+          Tex%(3) = Tex%(0)
+          IF Tex%(0) = 0 ERROR 101, "Couldn't load 'pinball.jpg'"
+          
+          REM. Point-source light:
+          DIM light{(1)Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+          \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+          \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+          \ Theta%, Phi%}
+          
+          light{(0)}.Type% = 1                : REM. point source
+          light{(0)}.Diffuse.r% = FN_f4(0.75) : REM. diffuse colour RGB
+          light{(0)}.Diffuse.g% = FN_f4(0.75)
+          light{(0)}.Diffuse.b% = FN_f4(0.75)
+          light{(0)}.Specular.r% = FN_f4(1.0) : REM. specular colour RGB
+          light{(0)}.Specular.g% = FN_f4(1.0)
+          light{(0)}.Specular.b% = FN_f4(1.0)
+          light{(0)}.Ambient.r% = FN_f4(1.0)  : REM. ambient colour RGB
+          light{(0)}.Ambient.g% = FN_f4(1.0)
+          light{(0)}.Ambient.b% = FN_f4(1.0)
+          light{(0)}.Position.x% = FN_f4(0)   : REM. position XYZ
+          light{(0)}.Position.y% = FN_f4(400)
+          light{(0)}.Position.z% = FN_f4(200)
+          light{(0)}.Range% = FN_f4(1000)     : REM. range
+          light{(0)}.Attenuation0% = FN_f4(1) : REM. attenuation (constant)
+          l%(0) = light{(0)} - PAGE + !340
+          
+          light{(1)}.Type% = 2                : REM. spotlight
+          light{(1)}.Diffuse.r% = FN_f4(2.0)  : REM. diffuse colour RGB
+          light{(1)}.Diffuse.g% = FN_f4(2.0)
+          light{(1)}.Diffuse.b% = FN_f4(2.0)
+          light{(1)}.Direction.y% = FN_f4(-1) : REM. direction
+          light{(1)}.Position.y% = FN_f4(150)
+          light{(1)}.Range% = FN_f4(1000)     : REM. range
+          light{(1)}.Attenuation0% = FN_f4(1) : REM. attenuation (constant)
+          light{(1)}.Phi% = FN_f4(0.24)       : REM. beamwidth
+          l%(1) = light{(1)} - PAGE + !340
+          
+          REM. Neutral material:
+          DIM material{(1)Diffuse{r%,g%,b%,a%}, Ambient{r%,g%,b%,a%}, \
+          \     Specular{r%,g%,b%,a%}, Emissive{r%,g%,b%,a%}, Power%}
+          
+          material{(0)}.Diffuse.r% = FN_f4(1.0)  : REM. diffuse colour RGB
+          material{(0)}.Diffuse.g% = FN_f4(1.0)
+          material{(0)}.Diffuse.b% = FN_f4(1.0)
+          material{(0)}.Ambient.r% = FN_f4(0.25) : REM. ambient colour RGB
+          material{(0)}.Ambient.g% = FN_f4(0.25)
+          material{(0)}.Ambient.b% = FN_f4(0.25)
+          material{(0)}.Specular.r% = FN_f4(1.0) : REM. specular colour RGB
+          material{(0)}.Specular.g% = FN_f4(1.0)
+          material{(0)}.Specular.b% = FN_f4(1.0)
+          material{(0)}.Power% = FN_f4(100)      : REM. specular 'power'
+          m%() = (material{(0)} - PAGE + !340)
+          
+          material{(1)} = material{(0)}
+          material{(1)}.Diffuse.g% = FN_f4(0.0)
+          material{(1)}.Diffuse.b% = FN_f4(0.0)
+          m%(1) = (material{(1)} - PAGE + !340)
+          m%(2) = m%(1)
+          
+          at() = 0, 100, 8
+          distance = 220
+          IF @size.x% < @size.y% * 0.7 distance *= 0.7 * @size.y% / @size.x%
+          altitude = ATN(442/342)
+          azimuth = 0
+          X(1) = 13.4
+          X(2) = -8.6
+          Z(1) = 48.5
+          Z(2) = 48.5
+          Y(4) = 110
+          y() = PI
+        ENDIF
+        
+        velIterations% = 6
+        posIterations% = 3
+        
+        *REFRESH OFF
+        IF INKEY$(-256) = "W" SYS "timeGetTime" TO Ticks% ELSE SYS "SDL_GetTicks" TO Ticks%
+        REPEAT
+          
+          MOUSE xmouse%,ymouse%,buttons% : IF Touch% buttons% = 0
+          IF Touch% AND 2 OR buttons% AND 2 OR INKEY(-99) THEN
+            PROC_b2PrismaticMotorForce(slider%%, 100.0, 1)
+            PROC_b2PrismaticMotorSpeed(slider%%, -1.0, 1)
+            PROC_b2SetActive(gate2%%, FALSE)
+          ELSE
+            PROC_b2PrismaticMotorForce(slider%%, 350.0, 1)
+            PROC_b2PrismaticMotorSpeed(slider%%,  200.0, 1)
+          ENDIF
+          IF Touch% AND 4 OR buttons% AND 4 OR INKEY(-4) OR INKEY(-98) OR INKEY(-103) THEN
+            PROC_b2RevoluteMotorTorque(lpivot%%, 500, 1)
+            PROC_b2RevoluteMotorSpeed(lpivot%%, 200, 1)
+          ELSE
+            PROC_b2RevoluteMotorTorque(lpivot%%, 300, 1)
+            PROC_b2RevoluteMotorSpeed(lpivot%%, -200, 1)
+          ENDIF
+          IF Touch% AND 1 OR buttons% AND 1 OR INKEY(-7) OR INKEY(-67) OR INKEY(-104) THEN
+            PROC_b2RevoluteMotorTorque(rpivot%%, 500, 1)
+            PROC_b2RevoluteMotorSpeed(rpivot%%, -200, 1)
+          ELSE
+            PROC_b2RevoluteMotorTorque(rpivot%%, 300, 1)
+            PROC_b2RevoluteMotorSpeed(rpivot%%, 200, 1)
+          ENDIF
+          
+          PROC_b2GetBody(ball%%, x, y, a)
+          IF y < 1.0 PROC_b2SetBody(ball%%, 26.7, 4.0, 0) : PROC_b2SetVelocity(ball%%, 0, 0, 0)
+          IF x < 23 PROC_b2SetActive(gate2%%, TRUE)
+          
+          IF VIEW3D THEN
+            X(4) = (20 - x)*4.5
+            Z(4) = (17 - y)*4.5
+            
+            PROC_b2GetBody(plunger%%, x, y, a)
+            Z(3) = (3 - y)*4.5
+            PROC_b2GetBody(lflipper%%, x, y, a)
+            y(1) = 2.6-a
+            PROC_b2GetBody(rflipper%%, x, y, a)
+            y(2) = PI-2.6-a
+            
+            eye(0) = distance * COS(altitude) * SIN(azimuth)
+            eye(1) = distance * SIN(altitude) + 100
+            eye(2) = distance * COS(altitude) * COS(azimuth)
+            
+            IF Resize% EXIT REPEAT
+            PROC_render(pDevice%, &7F0000, 2, l%(), 5, m%(), Tex%(), pVB%(), nv%(), vf%(), vl%(), \
+            \ y(), p(), r(), X(), Y(), Z(), eye(), at(), PI/6, @vdu%!208/@vdu%!212, 20, 2000, 0)
+            
+            CASE INKEY(0) OF
+              WHEN 141: distance /= 1.02 : IF distance < 50   distance = 50
+              WHEN 140: distance *= 1.02 : IF distance > 1000 distance = 1000
+            ENDCASE
+            IF INKEY(-64) distance /= 1.01 : IF distance < 50   distance = 50
+            IF INKEY(-79) distance *= 1.01 : IF distance > 1000 distance = 1000
+            IF INKEY(-42) altitude -= 0.01 : IF altitude < 0    altitude = 0
+            IF INKEY(-58) altitude += 0.01 : IF altitude > 1.4  altitude = 1.4
+            IF INKEY(-26)  azimuth += 0.01
+            IF INKEY(-122) azimuth -= 0.01
+          ELSE
+            CLS
+            IF HIMEM > PAGE + 48000 PROC_b2DebugDraw(myWorld%%)
+            *REFRESH
+          ENDIF
+          
+          IF INKEY$(-256) = "W" SYS "timeGetTime" TO T% ELSE SYS "SDL_GetTicks" TO T%
+          WHILE Ticks% < T%
+            PROC_b2WorldStep(myWorld%%, 0.002, velIterations%, posIterations%)
+            contact%% = FN_b2ContactListBody(ball%%)
+            WHILE contact%%
+              PROC_b2GetContact(contact%%, a%%, b%%, aindex%, bindex%)
+              IF FN_b2IsTouching(contact%%) THEN
+                FOR I% = 0 TO 4
+                  IF a%% = bumper%%(I%) OR b%% = bumper%%(I%) THEN
+                    IF ADVAL(-6) SOUND 1,1,172 + 48*(I% > 2),4
+                    IF VIEW3D light{(1)}.Position.x% = FN_f4((20.0 - xc(I%))*4.5)
+                    IF VIEW3D light{(1)}.Position.z% = FN_f4((16.7 - yc(I%))*4.5)
+                    EXIT WHILE
+                  ENDIF
+                NEXT
+              ENDIF
+              contact%% = FN_b2NextContact(contact%%)
+            ENDWHILE
+            Ticks% += 2
+          ENDWHILE
+          
+          IF VIEW3D IF ADVAL(-6) = 16 light{(1)}.Position.x% = FN_f4(-100)
+          IF INKEY$(-256) = "W" WAIT 1
+          
+        UNTIL FALSE
+        IF VIEW3D THEN
+          FOR I% = 0 TO DIM(pVB%(),1) PROC_release(pVB%(I%)) : NEXT
+          PROC_release(pDevice%)
+        ENDIF
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCtouch(M%, L%)
+      L% AND= &FFFF
+      CASE TRUE OF
+        WHEN L% < @size.x% * 1/3: IF M% = &700 Touch% OR= 4 ELSE IF M% = &701 Touch% AND= NOT 4
+        WHEN L% > @size.x% * 2/3: IF M% = &700 Touch% OR= 1 ELSE IF M% = &701 Touch% AND= NOT 1
+        OTHERWISE:                IF M% = &700 Touch% OR= 2 ELSE IF M% = &701 Touch% AND= NOT 2
+      ENDCASE
+      ENDPROC
+      
+      DEF PROCcleanup
+      LOCAL I%
+      ON ERROR OFF
+      IF !^pVB%() FOR I% = 0 TO DIM(pVB%(),1) PROC_release(pVB%(I%)) : NEXT
+      pDevice% += 0 : IF pDevice% PROC_release(pDevice%)
+      *REFRESH ON
+      VDU 23,22,640;500;8,20,16,128
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      IF HIMEM > PAGE + 48000 PROC_b2DebugExit
+      PROC_b2Exit
+      ENDPROC

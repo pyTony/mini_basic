@@ -1,0 +1,70 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 27-Jan-2013
+      
+      MODE 8 : OFF
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = 0.0
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01001, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 16.0, -0.1, 0.0, 16.0, 0.1)
+      
+      wheel%% = FN_b2DynamicBody(myWorld%%, 7.0, 12.8, 0, 0, 0, 0, 0, 0)
+      disc%% = FN_b2CircleFixture(wheel%%, 0.0, 0.0, 4.0, 0.1, 0, 1.0)
+      axle%% = FN_b2RevoluteJoint(myWorld%%, ground%%, wheel%%, 7.0, 12.8, 0, 0)
+      PROC_b2RevoluteMotorTorque(axle%%, 1000.0, 1)
+      PROC_b2RevoluteMotorSpeed(axle%%, 2.0, 1)
+      PROC_b2SetFilter(disc%%, &FFFC, &FFFF, &0000)
+      
+      rod%% = FN_b2KinematicBody(myWorld%%, 22.2, 12.8, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(rod%%, 0, 0, 0.0, 7.0, 0.2, 0.0, 0, 0.0)
+      PROC_b2SetFilter(fixture%%, &0002, &0002, &0000)
+      
+      slider%% = FN_b2DynamicBody(myWorld%%, 26.0, 12.8, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(slider%%, 0, 0, 0.0, 1.0, 1.0, 0.1, 0, 1.0)
+      
+      joint%% = FN_b2PrismaticJoint(myWorld%%, ground%%, slider%%, 26.0, 12.8, 1.0, 0.0, -12.8, 0)
+      
+      crank%% = FN_b2DynamicBody(myWorld%%, 18.0, 12.8, 0, 0, 0, 0, 0, 0)
+      fixture%% = FN_b2BoxFixture(crank%%, 0, 0, 0.0, 9.0, 0.4, 0.0, 0, 1.0)
+      PROC_b2SetFilter(fixture%%, &0001, &0001, &0000)
+      
+      pin1%% = FN_b2RevoluteJoint(myWorld%%, wheel%%, crank%%, 10.2, 12.8, 0, 0)
+      pin2%% = FN_b2RevoluteJoint(myWorld%%, crank%%, slider%%, 26.0, 12.8, 0, 0)
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      ON MOUSE space% = TRUE : RETURN
+      space% = FALSE
+      speed = 2.0
+      *REFRESH OFF
+      GCOL 2
+      VDU 5
+      REPEAT
+        CLS
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2DebugDraw(myWorld%%)
+        MOVE 250, 70 : PRINT "Click or tap or press SPACE to reverse direction"
+        *REFRESH
+        WAIT 1
+        IF INKEY(0) = 32 space% = TRUE
+        IF space% space% = FALSE : speed = -speed : PROC_b2RevoluteMotorSpeed(axle%%, speed, 1)
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC
+      

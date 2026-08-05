@@ -1,0 +1,65 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 27-Jan-2013
+      
+      MODE 8 : OFF
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = -9.8
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01011, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 16.0, 0.1, 0.0, 16.0, 0.1)
+      
+      sensor%% = FN_b2CircleFixture(ground%%, 0, 12.0, 5.0, 0.1, 0.0, 1.0)
+      PROC_b2SetSensor(sensor%%, 1)
+      
+      nBodies% = 7
+      DIM body%%(nBodies%-1)
+      FOR i% = 0 TO nBodies%-1
+        body%%(i%) = FN_b2DynamicBody(myWorld%%, 6.4 + 3.2*i%, 24.0, 0, 0, 0, 0, 0, 0)
+        disc%% = FN_b2CircleFixture(body%%(i%), 0, 0, 1.0, 0.2, 0.0, 1.0)
+        PROC_b2SetFixedRotation(body%%(i%), 1)
+      NEXT i%
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      *REFRESH OFF
+      REPEAT
+        CLS
+        
+        FOR i% = 0 TO nBodies%-1
+          contact%% = FN_b2ContactListBody(body%%(i%))
+          WHILE contact%%
+            IF FN_b2IsTouching(contact%%) THEN
+              PROC_b2GetContact(contact%%, fixture1%%, fixture2%%, child1%%, child2%%)
+              IF fixture1%% = sensor%% OR fixture2%% = sensor%% THEN
+                PROC_b2GetBody(body%%(i%), x, y, a)
+                PROC_b2Push(body%%(i%), 20*(16.0-x), 20*(12.0-y), x, y)
+                EXIT WHILE
+              ENDIF
+            ENDIF
+            contact%% = FN_b2NextContact(contact%%)
+          ENDWHILE
+        NEXT i%
+        
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2DebugDraw(myWorld%%)
+        *REFRESH
+        WAIT 1
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC

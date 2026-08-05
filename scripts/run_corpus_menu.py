@@ -1,17 +1,31 @@
 #!/usr/bin/env python3
-"""Interactive menu to run BBCSDL corpus programs that work in mini_basic."""
+"""Interactive menu to run BBCSDL corpus programs that work in mini_basic.
+
+Reads CORPUS_RUNNABLE.txt. Optional status tags after the folder name:
+
+  [ok]    known good / audit OK
+  [defer] known gap (sound, interactive MODE7, …)
+  [slow]  correct but slow draw
+  [new]   recently changed — re-check recommended
+
+Example line::
+
+  saucer.txt graphics [ok] [slow] Flying saucer — shape OK, draw slow
+"""
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 
 _ROOT = Path(__file__).resolve().parents[1]
 _CORPUS_LIST = _ROOT / 'CORPUS_RUNNABLE.txt'
 _CORPUS_ROOT = _ROOT / 'test' / 'corpus' / 'bbcsdl'
+_AUDIT = _ROOT / 'CORPUS_AUDIT.txt'
 
 _CATEGORY_ORDER = (
     'games',
@@ -22,30 +36,91 @@ _CATEGORY_ORDER = (
     'samples',
 )
 
+_STATUS_TAGS = frozenset({'ok', 'defer', 'slow', 'new', 'fail'})
+
 
 @dataclass(frozen=True)
 class CorpusEntry:
     name: str
     folder: str
     blurb: str
-    is_new: bool
+    tags: frozenset[str] = field(default_factory=frozenset)
 
     @property
     def path(self) -> Path:
         return _CORPUS_ROOT / self.folder / self.name
 
     @property
+    def is_new(self) -> bool:
+        return 'new' in self.tags
+
+    @property
     def title(self) -> str:
-        text = self.name
-        if self.is_new:
-            text = f'{text} [NEW]'
-        return text
+        badges: List[str] = []
+        if 'ok' in self.tags:
+            badges.append('OK')
+        if 'defer' in self.tags:
+            badges.append('DEFER')
+        if 'fail' in self.tags:
+            badges.append('FAIL')
+        if 'slow' in self.tags:
+            badges.append('SLOW')
+        if 'new' in self.tags:
+            badges.append('NEW')
+        if badges:
+            return f'{self.name} [{", ".join(badges)}]'
+        return self.name
 
     @property
     def description(self) -> str:
         if self.blurb and self.blurb != self.folder:
             return self.blurb
         return self.folder.capitalize()
+
+
+def _parse_rest(rest: str) -> Tuple[str, frozenset[str], str]:
+    """Split ``folder [tags…] description`` after the filename."""
+    rest = rest.strip()
+    if not rest:
+        return '', frozenset(), ''
+    parts = rest.split()
+    folder = parts[0]
+    tags: Set[str] = set()
+    i = 1
+    while i < len(parts):
+        m = re.fullmatch(r'\[([A-Za-z0-9_]+)\]', parts[i])
+        if not m:
+            break
+        tag = m.group(1).lower()
+        if tag in _STATUS_TAGS:
+            tags.add(tag)
+        i += 1
+    blurb = ' '.join(parts[i:]) if i < len(parts) else folder
+    return folder, frozenset(tags), blurb
+
+
+def _audit_fail_names() -> Set[str]:
+    """Names listed under FAIL in CORPUS_AUDIT.txt (if present)."""
+    if not _AUDIT.is_file():
+        return set()
+    fails: Set[str] = set()
+    in_fail = False
+    for raw in _AUDIT.read_text(encoding='utf-8').splitlines():
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        upper = line.upper()
+        if upper.startswith('FAIL'):
+            in_fail = True
+            continue
+        if upper.startswith('OK'):
+            in_fail = False
+            continue
+        if in_fail:
+            name = line.split()[0]
+            if name.lower().endswith('.txt'):
+                fails.add(name)
+    return fails
 
 
 def _parse_corpus_list(text: str) -> Tuple[List[CorpusEntry], List[str]]:
@@ -66,26 +141,26 @@ def _parse_corpus_list(text: str) -> Tuple[List[CorpusEntry], List[str]]:
         if upper.startswith('NOT '):
             section = 'not'
             continue
-        parts = line.split(' ', 1)
+        parts = line.split(None, 1)
         name = parts[0]
         if not name.lower().endswith('.txt'):
             continue
         rest = parts[1] if len(parts) > 1 else ''
-        bits = rest.split(' ', 1)
-        folder = bits[0] if bits else ''
-        blurb = bits[1] if len(bits) > 1 else folder
+        folder, tags, blurb = _parse_rest(rest)
+        if section == 'new':
+            tags = frozenset(set(tags) | {'new'})
         if section == 'not':
-            skipped.append(f'{name} ({folder})')
+            skipped.append(f'{name} ({folder or "?"})')
             continue
         entries.append(
             CorpusEntry(
                 name=name,
                 folder=folder,
                 blurb=blurb,
-                is_new=section == 'new',
+                tags=tags,
             )
         )
-    # ALL section duplicates NEW entries; keep best blurb and NEW flag.
+    # ALL may repeat NEW lines; merge tags and prefer longer blurb.
     seen: Dict[str, CorpusEntry] = {}
     for entry in entries:
         prev = seen.get(entry.name)
@@ -93,12 +168,29 @@ def _parse_corpus_list(text: str) -> Tuple[List[CorpusEntry], List[str]]:
             seen[entry.name] = entry
             continue
         blurb = entry.blurb if len(entry.blurb) > len(prev.blurb) else prev.blurb
+        tags = frozenset(set(prev.tags) | set(entry.tags))
+        folder = entry.folder or prev.folder
         seen[entry.name] = CorpusEntry(
             name=entry.name,
-            folder=entry.folder,
+            folder=folder,
             blurb=blurb,
-            is_new=prev.is_new or entry.is_new,
+            tags=tags,
         )
+    # Overlay audit FAIL if not already tagged defer/fail.
+    for name in _audit_fail_names():
+        ent = seen.get(name)
+        if ent is None:
+            continue
+        if 'ok' in ent.tags and 'defer' not in ent.tags:
+            # Prefer explicit CORPUS_RUNNABLE tags over stale audit.
+            continue
+        if 'defer' not in ent.tags and 'fail' not in ent.tags:
+            seen[name] = CorpusEntry(
+                name=ent.name,
+                folder=ent.folder,
+                blurb=ent.blurb,
+                tags=frozenset(set(ent.tags) | {'fail'}),
+            )
     ordered = sorted(
         seen.values(),
         key=lambda item: (
@@ -139,6 +231,7 @@ def _print_menu(entries: Sequence[CorpusEntry], skipped: Sequence[str]) -> None:
     print()
     print('mini_basic — runnable BBCSDL programs')
     print('=' * 40)
+    print('Tags: [OK] good  [DEFER]/[FAIL] known issues  [SLOW] slow draw  [NEW] re-check')
     index = 1
     for folder, group in _grouped(entries):
         title = folder.capitalize()
@@ -150,15 +243,20 @@ def _print_menu(entries: Sequence[CorpusEntry], skipped: Sequence[str]) -> None:
             index += 1
     print('\n  0. Quit')
     if skipped:
-        print('\nNot in menu (need network):', ', '.join(skipped))
-    print('\nGraphics demos loop until you close the window or press Ctrl+C.')
+        print('\nNot in menu (need network / out of scope):', ', '.join(skipped))
+    print('\nGraphics demos loop until you close the window or press Ctrl+C / ESC.')
     print('Run with: --pygame --dialect bbc --hold')
+    print('Note: SOUND is silent (optional short wait only); polly needs real audio later.')
 
 
 def _run_entry(entry: CorpusEntry) -> int:
     if not entry.path.is_file():
         print(f'File not found: {entry.path}')
         return 1
+    if 'defer' in entry.tags or 'fail' in entry.tags:
+        print()
+        print(f'Note: {entry.name} is marked with issues — may not look/run fully.')
+        print(f'      {entry.description}')
     cmd = [
         sys.executable,
         '-m',
@@ -213,7 +311,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         if not path.is_file():
             path = _CORPUS_ROOT / token
         for entry in entries:
-            if entry.path == path.resolve():
+            if entry.path == path.resolve() or entry.name == token:
                 return _run_entry(entry)
         print(f'Not in runnable list: {token}')
         return 1

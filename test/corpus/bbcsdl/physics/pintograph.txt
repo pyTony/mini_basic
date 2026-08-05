@@ -1,0 +1,140 @@
+      ON ERROR IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      
+      REM Pintograph drawing machine by Svein Svensson, 21-Feb-2013
+      REM Added Meccano (TM) graphics, Richard Russell, 01-Mar-2013
+      REM This version adapted to run in both BB4W and BBCSDL
+      
+      MODE 21 : OFF
+      Width% = 800
+      Height% = 600
+      DIM dst{x%, y%, w%, h%} : dst.w% = Width% : dst.h% = Height%
+      
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2dgfx"
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      Scale = 10
+      S1 = 1.5 : S2 = -0.5 : S3 = 1.5 : S4 = 0.5
+      
+      IF INKEY$(-256) = "W" THEN
+        SYS "CreateCompatibleDC", @memhdc% TO tmpDC%
+        SYS "CreateCompatibleBitmap", @memhdc%, Width%, Height% TO tmpBM%% : tmpBM%% = !^tmpBM%%
+        SYS "SelectObject", tmpDC%, tmpBM%%
+      ELSE
+        SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, Width%, Height% TO tmpBM%%
+        SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+        IF @platform% AND &40 ELSE tmpBM%% = !^tmpBM%% : target%% = !^target%%
+      ENDIF
+      
+      myWorld%% = FN_b2CreateWorld(0, 0)
+      PROC_gfxInit(gfx{}, Width%, Height%, Scale)
+      PROC_b2DebugInit(myWorld%%, %01011, Scale)
+      
+      PROC_gfxLoad(strip{}, @dir$+"strip.png", 18.5)
+      PROC_gfxLoad(plate{}, @dir$+"faceplate.png", 15.0)
+      PROC_gfxLoad(ring{}, @dir$+"ring.png", 32.0)
+      IF INKEY$(-256) = "W" THEN
+        PROC_gfxMultiply(strip{})
+        PROC_gfxMultiply(plate{})
+        PROC_gfxMultiply(ring{})
+      ENDIF
+      
+      Rotor1%% = FN_b2KinematicBody(myWorld%%, 8, 51, 0, 0, 0, S1, 0, 0)
+      B%% = FN_b2CircleFixture(Rotor1%%, 0, 0, 9.3, 0.5, 0.0, 1.0)
+      
+      Rotor2%% = FN_b2DynamicBody(myWorld%%, 16, 51, 0, 0, 0, 0, 0, 0.0)
+      B%% = FN_b2CircleFixture(Rotor2%%, 0, 0, 9.3, 0.5, 0.0, 1.0)
+      Joint1%% = FN_b2RevoluteJoint(myWorld%%, Rotor1%%, Rotor2%%, 16, 51, 0, 0)
+      PROC_b2RevoluteMotorTorque(Joint1%%, 200, 0)
+      PROC_b2RevoluteMotorSpeed(Joint1%%, S2 - S1, 1)
+      
+      Rotor3%% = FN_b2KinematicBody(myWorld%%, 72, 51, 0, 0, 0, S3, 0, 0)
+      B%% = FN_b2CircleFixture(Rotor3%%, 0, 0, 9.3, 0.5, 0.0, 1.0)
+      
+      Rotor4%% = FN_b2DynamicBody(myWorld%%, 64, 51, 0, 0, 0, 0.0, 0, 1.0)
+      B%% = FN_b2CircleFixture(Rotor4%%, 0, 0, 9.3, 0.5, 0.0, 1.0)
+      Joint3%% = FN_b2RevoluteJoint(myWorld%%, Rotor3%%, Rotor4%%, 64, 51, 0, 0)
+      PROC_b2RevoluteMotorTorque(Joint3%%, 200, 0)
+      PROC_b2RevoluteMotorSpeed(Joint3%%, S4 - S3, 0)
+      
+      penx = 40
+      peny = 4
+      pen%% = FN_b2DynamicBody(myWorld%%, penx, peny, 0, 0, 0, 0, 0, 0)
+      mass%% = FN_b2CircleFixture(pen%%, 0, 0, 0.4, 0, 0, 0.1)
+      penJoint1%% = FN_b2DistanceJoint(myWorld%%, Rotor2%%, pen%%, 24, 51, penx, peny, 0, 0)
+      penJoint2%% = FN_b2DistanceJoint(myWorld%%, Rotor4%%, pen%%, 56, 51, penx, peny, 0, 0)
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      Col% = 11
+      
+      PROC_b2GetBody(pen%%, x, y, a)
+      MOVE x*20,y*20
+      
+      init% = TRUE
+      *REFRESH OFF
+      REPEAT
+        PROC_b2SetVelocity(Rotor2%%, 0, 0, S2)
+        PROC_b2SetVelocity(Rotor4%%, 0, 0, S4)
+        
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2GetBody(pen%%, x, y, a)
+        
+        fail% = FALSE
+        ON ERROR LOCAL IF FALSE THEN
+          IF INKEY(-256) = &57 THEN
+            SYS "BitBlt", @memhdc%, 0, 0, Width%, Height%, tmpDC%, 0, 0, &CC0020
+          ELSE
+            SYS "SDL_RenderCopy", @memhdc%, tmpBM%%, FALSE, dst{}
+            SYS "SDL_SetRenderTarget", @memhdc%, tmpBM%%
+          ENDIF
+          IF init% CLS : init% = FALSE
+          GCOL Col% : DRAW x*20,y*20
+        ELSE
+          fail% = TRUE
+        ENDIF : RESTORE ERROR
+        IF INKEY(-256) = &57 THEN
+          SYS "BitBlt", tmpDC%, 0, 0, Width%, Height%, @memhdc%, 0, 0, &CC0020
+        ELSE
+          SYS "SDL_SetRenderTarget", @memhdc%, target%%
+        ENDIF
+        IF fail% ERROR ERR, REPORT$
+        
+        PROC_b2GetBody(Rotor1%%, x, y, a)
+        PROC_gfxPlot1(gfx{}, plate{}, x, y, a-0.1)
+        PROC_b2GetBody(Rotor2%%, x, y, a)
+        PROC_gfxPlot1(gfx{}, plate{}, x, y, a-0.1)
+        PROC_b2GetBody(Rotor3%%, x, y, a)
+        PROC_gfxPlot1(gfx{}, plate{}, x, y, a-0.1)
+        PROC_b2GetBody(Rotor4%%, x, y, a)
+        PROC_gfxPlot1(gfx{}, plate{}, x, y, a-0.1)
+        PROC_gfxPlotDistanceJoint(gfx{}, strip{}, penJoint1%%)
+        PROC_gfxPlotDistanceJoint(gfx{}, strip{}, penJoint2%%)
+        PROC_b2GetBody(pen%%, x, y, a)
+        PROC_gfxPlot1(gfx{}, ring{}, x, y, a)
+        IF INKEY(-51) PROC_b2DebugDraw(myWorld%%)
+        PROC_gfxDisplay
+        
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      ON ERROR OFF
+      VDU 23,22,640;500;8,20,16,128
+      IF INKEY$(-256) = "W" THEN
+        tmpDC% += 0  : IF tmpDC%    SYS "DeleteDC", tmpDC%         : tmpDC% = 0
+        tmpBM%% += 0 : IF tmpBM%%   SYS "DeleteObject", tmpBM%%    : tmpBM%% = 0
+      ELSE
+        tmpBM%% += 0 : IF tmpBM%%   SYS "SDL_DestroyTexture", tmpBM%%, @memhdc% : tmpBM%% = 0
+      ENDIF
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2DebugExit
+      PROC_gfxExit
+      PROC_b2Exit
+      ENDPROC

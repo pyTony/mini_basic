@@ -1,0 +1,112 @@
+      ON ERROR IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      
+      REM Demonstration of Box2D and the Box2DGFX renderer with BBCSDL
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 28-Jan-2020
+      REM This program is also compatible with 'BBC BASIC for Windows'
+      
+      MODE 8 : OFF
+      
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2dgfx"
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      REM Initialise accelerometer (if any)
+      joystick%% = 0
+      IF INKEY$(-256) <> "W" IF (@platform% AND &F) < 5 THEN
+        SYS "SDL_NumJoysticks" TO N%
+        IF N% THEN
+          FOR I% = 0 TO N%-1
+            SYS "SDL_JoystickNameForIndex", I% TO p%%
+            IF @platform% AND &40 ELSE p%% = !^p%%
+            IF INSTR($$p%%, "Accelerometer") THEN
+              SYS "SDL_JoystickOpen", I% TO joystick%%
+              IF @platform% AND &40 ELSE joystick%% = !^joystick%%
+              EXIT FOR
+            ENDIF
+          NEXT
+        ENDIF
+      ENDIF
+      
+      maxBodies% = 200
+      nBodies% = 0
+      
+      gravity_x = 0.0
+      gravity_y = -9.8
+      scale = 100.0
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_gfxInit(gfx{}, 640, 512, scale)
+      PROC_b2DebugInit(myWorld%%, %01011, scale)
+      
+      PROC_gfxLoad(crate{}, @dir$ + "crate32a.png", scale * 30 / 32)
+      IF INKEY$(-256) = "W" PROC_gfxMultiply(crate{})
+      
+      centre_x = 0.0
+      centre_y = 0.2
+      angle = 0.0
+      half_width = 50.0
+      half_height = 0.2
+      ground%% = FN_b2StaticBox(myWorld%%, centre_x, centre_y, \
+      \                                  angle, half_width, half_height)
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      COLOR 10, 0, 128, 0
+      COLOR 12, 0, 0, 128
+      COLOR 12 + 128
+      GCOL 10
+      
+      *REFRESH OFF
+      REPEAT
+        IF joystick%% THEN
+          SYS "SDL_JoystickGetAxis", joystick%%, 0 TO x% : x% = (x% << 16) >> 16
+          SYS "SDL_JoystickGetAxis", joystick%%, 1 TO y% : y% = (y% << 16) >> 16
+          IF (@platform% AND 7) = 4 THEN
+            SYS "SDL_GetWindowSize", @hwnd%, ^w%, ^h%
+            IF w% > h% SWAP x%,y% : y% *= -1 : REM iOS fix
+          ENDIF
+          IF x% OR y% THEN
+            r = gravity_y / SQR(x%*x% + y%*y%)
+            PROC_b2SetGravity(myWorld%%, -x% * r, y% * r)
+          ENDIF
+        ENDIF
+        
+        CLS
+        RECTANGLE FILL (centre_x - half_width) * scale * 2, (centre_y - half_height) * scale * 2, \
+        \              half_width * scale * 4, half_height * scale * 4
+        
+        IF RND(30) = 1 IF nBodies% < maxBodies% THEN
+          nBodies% += 1
+          
+          u = RND(1)
+          v = RND(1)
+          d = SQR(-2*LNu) * COS(2*PI*v)
+          x = 3.2 + 0.5*d
+          
+          body%% = FN_b2DynamicBody(myWorld%%, x, 5.3, RND(1)-0.5, 0, 0, 0, 0, 0)
+          fixture%% = FN_b2BoxFixture(body%%, 0, 0, 0, 0.15, 0.15, 0.3, 0.1, 1.0)
+          PROC_b2UserDataBody(body%%, crate{})
+        ENDIF
+        
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_gfxRender(gfx{}, myWorld%%)
+        IF INKEY(-51) PROC_b2DebugDraw(myWorld%%)
+        PROC_gfxDisplay
+        
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      ON ERROR OFF
+      VDU 23,22,640;500;8,20,16,128
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2DebugExit
+      PROC_gfxExit
+      PROC_b2Exit
+      ENDPROC

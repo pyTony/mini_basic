@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mini_basic BBC BASIC Reference</title>
+<style>
+
+    body {
+        font-family: Georgia, 'Times New Roman', serif;
+        max-width: 800px;
+        margin: 30px auto;
+        padding: 0 20px;
+        line-height: 1.5;
+        color: #111;
+        background-color: #fdfdfd;
+    }
+    h1, h2, h3, h4 {
+        font-family: Arial, Helvetica, sans-serif;
+        color: #222;
+        margin-top: 1.8em;
+        margin-bottom: 0.4em;
+    }
+    h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+    h2 { border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+    p {
+        margin: 0 0 0.2em 0;
+        text-align: justify;
+    }
+    pre {
+        background: #f2f2f2;
+        border: 1px solid #d0d0d0;
+        border-left: 4px solid #666;
+        padding: 10px 14px;
+        margin: 0.4em 0;
+        border-radius: 3px;
+        overflow-x: auto;
+        font-size: 0.9em;
+        line-height: 1.5;
+    }
+    code {
+        font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+        background: #f2f2f2;
+        padding: 2px 4px;
+        border-radius: 3px;
+        font-size: 0.9em;
+        color: #222;
+    }
+    pre code { background: transparent; padding: 0; border: none; }
+    ul { margin: 0.2em 0; padding-left: 25px; }
+    li { margin: 3px 0; }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+        margin: 0.6em 0;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 0.9em;
+    }
+    th, td {
+        border: 1px solid #aaa;
+        padding: 6px 10px;
+    }
+    th { background-color: #e9e9e9; font-weight: bold; text-align: left; }
+
+    .banner {
+        background: #1a3a5c;
+        color: #f5f8fc;
+        padding: 14px 18px;
+        border-radius: 4px;
+        margin: 1em 0 1.5em 0;
+        font-family: Arial, Helvetica, sans-serif;
+        font-size: 0.95em;
+        line-height: 1.45;
+    }
+    .banner strong { color: #fff; }
+    .banner a { color: #9fd0ff; }
+    .status-yes { color: #0a6b2d; font-weight: bold; }
+    .status-partial { color: #8a5a00; font-weight: bold; }
+    .status-no { color: #8b1a1a; font-weight: bold; }
+    .note {
+        background: #f7f4ea;
+        border-left: 4px solid #c4a35a;
+        padding: 8px 12px;
+        margin: 0.8em 0;
+        font-size: 0.95em;
+    }
+    nav.toc ul { list-style: none; padding-left: 0; }
+    nav.toc li { margin: 4px 0; }
+    nav.toc a { text-decoration: none; color: #1a3a5c; }
+    nav.toc a:hover { text-decoration: underline; }
+    footer.meta {
+        margin-top: 3em;
+        padding-top: 1em;
+        border-top: 1px solid #ccc;
+        font-size: 0.85em;
+        color: #555;
+        font-family: Arial, Helvetica, sans-serif;
+    }
+
+</style>
+</head>
+<body>
+
+<div class="banner">
+  <strong>mini_basic BBC BASIC Reference</strong> (edition for this interpreter)<br>
+  Version 1.0.0.dev0 · Generated 2026-08-03 ·
+  Companion to <code>BBC_BASIC_Manual.html</code><br>
+  Language baseline: <code>docs/LANGUAGE_FEATURES_1.00.md</code> · Packaging: <code>docs/PACKAGING.md</code>
+</div>
+
+<h1>mini_basic BBC BASIC Reference</h1>
+<p>A practical reference for programming in BBC-style BASIC under
+<strong>mini_basic</strong>, compiled as a companion to the included classic
+BBC BASIC HTML manual.</p>
+<nav class="toc"><h2>Contents</h2><ul>
+<li><a href="#about-this-edition">About this edition</a></li>
+<li><a href="#running-mini-basic">Running mini_basic</a></li>
+<li><a href="#dialects">Dialects</a></li>
+<li><a href="#program-structure">Program structure</a></li>
+<li><a href="#control-flow">Control flow</a></li>
+<li><a href="#variables-and-expressions">Variables and expressions</a></li>
+<li><a href="#strings-and-data">Strings and data</a></li>
+<li><a href="#input-and-output">Input and output</a></li>
+<li><a href="#files">Files</a></li>
+<li><a href="#procedures-and-functions">Procedures and functions</a></li>
+<li><a href="#graphics-and-mode">Graphics and MODE</a></li>
+<li><a href="#vdu-control">VDU control</a></li>
+<li><a href="#sound-sound-and-envelope">Sound (SOUND and ENVELOPE)</a></li>
+<li><a href="#error-handling">Error handling</a></li>
+<li><a href="#bbc-family-compatibility-matrix">BBC family compatibility matrix</a></li>
+<li><a href="#keywords-quick-reference">Keywords (quick reference)</a></li>
+<li><a href="#not-implemented-deferred">Not implemented (deferred)</a></li>
+<li><a href="#relationship-to-the-classic-manual">Relationship to the classic manual</a></li>
+<li><a href="#examples">Examples</a></li>
+</ul></nav>
+
+<h2 id="about-this-edition">About this edition</h2>
+<p>This document is the mini_basic edition of a BBC BASIC reference. It is compiled for users of the mini_basic interpreter (Python package mini_basic / mini-basic), not for RISC OS Desktop BASIC or a physical BBC Micro.</p>
+<p>The included file BBC_BASIC_Manual.html is the classic OCR reference (overview, techniques, keywords, appendices). Where classic behaviour and mini_basic agree, you may treat that text as background; where they diverge, this edition is authoritative for mini_basic.</p>
+<p>Interpreter version described: 1.0.0.dev0. Language baseline: docs/LANGUAGE_FEATURES_1.00.md.</p><div class="note"><strong>Honesty rule.</strong> mini_basic aims for useful BBCSDL / BBC-family compatibility for real demos (welcome, squares, piechart, jclock, …). It does not claim full SOUND/ENVELOPE, WIMP, SYS, assembler, or complete MODE 7 SAA5050 teletext.</div>
+
+<h2 id="running-mini-basic">Running mini_basic</h2>
+<p>From a source tree or after pip install of the mini-basic wheel:</p><pre><code># Run a program (text / none / pygame)
+python -m mini_basic path/to/program.bas
+python -m mini_basic --dialect bbc --display pygame examples/graphics/squares.bbc
+mini-basic --version
+
+# Dialects: mini | bbc | mits | commodore | tiny
+# Display:  pygame | terminal | none
+</code></pre><p>Environment: MINIBASIC_DIR (install tree), MINIBASIC_DISPLAY / MINIBASIC_NO_GRAPHICS, MINI_BASIC_DIALECT. Optional: pip install &quot;mini-basic[display]&quot; for pygame-ce.</p><p>Tokenized BBCSDL / Beeb .bbc files can be loaded; the detokenizer reconstructs text before RUN.</p>
+
+<h2 id="dialects">Dialects</h2>
+<table>
+<thead><tr><th>Dialect</th><th>Role</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>mini</td><td>Default / superset</td><td>Numbered or unnumbered; structured BBC flow; mini extensions (BREAK/CONTINUE).</td></tr><tr><td>bbc</td><td>BBCSDL / BB4W-oriented</td><td>PROC/FN glued names; CASE; WHILE; REPEAT; MODE/VDU/graphics.</td></tr><tr><td>mits</td><td>Classic Dartmouth-style</td><td>Numbered lines; GOTO/GOSUB; ON ERROR.</td></tr><tr><td>commodore</td><td>C64-flavoured</td><td>Numbered lines; classic control set.</td></tr><tr><td>tiny</td><td>Minimal 1975-style</td><td>Smallest statement set for teaching.</td></tr>
+</tbody>
+</table><p>In bbc dialect, procedure and function calls must glue the name: PROCfoo not PROC foo. LIST re-glues names so listings paste cleanly into Archimedes-style environments.</p>
+
+<h2 id="program-structure">Program structure</h2>
+<ul>
+<li>Lines may be numbered or unnumbered (dialect-dependent).</li>
+<li>Multiple statements on a line: use colon (:).</li>
+<li>Comments: REM or &#x27; (BBC-style).</li>
+<li>Commands: NEW, LOAD, SAVE, CHAIN, RUN, LIST, END, STOP.</li>
+<li>Programs are text .bas/.bbc or detokenized Russell token streams.</li>
+</ul><pre><code>10 REM hello
+20 PRINT &quot;Hello from mini_basic&quot;
+30 END
+</code></pre>
+
+<h2 id="control-flow">Control flow</h2>
+<table>
+<thead><tr><th>Feature</th><th>mini_basic</th></tr></thead>
+<tbody>
+<tr><td>GOTO / GOSUB / RETURN</td><td><span class="status-yes">yes</span></td></tr><tr><td>IF … THEN / bare IF : body</td><td><span class="status-yes">yes</span></td></tr><tr><td>IF / ELSE / ELSEIF / ENDIF</td><td><span class="status-yes">yes</span></td></tr><tr><td>ON … GOTO / GOSUB</td><td><span class="status-yes">yes</span></td></tr><tr><td>FOR / NEXT (int and float)</td><td><span class="status-yes">yes</span></td></tr><tr><td>WHILE / WEND (ENDWHILE)</td><td><span class="status-yes">yes</span></td></tr><tr><td>REPEAT / UNTIL</td><td><span class="status-yes">yes</span></td></tr><tr><td>EXIT FOR / WHILE / REPEAT</td><td><span class="status-yes">yes</span></td></tr><tr><td>CASE / WHEN / OTHERWISE / ENDCASE</td><td><span class="status-yes">yes</span></td></tr><tr><td>BREAK / CONTINUE</td><td><span class="status-partial">partial</span> (mini extension)</td></tr>
+</tbody>
+</table><p>Nested integer FOR loops with simple LET/COLOUR/PLOT bodies may run on a native fast path (e.g. munching squares). Float geometry loops remain interpreter-paced.</p>
+
+<h2 id="variables-and-expressions">Variables and expressions</h2>
+<ul>
+<li>Floats (default), integers with % suffix, strings with $.</li>
+<li>Arrays: DIM (numeric and string).</li>
+<li>Arithmetic: + - * / DIV MOD ^ and shifts &lt;&lt; &gt;&gt;.</li>
+<li>Bitwise: AND OR EOR/XOR NOT on integers (pure bitwise expressions can compile).</li>
+<li>Relations: = &lt;&gt; &lt; &gt; &lt;= &gt;= ; BBC TRUE is -1, FALSE is 0.</li>
+<li>Hex and binary forms where implemented (BBC-style).</li>
+<li>Built-ins: SIN COS TAN ASN ACS ATN SQR ABS INT SGN RND LOG EXP RAD DEG …</li>
+<li>Use MOD for modulo; bare % is the integer-variable suffix, not modulo.</li>
+<li>SIN/COS/TAN use radians unless you convert with DEG/RAD helpers.</li>
+</ul><pre><code>A% = 5
+B% = 3
+PRINT (A% EOR B%) AND 255   : REM 6
+PRINT 10 MOD 3             : REM 1
+</code></pre><div class="note">Known gap: PRINT a(i) may not expand array subscripts in every form; use PRINT a(i); or a temporary assignment.</div>
+
+<h2 id="strings-and-data">Strings and data</h2>
+<ul>
+<li>LEFT$ RIGHT$ MID$ STR$ VAL ASC CHR$ LEN INSTR STRING$ …</li>
+<li>Glued forms accepted where BBC does: ASC&quot;B&quot;, INKEY1 → INKEY(1).</li>
+<li>DATA / READ / RESTORE for embedded data.</li>
+<li>TIME and TIME$ for timing (where provided).</li>
+</ul>
+
+<h2 id="input-and-output">Input and output</h2>
+<ul>
+<li>PRINT / ? with TAB, SPC, commas and semicolons; embedded VDU sequences.</li>
+<li>INPUT / LINE INPUT.</li>
+<li>GET / GET$ / INKEY / INKEY$ (positive INKEY timeout presents graphics).</li>
+<li>MOUSE on desktop (pygame) backends.</li>
+<li>COLOUR / COLOR for text and multi-arg RGB palette definitions.</li>
+</ul>
+
+<h2 id="files">Files</h2>
+<ul>
+<li>OPENIN / OPENOUT / OPENUP</li>
+<li>PRINT# / INPUT# / BGET# / BPUT# / EOF# / CLOSE#</li>
+<li>Paths relative to working directory / MINIBASIC_DIR conventions.</li>
+</ul><p>OSCLI / * commands: a useful subset (paths, display helpers). Not a full RISC OS SYS surface.</p>
+
+<h2 id="procedures-and-functions">Procedures and functions</h2>
+<p>DEF PROC / ENDPROC and DEF FN / END DEF. Call with glued names: PROCdraw, FNlen(x). Both DEFPROC and DEF PROC forms are accepted; the name after PROC/FN must still be glued.</p><pre><code>DEF PROCgreet(n$)
+  PRINT &quot;Hello &quot;; n$
+ENDPROC
+
+PROCgreet(&quot;world&quot;)
+</code></pre>
+
+<h2 id="graphics-and-mode">Graphics and MODE</h2>
+<p>Graphics require a display backend that can plot (typically pygame via --display pygame or auto-enable when graphics keywords appear). Use --display none for headless runs.</p><table>
+<thead><tr><th>Statement</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td>MODE n (0–7 + extended 8+)</td><td><span class="status-yes">yes</span></td></tr><tr><td>MODE 7 teletext</td><td><span class="status-partial">partial</span> (colours, mosaics, flash; not full SAA5050)</td></tr><tr><td>GCOL action, colour (0–7)</td><td><span class="status-yes">yes</span></td></tr><tr><td>COLOUR / COLOR (incl. RGB multi-arg)</td><td><span class="status-yes">yes</span></td></tr><tr><td>MOVE / DRAW / PLOT</td><td><span class="status-yes">yes</span> (subset of PLOT codes + BB4W extras)</td></tr><tr><td>CIRCLE / CIRCLE FILL</td><td><span class="status-yes">yes</span></td></tr><tr><td>RECTANGLE / RECTANGLE FILL</td><td><span class="status-yes">yes</span></td></tr><tr><td>CLS / CLG</td><td><span class="status-yes">yes</span></td></tr><tr><td>ORIGIN / VDU 29</td><td><span class="status-yes">yes</span> (bottom-left OS origin)</td></tr><tr><td>VDU 5 graphics text</td><td><span class="status-yes">yes</span> (top-left of character cell; colour 7 = white)</td></tr><tr><td>WAIT / *REFRESH</td><td><span class="status-yes">yes</span></td></tr><tr><td>OFF (cursor)</td><td><span class="status-yes">yes</span></td></tr><tr><td>SOUND / ENVELOPE</td><td><span class="status-partial">partial</span> (see Sound section — silent stubs)</td></tr>
+</tbody>
+</table><pre><code>MODE 8
+GCOL 0, 7
+MOVE 0, 0
+DRAW 1280, 1024
+CIRCLE FILL 640, 512, 200
+</code></pre>
+
+<h2 id="sound-sound-and-envelope">Sound (SOUND and ENVELOPE)</h2>
+<p>There is no audio engine: speakers stay silent. SOUND and ENVELOPE exist so BBCSDL programs (especially welcome.bbc) parse cleanly and do not fall into ON ERROR traps.</p><table>
+<thead><tr><th>Statement</th><th>What works</th><th>What does not</th></tr></thead>
+<tbody>
+<tr><td>ENVELOPE …</td><td>Accepted; arguments evaluated (e.g. RND side effects); silent no-op</td><td>No ADSR/pitch envelope; does not shape SOUND</td></tr><tr><td>SOUND ch, amp, pitch, dur</td><td>Four numeric args required; under a non-terminal (pygame) display, sleeps for pacing using duration only</td><td>No tone; channel, amplitude and pitch ignored for audio</td></tr><tr><td>SOUND OFF / *VOICE / *TEMPO / *STEREO / ADVAL queues</td><td>Not real audio control</td><td>No multi-channel synthesis (polly deferred)</td></tr>
+</tbody>
+</table><p>Duration units are treated as classic BBC 1/20 second steps: wait ≈ dur × 0.05 s, capped at 1.0 s (so SOUND …,255 does not stall for many seconds of silence). With --display none or terminal, SOUND is still parsed but usually does not sleep.</p><pre><code>10 ENVELOPE 1,1,-10,-10,-10,255,255,255,127,0,0,-127,127,0
+20 PRINT &quot;envelope ok&quot;   : REM no error, no sound
+30 MODE 8
+40 SOUND 1,-15,100,4     : REM ~0.2 s silent pause (pygame)
+50 PRINT &quot;after sound&quot;
+60 END
+</code></pre><p>Also accepted (silent / pacing only): SOUND 1,1,255,255 and SOUND &amp;11,0,1,1 (welcome); SOUND 1,-15,50,2 (click-style delay in some games).</p><div class="note"><strong>Not 1.00:</strong> real beeps, music, or full SOUND/ENVELOPE hardware. That remains deferred (e.g. polly.txt).</div>
+
+<h2 id="vdu-control">VDU control</h2>
+<p>VDU sequences match the 1.00 phases A–C plan. Unknown VDU 23,n forms consume parameters and do not raise errors (Phase C).</p><table>
+<thead><tr><th>Codes</th><th>Meaning in mini_basic</th></tr></thead>
+<tbody>
+<tr><td>4 / 5</td><td>Text vs graphics print mode</td></tr><tr><td>7</td><td>Bell (soft)</td></tr><tr><td>8–11, 13</td><td>Cursor motion / CR</td></tr><tr><td>12 / 16</td><td>CLS / CLG</td></tr><tr><td>17</td><td>Text colour (COLOUR)</td></tr><tr><td>18</td><td>GCOL</td></tr><tr><td>20</td><td>Reset colours</td></tr><tr><td>24</td><td>Graphics viewport (store; soft clip)</td></tr><tr><td>25</td><td>PLOT</td></tr><tr><td>26</td><td>Reset viewports</td></tr><tr><td>28</td><td>Text viewport (store + cursor clamp)</td></tr><tr><td>29</td><td>ORIGIN</td></tr><tr><td>30 / 31</td><td>Cursor home / TAB(x,y)</td></tr><tr><td>23,1</td><td>Cursor visible</td></tr><tr><td>23,22,w;h;cx,cy,ncols,cs</td><td>User mode (custom size + character cell)</td></tr><tr><td>23,n redefine char</td><td>8×8 user glyphs</td></tr><tr><td>23,* other</td><td>Consume; no error</td></tr>
+</tbody>
+</table><pre><code>REM squares.bbc style custom screen
+W% = 512
+VDU 23,22,W%;W%;8,16,16,0
+</code></pre>
+
+<h2 id="error-handling">Error handling</h2>
+<ul>
+<li>ON ERROR … with ERR and ERL available in handlers.</li>
+<li>RESUME where supported.</li>
+<li>ON CLOSE for window close (pygame).</li>
+</ul><p>Missing THEN line targets abort RUN after an IF error message (classic-safe behaviour).</p>
+
+<h2 id="bbc-family-compatibility-matrix">BBC family compatibility matrix</h2>
+<p>Legend: yes = supported, partial = subset or different semantics, no = not available. Columns: Beeb MOS, RISC OS, BB4W, BBCSDL, mini_basic (bbc mode).</p><table>
+<thead><tr><th>Feature</th><th>Beeb</th><th>ROS</th><th>BB4W</th><th>SDL</th><th>mini</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>PROC/FN glued to name</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>No space: PROCfoo not PROC foo (ROS: Bad call if spaced)</td></tr><tr><td>DEFPROC / DEF PROC</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Both forms; PROC still glued to name after DEF</td></tr><tr><td>LIST spacing PROC name</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Export must re-glue; mini LIST now glues for ROS paste</td></tr><tr><td>CASE / WHEN / OF</td><td><span class="status-no">no</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Not on classic Beeb MOS</td></tr><tr><td>WHILE / ENDWHILE</td><td><span class="status-no">no</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Beeb: REPEAT only</td></tr><tr><td>SYS / OSCLI *</td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td>Beeb *FX; ROS SYS; BB4W/SDL rich SYS</td></tr><tr><td>@lib$ @dir$ path vars</td><td><span class="status-no">no</span></td><td><span class="status-no">no</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td>BB4W/SDL; mini stubs some</td></tr><tr><td>INSTALL / LIBRARY</td><td><span class="status-no">no</span></td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td>BB4W/SDL library path</td></tr><tr><td>MODE 0–7 Beeb</td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>ROS modes differ; MODE 7 teletext ROS ≠ Beeb</td></tr><tr><td>MODE 8+ (PC/SDL)</td><td><span class="status-no">no</span></td><td><span class="status-no">no</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>BB4W/SDL extended modes</td></tr><tr><td>VDU 5 graphics text</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Cursor = top-left of cell (welcome letters)</td></tr><tr><td>VDU 23 redefine char</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>welcome CHR$255 solid block</td></tr><tr><td>VDU 24 graphics window</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>CLG clips to window (welcome red frame)</td></tr><tr><td>ORIGIN / VDU 29</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>welcome disc icon origin</td></tr><tr><td>PLOT 0–255 Beeb set</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td>mini subset + BB4W extras (CIRCLE…)</td></tr><tr><td>CIRCLE / ELLIPSE keywords</td><td><span class="status-no">no</span></td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Beeb: PLOT codes; ROS has some</td></tr><tr><td>GCOL action 0–7</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Invert = PLOT …6; welcome zaps</td></tr><tr><td>Colour 7 = white</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Not VGA gray; letters GCOL 0,7</td></tr><tr><td>INKEY / INKEY$</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>INKEY n cs; INKEY1 glued → INKEY(1)</td></tr><tr><td>ENVELOPE / SOUND</td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td>ENVELOPE no-op; SOUND silent + optional wait (no audio)</td></tr><tr><td>MOUSE</td><td><span class="status-no">no</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Desktop / BB4W/SDL</td></tr><tr><td>ON CLOSE</td><td><span class="status-no">no</span></td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Window close trap (SDL/BB4W)</td></tr><tr><td>Integer % vars</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>32-bit on classic; mini bigint option</td></tr><tr><td>DIV toward zero</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-partial">partial</span></td><td>mini historically floor-div; check suite</td></tr><tr><td>TRUE = -1</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>All BBC family</td></tr><tr><td>Line numbers required</td><td><span class="status-yes">yes</span></td><td><span class="status-no">no</span></td><td><span class="status-no">no</span></td><td><span class="status-no">no</span></td><td><span class="status-partial">partial</span></td><td>Beeb classic; ROS/BB4W unnumbered OK</td></tr><tr><td>Tokenized program files</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Formats differ; mini detokenizes Beeb/SDL</td></tr><tr><td>welcome.bbc corpus</td><td><span class="status-partial">partial</span></td><td><span class="status-partial">partial</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Written for SDL; ROS needs glued PROC LIST</td></tr><tr><td>Bare IF cond: body</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>IF(I%AND1)=0:PLOT… (no THEN)</td></tr><tr><td>ASC&quot;B&quot; without ( )</td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td><span class="status-yes">yes</span></td><td>Glued string literal form</td></tr>
+</tbody>
+</table>
+
+<h2 id="keywords-quick-reference">Keywords (quick reference)</h2>
+<p>Common statements and functions available in bbc/mini modes. This is not the full classic keyword encyclopaedia; see BBC_BASIC_Manual.html Part 3 for historical prose.</p><pre><code>Program:    NEW LOAD SAVE CHAIN RUN LIST END STOP REM
+Flow:       IF THEN ELSE ELSEIF ENDIF FOR NEXT WHILE WEND REPEAT UNTIL
+            CASE WHEN OTHERWISE ENDCASE GOTO GOSUB RETURN ON EXIT
+Proc/FN:    DEF PROC ENDPROC DEF FN END DEF
+I/O:        PRINT INPUT LINE GET GET$ INKEY INKEY$ COLOUR COLOR
+Files:      OPENIN OPENOUT OPENUP PRINT# INPUT# BGET# BPUT# EOF# CLOSE#
+Graphics:   MODE GCOL MOVE DRAW PLOT CIRCLE RECTANGLE CLS CLG ORIGIN
+            WAIT OFF VDU OSCLI *
+Data:       DATA READ RESTORE DIM
+Errors:     ON ERROR RESUME ON CLOSE
+Functions:  ABS ACS ASN ATN COS SIN TAN SQR LOG EXP INT SGN RND
+            RAD DEG ASC CHR$ LEFT$ RIGHT$ MID$ STR$ VAL LEN INSTR
+            TIME TIME$ POINT TINT (where implemented)
+</code></pre>
+
+<h2 id="not-implemented-deferred">Not implemented (deferred)</h2>
+<p>These areas are out of scope for the 1.00 language baseline. Programs that need them should be deferred or rewritten.</p><table>
+<thead><tr><th>Area</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td>RISC OS WIMP</td><td>MENU, WINDOW, ICON, rich ON MOUSE UI</td></tr><tr><td>Inline assembler</td><td>OSASM, CALL/USR machine code</td></tr><tr><td>OS FFI</td><td>SYS Windows API, INSTALL libraries</td></tr><tr><td>Structures</td><td>DIM struct{} / TYPE as in BB4W</td></tr><tr><td>Pointers</td><td>byte/word/string indirection ? ! $ $$</td></tr><tr><td>Sound (real audio)</td><td>Multi-channel synthesis / polly. Stubs: ENVELOPE no-op; SOUND silent + optional capped wait (see Sound section)</td></tr><tr><td>Teletext remainder</td><td>Double-height, conceal, boxed, full SAA5050</td></tr><tr><td>Physics / network</td><td>Box2D bindings, Ceefax HTTP</td></tr><tr><td>Compiler</td><td>Crunch / compile-to-native</td></tr>
+</tbody>
+</table>
+
+<h2 id="relationship-to-the-classic-manual">Relationship to the classic manual</h2>
+<p>Source HTML: documentation/BBC_BASIC_Manual.html (Part 1 Overview, Part 2 Programming techniques, Part 3 Keywords, Part 4 Appendices). That text describes classic BBC BASIC / RISC OS environments.</p><ul>
+<li>Part 1 (entering BASIC, editing): use mini_basic CLI/REPL instead of RISC OS *BASIC.</li>
+<li>Part 2 techniques (loops, PROC, arrays, strings): largely apply when using dialect bbc/mini.</li>
+<li>Graphics and VDU chapters: use this edition’s MODE/VDU tables; hardware MODE timings differ.</li>
+<li>WIMP / assembler / SYS chapters: not applicable to mini_basic 1.00.</li>
+<li>Sound chapters: not a full synthesis engine here.</li>
+</ul><p>Open the classic HTML for historical wording; open this HTML for what mini_basic will actually run.</p>
+
+<h2 id="examples">Examples</h2>
+<p>Runnable samples live under examples/ in a full source checkout (not inside the pip wheel).</p><ul>
+<li>examples/mini/ — small demos and CLI samples</li>
+<li>examples/graphics/ — squares, saucer, piechart, jclock, wheel, …</li>
+<li>examples/vdu/ — VDU phase demos</li>
+<li>examples/teletext/ — MODE 7 test screen</li>
+<li>examples/games/ — larger BBCSDL-style games (needs full tree + often pygame)</li>
+</ul><p>Programs confirmed to look right on mini_basic include welcome, squares, saucer, flier, soccerball, wheel, jclock, filters, hanoi, and animal (when those files are in your tree).</p><div class="note"><strong>Developers only:</strong> automated BBCSDL regression material is under <code>test/corpus/bbcsdl/</code> (audit list in CORPUS_AUDIT.txt). That tree is not part of the language reference for end users and is omitted from the PyPI package.</div>
+
+<footer class="meta">
+Generated by documentation/build_minibasic_manual.py ·
+Source style from BBC_BASIC_Manual.html ·
+Not affiliated with Acorn or RISC OS Ltd ·
+mini_basic is an independent Python interpreter.
+</footer>
+</body>
+</html>

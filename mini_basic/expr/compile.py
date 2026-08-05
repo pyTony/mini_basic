@@ -103,7 +103,17 @@ class CompiledExpr:
             )
         ):
             return interp._eval_numeric_slow(self.source)
-        result = eval(self.code, SAFE_EVAL_GLOBALS, self._namespace(interp))
+        namespace = self._namespace(interp)
+        # Pure bitwise path after parenthesized comparisons expand to -1/0:
+        # e.g. CONT AND (I% < 16) → CONT AND -1. CONT may be float TRUE (-1.0);
+        # Python & requires ints — BBC AND/OR/EOR always integer-coerce.
+        if interp._expr_is_pure_bitwise(self.source):
+            for key, val in list(namespace.items()):
+                if isinstance(val, float):
+                    namespace[key] = int(val)
+                elif isinstance(val, bool):
+                    namespace[key] = -1 if val else 0
+        result = eval(self.code, SAFE_EVAL_GLOBALS, namespace)
         # Preserve exact precision for integer results (e.g. a bigint literal left
         # behind by FN-call expansion, such as FNfact(100)). Forcing float() here
         # would silently truncate anything past ~53 bits of mantissa, and would

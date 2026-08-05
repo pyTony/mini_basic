@@ -1,0 +1,65 @@
+      REM Demonstration of the Box2D (v2.2.1 or v2.3.1) Physics Engine
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 26-Jan-2013
+      REM https://www.canstockphoto.com (c) Can Stock Photo / AlexLMX
+      
+      MODE 8 : OFF
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE ERROR 0,REPORT$+" at line "+STR$ERL
+      ON CLOSE PROCcleanup : QUIT
+      
+      gravity_x = 0.0
+      gravity_y = -39.8
+      
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_b2DebugInit(myWorld%%, %01011, 20)
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 16.0, -0.1, 0.0, 16.0, 0.1)
+      
+      drum%% = FN_b2KinematicBody(myWorld%%, 16.0, 12.8, 0.0, 0, 0, 0.0, 0, 0)
+      DIM x(89), y(89)
+      FOR i% = 0 TO 89
+        x(i%) = 8*COSRAD(4*i%)
+        y(i%) = 8*SINRAD(4*i%)
+      NEXT
+      rim%% = FN_b2ChainFixture(drum%%, 90, x(), y(), 0.8, 0.0, 1.0, TRUE)
+      
+      paddles%% = FN_b2KinematicBody(myWorld%%, 16.0, 12.8, 0.0, 0, 0, 5.0, 0, 0)
+      FOR i% = 0 TO 2
+        x = 7.8 * COS(2*PI*i%/3)
+        y = 7.8 * SIN(2*PI*i%/3)
+        bumper%% = FN_b2BoxFixture(paddles%%, x, y, 2*PI*i%/3, 0.2, 0.2, 0.0, 0, 1.0)
+      NEXT
+      
+      timeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 3
+      
+      balls% = 0
+      *REFRESH OFF
+      REPEAT
+        frame% += 1
+        IF frame% MOD 10 = 0 THEN
+          balls% += 1
+          IF balls% < 50 THEN
+            body%% = FN_b2DynamicBody(myWorld%%, 15+2*RND(1), 18, 0.0, 0, 0, 0, 0, 0)
+            ball%% = FN_b2CircleFixture(body%%, 0, 0, 0.6, 0.1, 0.9, 1.0)
+          ENDIF
+        ENDIF
+        
+        CLS
+        PROC_b2WorldStep(myWorld%%, timeStep, velIterations%, posIterations%)
+        PROC_b2DebugDraw(myWorld%%)
+        *REFRESH
+        WAIT 1
+        IF INKEY(-1) PROC_b2DebugFlags(4, 0) ELSE PROC_b2DebugFlags(4, 4)
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2Exit
+      ENDPROC
+      

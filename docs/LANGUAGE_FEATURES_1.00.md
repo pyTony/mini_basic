@@ -1,7 +1,7 @@
 # mini_basic 1.00 — Language features & ship qualification
 
 **Status:** Ready to ship as **1.00** under the scope locked below  
-**Version line:** `mini_basic 1.00-dev` → tag **1.00** when this document is accepted  
+**Version line:** `1.0.0.dev0` (PEP 440 / PyPI) → tag **`1.0.0`** when this document is accepted  
 **Date:** 2026-08-03  
 **Related:** [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`FEATURES_DONE.txt`](../FEATURES_DONE.txt) · [`CORPUS_AUDIT.txt`](../CORPUS_AUDIT.txt) · [`USER_APPROVAL.txt`](../USER_APPROVAL.txt)
 
@@ -147,6 +147,38 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 - Nested **integer** `FOR` bodies of simple plot/colour form can use a native fast path (e.g. **squares.bbc** munching pattern).
 - Float geometry loops (**saucer.bbc**) remain interpreter-paced; shape is user-approved; speed is not a 1.00 blocker.
 
+### 4.4 Sound (`SOUND` / `ENVELOPE`) — what “limited” means
+
+There is **no audio engine**: nothing is heard on speakers. Statements are accepted so BBCSDL demos (e.g. **welcome.bbc**) do not crash via `ON ERROR`.
+
+| Statement | Works as | Does not do |
+|-----------|----------|-------------|
+| **`ENVELOPE …`** | Parse args (side effects such as `RND()` run); **silent no-op** | Pitch/ADSR envelopes; no effect on later `SOUND` |
+| **`SOUND ch, amp, pitch, dur`** | Requires **4** numeric args; with a **non-terminal** display (typically pygame), **sleeps** using `dur` for pacing | No tone; channel / amplitude / pitch ignored for audio |
+| **`SOUND OFF`**, multi-channel mix, ROS 5-arg `SOUND`, `*VOICE` / `*TEMPO` / `*STEREO` | Not real audio control | — |
+| **`ADVAL` sound queues** | Not a real queue | — |
+
+**Timing details for `SOUND` (when sleep applies):**
+
+- BBC-style duration units ≈ **1/20 s** → wait ≈ `dur * 0.05` seconds.
+- Wait is **capped at 1.0 s** so values like `dur=255` do not stall ~12 s of silence.
+- Sleep + event pump only when a graphical display is live and backend is **not** pure `terminal`. With `--display none` / `terminal`, `SOUND` still parses but typically **does not sleep**.
+
+**Examples that run cleanly:**
+
+```basic
+10 ENVELOPE 1,1,-10,-10,-10,255,255,255,127,0,0,-127,127,0
+20 PRINT "envelope ok"   : REM no error; no sound
+30 MODE 8
+40 SOUND 1,-15,100,4     : REM ~0.2 s silent pause under pygame
+50 PRINT "after sound"
+60 END
+```
+
+Corpus snippets accepted the same way: `SOUND 1,1,255,255`, `SOUND &11,0,1,1` (welcome), `SOUND 1,-15,50,2` (click-style pacing).
+
+**Not available for 1.00:** real music / beeps / **polly**-class synthesis. Full sound remains **deferred**.
+
 ---
 
 ## 5. Validation evidence (why not “0.9”)
@@ -184,7 +216,7 @@ From `mini_basic/features/deferred.py` and project policy:
 
 | Area | Examples |
 |------|----------|
-| Sound | Full `SOUND` / `ENVELOPE` / multi-channel audio (**polly** deferred) |
+| Sound | Real audio synthesis (**polly** deferred). Stub behaviour: §4.4 (`ENVELOPE` no-op; `SOUND` silent + optional short wait) |
 | Desktop | RISC OS WIMP, MENU, WINDOW, rich `ON MOUSE` UI |
 | OS FFI | `SYS` Windows API, `INSTALL` token libraries |
 | Low-level | Inline assembler, `CALL`/`USR` machine code |

@@ -1,0 +1,144 @@
+      ON ERROR IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      
+      REM Demonstration of Box2D and the Box2DGFX renderer with BBCSDL
+      REM by Richard Russell, http://www.rtrussell.co.uk/, 05-Apr-2021
+      REM This program is also compatible with 'BBC BASIC for Windows'
+      
+      MODE 8 : OFF
+      ORIGIN 1016,0
+      IF INKEY$(-256) = "W" SetTitle$ = "SetWindowText" ELSE SetTitle$ = "SDL_SetWindowTitle"
+      SYS SetTitle$, @hwnd%, "BBC BASIC for SDL 2.0 + Box2D: " + \
+      \                      "Hold left mouse button to grab the chain!", @memhdc%
+      
+      INSTALL @lib$+"box2dlib" : PROC_b2Init
+      INSTALL @lib$+"box2dgfx"
+      INSTALL @lib$+"box2ddbg"
+      
+      ON ERROR PROCcleanup : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      REM Initialise accelerometer (if any)
+      joystick%% = 0
+      IF INKEY$(-256) <> "W" IF (@platform% AND &F) < 5 THEN
+        SYS "SDL_NumJoysticks" TO N%
+        IF N% THEN
+          FOR I% = 0 TO N%-1
+            SYS "SDL_JoystickNameForIndex", I% TO p%%
+            IF @platform% AND &40 ELSE p%% = !^p%%
+            IF INSTR($$p%%, "Accelerometer") THEN
+              SYS "SDL_JoystickOpen", I% TO joystick%%
+              IF @platform% AND &40 ELSE joystick%% = !^joystick%%
+              EXIT FOR
+            ENDIF
+          NEXT
+        ENDIF
+      ENDIF
+      
+      gravity_x = 0.0
+      gravity_y = -9.8
+      scale = 200.0
+      myWorld%% = FN_b2CreateWorld(gravity_x, gravity_y)
+      PROC_gfxInit(gfx{}, 640, 512, scale)
+      PROC_b2DebugInit(myWorld%%, %01011, scale)
+      
+      PROC_gfxLoad(crane{}, @dir$+"cranejib.jpg", 400.0)
+      PROC_gfxLoad(link{}, @dir$+"link80.png", 800.0)
+      IF INKEY$(-256) = "W" PROC_gfxMultiply(link{})
+      
+      ground%% = FN_b2StaticBox(myWorld%%, 0.0, -0.64, 0.0, 1.6, 0.01)
+      
+      y = 2.35
+      x = 0.03
+      prevbody%% = ground%%
+      FOR i% = 0 TO 23
+        body%% = FN_b2DynamicBody(myWorld%%, x, y, 0, 0, 0, 0, 0.1, 0)
+        fixture%% = FN_b2BoxFixture(body%%, 0, 0, 0, 0.06, 0.025, 0.2, 0.0, 10.0)
+        joint%% = FN_b2RevoluteJoint(myWorld%%, prevbody%%, body%%, x-0.036, y, 0, 0)
+        PROC_b2UserDataBody(body%%, link{})
+        prevbody%% = body%%
+        x += 0.095
+      NEXT
+      
+      pick%% = FN_b2KinematicBody(myWorld%%, 0, 0, 0, 0, 0, 0, 0, 0)
+      sensor%% = FN_b2BoxFixture(pick%%, 0, 0, 0, 0.01, 0.01, 0.1, 0, 1.0)
+      PROC_b2SetSensor(sensor%%, 1)
+      
+      TimeStep = 1.0/60.0
+      velIterations% = 8
+      posIterations% = 16
+      xshift = 0.0
+      yshift = 0.0
+      
+      joint%% = 0
+      *REFRESH OFF
+      REPEAT
+        IF joystick%% THEN
+          SYS "SDL_JoystickGetAxis", joystick%%, 0 TO x% : x% = (x% << 16) >> 16
+          SYS "SDL_JoystickGetAxis", joystick%%, 1 TO y% : y% = (y% << 16) >> 16
+          IF (@platform% AND 7) = 4 THEN
+            SYS "SDL_GetWindowSize", @hwnd%, ^w%, ^h%
+            IF w% > h% SWAP x%,y% : y% *= -1 : REM iOS fix
+          ENDIF
+          IF x% OR y% THEN
+            r = gravity_y / SQR(x%*x% + y%*y%)
+            PROC_b2SetGravity(myWorld%%, -x% * r, y% * r)
+          ENDIF
+        ENDIF
+        
+        PROC_gfxBlit(gfx{}, crane{}, -.94, 1.1, TRUE)
+        
+        MOUSE x%, y%, b%
+        x = (x% / 2 - xshift) / scale : y = (y% / 2 - yshift) / scale
+        PROC_b2SetBody(pick%%, x, y, 0)
+        IF b% AND 4 THEN
+          IF INKEY$(-256) <> "W" PROC_b2SetAwake(pick%%, 1)
+        ELSE
+          IF joint%% PROC_b2DestroyJoint(myWorld%%, joint%%)
+          joint%% = 0
+        ENDIF
+        IF joint%% PROC_b2SetTarget(joint%%, x, y)
+        
+        IF joint%% = 0 IF b% AND 4 THEN
+          contact%% = FN_b2ContactListBody(pick%%)
+          WHILE contact%%
+            IF FN_b2IsTouching(contact%%) THEN
+              PROC_b2GetContact(contact%%, fixture1%%, fixture2%%, child1%, child2%)
+              IF fixture1%% = sensor%% fixture1%% = fixture2%%
+              body%% = FN_b2GetBody(fixture1%%)
+              IF body%% IF fixture%% <> ground%% THEN
+                PROC_b2GetBody(body%%, x, y, a)
+                joint%% = FN_b2MouseJoint(myWorld%%, pick%%, body%%, x, y, 50, 10, 0.7)
+                EXIT WHILE
+              ENDIF
+            ENDIF
+            contact%% = FN_b2NextContact(contact%%)
+          ENDWHILE
+        ENDIF
+        
+        PROC_b2WorldStep(myWorld%%, TimeStep, velIterations%, posIterations%)
+        PROC_gfxRender(gfx{}, myWorld%%)
+        PROC_gfxMatrix(gfx{}, xshift, yshift, scale)
+        IF INKEY(-51) PROC_b2DebugMatrix(xshift, yshift, scale) : PROC_b2DebugDraw(myWorld%%)
+        
+        PROC_gfxDisplay
+        CASE INKEY(0) OF
+          WHEN 133,140: scale /= 1.05 : IF scale < 200  scale = 200
+          WHEN 132,141: scale *= 1.05 : IF scale > 1500 scale = 1500
+        ENDCASE
+        IF INKEY(-26)  xshift -= 0.5
+        IF INKEY(-122) xshift += 0.5
+        IF INKEY(-42)  yshift -= 0.5
+        IF INKEY(-58)  yshift += 0.5
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      ON ERROR OFF
+      VDU 23,22,640;500;8,20,16,128
+      myWorld%% += 0 : IF myWorld%% PROC_b2DestroyWorld(myWorld%%) : myWorld%% = 0
+      PROC_b2DebugExit
+      PROC_gfxExit
+      PROC_b2Exit
+      ENDPROC
