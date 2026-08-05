@@ -3094,6 +3094,108 @@ class RuntimeExprMixin:
             value = self._coerce_int_storage(value)
         self._write_lvalue(loc, value)
 
+    def _try_string_slice_assign(self, var: str, expr: str) -> bool:
+        """Handle BBC/Microsoft LHS forms: MID$(A$,p)=S$, LEFT$(A$)=S$, RIGHT$(A$)=S$.
+        
+        Desugars to ordinary string reconstruction. Overall string length is never
+        altered. Number of characters overwritten is min(window, LEN(replacement)
+        [, explicit n]). Returns True if the LHS was recognised and assigned.
+        """
+        text = var.strip()
+        # MID$(str, start [, length])
+        mid = re.match(r'^MID\$\s*\(\s*(.+)\s*\)\s*$', text, re.IGNORECASE)
+        if mid:
+            args = self._split_args(mid.group(1))
+            if len(args) < 2 or len(args) > 3:
+                return False
+            target = args[0].strip()
+            try:
+                base, kind = self._parse_var_token(target)
+            except ValueError:
+                return False
+            if kind != 'str':
+                return False
+            start = int(self._eval_numeric(args[1]))
+            if start < 1:
+                start = 1
+            replacement = self._eval_string_expr(expr.strip())
+            current = self.str_variables.get(base, '')
+            remaining = max(0, len(current) - (start - 1))
+            if len(args) == 2:
+                take = min(remaining, len(replacement))
+            else:
+                n = int(self._eval_numeric(args[2]))
+                if n < 0:
+                    n = 0
+                take = min(remaining, n, len(replacement))
+            left = current[: start - 1]
+            new_val = left + replacement[:take] + current[start - 1 + take :]
+            self.str_variables[base] = new_val
+            return True
+
+        # LEFT$(str [, n])
+        leftm = re.match(r'^LEFT\$\s*\(\s*(.+)\s*\)\s*$', text, re.IGNORECASE)
+        if leftm:
+            args = self._split_args(leftm.group(1))
+            if not args or len(args) > 2:
+                return False
+            target = args[0].strip()
+            try:
+                base, kind = self._parse_var_token(target)
+            except ValueError:
+                return False
+            if kind != 'str':
+                return False
+            replacement = self._eval_string_expr(expr.strip())
+            current = self.str_variables.get(base, '')
+            if len(args) == 1:
+                # overwrite first min(LEN(A$), LEN(S$)) chars
+                n = min(len(current), len(replacement))
+                new_val = replacement[:n] + current[n:]
+            else:
+                n = int(self._eval_numeric(args[1]))
+                if n < 0:
+                    n = 0
+                take = min(n, len(replacement), len(current))
+                new_val = replacement[:take] + current[take:]
+            self.str_variables[base] = new_val
+            return True
+
+        # RIGHT$(str [, n])
+        rightm = re.match(r'^RIGHT\$\s*\(\s*(.+)\s*\)\s*$', text, re.IGNORECASE)
+        if rightm:
+            args = self._split_args(rightm.group(1))
+            if not args or len(args) > 2:
+                return False
+            target = args[0].strip()
+            try:
+                base, kind = self._parse_var_token(target)
+            except ValueError:
+                return False
+            if kind != 'str':
+                return False
+            replacement = self._eval_string_expr(expr.strip())
+            current = self.str_variables.get(base, '')
+            if len(args) == 1:
+                n = min(len(current), len(replacement))
+                if n == 0:
+                    new_val = current
+                else:
+                    new_val = current[:-n] + replacement[:n]
+            else:
+                n = int(self._eval_numeric(args[1]))
+                if n < 0:
+                    n = 0
+                take = min(n, len(replacement), len(current))
+                if take == 0:
+                    new_val = current
+                else:
+                    new_val = current[:-take] + replacement[:take]
+            self.str_variables[base] = new_val
+            return True
+
+        return False
+
     def _eval_assignment_expr(self, expr: str, *, kind: VarKind) -> object:
         self._validate_assignment_rhs(expr)
         if kind == 'str':
@@ -3131,9 +3233,15 @@ class RuntimeExprMixin:
         norm = self._normalize_identifier(var.strip())
         if norm.upper() == 'PI' and self.config.dialect == 'bbc':
             raise ValueError('cannot assign to constant PI')
+        # BBC/Microsoft: MID$/LEFT$/RIGHT$ as lvalues (string slice assignment).
+        # Desugar to ordinary string reconstruction so existing LEFT$/MID$/RIGHT$
+        # functions do the work; never treat these as array references.
+        if self._try_string_slice_assign(var, expr):
+            return
         if self._parse_array_lvalue(var) is not None:
             self._assign_array_element(var, expr)
             return
+
         try:
             system_name = self._canonical_system_var_name(var)
         except ValueError:
@@ -3217,7 +3325,7 @@ class RuntimeExprMixin:
 
         # Remove double spaces
         segment = re.sub(r'\s+', ' ', segment)
-        return segment.strip()
+        return segment
 
     def _apply_structural_indents(self) -> None:
         """Replace any existing indent with structure-based indent.

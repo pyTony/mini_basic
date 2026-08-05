@@ -1615,7 +1615,7 @@ class RuntimeIoMixin:
             if end > index:
                 parts.append(self._space_expr_segment(expr[index:end]))
             index = end
-        return ''.join(parts)
+        return ''.join(parts).strip()
 
     def _format_statement_part(self, statement: str) -> str:
         stmt = statement.strip()
