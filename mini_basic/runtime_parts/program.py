@@ -1207,10 +1207,10 @@ class RuntimeProgramMixin:
         #   lookahead for digit/ident/paren instead of trailing \b.
         # Require lookbehind digit/paren so AMOD / XMOD stay identifiers.
         expr = re.sub(
-            r'(?<=[0-9)])(MOD|DIV|AND|OR|EOR|XOR)(?=\s|[0-9A-Za-z_(]|$)',
-            r' \1 ',
-            expr,
-            flags=re.IGNORECASE,
+               r'(?:(?<![A-Za-z0-9_])(\d+)|(\)))(MOD|DIV|AND|OR|EOR|XOR)(?=\s|[0-9A-Za-z_(]|$)',
+               lambda m: (m.group(1) or m.group(2)) + ' ' + m.group(3) + ' ',
+               expr,
+               flags=re.IGNORECASE,
         )
         # Welcome / Clock: A%AND1, A%DIV2, HOUR24%MOD 12 before var substitution
         # (no \b after AND — digit continues the word in Python \w)
@@ -1550,23 +1550,28 @@ class RuntimeProgramMixin:
 
     def _parse_assignment_statement(self, line: str) -> Tuple[str, str, str]:
         """Return (lvalue, operator, rhs) for =, +=, -=, *=, /= assignments."""
+
+        self.dprint("PARSE ASSIGN:", repr(line))
+
         text = line.strip()
-        if text.upper().startswith('LET'):
+        if text.upper().startswith("LET"):
             text = text[3:].lstrip()
-        match = self._COMPOUND_ASSIGN_RE.match(text)
+
+        match = self._COMPOUND_ASSIGN_RE.fullmatch(text)
         if match:
-            op = match.group(2).upper().replace(' ', '')
             return (
                 match.group(1).strip(),
-                op,
+                match.group(2),
                 match.group(3).strip(),
             )
-        if '=' in text:
-            var_part, expr = text.split('=', 1)
+
+        if "=" in text:
+            var_part, expr = text.split("=", 1)
             rhs = expr.strip()
             self._validate_assignment_rhs(rhs)
-            return var_part.strip(), '=', rhs
-        raise ValueError('assignment expected')
+            return var_part.strip(), "=", rhs
+
+        raise ValueError("assignment expected")
 
     def _program_display_lines(
         self,
