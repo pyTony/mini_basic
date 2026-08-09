@@ -134,3 +134,5 @@ OK _parse_command memoization cache (core + program) — Mandelbrot parse overhe
 -- compile WHILE CONT AND (I%<N) boolean path (or keep Mandelbrot EXIT WHILE workaround)
 -- consolidate PROC_FN_NAME_PATTERN across all PROC/FN parse sites (world.bbc PROC4 runtime path)
 -- PygameDisplay.write VDU 17 colour control bytes (Hanoi disc bars garbled as latin-1 glyphs)
+
+OK tree cleanup 2026-08-09: continuous-git END gate in AGENT_POLICY; gitignore debug dumps; Claude SESSION_* under docs/; junk removed (fd99199)
