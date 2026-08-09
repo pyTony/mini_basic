@@ -40,6 +40,34 @@ class ColourArrayNameTests(unittest.TestCase):
             self.assertEqual(cmd, 'COLOUR')
             self.assertEqual(rest.strip(), '15')
 
+    def test_bbc_case_sensitive_keywords_uppercase_only(self):
+        """bbc + case on: COLOUR is a command; Colour/colour are not."""
+        i = _interp('bbc')
+        self.assertTrue(i._identifiers_case_sensitive())
+        cmd, rest = i._parse_command('COLOUR 15')
+        self.assertEqual(cmd, 'COLOUR')
+        self.assertEqual(rest.strip(), '15')
+        # Mixed/lower case must not steal names like Colour& (even without &)
+        for src in ('Colour 15', 'colour 15', 'Colour&() = 1', 'colour&() = 1'):
+            cmd, _ = i._parse_command(src)
+            self.assertEqual(cmd, '', msg=src)
+
+    def test_bbc_case_fold_allows_lower_colour_statement(self):
+        i = BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='none',
+                display_locked=True,
+                identifiers_case_sensitive=False,
+            )
+        )
+        cmd, rest = i._parse_command('colour 15')
+        self.assertEqual(cmd, 'COLOUR')
+        self.assertEqual(rest.strip(), '15')
+        # Type suffix still wins over statement (colour& is not colour)
+        cmd, _ = i._parse_command('colour&() = 1, 2')
+        self.assertEqual(cmd, '')
+
     def test_whole_array_compound_with_sum_in_rhs(self):
         i = _interp('bbc')
         lhs, op, rhs = i._parse_assignment_statement(

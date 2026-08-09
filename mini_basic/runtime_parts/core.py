@@ -1470,10 +1470,12 @@ class RuntimeCoreMixin:
         return tuple(found)
 
     def _identifiers_case_sensitive(self) -> bool:
-        """mini/bbc: case-sensitive *variable* names; mits/com/tiny fold by default.
+        """mini/bbc: case-sensitive names by default; mits/com/tiny fold.
 
-        Statement keywords always match case-insensitively (freedom of case is
-        intentional UX). Identifier case still affects vars (``i`` vs ``I``).
+        When True **and** dialect is ``bbc``, statement keywords must also be
+        typed in the canonical uppercase form (``COLOUR``, ``FOR``) so mixed-case
+        names like ``Colour&`` are variables, not commands. Other dialects keep
+        keyword freedom of case even when variables are case-sensitive.
         """
         override = self.config.identifiers_case_sensitive
         if override is not None:
@@ -1481,8 +1483,14 @@ class RuntimeCoreMixin:
         return self.config.dialect in ('mini', 'bbc')
 
     def _is_statement_keyword(self, token: str) -> bool:
-        """Statement keywords match case-insensitively (``for`` / ``FOR``)."""
+        """True if token is a statement keyword under current case rules."""
         if not token:
+            return False
+        if (
+            self.config.dialect == 'bbc'
+            and self._identifiers_case_sensitive()
+            and token != token.upper()
+        ):
             return False
         return token.upper() in self._STMT_KEYWORDS
 

@@ -91,6 +91,9 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 - **bbc** ≈ structured BBC family language (PROC, CASE, WHILE, …) without mini-only extras.  
 - **mini** = **bbc-like core + numbered programs + mini extensions** (BREAK/CONTINUE, ARG, ANSI helpers).
   **Keywords** accept any case (`for`/`FOR`); **variable names** stay case-sensitive by default.
+- **bbc + case-sensitive (default for bbc):** statement keywords are **uppercase only**
+  (`COLOUR`, `FOR`). Mixed-case `Colour&` is a variable, not the COLOUR command.
+  Use `CASE OFF` / fold mode if you want `colour 15` as a statement.
 
 ---
 
