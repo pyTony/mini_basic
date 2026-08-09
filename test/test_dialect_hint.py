@@ -112,84 +112,86 @@ class DialectHintTests(unittest.TestCase):
         self.assertEqual(buf.getvalue().strip(), 'ok')
 
     def test_line_zero_dialect_and_mode_enable_pygame_before_run(self):
-        old_driver = os.environ.get('SDL_VIDEODRIVER')
-        old_no_gfx = os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
-        old_disp = os.environ.pop('MINIBASIC_DISPLAY', None)
-        os.environ['SDL_VIDEODRIVER'] = 'dummy'
-        interp = BASICInterpreter(
-            InterpreterConfig(
-                dialect='mini',
-                display='terminal',
-                hold_display_open=False,
-            ),
-        )
-        interp.program = {
-            1: 'REM dialect: bbc',
-            10: 'MODE 2',
-            20: 'GCOL 0, 1',
-            30: 'END',
+        # Hermetic env: user/shell MINIBASIC_NO_GRAPHICS must not block auto-enable.
+        env = {
+            'SDL_VIDEODRIVER': 'dummy',
+            'MINIBASIC_NO_GRAPHICS': '',
+            'MINIBASIC_DISPLAY': '',
         }
-        try:
-            with redirect_stdout(io.StringIO()):
-                interp._apply_dialect_hints_from_program(announce=False)
-                interp._maybe_auto_enable_pygame_from_program(announce=False)
-            self.assertEqual(interp.config.dialect, 'bbc')
-            self.assertEqual(interp.config.display, 'pygame')
-        finally:
-            interp._shutdown_display()
-            if old_driver is None:
-                os.environ.pop('SDL_VIDEODRIVER', None)
-            else:
-                os.environ['SDL_VIDEODRIVER'] = old_driver
-            if old_no_gfx is None:
-                os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
-            else:
-                os.environ['MINIBASIC_NO_GRAPHICS'] = old_no_gfx
-            if old_disp is None:
-                os.environ.pop('MINIBASIC_DISPLAY', None)
-            else:
-                os.environ['MINIBASIC_DISPLAY'] = old_disp
+        with patch.dict(os.environ, env, clear=False):
+            for key in ('MINIBASIC_NO_GRAPHICS', 'MINIBASIC_DISPLAY'):
+                if not os.environ.get(key):
+                    os.environ.pop(key, None)
+            with patch(
+                'mini_basic.util.session.session_supports_gui',
+                return_value=True,
+            ), patch(
+                'mini_basic.display.pygame_available',
+                return_value=True,
+            ):
+                interp = BASICInterpreter(
+                    InterpreterConfig(
+                        dialect='mini',
+                        display='terminal',
+                        hold_display_open=False,
+                    ),
+                )
+                interp.program = {
+                    1: 'REM dialect: bbc',
+                    10: 'MODE 2',
+                    20: 'GCOL 0, 1',
+                    30: 'END',
+                }
+                try:
+                    with redirect_stdout(io.StringIO()):
+                        interp._apply_dialect_hints_from_program(announce=False)
+                        interp._maybe_auto_enable_pygame_from_program(announce=False)
+                    self.assertEqual(interp.config.dialect, 'bbc')
+                    self.assertEqual(interp.config.display, 'pygame')
+                finally:
+                    interp._shutdown_display(hold=False)
 
     def test_gcol_enables_pygame_mid_run_when_only_mode_in_program(self):
-        old_driver = os.environ.get('SDL_VIDEODRIVER')
-        old_no_gfx = os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
-        old_disp = os.environ.pop('MINIBASIC_DISPLAY', None)
-        os.environ['SDL_VIDEODRIVER'] = 'dummy'
-        interp = BASICInterpreter(
-            InterpreterConfig(
-                dialect='mini',
-                display='terminal',
-                hold_display_open=False,
-            ),
-        )
-        interp.program = {
-            10: 'MODE 2',
-            20: 'GCOL 0, 1',
-            30: 'END',
+        env = {
+            'SDL_VIDEODRIVER': 'dummy',
+            'MINIBASIC_NO_GRAPHICS': '',
+            'MINIBASIC_DISPLAY': '',
         }
-        try:
-            with redirect_stdout(io.StringIO()):
-                # Force no hold even if config is overridden by display enable.
-                with patch.object(interp, '_shutdown_display', lambda *a, **k: None):
-                    interp.run()
-            self.assertEqual(interp.config.display, 'pygame')
-        finally:
-            try:
-                interp._shutdown_display(hold=False)
-            except Exception:
-                pass
-            if old_driver is None:
-                os.environ.pop('SDL_VIDEODRIVER', None)
-            else:
-                os.environ['SDL_VIDEODRIVER'] = old_driver
-            if old_no_gfx is None:
-                os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
-            else:
-                os.environ['MINIBASIC_NO_GRAPHICS'] = old_no_gfx
-            if old_disp is None:
-                os.environ.pop('MINIBASIC_DISPLAY', None)
-            else:
-                os.environ['MINIBASIC_DISPLAY'] = old_disp
+        with patch.dict(os.environ, env, clear=False):
+            for key in ('MINIBASIC_NO_GRAPHICS', 'MINIBASIC_DISPLAY'):
+                if not os.environ.get(key):
+                    os.environ.pop(key, None)
+            with patch(
+                'mini_basic.util.session.session_supports_gui',
+                return_value=True,
+            ), patch(
+                'mini_basic.display.pygame_available',
+                return_value=True,
+            ):
+                interp = BASICInterpreter(
+                    InterpreterConfig(
+                        dialect='mini',
+                        display='terminal',
+                        hold_display_open=False,
+                    ),
+                )
+                interp.program = {
+                    10: 'MODE 2',
+                    20: 'GCOL 0, 1',
+                    30: 'END',
+                }
+                try:
+                    with redirect_stdout(io.StringIO()):
+                        with patch.object(
+                            interp, '_shutdown_display', lambda *a, **k: None,
+                        ):
+                            interp.run()
+                    self.assertEqual(interp.config.display, 'pygame')
+                finally:
+                    try:
+                        interp._shutdown_display(hold=False)
+                    except Exception:
+                        pass
 
 
 if __name__ == '__main__':
