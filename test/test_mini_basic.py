@@ -1623,12 +1623,19 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(result, 'PRINT 1')
         win_edit.assert_called_once_with('10 ', 'PRINT 0')
 
-    def test_edit_program(self):
+    def test_edit_program_bare_lists_usage_and_program(self):
         interp = self.make_interp()
-        with patch('builtins.input', side_effect=['10 PRINT 1', '20 PRINT 2', '']):
+        interp.program[10] = 'PRINT 1'
+        buf = io.StringIO()
+        with redirect_stdout(buf):
             interp.edit_program()
+        out = buf.getvalue()
+        self.assertIn('EDIT needs a line number', out)
+        self.assertIn('EDIT n', out)
+        self.assertIn('PRINT 1', out)
+        # Bare EDIT no longer enters a multi-line EDIT> store loop.
         self.assertEqual(interp.program[10], 'PRINT 1')
-        self.assertEqual(interp.program[20], 'PRINT 2')
+        self.assertNotIn(20, interp.program)
 
     def test_gosub_return(self):
         lines = [

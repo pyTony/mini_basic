@@ -719,8 +719,9 @@ def _execute_repl_line(interp: BASICInterpreter, text: str) -> bool:
     elif u.startswith('EDIT'):
         target = _parse_edit_command(text)
         if target is None:
-            print('? EDIT [line]')
+            print('? EDIT line   (or bare EDIT for usage)')
         elif target == -1:
+            # No full-screen BBC editor: usage + LIST (see edit_program).
             interp.edit_program()
         else:
             interp.edit_line(target)

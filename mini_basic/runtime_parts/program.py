@@ -1775,26 +1775,26 @@ class RuntimeProgramMixin:
         return default_num, raw
 
     def edit_program(self):
+        """Bare EDIT (no line number).
+
+        mini_basic does not implement BBC BASIC's full-screen program editor.
+        EDIT without a line is therefore not a multi-line "EDIT>" mode — that
+        duplicated typing numbered lines at the main prompt and was confusing.
+
+        Useful forms:
+          EDIT n     prefilled single-line edit (cursor/word keys on Windows)
+          AUTO [n]   sequential new lines with automatic numbers
+          10 PRINT…  store/replace a line at the normal > prompt
+          10         delete line 10 at the > prompt
+          LIST       show the program
+        """
+        print('EDIT needs a line number (BBC full-screen EDIT is not available).')
+        print('  EDIT n     edit one line (prefilled; empty Enter deletes)')
+        print('  AUTO [n]   enter new lines with automatic numbers')
+        print('  10 PRINT…  type numbered lines at the > prompt to store')
+        print('  10         bare line number at > deletes that line')
+        print('  LIST       show the program')
         if self.program:
+            print()
             self.list_program()
-        print('EDIT (line statement, empty line to exit, empty EDIT line deletes)')
-        while True:
-            try:
-                text = input('EDIT> ').rstrip()
-            except (KeyboardInterrupt, EOFError):
-                print()
-                break
-            if not text:
-                break
-            parsed = self._parse_line_number(text)
-            if not parsed:
-                self._emit_error('? Use format: 10 PRINT "hi"')
-                continue
-            line_num, statement, indent = parsed
-            if not statement:
-                if line_num in self.program:
-                    self.delete_program_line(line_num)
-                    print(f'Deleted {line_num}')
-                continue
-            self.set_program_line(line_num, statement, indent)
 
