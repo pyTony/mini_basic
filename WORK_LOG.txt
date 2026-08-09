@@ -91,3 +91,19 @@
 2026-08-09 14:23:25 WORK END entry-time canonicalize Phase1: set_program_line dual-normalize; runtime unglue kept
 2026-08-09 14:25:10 WORK BEGIN Phase2 peel: monadic unglue off hot eval after entry+immediate canonicalize
 2026-08-09 14:26:53 WORK END Phase2a monadic peel: fast-reject unglue + immediate canonicalize
+2026-08-09 15:05:53 WORK END keyword case freedom restored then later tightened: case-on → uppercase keywords all dialects
+2026-08-09 15:15:13 WORK END REPL history: record every line incl. first FOR
+2026-08-09 16:02:19 WORK END session scripts: INPUT.TXT sniff, stdin, -c/--command, HELP CLI shared --help
+2026-08-09 16:02:30 WORK END queue policy: user-raised issues always top (AGENT_POLICY §2a)
+2026-08-09 16:03:48 WORK END PRINT array subscript regression tests (gap closed)
+2026-08-09 16:05:27 WORK END Phase 2b: BBC dialect normalize fast-reject at _parse_command
+2026-08-09 16:09:06 WORK END drop BBCSDL-only tools/physics/sounds; keep portable demos (wheel etc.)
+2026-08-09 16:14:04 WORK END examples/m6502-cport from garyexplains/BASIC-M6502-CPORT (mits tutorials)
+2026-08-09 16:48:11 WORK END Colour&() not COLOUR stmt; Value() *= balanced paren assign
+2026-08-09 16:52:11 WORK END case-sensitive mode: uppercase-only statement keywords all dialects
+2026-08-09 16:58:11 WORK END piechart compact IF + Colour&() OR=; misleading =return IF hint fixed
+2026-08-09 17:00:19 USER piechart re-confirmed OK (user); compact IF syntax unfamiliar not regression
+2026-08-09 17:11:43 WORK END MITS summary docs/MITS_IMPLEMENTATION.md + test_m6502_cport_mits markers
+2026-08-09 17:36:05 WORK NOTE mbasic C-port: PRINT A$;" text" drops leading space (CHRGET after quote); user repro WSL+Termux — report upstream
+2026-08-09 17:36:05 WORK END status: WORK_LOG catch-up for session after Phase2a (status.html was stale at 14:26)
+2026-08-09 17:36:05 WORK END WORK_LOG catch-up post-Phase2a session
