@@ -136,3 +136,5 @@ OK _parse_command memoization cache (core + program) — Mandelbrot parse overhe
 -- PygameDisplay.write VDU 17 colour control bytes (Hanoi disc bars garbled as latin-1 glyphs)
 
 OK tree cleanup 2026-08-09: continuous-git END gate in AGENT_POLICY; gitignore debug dumps; Claude SESSION_* under docs/; junk removed (fd99199)
+
+OK compound-assign: simple var/array LHS only (keeps OR=/AND=); save_case += and * star passthrough (committed)
