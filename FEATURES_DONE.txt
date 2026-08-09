@@ -20,7 +20,8 @@ OK examples/games/roadrace.bbc + basics/ROADRACE.BAS with instructions screen fi
 OK CORPUS_AUDIT refreshed (CORPUS_RUNNABLE restored; probe OK 11 / FAIL 15; probe timeout hang fixed)
 OK restored functional monorepo runtime from backup/runtime_old.py after incomplete modular split
 OK BBCSDL parity: CORPUS_AUDIT re-probe 2026-08-02 OK22 (polly/poem DEFER)
--- PRINT array subscript expansion (known gap)
+OK PRINT array subscript expansion: PRINT A(0)/A(i,j)/A$/A% + TAB/expr forms;
+  regression test_print_array_subscript (was known gap; already wired via eval)
 OK modular runtime: BASICInterpreter = 8 mixins under runtime_parts/* + facade runtime.py (~50KB); monorepo archived backup/runtime_monolith.py; regenerator tools/split_runtime_mixins.py; phase1 green
 OK error diagnostics to stderr + config.errors_dual_stdout for tests; richer OPEN/IF/etc detail
 OK museum ELIZA/BETH under examples/museum; compact IF THEN glue; LEN vs MID$ typing

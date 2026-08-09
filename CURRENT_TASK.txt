@@ -1,6 +1,6 @@
-Focus: Job 0 — commit session CLI + HELP CLI + queue policy
+Focus: Job 1 — PRINT array subscript expansion (PRINT a(i))
 
-Session scripts (INPUT.TXT sniff, -c, stdin), HELP CLI shared --help text,
-user-raised issues top of queue (§2a). Then standing queue Job 1+.
+Known gap: bare array subscripts in PRINT may not expand.
+Fix + phase0/1 tests; FEATURES_DONE -- → OK.
 
 Repo: C:\Users\Tony\mini_basic

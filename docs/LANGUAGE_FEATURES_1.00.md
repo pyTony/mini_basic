@@ -225,7 +225,7 @@ From `mini_basic/features/deferred.py` and project policy:
 | Physics / net | Box2D bindings, Ceefax HTTP fetch |
 | Compiler | Crunch / compile-to-native |
 
-**Also not blocking:** PRINT of bare array subscripts `PRINT a(i)` without expansion (known gap; use `;` or separate expressions); saucer draw time; piechart optional visual re-confirm if desired (audit already OK).
+**Also not blocking:** saucer draw time; piechart optional visual re-confirm if desired (audit already OK).
 
 ---
 
@@ -262,7 +262,7 @@ From `mini_basic/features/deferred.py` and project policy:
 1. polly — SOUND/ENVELOPE + OSCLI DISPLAY/FONT  
 2. poem — interactive MODE7 audit path  
 3. Saucer float-loop performance (optional)  
-4. PRINT array subscript expansion  
+4. ~~PRINT array subscript expansion~~ (done — `test_print_array_subscript`)
 5. Teletext remainder / structures / SYS as demand appears  
 
 ---
