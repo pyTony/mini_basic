@@ -70,7 +70,8 @@ Product conventions that trip people up:
 | `examples/` | Curated demos (bbc/, games/, graphics/, mini/, museum/, …) |
 | `basics/` | Small standalone BASIC programs |
 | `test/` | Unit tests + BBCSDL corpus + audit probe |
-| `documentation/feature_matrices/` | Capability matrices |
+| `documentation/feature_matrices/` | Capability matrices (generated) |
+| `docs/BASIC_VARIANTS.md` | BASIC dialects / BBC family vs mini_basic (integrates matrices) |
 | `scripts/` | Dev tools (not collected as tests) |
 | `utils/` | Status / progress helpers (`status.html`) |
 | `backup/` | Archived monolith / old runtimes |
