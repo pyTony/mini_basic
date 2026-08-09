@@ -16,9 +16,10 @@ from mini_basic.runtime_parts.core import RuntimeCoreMixin
 
 # CLI helpers without an Interpreter also dual-write when this is set.
 os.environ.setdefault('MINI_BASIC_ERRORS_DUAL_STDOUT', '1')
-# Never open real pygame windows or block on display during pytest.
+# Dummy SDL driver: pygame can still auto-enable for tests without a real window.
+# Do NOT set MINIBASIC_NO_GRAPHICS here — that blocks terminal→pygame auto-upgrade
+# (see test_dialect_hint, MODE/GCOL enable paths).
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
-os.environ.setdefault('MINIBASIC_NO_GRAPHICS', '1')
 
 _PHASE_REGRESSION = re.compile(
     r'^phase(?P<n>[0-2])(?P<slow>\s+and\s+not\s+slow)?$',

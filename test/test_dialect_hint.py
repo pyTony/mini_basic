@@ -113,6 +113,8 @@ class DialectHintTests(unittest.TestCase):
 
     def test_line_zero_dialect_and_mode_enable_pygame_before_run(self):
         old_driver = os.environ.get('SDL_VIDEODRIVER')
+        old_no_gfx = os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
+        old_disp = os.environ.pop('MINIBASIC_DISPLAY', None)
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         interp = BASICInterpreter(
             InterpreterConfig(
@@ -139,9 +141,19 @@ class DialectHintTests(unittest.TestCase):
                 os.environ.pop('SDL_VIDEODRIVER', None)
             else:
                 os.environ['SDL_VIDEODRIVER'] = old_driver
+            if old_no_gfx is None:
+                os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
+            else:
+                os.environ['MINIBASIC_NO_GRAPHICS'] = old_no_gfx
+            if old_disp is None:
+                os.environ.pop('MINIBASIC_DISPLAY', None)
+            else:
+                os.environ['MINIBASIC_DISPLAY'] = old_disp
 
     def test_gcol_enables_pygame_mid_run_when_only_mode_in_program(self):
         old_driver = os.environ.get('SDL_VIDEODRIVER')
+        old_no_gfx = os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
+        old_disp = os.environ.pop('MINIBASIC_DISPLAY', None)
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         interp = BASICInterpreter(
             InterpreterConfig(
@@ -170,6 +182,14 @@ class DialectHintTests(unittest.TestCase):
                 os.environ.pop('SDL_VIDEODRIVER', None)
             else:
                 os.environ['SDL_VIDEODRIVER'] = old_driver
+            if old_no_gfx is None:
+                os.environ.pop('MINIBASIC_NO_GRAPHICS', None)
+            else:
+                os.environ['MINIBASIC_NO_GRAPHICS'] = old_no_gfx
+            if old_disp is None:
+                os.environ.pop('MINIBASIC_DISPLAY', None)
+            else:
+                os.environ['MINIBASIC_DISPLAY'] = old_disp
 
 
 if __name__ == '__main__':
