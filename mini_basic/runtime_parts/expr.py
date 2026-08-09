@@ -364,12 +364,12 @@ class RuntimeExprMixin:
                 self.config.dialect == 'mini'
                 and source_was_numbered
             ):
-                print('Note: numbered program; consider --dialect mits, commodore, or tiny')
+                print('Note: numbered program; consider --dialect mits, commodore, or tiny', file=self._get_error_stream())
             elif (
                 self.config.dialect == 'mini'
                 and not source_was_numbered
             ):
-                print('Note: unnumbered program; consider --dialect bbc')
+                print('Note: unnumbered program; consider --dialect bbc', file=self._get_error_stream())
             elif self.config.dialect == 'bbc':
                 self._announce_bbc_sdl_keyword_hints(parsed_lines)
         return True
@@ -3321,7 +3321,7 @@ class RuntimeExprMixin:
         segment = re.sub(r'([\w)])([+\-])(?=[\w(])', r'\1 \2 ', segment)
 
         # Clean up assignment spacing (only for actual '=' operators)
-        segment = re.sub(r'(?<![=<>!])\s*=\s*(?!=)', ' = ', segment)
+        segment = re.sub(r'(?<![=<>!+\-*/])\s*=\s*(?!=)', ' = ', segment)
 
         # Remove double spaces
         segment = re.sub(r'\s+', ' ', segment)

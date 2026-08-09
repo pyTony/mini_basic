@@ -1621,7 +1621,9 @@ class RuntimeIoMixin:
         stmt = statement.strip()
         if not stmt:
             return stmt
-
+        if stmt.startswith('*'):
+            return stmt
+        
         # Match keywords but don't match variable names with suffixes
         # Negative lookahead: only match full keyword, not prefix of var like TOTAL (starts with TO)
         keywords = sorted(self._STMT_KEYWORDS, key=len, reverse=True)
@@ -1835,7 +1837,7 @@ class RuntimeIoMixin:
         ):
             # Validator already printed dialect details when announce is True.
             if announce:
-                print(f'Load aborted: dialect check failed for {path}')
+                print(f'Load aborted: dialect check failed for {path}', file=self._get_error_stream())
             return False
 
         self.new(announce=announce)
@@ -1844,7 +1846,7 @@ class RuntimeIoMixin:
             self.set_program_line(line_num, statement, indent)
         self.loaded_filename = filename
         if announce:
-            print(f'Loaded: {path}')
+            print(f'Loaded: {path}', file=self._get_error_stream())
         self._apply_dialect_hints_from_parsed_lines(parsed_lines, announce=announce)
         self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
         return True

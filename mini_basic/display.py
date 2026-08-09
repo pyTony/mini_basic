@@ -9,6 +9,11 @@ os.environ.setdefault('SDL_WINDOWS_DPI_AWARENESS', 'permonitorv2')
 os.environ.setdefault('SDL_VIDEO_CENTERED', '1')
 os.environ.setdefault('SDL_HINT_GRAB_KEYBOARD', '0')
 os.environ.setdefault('SDL_RENDER_SCALE_QUALITY', 'nearest')
+os.environ.setdefault('SDL_WINDOWS_DPI_AWARENESS', 'permonitorv2')
+os.environ.setdefault('SDL_VIDEO_CENTERED', '1')
+os.environ.setdefault('SDL_HINT_GRAB_KEYBOARD', '0')
+os.environ.setdefault('SDL_RENDER_SCALE_QUALITY', 'nearest')
+os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 _WINDOW_CHROME_HEIGHT = 48
@@ -2111,8 +2116,6 @@ def ensure_no_pygame_leftovers() -> None:
     a window open via hold_display_open; this should not be called until
     the user has confirmed they are done.
     """
-    import os as _os
-    _os.environ.setdefault('PYGAME_HIDE_SUPPORT_PROMPT', '1')
     try:
         import pygame  # type: ignore
         if pygame.get_init():

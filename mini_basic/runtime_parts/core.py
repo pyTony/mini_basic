@@ -1216,6 +1216,13 @@ class RuntimeCoreMixin:
         # Recognize simple or compound assignment (for IF THEN etc.)
         comp_match = self._COMPOUND_ASSIGN_RE.match(text)
         if comp_match:
+            self.dprint(
+                "COMPOUND:",
+                repr(text),
+                repr(comp_match.group(1)),
+                repr(comp_match.group(2)),
+                repr(comp_match.group(3)),
+            )
             lhs = comp_match.group(1).strip()
             # Reject "OR= 8" as a statement — keyword-only LHS (piechart compact IF)
             if re.fullmatch(r'(OR|AND|EOR|XOR|DIV|MOD|NOT)', lhs, re.IGNORECASE):
@@ -2234,7 +2241,7 @@ class RuntimeCoreMixin:
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
         if announce:
-            print('Program cleared.')
+            print('Program cleared.', file=self._get_error_stream())
 
     @staticmethod
     def _preview_source_line(line: str, *, limit: int = 56) -> str:
