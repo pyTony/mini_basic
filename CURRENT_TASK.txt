@@ -1,3 +1,15 @@
-Focus: None — HELP PROGRAM + LOAD .bas/.bbc done; next from FEATURES_DONE --
+Focus: unify dual LIST/SAVE formatters — runtime_parts/io.py vs format/save_case.py
+
+Phase just closed: immediate mode / REPL edit + LOAD/SAVE/HELP PROGRAM (see FEATURES_DONE).
+
+Next plan (FEATURES_DONE --, quality first):
+  1. unify dual LIST/SAVE formatters (io vs save_case)  ← THIS
+  2. compile WHILE CONT AND (I%<N) boolean path
+  3. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
+  4. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
+  5. PRINT array subscript expansion
+  6. 1.00 ship (tag + RELEASE) when ready
+  DEFER: polly (sound), poem (MODE7 interactive)
 
 Repo: C:\Users\Tony\mini_basic
+Baseline: docs/CLEAN_START.md + tag clean-start-2026-08-09

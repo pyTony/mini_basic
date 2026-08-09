@@ -148,3 +148,7 @@ OK dialect hint SAVE: numbered ``N REM dialect: …`` (N>=1), not unnumbered ' o
   legacy forms still load; mandelbrot examples updated
 OK HELP PROGRAM (LOAD/SAVE/LIST/AUTO/EDIT); LOAD bare name tries .bas then .bbc;
   no unnumbered AUTO (document external editor + SAVE PRETTY / LOAD)
+OK Phase close 2026-08-09: immediate/REPL edit + program files
+  — line edit word/home/end; bare EDIT usage; portable dialect REM; HELP PROGRAM;
+  — LOAD .bas/.bbc probe; SAVE auto-PRETTY if loaded unnumbered; BASIC_VARIANTS.md
+  — no dialect-nag notes; tokenized run = BBC detokenize only (no token VM)
