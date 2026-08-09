@@ -48,14 +48,26 @@ class TestDprintCore(unittest.TestCase):
         self.assertEqual(err.getvalue(), '')
 
     def test_debug_filter(self):
-        cfg = InterpreterConfig(DEBUG=True, DEBUG_FILTER='MOVE', display='none')
+        cfg = InterpreterConfig(DEBUG=True, DEBUG_FILTER='[MOVE]', display='none')
         err = io.StringIO()
         with patch('sys.stderr', err):
-            dprint(cfg, 'EXEC skip')
-            dprint(cfg, 'MOVE args')
+            dprint(cfg, '[EXEC]', 'skip')
+            dprint(cfg, '[MOVE]', 'args')
         text = err.getvalue()
-        self.assertNotIn('EXEC skip', text)
-        self.assertIn('MOVE args', text)
+        self.assertNotIn('[EXEC]', text)
+        self.assertIn('[MOVE]', text)
+        self.assertIn('args', text)
+
+    def test_debug_filter_tag_substring(self):
+        """Filter matches tag substring so --debug-filter IF catches [IF]."""
+        cfg = InterpreterConfig(DEBUG=True, DEBUG_FILTER='IF', display='none')
+        err = io.StringIO()
+        with patch('sys.stderr', err):
+            dprint(cfg, '[DIM]', 'nope')
+            dprint(cfg, '[IF]', 'enter')
+        text = err.getvalue()
+        self.assertNotIn('[DIM]', text)
+        self.assertIn('[IF]', text)
 
     def test_cli_debug_flag_sets_config(self):
         from mini_basic.runtime import _parse_main_args

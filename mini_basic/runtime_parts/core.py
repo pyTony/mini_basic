@@ -1222,7 +1222,7 @@ class RuntimeCoreMixin:
         comp_match = self._COMPOUND_ASSIGN_RE.match(text)
         if comp_match:
             self.dprint(
-                "COMPOUND:",
+                '[COMPOUND]',
                 repr(text),
                 repr(comp_match.group(1)),
                 repr(comp_match.group(2)),

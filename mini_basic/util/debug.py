@@ -5,15 +5,30 @@
     from mini_basic.util.debug import dprint   # preferred free form
     from mini_basic import dprint               # package re-export
 
-    dprint("EXEC:", line)                     # uses active config / env
-    dprint(config, "MOVE", x, y)              # explicit config (legacy)
-    self.dprint("ON CORE MIXIN")              # interpreter method
+    dprint('[EXEC]', repr(line))              # uses active config / env
+    dprint(config, '[MOVE]', x, y)            # explicit config (legacy)
+    self.dprint('[IF]', 'enter')              # interpreter method
 
 Enable with CLI ``--debug`` / ``--debug-filter`` (sets ``InterpreterConfig`` and
 active context), or env ``MINI_BASIC_DEBUG=1`` (optional
 ``MINI_BASIC_DEBUG_FILTER=substr``).
 
 ``--debug`` → stderr + append ``mini_basic.log``
+
+Filter tags (first arg, use with ``--debug-filter TAG``)::
+
+    [EXEC]     statement line about to run
+    [CMD]      parsed command + rest
+    [IF]       IF / THEN / condition path
+    [DIM]      DIM array parse / store
+    [ARRAY]    array reference substitution
+    [BOOL]     boolean expression parse
+    [CMP]      comparison operands
+    [AND]      boolean AND chain
+    [ASSIGN]   assignment statement parse
+    [COMPOUND] compound-assign recognition
+    [VDU]      embedded VDU / colour write path
+    [MOVE]     (when present) MOVE graphics
 """
 from __future__ import annotations
 

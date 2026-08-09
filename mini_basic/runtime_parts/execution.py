@@ -2542,7 +2542,7 @@ class RuntimeExecutionMixin:
         rest = ''
         if not line or line == ';':
             return None
-        self.dprint(f"EXEC: {line!r}")
+        self.dprint('[EXEC]', repr(line))
 
         stripped = line.lstrip()
         if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
@@ -2812,7 +2812,7 @@ class RuntimeExecutionMixin:
             return None
 
         cmd, rest = self._parse_command(line)
-        self.dprint(f"CMD={cmd!r} REST={rest!r}")
+        self.dprint('[CMD]', repr(cmd), repr(rest))
 
         if cmd in self._NOT_IMPLEMENTED_STATEMENTS:
             detail = self._NOT_IMPLEMENTED_STATEMENTS[cmd]
@@ -3695,7 +3695,7 @@ class RuntimeExecutionMixin:
 
         if cmd == 'IF':
             rest_strip = rest.strip()
-            self.dprint("ENTER IF")
+            self.dprint('[IF]', 'enter')
 
             goto_match = self._match_if_goto(rest_strip)
             if goto_match:
@@ -3738,8 +3738,8 @@ class RuntimeExecutionMixin:
 
             try:
                 condition, then_code = self._split_bbc_compact_if_then(then_part)
-                self.dprint(f"COND={condition!r}")
-                self.dprint(f"THEN={then_code!r}")
+                self.dprint('[IF]', 'cond', repr(condition))
+                self.dprint('[IF]', 'then', repr(then_code))
             except ValueError:
                 detail = self._if_error_detail(rest_strip)
                 self._runtime_error(
@@ -3816,7 +3816,7 @@ class RuntimeExecutionMixin:
                         return None
                 # False: skip any colon-split tail on this line (BBC single-line IF).
                 return self._if_finish_branch(line_num, stmt_parts, stmt_index, None)
-            self.dprint("ABOUT TO CALL _eval_condition")
+            self.dprint('[IF]', 'eval_condition')
             if self._eval_condition(condition):
                 then_inline = self._if_branch_inline_code(
                     then_code,
@@ -4160,7 +4160,6 @@ class RuntimeExecutionMixin:
                 by_match = re.match(r'^BY\s+(.+)$', rest_strip, re.IGNORECASE)
                 if by_match:
                     args = self._split_args(by_match.group(1))
-                    self.dprint('MOVE BY', args)
                     dx = int(self._eval_numeric(args[0]))
                     dy = int(self._eval_numeric(args[1]))
                     self._ensure_display()
@@ -4169,10 +4168,8 @@ class RuntimeExecutionMixin:
                         self._sync_graphics()
                 else:
                     args = self._split_args(rest_strip)
-                    self.dprint('MOVE', args)
                     x = int(self._eval_numeric(args[0]))
                     y = int(self._eval_numeric(args[1]))
-                    self.dprint('MOVE ->', x, y)
                     self._ensure_display()
                     if self._display_enabled():
                         self._display.move_absolute(x, y)
@@ -4180,7 +4177,6 @@ class RuntimeExecutionMixin:
             except ProgramExit:
                 raise
             except Exception as exc:
-                self.dprint('MOVE fail', rest[:120] if rest else '', type(exc).__name__, exc)
                 self._runtime_error(
                     self._error_message('? MOVE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None

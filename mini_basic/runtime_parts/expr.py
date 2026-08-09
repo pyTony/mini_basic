@@ -1009,7 +1009,13 @@ class RuntimeExprMixin:
                 pos = 0
             except Exception as e:
                 # Fallback to skipping the match if lookup fails using framework dprint
-                self.dprint(f"[DEBUG ARRAY REF] Substitution failed for {full_array_name}({subscripts_str}): {type(e).__name__} - {e}")
+                self.dprint(
+                    '[ARRAY]',
+                    'subst_fail',
+                    f'{full_array_name}({subscripts_str})',
+                    type(e).__name__,
+                    e,
+                )
                 pos = match.end()
                 continue
 
@@ -2136,48 +2142,51 @@ class RuntimeExprMixin:
             raise ValueError('SUM requires a 1D or 2D array slice')
  
     def _dim_single_array(self, decl: str) -> None:
-        self.dprint(f"\n[DEBUG DIM] Entering _dim_single_array with decl: {repr(decl)}")
+        self.dprint('[DIM]', 'enter', repr(decl))
 
         # Include & for BBCSDL byte arrays (piechart Colour&(n))
         pattern = rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)\s*\((.+)\)\s*$'
-        self.dprint(f"[DEBUG DIM] Using pattern: {repr(pattern)}")
-
         match = re.match(pattern, decl.strip())
         if not match:
-            self.dprint("[DEBUG DIM] !!! Regex match failed completely !!!")
+            self.dprint('[DIM]', 'regex_fail', repr(decl))
             raise ValueError('invalid DIM syntax')
 
-        self.dprint(f"[DEBUG DIM] Match success! Groups -> 1 (Base): {repr(match.group(1))}, 2 (Suffix): {repr(match.group(2))}, 3 (Dims string): {repr(match.group(3))}")
+        self.dprint(
+            '[DIM]', 'match',
+            'base', repr(match.group(1)),
+            'suffix', repr(match.group(2)),
+            'dims', repr(match.group(3)),
+        )
 
         try:
             base = self._validate_var_base(match.group(1))
             kind = self._array_kind_from_suffix(match.group(2))
-            self.dprint(f"[DEBUG DIM] Validated base: {base}, Kind: {kind}")
+            self.dprint('[DIM]', 'validated', base, kind)
         except Exception as e:
-            self.dprint(f"[DEBUG DIM] !!! Validation failed with: {type(e).__name__}: {e}")
+            self.dprint('[DIM]', 'validate_fail', type(e).__name__, e)
             raise
 
         try:
             raw_parts = self._split_args(match.group(3))
-            self.dprint(f"[DEBUG DIM] Split dimension arguments: {raw_parts}")
+            self.dprint('[DIM]', 'split', raw_parts)
 
             dims = []
             for part in raw_parts:
                 stripped_part = part.strip()
                 evaluated = self.eval_expr(stripped_part)
-                self.dprint(f"[DEBUG DIM] Evaluated dimension expression {repr(stripped_part)} -> {repr(evaluated)}")
+                self.dprint('[DIM]', 'dim_expr', repr(stripped_part), '->', repr(evaluated))
                 dims.append(int(evaluated))
-            self.dprint(f"[DEBUG DIM] Final parsed dimensions list: {dims}")
+            self.dprint('[DIM]', 'dims', dims)
         except Exception as e:
-            self.dprint(f"[DEBUG DIM] !!! Dimension evaluation failed with: {type(e).__name__}: {e}")
+            self.dprint('[DIM]', 'eval_fail', type(e).__name__, e)
             raise
 
         try:
-            self.dprint(f"[DEBUG DIM] Sending to _store_array: base={base}, kind={kind}, dims={dims}")
+            self.dprint('[DIM]', 'store', base, kind, dims)
             self._store_array(base, kind, dims)
-            self.dprint("[DEBUG DIM] _store_array completed successfully!")
+            self.dprint('[DIM]', 'store_ok')
         except Exception as e:
-            self.dprint(f"[DEBUG DIM] !!! _store_array crashed with: {type(e).__name__}: {e}")
+            self.dprint('[DIM]', 'store_fail', type(e).__name__, e)
             raise
 
     def _store_array(self, base: str, kind: VarKind, dims: List[int]) -> None:
@@ -2511,10 +2520,10 @@ class RuntimeExprMixin:
 
     def _eval_comparison_operand(self, fragment: str) -> Tuple[str, object]:
         fragment = fragment.strip()
-        self.dprint("OPERAND:", repr(fragment))
+        self.dprint('[CMP]', 'operand', repr(fragment))
         if self._fragment_is_string_expr(fragment):
             return 'str', self._eval_string_expr(fragment)
-        self.dprint("ARITH OPERAND:", fragment)
+        self.dprint('[CMP]', 'arith', fragment)
         return 'num', self._eval_arith_core_slow(self._strip_outer_parens(fragment))
 
     def _compare_bbc_values(self, op: str, left: float, right: float) -> float:
@@ -2599,9 +2608,9 @@ class RuntimeExprMixin:
         )
 
     def _eval_bbc_boolean_expr(self, expr: str) -> object:
-        self.dprint("BOOLEAN IN :", repr(expr))
+        self.dprint('[BOOL]', 'in', repr(expr))
         expr = self._strip_outer_parens(expr)
-        self.dprint("BOOLEAN OUT:", repr(expr))
+        self.dprint('[BOOL]', 'out', repr(expr))
         if self._expr_has_xor_eqv_imp_eor(expr):
             value, end = self._boolean_parse_or(expr, 0)
         else:

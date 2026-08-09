@@ -508,7 +508,7 @@ class RuntimeIoMixin:
             except Exception:
                 pass
     def _display_write_vdu_string(self, text: str) -> None:
-        self.dprint(f"TEXT={text!r}")
+        self.dprint('[VDU]', 'text', repr(text))
         if not text:
             return
 
@@ -518,8 +518,8 @@ class RuntimeIoMixin:
         while i < len(text):
             code = ord(text[i])
 
-            self.dprint(f"i={i} code={code} ch={text[i]!r}")
-            
+            self.dprint('[VDU]', 'ch', i, code, repr(text[i]))
+
             if code == 17:                      # BBC VDU 17 / COLOUR
                 if buf:
                     #self._colour_prefix_for_output()
@@ -529,15 +529,15 @@ class RuntimeIoMixin:
                 i += 1
                 if i < len(text):
                     self._display.set_colour(ord(text[i]))
-                    self.dprint(f"VDU17 colour={ord(text[i])}")
+                    self.dprint('[VDU]', 'colour', ord(text[i]))
                 i += 1
                 continue
 
             buf.append(text[i])
             i += 1
-        self.dprint(f"BUF BEFORE FLUSH = {buf!r}")
+        self.dprint('[VDU]', 'buf', repr(buf))
         if buf:
-            self.dprint(f"WRITE={''.join(buf)!r}")
+            self.dprint('[VDU]', 'write', repr(''.join(buf)))
             # self._colour_prefix_for_output()
             self._display.write(''.join(buf))
             buf.clear()

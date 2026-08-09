@@ -1265,8 +1265,8 @@ class RuntimeProgramMixin:
 
         left_end = self._boolean_find_arith_end(expr, index)
         left_fragment = expr[index:left_end].strip()
-        self.dprint("LEFT =", repr(left_fragment))
-        self.dprint("NEXT =", repr(expr[left_end:left_end+10]))
+        self.dprint('[BOOL]', 'left', repr(left_fragment))
+        self.dprint('[BOOL]', 'next', repr(expr[left_end:left_end + 10]))
 
         if not left_fragment:
             raise ValueError('expected expression')
@@ -1297,7 +1297,7 @@ class RuntimeProgramMixin:
 
     def _boolean_parse_and(self, expr: str, index: int) -> Tuple[float, int]:
         left, index = self._boolean_parse_not(expr, index)
-        self.dprint(f"AND: left={left} index={index}")
+        self.dprint('[AND]', 'left', left, 'index', index)
         while True:
             index = self._boolean_skip_ws(expr, index)
             if not self._boolean_keyword_at(expr, index, 'AND'):
@@ -1305,7 +1305,7 @@ class RuntimeProgramMixin:
             index += 3
             right, index = self._boolean_parse_not(expr, index)
             left = float(int(left) & int(right))
-        self.dprint(f"AND RHS starts at {index}: {expr[index:]!r}")
+        self.dprint('[AND]', 'after', index, repr(expr[index:]))
         return left, index
 
     def _boolean_parse_or(self, expr: str, index: int) -> Tuple[float, int]:
@@ -1551,7 +1551,7 @@ class RuntimeProgramMixin:
     def _parse_assignment_statement(self, line: str) -> Tuple[str, str, str]:
         """Return (lvalue, operator, rhs) for =, +=, -=, *=, /= assignments."""
 
-        self.dprint("PARSE ASSIGN:", repr(line))
+        self.dprint('[ASSIGN]', repr(line))
 
         text = line.strip()
         if text.upper().startswith("LET"):
