@@ -250,6 +250,9 @@ def format_statement_part(part: str, fold: Fold) -> str:
     stripped = part.strip()
     if not stripped:
         return stripped
+    # Preserve apostrophe / REM text (do not space FG$/RESET$ as operators).
+    if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
+        return stripped
     label_match = _RE_LABEL_PREFIX.match(stripped)
     if label_match and label_match.group(1).upper() not in _RESERVED_WORDS:
         label = _fold_text(label_match.group(1), fold)

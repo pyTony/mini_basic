@@ -1623,7 +1623,10 @@ class RuntimeIoMixin:
             return stmt
         if stmt.startswith('*'):
             return stmt
-        
+        # Do not pretty-print expressions inside REM / ' comments (FG$/RESET$ etc.).
+        if stmt.startswith("'") or re.match(r'^REM\b', stmt, re.IGNORECASE):
+            return stmt
+
         # Match keywords but don't match variable names with suffixes
         # Negative lookahead: only match full keyword, not prefix of var like TOTAL (starts with TO)
         keywords = sorted(self._STMT_KEYWORDS, key=len, reverse=True)

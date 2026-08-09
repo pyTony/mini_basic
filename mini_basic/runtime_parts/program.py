@@ -1751,8 +1751,11 @@ class RuntimeProgramMixin:
             return None
 
         if numbered and preamble:
-            bootstrap = ': '.join(stmt for stmt, _ in preamble)
-            return [(0, bootstrap, 0), *numbered], True
+            # Keep comment preamble as separate lines (free numbers before first).
+            # Only join *executable* preamble into line 0 (poem-style ON ERROR bootstrap).
+            # Joining REM/' into one line 0 made LIST PRETTY smash headers and reformat
+            # FG$/RESET$ as expressions (MB_COLOR.BAS).
+            return self._merge_preamble_with_numbered(preamble, numbered), True
 
         if numbered:
             return numbered, True
@@ -1766,6 +1769,67 @@ class RuntimeProgramMixin:
             result.append((line_num, statement, indent))
             line_num += 10
         return result, False
+
+    @staticmethod
+    def _is_comment_statement(statement: str) -> bool:
+        s = statement.lstrip()
+        if not s:
+            return False
+        if s.startswith("'"):
+            return True
+        return bool(re.match(r'^REM\b', s, re.IGNORECASE))
+
+    def _merge_preamble_with_numbered(
+        self,
+        preamble: List[Tuple[str, int]],
+        numbered: List[Tuple[int, str, int]],
+    ) -> List[Tuple[int, str, int]]:
+        """Attach leading unnumbered lines to free line numbers; bootstrap code on 0."""
+        used = {n for n, _, _ in numbered}
+        first = min(used) if used else 10
+        free = [n for n in range(1, first) if n not in used]
+
+        comments: List[Tuple[str, int]] = []
+        code_parts: List[str] = []
+        for stmt, indent in preamble:
+            if self._is_comment_statement(stmt):
+                comments.append((stmt, indent))
+            else:
+                code_parts.append(stmt)
+
+        result: List[Tuple[int, str, int]] = []
+        free_i = 0
+
+        def _next_line_num() -> int:
+            nonlocal free_i
+            if free_i < len(free):
+                n = free[free_i]
+                free_i += 1
+                return n
+            # Prefer 0 once for overflow comments if still free, else after max used.
+            if 0 not in used and all(r[0] != 0 for r in result):
+                return 0
+            n = max(used | {r[0] for r in result}, default=0) + 1
+            while n in used or any(r[0] == n for r in result):
+                n += 1
+            return n
+
+        for stmt, indent in comments:
+            ln = _next_line_num()
+            result.append((ln, stmt, indent))
+            used.add(ln)
+
+        if code_parts:
+            bootstrap = ': '.join(code_parts)
+            if 0 not in used:
+                result.append((0, bootstrap, 0))
+            else:
+                ln = _next_line_num()
+                result.append((ln, bootstrap, 0))
+
+        result.extend(numbered)
+        result.sort(key=lambda item: item[0])
+        return result
 
     def _parse_auto_line(self, default_num: int, text: str) -> Tuple[int, str]:
         raw = text.rstrip('\n')

@@ -2368,6 +2368,42 @@ class MiniBASICTests(unittest.TestCase):
             self.assertIn('ON ERROR GOTO 900', interp.program[0])
             self.assertEqual(interp.program[10], 'PRINT "start"')
 
+    def test_load_comment_preamble_not_joined_on_line_zero(self):
+        """MB_COLOR-style header comments must not become one colon-joined line 0."""
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'hdr.bas')
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write(
+                    "' dialect: mini\n"
+                    "' Mandelbrot + ANSI colours (FG$/RESET$).\n"
+                    "' BBCSDL portability note.\n"
+                    '10 PRINT "Start"\n'
+                    '20 END\n',
+                )
+            interp.working_dir = tmp
+            self.assertTrue(interp.load('hdr.bas', announce=False))
+            self.assertNotIn(0, interp.program)
+            # Dialect stripped; two comments at free lines before 10.
+            comments = [
+                interp.program[n]
+                for n in sorted(interp.program)
+                if n < 10
+            ]
+            self.assertEqual(len(comments), 2)
+            self.assertTrue(any('FG$/RESET$' in c for c in comments))
+            self.assertTrue(any('BBCSDL' in c for c in comments))
+            self.assertEqual(interp.program[10], 'PRINT "Start"')
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                interp.list_program('pretty')
+            pretty = buf.getvalue()
+            self.assertNotIn('FG$/ RESET$', pretty)
+            self.assertIn('FG$/RESET$', pretty)
+
     def test_immediate_assignment_and_print(self):
         interp = self.make_interp()
         buf = io.StringIO()
