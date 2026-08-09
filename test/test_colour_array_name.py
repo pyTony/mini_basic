@@ -15,7 +15,7 @@ if _ROOT not in sys.path:
 
 from mini_basic import BASICInterpreter, InterpreterConfig
 
-pytestmark = [pytest.mark.phase0]
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 def _interp(dialect: str = 'bbc') -> BASICInterpreter:

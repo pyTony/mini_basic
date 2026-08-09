@@ -55,6 +55,7 @@ class SaveCaseIntegrationTests(unittest.TestCase):
         self.assertIn('LET COUNT = 3: rem keep Note', text)
         self.assertIn('PRINT COUNT,"Ok"', text)
 
+    @pytest.mark.mits
     def test_save_lower_when_save_case_is_one(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='mits'))
         interp.save_case = 1
@@ -95,6 +96,7 @@ class SaveCaseIntegrationTests(unittest.TestCase):
         self.assertIn('LET COUNT = 3: rem keep Note', out)
         self.assertIn('PRINT COUNT,"Ok"', out)
 
+    @pytest.mark.mits
     def test_list_detokenizes_lower_when_save_case_is_one(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='mits'))
         interp.save_case = 1

@@ -1499,6 +1499,7 @@ class MiniBASICTests(unittest.TestCase):
             interp.execute_immediate('PRINT FNdouble(5)')
         self.assertEqual(buf.getvalue().strip(), '10')
 
+    @pytest.mark.mits
     def test_def_proc_block_entry_rejected_in_mits(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='mits', strict_dialect=True))
         with patch('mini_basic.runtime_parts.helpers._prompt_editing_input') as prompt:
@@ -2534,6 +2535,7 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(buf.getvalue(), "10\n20\n")
         self.assertTrue(interp._identifiers_case_sensitive())
 
+    @pytest.mark.mits
     def test_variable_names_fold_in_mits_dialect(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='mits'))
         lines = [
@@ -3721,6 +3723,7 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), 'sub1\nback')
 
+    @pytest.mark.mits
     def test_dialect_mits_rejects_while_strict(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, 'bad.bas')
@@ -3816,6 +3819,7 @@ class MiniBASICTests(unittest.TestCase):
             self.assertEqual(len(interp.program), 3)
             self.assertNotIn('GOTO not allowed', buf.getvalue())
 
+    @pytest.mark.mits
     def test_cli_dialect_flag(self):
         import mini_basic
 

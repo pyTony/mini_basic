@@ -1183,6 +1183,7 @@ def mits_numbered_goto_next():
     return "\n".join(lines)
 
 
+@pytest.mark.mits
 class TestMitsLegacyControl(unittest.TestCase):
     def test_goto_to_next_in_for(self):
         """Mits-style numbered with GOTO to NEXT inside FOR (like 1DLIFE).

@@ -14,6 +14,18 @@ Preferred regression
   python -m pytest -q test/test_mini_basic.py test/test_parsing.py \
     test/test_compositional.py test/test_control_flow.py --timeout=20
 
+MITS dialect / M6502 C-port examples
+------------------------------------
+
+  Summary: docs/MITS_IMPLEMENTATION.md (42/48 non-interactive tutorials pass)
+
+  python -m pytest -q -m "m6502_cport" --timeout=30
+  python -m pytest -q -m "mits and not slow" --timeout=45
+
+  Markers: mits, m6502_cport, phase0, non_gfx (see pytest.ini)
+
+  Manual: python -m mini_basic -q --dialect mits examples\m6502-cport\01_hello.bas
+
 Control-flow multi-statement regression (must stay green)
 ---------------------------------------------------------
 
