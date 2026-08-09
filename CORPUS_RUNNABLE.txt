@@ -5,7 +5,8 @@
 #   [defer]  known gap (not a hang); expect limited/missing features
 #   [slow]   runs correctly but can be slow to draw
 #   [new]    recently added / re-check recommended
-# Sections: NEW (legacy [NEW] flag), ALL (menu + audit), NOT (network/out of scope)
+# Scope: portable BASIC + pygame demos only (wheel, hanoi, animal, …).
+# Not in tree: tools/ physics/ sounds/ OpenGL network/WIMP demos.
 
 NEW recently verified
 squares.txt graphics [ok] Munching squares — look+speed OK (nested FOR kernel)
@@ -28,7 +29,6 @@ persian.txt graphics [ok] Persian pattern
 polygon.txt graphics [ok] Polygons
 doodle.txt graphics [ok] Doodle
 polydots.txt graphics [ok] Polydots
-mmap.txt tools [ok] Memory map style tool (text)
 # --- tier B (partial blockers; still tracked) ---
 fern.txt graphics [ok] Fern fractal
 welcome.txt general [ok] Welcome demo — graphics OK; sound silent only
@@ -37,8 +37,11 @@ spectrum.txt graphics [ok] Spectrum bars
 jclock.txt graphics [ok] Analogue clock + TIME$/MOUSE; user-approved
 piechart.txt graphics [ok] Pie chart with labels
 animal.txt games [ok] Animal guessing game; user-approved
-polly.txt sounds [defer] SOUND/ENVELOPE + OSCLI DISPLAY/FONT — no real audio yet
 poem.txt general [defer] Interactive MODE7 / GET-INKEY; audit timeout
 
 NOT runnable
-# Intentionally deferred: Box2D, OpenGL, heavy SYS/INSTALL (scan tier C/D)
+# Intentionally out of tree (not mini_basic targets):
+#   tools/ (TouchIDE, SDLIDE, mmap, …)
+#   physics/ (Box2D FN_b2*)
+#   sounds/ (polly-class multi-channel music)
+#   OpenGL / network / multitouch / PDF / video demos

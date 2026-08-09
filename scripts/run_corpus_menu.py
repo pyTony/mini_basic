@@ -31,8 +31,6 @@ _CATEGORY_ORDER = (
     'games',
     'graphics',
     'general',
-    'sounds',
-    'tools',
     'samples',
 )
 
@@ -246,7 +244,7 @@ def _print_menu(entries: Sequence[CorpusEntry], skipped: Sequence[str]) -> None:
         print('\nNot in menu (need network / out of scope):', ', '.join(skipped))
     print('\nGraphics demos loop until you close the window or press Ctrl+C / ESC.')
     print('Run with: --pygame --dialect bbc --hold')
-    print('Note: SOUND is silent (optional short wait only); polly needs real audio later.')
+    print('Note: SOUND is silent (optional short wait). Music/tools/physics trees not in corpus.')
 
 
 def _run_entry(entry: CorpusEntry) -> int:

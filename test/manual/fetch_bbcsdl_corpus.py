@@ -14,6 +14,36 @@ BASE_URL = 'https://www.bbcbasic.co.uk/bbcsdl/examples/'
 _ROOT = Path(__file__).resolve().parents[2]
 _CORPUS = _ROOT / 'test' / 'corpus' / 'bbcsdl'
 
+# Do not reintroduce BBCSDL-only trees (IDE, Box2D, multi-channel music).
+_SKIP_PATH_PREFIXES = (
+    'tools/',
+    'physics/',
+    'sounds/',
+)
+# Individual demos that need SYS/network/OpenGL, not general pygame BASIC.
+_SKIP_NAMES = frozenset({
+    'opengl.txt',
+    'client.txt',
+    'server.txt',
+    'server_multi.txt',
+    'lanchat.txt',
+    'mysqldem.txt',
+    'multitouch.txt',
+    'dlgdemo.txt',
+    'video.txt',
+    'recorder.txt',
+    'pdfdemo.txt',
+})
+
+
+def _should_skip(rel: str) -> bool:
+    rel = rel.replace('\\', '/').lstrip('/')
+    lower = rel.lower()
+    if any(lower.startswith(p) for p in _SKIP_PATH_PREFIXES):
+        return True
+    name = Path(rel).name.lower()
+    return name in _SKIP_NAMES
+
 
 def _fetch(url: str) -> str:
     request = urllib.request.Request(
@@ -49,9 +79,13 @@ def main() -> int:
     print(f'Found {len(links)} example files')
 
     ok = 0
+    skipped = 0
     failed: list[str] = []
     for url in links:
         rel = url.split('/examples/', 1)[-1]
+        if _should_skip(rel):
+            skipped += 1
+            continue
         dest = _CORPUS / rel.replace('/', '\\')
         dest.parent.mkdir(parents=True, exist_ok=True)
         if dest.is_file() and dest.stat().st_size > 0:
@@ -66,7 +100,7 @@ def main() -> int:
             failed.append(f'{rel}: {exc}')
             print(f'  FAIL {rel}: {exc}', file=sys.stderr)
 
-    print(f'Done: {ok}/{len(links)} files in {_CORPUS}')
+    print(f'Done: {ok} kept, {skipped} skipped (SDL-only), {len(failed)} fail; root {_CORPUS}')
     if failed:
         print(f'{len(failed)} failures', file=sys.stderr)
         return 1

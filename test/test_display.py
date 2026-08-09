@@ -2,6 +2,8 @@ import os
 import sys
 import unittest
 
+import pytest
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -12,6 +14,9 @@ from mini_basic.display import (
     count_framebuffer_pixels,
     create_display,
 )
+
+pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
+
 
 
 class DisplayTests(unittest.TestCase):

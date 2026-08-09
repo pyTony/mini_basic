@@ -6,11 +6,16 @@ import unittest
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
+import pytest
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+# Includes optional pygame display cases — phase2 isolation.
+pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
 
 
 class BBCDialectSDLTests(unittest.TestCase):

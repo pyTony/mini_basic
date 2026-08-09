@@ -6,6 +6,8 @@ import sys
 import unittest
 from unittest import mock
 
+import pytest
+
 os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -13,6 +15,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from mini_basic.display import PygameDisplay
+
+pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
 
 
 class _FakeEvent:

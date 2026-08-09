@@ -15,5 +15,5 @@ OK welcome.txt (general) :: user confirmed 2026-08-02; graphics = SDL/Archimedes
 
 OK squares.txt (graphics) :: user confirmed 2026-08-02; look + speed OK (nested int FOR / munching kernel)
 FAIL piechart.txt (graphics) :: Colour& / SUM / array fill / COSa (re-probe pending)
-FAIL polly.txt (sounds) :: DEFER SOUND/ENVELOPE + OSCLI DISPLAY
+# polly.txt removed from corpus (sounds tree out of scope for general BASIC+pygame)
 FAIL poem.txt (general) :: DEFER interactive MODE7 audit timeout

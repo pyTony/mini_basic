@@ -2,6 +2,8 @@ import os
 import sys
 import unittest
 
+import pytest
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
@@ -12,6 +14,10 @@ if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
 from mini_basic.bbc_graphics import BBCGraphics, apply_gcol
+
+# Pure framebuffer math — no pygame window; safe in phase1 non-gfx runs.
+pytestmark = [pytest.mark.phase1, pytest.mark.non_gfx]
+
 
 
 class BBCGraphicsTests(unittest.TestCase):

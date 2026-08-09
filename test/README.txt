@@ -140,11 +140,18 @@ New testing direction (compositional + generative) - Phased Approach
 - Parameterize over dialects ('mini' + 'bbc' minimum). Assert invariants (final state matches expectations/Python sim for pure parts, output patterns, correct ? errors + line nums, no resource leaks) + differential testing.
 - Drive work from coverage (target _eval_numeric*, _substitute_array_references, _execute_statement control paths, _build_user_*, file channel code, etc.).
 
-**Phase 2 (later): Graphics tests refactor**
-- Refactor existing (test_graphics_confirm.py, test_bbc_graphics.py, etc.) with isolation (patch _flush_display/time.sleep/display, use 'terminal' or dummy, bounded/short runs or early exit).
-- High-level assertions on internal _gfx state (pixel counts in bounding boxes/regions, color presence, no obvious clipping) + optional reference snapshots.
-- New compositional graphics in dedicated files only after Phase 1 solid.
-- Keep current graphics-heavy tests in stuck_tests.txt during Phase 1.
+**Phase 2: Graphics test isolation (markers live)**
+- Suites marked ``pytest.mark.phase2`` + ``graphics`` (excluded from
+  ``-m "phase1 and not slow"``):
+    test_graphics_confirm, test_display, test_pygame_input_events,
+    test_clock_xor_hands, test_animal_text_print, test_bbc_dialect_sdl
+- Pure framebuffer math without pygame window: test_bbc_graphics.py is
+  phase1 + non_gfx (still runs with phase1).
+- Run phase2 (includes phase0+1 via conftest expansion):
+    python -m pytest -q -m "phase2 and not slow" --timeout=60
+- Or only graphics suites:
+    python -m pytest -q -m "graphics and not slow" --timeout=60
+- stuck_tests.txt still lists hangers for -k filters.
 
 Run Phase 1 coverage (exclude graphics):
   python -m pytest --cov=mini_basic.runtime --cov-report=term-missing -q test/ --ignore-glob='*graphics*' --ignore-glob='*display*' --ignore-glob='*pygame*'

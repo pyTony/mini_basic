@@ -17,7 +17,7 @@ This is the **language and graphics baseline** for 1.00. It states what is in, w
 |-----------|----------|
 | **Multi-dialect core language works** | Dialects `mini`, `mits`, `commodore`, `tiny`, `bbc` — control flow, expressions, files, I/O (see §2–3). |
 | **BBC graphics tier A is usable** | MODE, GCOL, MOVE/DRAW/PLOT, CIRCLE, COLOUR, ORIGIN, *REFRESH, VDU phases A–C (see §4). |
-| **BBCSDL corpus is green or explicitly deferred** | `CORPUS_AUDIT`: **22 OK**, **2 DEFER** (polly sound, poem interactive MODE7) — not silent failures. |
+| **BBCSDL corpus is green or explicitly deferred** | Portable demos only (`CORPUS_AUDIT`: **21 OK**, **1 DEFER** poem MODE7). tools/physics/sounds trees not shipped. |
 | **Major demos match user expectation** | User-approved: welcome, squares, saucer, flier, soccerball, wheel, jclock, filters, hanoi, animal, … |
 | **Ship hygiene** | `--version` / `-V`, Russell `.bbc` detokenize, text-only sessions skip auto-pygame, phase0+phase1 regression suite. |
 | **Non-goals are written down** | Sound synthesis, WIMP, SYS FFI, Box2D, full SAA5050 — see §6 and `features/deferred.py`. |
@@ -188,7 +188,7 @@ Corpus snippets accepted the same way: `SOUND 1,1,255,255`, `SOUND &11,0,1,1` (w
 | Gate | Result |
 |------|--------|
 | Corpus `ALL` runnable | **22 OK** |
-| Explicit DEFER only | **polly** (sound/OSCLI DISPLAY), **poem** (interactive MODE7) |
+| Explicit DEFER only | **poem** (interactive MODE7); music/tools/physics not in corpus |
 | Phase 0 / 1 pytest | Large green regression (phase0 + phase1 markers; see FEATURES_DONE) |
 | Focused graphics tests | piechart sectors/labels, welcome chars/envelope, VDU A–C, squares speed, soccerball, etc. |
 
@@ -259,7 +259,7 @@ From `mini_basic/features/deferred.py` and project policy:
 
 ## 9. Post-1.00 backlog (ordered lightly)
 
-1. polly — SOUND/ENVELOPE + OSCLI DISPLAY/FONT  
+1. ~~polly / sounds tree~~ (removed from corpus — not general BASIC+pygame)
 2. poem — interactive MODE7 audit path  
 3. Saucer float-loop performance (optional)  
 4. ~~PRINT array subscript expansion~~ (done — `test_print_array_subscript`)

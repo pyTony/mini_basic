@@ -79,10 +79,12 @@ OK phase0 + cumulative regression 2026-08-02:
   conftest: -m phaseN expands to phase0..N; hanoi tests green (user-approved + wrap unit)
   underscore user-var tests updated for BBCSDL; compact FOR xfail
   pytest -m "phase0 and not slow" → 450 passed; -m "phase1 and not slow" → 563 passed
--- Phase D polly.txt: DEFER (SOUND/ENVELOPE + OSCLI DISPLAY/FONT/@dir$ kettle.png)
+OK Removed tightly BBCSDL-only programs (tools/physics/sounds trees + OpenGL/network
+  demos) from corpus+examples; keep portable pygame demos (wheel, saucer, hanoi, …)
 -- Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)
 -- 1.00 ship: tag 1.0.0 + RELEASE notes when ready (packaging/wheel ready as 1.0.0.dev0)
--- phase2: mark graphics suites when isolated
+OK phase2: graphics suites marked phase2+graphics (excluded from phase1 markexpr);
+  test_bbc_graphics pure math stays phase1 non_gfx; pytest.ini + test/README
 
 OK piechart circular sectors: PLOT 85/181 centre+equal-radius rims tessellate arc (was chord triangle);
   @vdu% !n tolerates spaces; tests test_plot_181_pie_sector + TestVduIndirection

@@ -1,6 +1,7 @@
-# Corpus audit — 2026-08-02 23:27 (re-probe after piechart VDU5 labels + loop-shorten)
+# Corpus audit — 2026-08-09 (SDL-only trees removed; portable demos kept)
 # display=none, optimization_level=0, 20s timeout; loops shortened by corpus_audit_probe
-OK (22)
+# Scope: games/graphics/general/samples only — no tools/physics/sounds
+OK (21)
 soccerball.txt graphics
 tier_a_poem.txt samples
 illusion.txt graphics
@@ -12,7 +13,6 @@ persian.txt graphics
 polygon.txt graphics
 doodle.txt graphics
 polydots.txt graphics
-mmap.txt tools
 fern.txt graphics
 wheel.txt graphics
 spectrum.txt graphics
@@ -23,6 +23,7 @@ piechart.txt graphics
 saucer.txt graphics
 squares.txt graphics
 flier.txt graphics
-FAIL (2)
-polly.txt sounds :: DEFER SOUND/ENVELOPE + OSCLI DISPLAY (not a 1.00 blocker)
+FAIL (1)
 poem.txt general :: DEFER interactive MODE7 / audit timeout (not a 1.00 blocker)
+# Removed from tree (not FAIL): tools/*, physics/*, sounds/* (incl. polly, mmap),
+# opengl, server/client network demos — not applicable to general BASIC+pygame

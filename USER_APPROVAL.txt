@@ -19,6 +19,6 @@
 
 # --- Not ready (agent blockers) ---
 # piechart.txt — audit OK 2026-08-02; labels fixed; optional user visual confirm (not a ship blocker)
-# polly.txt — SOUND/ENVELOPE + OSCLI DISPLAY (deferred)
+# polly / sounds / tools / physics trees removed from corpus (BBCSDL-only)
 # poem.txt — audit timeout / interactive MODE7 (deferred)
 
