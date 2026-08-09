@@ -1001,23 +1001,19 @@ class RuntimeProgramMixin:
             result = ('PROC', rest)
             self._parse_command_cache[cache_key] = result
             return result
-        # Keyword case:
-        # - bbc + case-sensitive: statements must be uppercase tokens (COLOUR, not
-        #   Colour/colour). That is why Colour&() is never COLOUR — mixed case is
-        #   a variable name. No fold fallback.
-        # - otherwise: freedom of case (for/FOR, colour/COLOUR) via IGNORECASE.
+        # Keyword case (all dialects):
+        # - case-sensitive mode: statement tokens must be uppercase (PRINT, COLOUR,
+        #   FOR). Mixed-case Colour& / print are variables or bare expressions.
+        # - fold mode: freedom of case (for/FOR) via IGNORECASE.
+        # Which keywords exist still depends on dialect; only matching case differs.
         case_sens = False
         try:
             case_sens = bool(self._identifiers_case_sensitive())
         except Exception:
             case_sens = False
-        if self.config.dialect == 'bbc' and case_sens:
+        if case_sens:
+            # Same pattern as _RE_PARSE_CMD but without IGNORECASE.
             match = self._RE_PARSE_CMD_BBC.match(line)
-        elif self.config.dialect == 'bbc':
-            # Fold mode: try uppercase listing first, then any case.
-            match = self._RE_PARSE_CMD_BBC.match(line)
-            if match is None:
-                match = self._RE_PARSE_CMD.match(line)
         else:
             match = self._RE_PARSE_CMD.match(line)
         if match:

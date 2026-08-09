@@ -40,33 +40,48 @@ class ColourArrayNameTests(unittest.TestCase):
             self.assertEqual(cmd, 'COLOUR')
             self.assertEqual(rest.strip(), '15')
 
-    def test_bbc_case_sensitive_keywords_uppercase_only(self):
-        """bbc + case on: COLOUR is a command; Colour/colour are not."""
-        i = _interp('bbc')
-        self.assertTrue(i._identifiers_case_sensitive())
-        cmd, rest = i._parse_command('COLOUR 15')
-        self.assertEqual(cmd, 'COLOUR')
-        self.assertEqual(rest.strip(), '15')
-        # Mixed/lower case must not steal names like Colour& (even without &)
-        for src in ('Colour 15', 'colour 15', 'Colour&() = 1', 'colour&() = 1'):
-            cmd, _ = i._parse_command(src)
-            self.assertEqual(cmd, '', msg=src)
-
-    def test_bbc_case_fold_allows_lower_colour_statement(self):
-        i = BASICInterpreter(
-            InterpreterConfig(
-                dialect='bbc',
-                display='none',
-                display_locked=True,
-                identifiers_case_sensitive=False,
+    def test_case_sensitive_keywords_uppercase_only_all_dialects(self):
+        """Any dialect with case on: uppercase keywords only."""
+        for dialect in ('bbc', 'mini', 'mits', 'commodore', 'tiny'):
+            i = BASICInterpreter(
+                InterpreterConfig(
+                    dialect=dialect,
+                    display='none',
+                    display_locked=True,
+                    identifiers_case_sensitive=True,
+                )
             )
-        )
-        cmd, rest = i._parse_command('colour 15')
-        self.assertEqual(cmd, 'COLOUR')
-        self.assertEqual(rest.strip(), '15')
-        # Type suffix still wins over statement (colour& is not colour)
-        cmd, _ = i._parse_command('colour&() = 1, 2')
-        self.assertEqual(cmd, '')
+            self.assertTrue(i._identifiers_case_sensitive())
+            cmd, rest = i._parse_command('PRINT 1')
+            self.assertEqual(cmd, 'PRINT', msg=dialect)
+            self.assertEqual(rest.strip(), '1')
+            for src in ('print 1', 'Print 1'):
+                cmd, _ = i._parse_command(src)
+                self.assertEqual(cmd, '', msg=f'{dialect} {src}')
+            # bbc/mini share COLOUR; others may not execute it, but parse is shared
+            if dialect in ('bbc', 'mini'):
+                self.assertEqual(i._parse_command('COLOUR 15')[0], 'COLOUR')
+                for src in ('Colour 15', 'colour 15', 'Colour&() = 1'):
+                    self.assertEqual(i._parse_command(src)[0], '', msg=f'{dialect} {src}')
+
+    def test_case_fold_allows_lower_keywords_all_dialects(self):
+        for dialect in ('bbc', 'mini', 'mits'):
+            i = BASICInterpreter(
+                InterpreterConfig(
+                    dialect=dialect,
+                    display='none',
+                    display_locked=True,
+                    identifiers_case_sensitive=False,
+                )
+            )
+            cmd, rest = i._parse_command('print 1')
+            self.assertEqual(cmd, 'PRINT', msg=dialect)
+            self.assertEqual(rest.strip(), '1')
+            if dialect in ('bbc', 'mini'):
+                cmd, rest = i._parse_command('colour 15')
+                self.assertEqual(cmd, 'COLOUR', msg=dialect)
+                # Type suffix still wins over statement
+                self.assertEqual(i._parse_command('colour&() = 1, 2')[0], '')
 
     def test_whole_array_compound_with_sum_in_rhs(self):
         i = _interp('bbc')

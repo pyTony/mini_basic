@@ -238,14 +238,19 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(self.run_program(lines), "1\n2\n3")
 
     def test_for_lowercase_to(self):
-        """Keyword case is free; spaced lowercase FOR/TO/NEXT works."""
-        lines = [
-            (10, "for i = 1 to 2"),
-            (20, "PRINT i"),
-            (30, "next i"),
-            (40, "END"),
-        ]
-        self.assertEqual(self.run_program(lines), "1\n2")
+        """With CASE OFF (fold), spaced lowercase FOR/TO/NEXT works."""
+        self.assertEqual(
+            self.run_program(
+                [
+                    (10, "for i = 1 to 2"),
+                    (20, "PRINT i"),
+                    (30, "next i"),
+                    (40, "END"),
+                ],
+                identifiers_case_sensitive=False,
+            ),
+            "1\n2",
+        )
 
     def test_immediate_for_colon_chain(self):
         interp = self.make_interp()
@@ -255,22 +260,25 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
     def test_immediate_for_colon_chain_lowercase(self):
+        """Lowercase keywords require fold mode (CASE OFF)."""
         interp = self.make_interp()
+        interp.set_case_sensitivity(False, announce=False)
         buf = io.StringIO()
         with redirect_stdout(buf):
             _execute_repl_line(interp, 'for i = 1 to 3: print i : next i')
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
     def test_immediate_for_compact_digit_to(self):
-        """Immediate path: entry canonicalize spaces ``1to3`` → ``1 TO 3``."""
+        """Immediate path: entry canonicalize spaces ``1TO3`` → ``1 TO 3``."""
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
-            interp.execute_immediate('for i=1to3:?i:next i')
+            # Keywords uppercase under default case-sensitive mode
+            interp.execute_immediate('FOR I=1TO3:?I:NEXT I')
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
     def test_for_compact_digit_to_via_entry_canonicalize(self):
-        """Program entry: ``FOR I=1TO3`` / ``for i=1to3`` via set_program_line."""
+        """Program entry: ``FOR I=1TO3`` via set_program_line; fold for lowercase."""
         for dialect in ('mini', 'bbc'):
             interp = BASICInterpreter(
                 InterpreterConfig(
@@ -278,6 +286,7 @@ class MiniBASICTests(unittest.TestCase):
                     display='none',
                     display_locked=True,
                     hold_display_open=False,
+                    identifiers_case_sensitive=False,
                 )
             )
             self.assertIn(' TO ', interp.canonicalize_program_line('FOR I=1TO3'))
@@ -302,11 +311,14 @@ class MiniBASICTests(unittest.TestCase):
         self.assertGreaterEqual(float(lines[3]), 0.0)
 
     def test_immediate_for_next_case_mismatch_mini(self):
-        """Loop *variable* names stay case-sensitive: NEXT I does not match i."""
+        """Loop *variable* names stay case-sensitive: NEXT I does not match i.
+
+        Keywords uppercase (case-on); variable i vs I still distinct.
+        """
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
-            interp.execute_immediate('for i = 1 to 3: print i : next I')
+            interp.execute_immediate('FOR i = 1 TO 3: PRINT i : NEXT I')
         self.assertEqual(buf.getvalue(), '? FOR error (NEXT I does not match i)\n')
 
     def test_immediate_for_float_step(self):
