@@ -2694,45 +2694,61 @@ class RuntimeExprMixin:
         return self._eval_arith_core_slow(expr)
 
     def _unglue_unary_not(self, expr: str) -> str:
-        """BBC often glues unary NOT: NOTX → NOT X (saucer PLOT 69,NOTX,Y).
+        """BBC often glues unary NOT: NOTX / NOT0 → NOT X / NOT 0.
 
         Case-sensitive dialects: only uppercase NOT is a keyword (``notx`` stays
         an identifier). Fold mode: case-insensitive (classic MS-style).
+        Digit glue matches ABS3-style keyword+number (``NOT0`` was left as a name).
         """
+        # Lookahead: letter, '_', '(', digit, or unary minus before a digit.
+        tail = r'(?=[A-Za-z_(]|\d|-)'
         if self._identifiers_case_sensitive():
-            return re.sub(r'(?<![A-Za-z0-9_])NOT(?=[A-Za-z_(])', 'NOT ', expr)
-        return re.sub(r'\bNOT(?=[A-Za-z_(])', 'NOT ', expr, flags=re.IGNORECASE)
+            return re.sub(rf'(?<![A-Za-z0-9_])NOT{tail}', 'NOT ', expr)
+        return re.sub(rf'\bNOT{tail}', 'NOT ', expr, flags=re.IGNORECASE)
+
+    # Monadic BBC numeric keywords that tokenise against a following name/number
+    # (ABS3, SQRx, TAN10, RND1). Longest first so SINRAD / ASIN win over SIN / ASN.
+    # Exclude multi-arg / no-arg / string-arg builtins (INSTR, POINT, LEN, PI, …).
+    _MONADIC_NUMERIC_UNGLUE_FUNCS = (
+        'SINRAD', 'COSRAD', 'TANRAD',
+        'ASIN', 'ACOS', 'ATAN',
+        'SIN', 'COS', 'TAN', 'ASN', 'ACS', 'ATN',
+        'DEG', 'RAD', 'LOG', 'EXP', 'SQR', 'SQRT',
+        'ABS', 'INT', 'SGN', 'SNG', 'DBL', 'FLOAT',
+        'RND',
+    )
 
     def _unglue_trig_idents(self, expr: str) -> str:
-        """COSa / TAN10 / SINRADT → COS(a) / TAN(10) / SIN(RAD(T)) before compile.
+        """Glued monadic BBC numerics: COSa / TAN10 / ABS3 / SINRADT / RND1.
 
         Case-sensitive (mini/bbc default): keywords are uppercase only, so
-        ``SINa`` / ``TAN10`` / ``SINRADT`` unglue but lowercase ``tana`` /
-        ``tan10`` / ``sina`` stay variable names. Fold mode: case-insensitive
-        unglue for BBCSDL glue style.
+        ``SINa`` / ``TAN10`` / ``ABS3`` unglue but lowercase ``tana`` /
+        ``tan10`` / ``abs3`` stay variable names. Fold mode: case-insensitive.
 
-        Letter-arg glue covers piechart ``COSa``; digit-arg glue matches BBC
-        tokeniser (keyword + number, like ``INKEY1``) so ``TAN10`` is not a name.
+        ``SINRADT`` (letter after SINRAD) is jclock-style ``SIN(RAD(T))`` in
+        *degrees*, not ``SINRAD(T)`` (radians). Digit forms use the plain
+        builtin: ``SINRAD1.57`` → ``SINRAD(1.57)``.
         """
         if self._identifiers_case_sensitive():
             flags = 0
-            # Uppercase function names only (BBC keyword rule).
-            rad = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
-            bare = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
-            num = (
-                r'(?<![A-Za-z0-9_])(SIN|COS|TAN)'
-                r'(-?(?:\d+(?:\.\d*)?|\.\d+))(?![A-Za-z0-9_$])'
-            )
         else:
             flags = re.IGNORECASE
-            rad = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
-            bare = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
-            num = (
-                r'(?<![A-Za-z0-9_])(SIN|COS|TAN)'
-                r'(-?(?:\d+(?:\.\d*)?|\.\d+))(?![A-Za-z0-9_$])'
-            )
+        # jclock: SINRADT with degree angles → SIN(RAD(T)), not SINRAD(T).
+        rad = (
+            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)'
+            r'(?![A-Za-z0-9_$(])'
+        )
         expr = re.sub(rad, r'\1(RAD(\2))', expr, flags=flags)
-        # Letters before digits so SINx1 stays SIN(x1), not SIN + leftover.
+        alts = '|'.join(self._MONADIC_NUMERIC_UNGLUE_FUNCS)
+        bare = (
+            rf'(?<![A-Za-z0-9_])({alts})([A-Za-z_][\w%]*)'
+            rf'(?![A-Za-z0-9_$(])'
+        )
+        num = (
+            rf'(?<![A-Za-z0-9_])({alts})'
+            rf'(-?(?:\d+(?:\.\d*)?|\.\d+))(?![A-Za-z0-9_$])'
+        )
+        # Letters before digits so ABSx1 stays ABS(x1), not ABS + leftover.
         expr = re.sub(bare, r'\1(\2)', expr, flags=flags)
         expr = re.sub(num, r'\1(\2)', expr, flags=flags)
         return expr
@@ -2743,6 +2759,12 @@ class RuntimeExprMixin:
         Must run before expand_dynamic_calls / compiled eval; normalize_operators
         alone is too late (expand sees bare INKEY1 and leaves name INKEY).
         """
+        if self._identifiers_case_sensitive():
+            return re.sub(
+                r'(?<![A-Za-z0-9_])INKEY(\d+)\b',
+                r'INKEY(\1)',
+                expr,
+            )
         return re.sub(r'\bINKEY(\d+)\b', r'INKEY(\1)', expr, flags=re.IGNORECASE)
 
     def _unglue_asc_string_literal(self, expr: str) -> str:

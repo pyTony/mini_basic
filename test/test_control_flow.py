@@ -521,6 +521,20 @@ class TestCaseSensitiveTrigIdents(unittest.TestCase):
         import math
         self.assertAlmostEqual(float(out.strip()), math.tan(10.0), places=5)
 
+    def test_monadic_digit_and_letter_glue_when_case_sensitive(self):
+        """ABS3/SQR4/NOT0 and ABSx match BBC keyword glue (not only SIN/COS/TAN)."""
+        out, err = self._run(
+            [
+                "x=4",
+                'PRINT ABS3; ","; SQR4; ","; INT3.7; ","; NOT0; ","; ABSx',
+                "END",
+            ],
+            case_sensitive=True,
+        )
+        self.assertNotIn("?", err + out)
+        parts = [p.strip() for p in out.strip().split(",")]
+        self.assertEqual(parts, ["3", "2", "3", "-1", "4"])
+
     def test_lowercase_tan10_is_variable_when_case_sensitive(self):
         out, err = self._run(
             ["tan10=5", "PRINT tan10", "END"],
@@ -528,6 +542,14 @@ class TestCaseSensitiveTrigIdents(unittest.TestCase):
         )
         self.assertNotIn("?", err + out)
         self.assertEqual(out.strip(), "5")
+
+    def test_lowercase_abs3_is_variable_when_case_sensitive(self):
+        out, err = self._run(
+            ["abs3=9", "PRINT abs3", "END"],
+            case_sensitive=True,
+        )
+        self.assertNotIn("?", err + out)
+        self.assertEqual(out.strip(), "9")
 
     def test_fold_mode_still_unglues_lowercase_sina(self):
         out, err = self._run(

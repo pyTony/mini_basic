@@ -1,7 +1,12 @@
-Focus: trig digit glue TAN10 — BBC keyword+number like INKEY1
+Focus: idle after BBC monadic glue audit (ABS3/SQR4/NOT0/RND1)
 
-Why: TAN10 was left as a name (letter-only unglue); user repro tan10=TAN10.
+Closed: generalized monadic unglue beyond SIN/COS/TAN; TAN10 was the canary.
 
-Next after this: entry-time canonicalize / other FEATURES_DONE --
+Next plan (FEATURES_DONE --):
+  1. entry-time line canonicalize (inventory first)
+  2. consolidate PROC_FN_NAME_PATTERN
+  3. PygameDisplay.write VDU 17 colour bytes
+  4. PRINT array subscript expansion
+  DEFER: polly, poem
 
 Repo: C:\Users\Tony\mini_basic
