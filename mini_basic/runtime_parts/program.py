@@ -974,7 +974,9 @@ class RuntimeProgramMixin:
             result = ('PROC', rest)
             self._parse_command_cache[cache_key] = result
             return result
-        if self.config.dialect == 'bbc':
+        # Case-sensitive dialects (mini/bbc default): keywords match uppercase only.
+        # Fold dialects (mits/commodore/tiny): IGNORECASE command regex.
+        if self._identifiers_case_sensitive():
             match = self._RE_PARSE_CMD_BBC.match(line)
         else:
             match = self._RE_PARSE_CMD.match(line)

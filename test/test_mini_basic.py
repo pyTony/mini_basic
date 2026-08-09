@@ -237,14 +237,30 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), "1\n2\n3")
 
-    def test_for_lowercase_to(self):
-        lines = [
-            (10, "for i = 1 to 2"),
-            (20, "PRINT i"),
-            (30, "next i"),
-            (40, "END"),
-        ]
-        self.assertEqual(self.run_program(lines), "1\n2")
+    def test_for_lowercase_rejected_when_case_sensitive(self):
+        """mini/bbc (case-sensitive): keywords must be uppercase — no free case."""
+        for dialect in ('mini', 'bbc'):
+            interp = BASICInterpreter(
+                InterpreterConfig(
+                    dialect=dialect,
+                    display='none',
+                    display_locked=True,
+                    hold_display_open=False,
+                )
+            )
+            self.assertTrue(interp._identifiers_case_sensitive())
+            interp.set_program_line(10, 'for i = 1 to 2')
+            interp.set_program_line(20, 'PRINT i')
+            interp.set_program_line(30, 'next i')
+            interp.set_program_line(40, 'END')
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                interp.run()
+            self.assertNotEqual(
+                buf.getvalue().strip(),
+                '1\n2',
+                msg=f'{dialect} must not accept lowercase for/to/next',
+            )
 
     def test_immediate_for_colon_chain(self):
         interp = self.make_interp()
@@ -253,70 +269,35 @@ class MiniBASICTests(unittest.TestCase):
             interp.execute_immediate('FOR I = 1 TO 3: PRINT I: NEXT')
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
-    def test_immediate_for_colon_chain_lowercase(self):
-        interp = self.make_interp()
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            _execute_repl_line(interp, 'for i = 1 to 3: print i : next i')
-        self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
-
-    def test_for_compact_digit_to_via_entry_canonicalize_bbc(self):
-        """BBC entry path: ``FOR I=1TO3`` → spaced TO; must use set_program_line.
-
-        Lowercase ``for i=1to3`` is not a keyword when case-sensitive (bbc/mini).
-        Do not insert raw program[] lines — entry canonicalize is the contract.
-        """
-        interp = BASICInterpreter(
-            InterpreterConfig(
-                dialect='bbc',
-                display='none',
-                display_locked=True,
-                hold_display_open=False,
+    def test_for_compact_digit_to_via_entry_canonicalize(self):
+        """Entry path: ``FOR I=1TO3`` → spaced TO (set_program_line, not raw program[])."""
+        for dialect in ('mini', 'bbc'):
+            interp = BASICInterpreter(
+                InterpreterConfig(
+                    dialect=dialect,
+                    display='none',
+                    display_locked=True,
+                    hold_display_open=False,
+                )
             )
-        )
-        # Uppercase compact glue: entry normalize inserts spaces around TO.
-        self.assertEqual(
-            interp.canonicalize_program_line('FOR I=1TO3'),
-            'FOR I=1 TO 3',
-        )
-        interp.set_program_line(10, 'FOR I=1TO3:?I:NEXT')
-        self.assertIn(' TO ', interp.program[10])
-        interp.set_program_line(20, 'END')
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            interp.run()
-        self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
-
-    def test_for_lowercase_rejected_in_bbc_case_sensitive(self):
-        """BBC keywords are uppercase-only: ``for i=1to3`` is not a FOR loop.
-
-        mini still folds statement keywords (``for i = 1 to 2`` works); after
-        entry TO-spacing, lowercase compact may become a valid mini loop.
-        """
-        interp = BASICInterpreter(
-            InterpreterConfig(
-                dialect='bbc',
-                display='none',
-                display_locked=True,
-                hold_display_open=False,
+            self.assertEqual(
+                interp.canonicalize_program_line('FOR I=1TO3'),
+                'FOR I=1 TO 3',
             )
-        )
-        self.assertTrue(interp._identifiers_case_sensitive())
-        interp.set_program_line(10, 'for i=1to3:?i:next i')
-        interp.set_program_line(20, 'END')
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            interp.run()
-        self.assertNotEqual(buf.getvalue().strip(), '1\n2\n3')
-        # Direct store without set_program_line is not the contract under test.
-        self.assertIn(' TO ', interp.program[10])  # entry still spaced TO
+            interp.set_program_line(10, 'FOR I=1TO3:?I:NEXT')
+            self.assertIn(' TO ', interp.program[10])
+            interp.set_program_line(20, 'END')
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                interp.run()
+            self.assertEqual(buf.getvalue().strip(), '1\n2\n3', msg=dialect)
 
     def test_immediate_time_for_next_print_chain(self):
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.execute_immediate(
-                'TIME=0:for I%=1 TO 3:?I%:NEXT:PRINT TIME/100'
+                'TIME=0:FOR I%=1 TO 3:?I%:NEXT:PRINT TIME/100'
             )
         lines = buf.getvalue().strip().split('\n')
         self.assertEqual(lines[:3], ['1', '2', '3'])
@@ -324,10 +305,11 @@ class MiniBASICTests(unittest.TestCase):
         self.assertGreaterEqual(float(lines[3]), 0.0)
 
     def test_immediate_for_next_case_mismatch_mini(self):
+        """Loop var names stay case-sensitive: NEXT I does not match i."""
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
-            interp.execute_immediate('for i = 1 to 3: print i : next I')
+            interp.execute_immediate('FOR i = 1 TO 3: PRINT i : NEXT I')
         self.assertEqual(buf.getvalue(), '? FOR error (NEXT I does not match i)\n')
 
     def test_immediate_for_float_step(self):
@@ -2820,7 +2802,8 @@ class MiniBASICTests(unittest.TestCase):
         interp.run()
         self.assertEqual(buf.getvalue(), "120\n")
 
-    def test_multiline_def_fn_accepts_lowercase_end_if_and_end_def(self):
+    def test_multiline_def_fn_end_if_and_end_def(self):
+        """Case-sensitive mini: keywords uppercase; END IF / END DEF closers."""
         interp = self.make_interp()
         lines = [
             (10, "DEF FNfact(n)"),
@@ -2828,13 +2811,13 @@ class MiniBASICTests(unittest.TestCase):
             (30, "= 1"),
             (40, "ELSE"),
             (50, "= n * FNfact(n - 1)"),
-            (60, "END if"),
-            (70, "END def"),
+            (60, "END IF"),
+            (70, "END DEF"),
             (80, "PRINT FNfact(5)"),
             (90, "END"),
         ]
         for line_num, statement in lines:
-            interp.program[line_num] = statement
+            interp.set_program_line(line_num, statement)
         interp._ensure_definitions_current()
         self.assertIn('fact', interp.user_functions)
         self.assertTrue(interp.user_functions['fact'].multiline)
@@ -2843,21 +2826,21 @@ class MiniBASICTests(unittest.TestCase):
         interp.run()
         self.assertEqual(buf.getvalue(), "120\n")
 
-    def test_multiline_def_fn_accepts_lowercase_end_if_with_rem(self):
+    def test_multiline_def_fn_end_if_with_rem(self):
         interp = self.make_interp()
         lines = [
             (10, "DEF FNfact(n)"),
-            (20, "if n<2 then"),
+            (20, "IF n<2 THEN"),
             (30, "= 1"),
-            (40, "else"),
+            (40, "ELSE"),
             (50, "= n * FNfact(n - 1)"),
-            (60, "end if REM close branch"),
-            (70, "end def"),
+            (60, "END IF REM close branch"),
+            (70, "END DEF"),
             (80, "PRINT FNfact(4)"),
             (90, "END"),
         ]
         for line_num, statement in lines:
-            interp.program[line_num] = statement
+            interp.set_program_line(line_num, statement)
         interp._ensure_definitions_current()
         self.assertIn('fact', interp.user_functions)
         buf = io.StringIO()

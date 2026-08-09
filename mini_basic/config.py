@@ -25,7 +25,8 @@ class InterpreterConfig:
     dialect_locked: bool = False
     """When True, LOAD shebang hints do not change dialect (CLI --dialect)."""
     identifiers_case_sensitive: Optional[bool] = None
-    """None = dialect default (mini on; mits/commodore/tiny/bbc fold names)."""
+    """None = dialect default: mini/bbc case-sensitive (keywords upper-only);
+    mits/commodore/tiny fold. CASE on|off overrides."""
     display: str = 'terminal'
     display_locked: bool = False
     """When True, CLI or tests fixed the backend; do not auto-enable pygame on LOAD."""
