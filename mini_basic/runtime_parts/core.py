@@ -2379,9 +2379,8 @@ class RuntimeCoreMixin:
             print()
             return
         if not text:
-            if line_num in self.program:
-                self.delete_program_line(line_num)
-                print(f'Deleted {line_num}')
+            # Empty Enter: cancel edit — leave existing line unchanged (do not delete).
+            # Delete with bare line number at > (e.g. 15) or NEW/clear line content.
             return
         stored_num, statement = self._parse_auto_line(line_num, text)
         new_indent, statement = self._preserve_or_parse_indent(

@@ -2238,7 +2238,7 @@ class RuntimeProgramMixin:
           LIST       show the program
         """
         print('EDIT needs a line number (BBC full-screen EDIT is not available).')
-        print('  EDIT n     edit one line (prefilled; empty Enter deletes)')
+        print('  EDIT n     edit one line (prefilled; empty Enter cancels)')
         print('  AUTO [n]   enter new lines with automatic numbers')
         print('  10 PRINT…  type numbered lines at the > prompt to store')
         print('  10         bare line number at > deletes that line')

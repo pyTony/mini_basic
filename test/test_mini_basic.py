@@ -1510,12 +1510,13 @@ class MiniBASICTests(unittest.TestCase):
         self.assertNotIn(10, interp.program)
         self.assertIn('not allowed in mits', buf.getvalue())
 
-    def test_edit_line_delete(self):
+    def test_edit_line_empty_enter_cancels(self):
+        """Empty Enter on EDIT leaves the line unchanged (does not delete)."""
         interp = self.make_interp()
         interp.program[50] = 'PRINT "old"'
         with patch('mini_basic.runtime_parts.helpers._prompt_editing_input', return_value=''):
             interp.edit_line(50)
-        self.assertNotIn(50, interp.program)
+        self.assertEqual(interp.program[50], 'PRINT "old"')
 
     def test_repl_bare_line_number_deletes_program_line(self):
         interp = self.make_interp()
