@@ -4,6 +4,10 @@ Completion uses GNU readline (Unix) or pyreadline3/pyreadline (Windows). The REP
 must call ``configure_readline()`` once before the input loop; without a readline
 backend, ``input()`` behaves as usual and Tab inserts a literal tab.
 
+On Windows, install ``pyreadline3`` (``requirements-repl.txt`` / ``mini-basic[repl]``)
+so the REPL uses that backend instead of the custom msvcrt line editor (which
+re-draws the whole line on every key and lags on some Unicode characters).
+
 Supported contexts (filename completion in ``working_dir``):
 
 - ``LOAD path`` — ``*.bas`` and common backup names (``.bak``, ``.backup``, ``~``, …)

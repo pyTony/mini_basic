@@ -1,12 +1,8 @@
-Focus: idle after BBC monadic glue audit (ABS3/SQR4/NOT0/RND1)
+Focus: idle after REPL prefers pyreadline3 (not custom msvcrt)
 
-Closed: generalized monadic unglue beyond SIN/COS/TAN; TAN10 was the canary.
+Closed: text-mode REPL uses pyreadline3/readline; msvcrt only for pygame idle
+  or missing backend. Installed pyreadline3 into tools/python-embed.
 
-Next plan (FEATURES_DONE --):
-  1. entry-time line canonicalize (inventory first)
-  2. consolidate PROC_FN_NAME_PATTERN
-  3. PygameDisplay.write VDU 17 colour bytes
-  4. PRINT array subscript expansion
-  DEFER: polly, poem
+Next plan (FEATURES_DONE --): entry-time canonicalize, PROC_FN_NAME, VDU 17, …
 
 Repo: C:\Users\Tony\mini_basic

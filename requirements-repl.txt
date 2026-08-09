@@ -1,2 +1,5 @@
-# Tab completion in the interactive REPL (Windows). Optional on Unix (stdlib readline).
+# Windows REPL line editing + Tab completion (Unicode-safe; replaces custom msvcrt
+# path for normal text mode). Unix uses the stdlib readline module instead.
+#   pip install -r requirements-repl.txt
+#   # or:  pip install "mini-basic[repl]"
 pyreadline3>=3.5.0; platform_system == "Windows"

@@ -83,3 +83,5 @@
 2026-08-09 12:43:54 WORK END trig digit glue: TAN10/SIN/COS → TAN(10); case-sensitive tan10 still var
 2026-08-09 12:48:18 WORK BEGIN audit BBC monadic glue gaps (ABS3/SQR4/NOT0 etc)
 2026-08-09 12:49:28 WORK END BBC monadic glue: ABS/INT/SQR/SGN/LOG/EXP/ATN/RAD/RND/NOT digit+letter like TAN10
+2026-08-09 12:54:24 WORK BEGIN REPL: prefer pyreadline3 over custom msvcrt line editor
+2026-08-09 12:56:00 WORK END REPL: prefer pyreadline3 over custom msvcrt; note if missing

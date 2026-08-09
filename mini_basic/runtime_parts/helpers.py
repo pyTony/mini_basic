@@ -90,16 +90,9 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
     """
     Prompt for editable BASIC source (EDIT, AUTO, bare line number).
 
-    On Windows TTYs use the shared msvcrt editor (word/line keys).
-    Elsewhere prefer readline prefill without clearing history so paste and
-    prior commands remain available.
+    Prefer readline (GNU on Unix, pyreadline3 on Windows). Custom msvcrt
+    editor is only a fallback when no readline backend is installed.
     """
-    if sys.platform == 'win32' and sys.stdin.isatty():
-        try:
-            return _windows_editing_input(prompt, default)
-        except (ImportError, OSError, ValueError):
-            pass
-
     default = _sanitize_basic_source(default)
     readline = _get_readline_module()
     if readline is not None:
@@ -117,6 +110,12 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
             return _sanitize_basic_source(input(prompt).rstrip())
         finally:
             readline.set_startup_hook(None)
+
+    if sys.platform == 'win32' and sys.stdin.isatty():
+        try:
+            return _windows_editing_input(prompt, default)
+        except (ImportError, OSError, ValueError):
+            pass
 
     return _sanitize_basic_source(input(prompt).rstrip())
 

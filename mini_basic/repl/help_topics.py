@@ -422,6 +422,7 @@ def _print_help_repl() -> None:
         'bye | quit | exit | goodbye | q',
         '',
         'Tab completes filenames after LOAD, SAVE (*.bas/.bbc + backups), RUN, CD',
+        'Windows: pip install -r requirements-repl.txt  (pyreadline3 line editing)',
         '',
         'Abbreviations (BBC/VAX style):',
         'H.=HELP   L.=LIST   LO.=LOAD   R.=RUN   N.=NEW',

@@ -285,16 +285,10 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
     """
     Prompt for editable BASIC source (EDIT, AUTO, bare line number).
 
-    On Windows TTYs use the shared msvcrt editor (word/line keys).
-    Elsewhere prefer readline prefill without clearing history so paste and
-    prior commands remain available.
+    Prefer readline (GNU on Unix, pyreadline3 on Windows) so Unicode and
+    history work without the custom msvcrt redraw path. Fall back to that
+    editor only when no readline backend is available.
     """
-    if sys.platform == 'win32' and sys.stdin.isatty():
-        try:
-            return _windows_editing_input(prompt, default)
-        except (ImportError, OSError, ValueError):
-            pass
-
     def _sanitize(text: str) -> str:
         return ''.join(ch for ch in text if ch == '\t' or (ord(ch) >= 32 and ord(ch) != 127))
 
@@ -315,6 +309,12 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
             return _sanitize(input(prompt).rstrip())
         finally:
             readline.set_startup_hook(None)
+
+    if sys.platform == 'win32' and sys.stdin.isatty():
+        try:
+            return _windows_editing_input(prompt, default)
+        except (ImportError, OSError, ValueError):
+            pass
 
     return _sanitize(input(prompt).rstrip())
 
@@ -819,6 +819,11 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
         expand_abbrev=_expand_repl_abbrev,
         get_readline=_get_readline_module,
     )
+    if sys.platform == 'win32' and sys.stdin.isatty() and not readline_ok:
+        print(
+            'Note: install pyreadline3 for smoother Windows line editing '
+            '(pip install -r requirements-repl.txt)'
+        )
     repl_history: List[str] = []
 
     def _pump_pygame_while_idle() -> bool:
@@ -829,9 +834,10 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
 
     def _read_repl_line() -> str:
         idle = _pump_pygame_while_idle if interp._display_enabled() else None
-        # pyreadline3 "complete" does not cycle ambiguous matches; use our
-        # Windows input loop for reliable Tab rotation on win32.
-        if sys.platform == 'win32' and sys.stdin.isatty():
+        # Prefer pyreadline3 / GNU readline (requirements-repl.txt) for Unicode
+        # and low-latency editing. Custom msvcrt editor only when pygame must
+        # pump the window while waiting for keys, or when no readline backend.
+        if idle is not None and sys.platform == 'win32' and sys.stdin.isatty():
             try:
                 from .repl.windows_input import windows_repl_input
 
@@ -844,11 +850,8 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
                 )
             except (ImportError, OSError, ValueError):
                 pass
-        if idle is not None:
-            while not idle():
-                time.sleep(0.005)
-        if readline_ok:
-            return input('> ')
+        if idle is not None and not idle():
+            raise ProgramExit()
         return input('> ')
 
     try:
