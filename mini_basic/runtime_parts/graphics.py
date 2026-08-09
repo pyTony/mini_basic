@@ -331,19 +331,35 @@ class RuntimeGraphicsMixin:
                 self._display_live = True
             return
         if self._display is None:
-            from mini_basic.display import create_display
+            from mini_basic.display import create_display, pygame_install_hint
 
-            self._display = create_display(
-                backend,
-                text_cols=self.config.display_cols,
-                text_rows=self.config.display_rows,
-                graphics_width=self.config.graphics_width,
-                graphics_height=self.config.graphics_height,
-                scale=self.config.display_scale,
-                scale_locked=self.config.display_scale_locked,
-                caption=self.config.display_caption,
-                fps_limit=self.config.display_fps_limit,
-            )
+            try:
+                self._display = create_display(
+                    backend,
+                    text_cols=self.config.display_cols,
+                    text_rows=self.config.display_rows,
+                    graphics_width=self.config.graphics_width,
+                    graphics_height=self.config.graphics_height,
+                    scale=self.config.display_scale,
+                    scale_locked=self.config.display_scale_locked,
+                    caption=self.config.display_caption,
+                    fps_limit=self.config.display_fps_limit,
+                )
+            except ImportError as exc:
+                # Auto-enabled pygame without package installed, or locked request.
+                if self.config.display_locked or backend != 'pygame':
+                    raise ImportError(pygame_install_hint()) from exc
+                print(
+                    'pygame missing — falling back to terminal display.\n'
+                    + pygame_install_hint()
+                )
+                self.config.display = 'terminal'
+                self._display = create_display(
+                    'terminal',
+                    text_cols=self.config.display_cols,
+                    text_rows=self.config.display_rows,
+                )
+                backend = 'terminal'
         if hasattr(self._display, 'fps_limit'):
             self._display.fps_limit = max(0, int(self.config.display_fps_limit))
         # Reopen after user closed the window (or first open).
@@ -358,17 +374,25 @@ class RuntimeGraphicsMixin:
                     pass
                 from mini_basic.display import create_display, ensure_no_pygame_leftovers
                 ensure_no_pygame_leftovers()
-                self._display = create_display(
-                    backend,
-                    text_cols=self.config.display_cols,
-                    text_rows=self.config.display_rows,
-                    graphics_width=self.config.graphics_width,
-                    graphics_height=self.config.graphics_height,
-                    scale=self.config.display_scale,
-                    scale_locked=self.config.display_scale_locked,
-                    caption=self.config.display_caption,
-                    fps_limit=self.config.display_fps_limit,
-                )
+                try:
+                    self._display = create_display(
+                        backend,
+                        text_cols=self.config.display_cols,
+                        text_rows=self.config.display_rows,
+                        graphics_width=self.config.graphics_width,
+                        graphics_height=self.config.graphics_height,
+                        scale=self.config.display_scale,
+                        scale_locked=self.config.display_scale_locked,
+                        caption=self.config.display_caption,
+                        fps_limit=self.config.display_fps_limit,
+                    )
+                except ImportError:
+                    self.config.display = 'terminal'
+                    self._display = create_display(
+                        'terminal',
+                        text_cols=self.config.display_cols,
+                        text_rows=self.config.display_rows,
+                    )
                 self._display.begin_run()
             self._display_live = True
             if self._graphics_mode and hasattr(self._display, 'set_mode'):
@@ -440,6 +464,15 @@ class RuntimeGraphicsMixin:
                     'Graphics skipped (text-only session; '
                     'use --display pygame if a window is available, '
                     'or unset MINIBASIC_NO_GRAPHICS / set DISPLAY)'
+                )
+            return
+        from mini_basic.display import pygame_available, pygame_install_hint
+
+        if not pygame_available():
+            if announce:
+                print(
+                    'Graphics detected, but pygame is not installed — using terminal.\n'
+                    + pygame_install_hint()
                 )
             return
         self.config.display = 'pygame'

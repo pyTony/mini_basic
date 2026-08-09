@@ -585,9 +585,7 @@ class PygameDisplay(DisplayBackend):
         try:
             import pygame
         except ImportError as exc:
-            raise ImportError(
-                'pygame is required for display="pygame". Install with: pip install pygame-ce'
-            ) from exc
+            raise ImportError(pygame_install_hint()) from exc
         self._pygame = pygame
         self.text_cols = text_cols
         self.text_rows = text_rows
@@ -2077,6 +2075,31 @@ def auto_display_scale(
     base_w = max(graphics_width, text_cols * cell_size)
     base_h = max(graphics_height, text_rows * cell_size)
     return fit_display_scale(base_w, base_h, max_scale, max_scale=max_scale)
+
+
+
+def pygame_available() -> bool:
+    """True if ``import pygame`` succeeds (pygame or pygame-ce)."""
+    try:
+        import pygame  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def pygame_install_hint() -> str:
+    """User-facing install help for missing pygame (WSL / PEP 668 aware)."""
+    return (
+        'pygame is required for display="pygame" (window graphics).\n'
+        '  Quick text mode:  python -m mini_basic --display terminal file.bas\n'
+        '  Install options:\n'
+        '    python3 -m venv .venv && source .venv/bin/activate\n'
+        '    pip install pygame-ce\n'
+        '    # or:  pip install "mini-basic[display]"\n'
+        '  Debian/Ubuntu/WSL (after sudo apt update):\n'
+        '    sudo apt install python3-pygame\n'
+        '  Windows:  pip install pygame-ce'
+    )
 
 
 def create_display(
