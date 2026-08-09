@@ -2264,6 +2264,32 @@ class MiniBASICTests(unittest.TestCase):
             self.assertEqual(interp.program[30], 'END')
             self.assertEqual(interp.line_indent.get(20), 4)
 
+    def test_save_defaults_pretty_when_loaded_unnumbered(self):
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'plain.bas'), 'w', encoding='utf-8') as f:
+                f.write('FOR I = 1 TO 2\nPRINT I\nNEXT I\nEND\n')
+            interp.working_dir = tmp
+            with redirect_stdout(io.StringIO()):
+                self.assertTrue(interp.load('plain.bas', announce=False))
+            self.assertIs(interp._program_source_numbered, False)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                interp.save('out.bas')  # default standard → auto pretty
+            self.assertIn('pretty', buf.getvalue().lower())
+            text = open(os.path.join(tmp, 'out.bas'), encoding='utf-8').read()
+            self.assertTrue(
+                all(not re.match(r'^\s*\d+\s', ln) for ln in text.splitlines() if ln.strip()),
+            )
+            self.assertIn('FOR I = 1 TO 2', text)
+            with redirect_stdout(io.StringIO()):
+                interp.save('numbered.bas', 'numbered')
+            num_text = open(os.path.join(tmp, 'numbered.bas'), encoding='utf-8').read()
+            self.assertRegex(num_text, r'(?m)^\s*10\s')
+
     def test_load_unnumbered_with_goto(self):
         import os
         import tempfile
@@ -3913,6 +3939,7 @@ class MiniBASICTests(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn('LOAD', out)
         self.assertIn('SAVE PRETTY', out)
+        self.assertIn('SAVE NUMBERED', out)
         self.assertIn('LIST REFS', out)
         self.assertIn('.bas', out)
         self.assertIn('No unnumbered AUTO', out)

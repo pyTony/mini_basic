@@ -1716,14 +1716,33 @@ class RuntimeIoMixin:
     def save(self, filename, mode: str = 'standard'):
         """Write the program to disk.
 
-        * ``standard`` — numbered lines as stored (``line_indent``)
+        * ``standard`` / ``numbered`` — numbered lines as stored (``line_indent``)
         * ``pretty`` — structural indent, unnumbered (reloadable as structured source)
         * ``refs`` — same presentation as LIST REFS (GOTO targets numbered, DEF gaps)
+
+        When *mode* is the default ``standard`` and the program was **loaded from
+        unnumbered source**, SAVE uses **pretty** automatically so a LOAD → EDIT →
+        SAVE round-trip keeps the file unnumbered (memory stays numbered for EDIT).
+        Use ``SAVE NUMBERED`` to force classic line numbers.
         """
         try:
             path = self.resolve_path(filename)
             case_fold = self._detokenize_fold()
             mode_key = (mode or 'standard').strip().lower()
+            force_numbered = mode_key in ('numbered', 'lines')
+            if force_numbered:
+                mode_key = 'standard'
+            elif mode_key in ('ref',):
+                mode_key = 'refs'
+            auto_pretty = False
+            # Bare SAVE (standard) after unnumbered LOAD → pretty; SAVE NUMBERED forces lines.
+            if (
+                mode_key == 'standard'
+                and not force_numbered
+                and self._program_source_numbered is False
+            ):
+                mode_key = 'pretty'
+                auto_pretty = True
             if mode_key in ('pretty', 'refs'):
                 self._apply_structural_indents()
 
@@ -1769,7 +1788,10 @@ class RuntimeIoMixin:
                         )
 
             self.loaded_filename = filename
-            print(f'Saved: {path}')
+            if auto_pretty:
+                print(f'Saved: {path}  (pretty: loaded unnumbered)')
+            else:
+                print(f'Saved: {path}')
         except Exception as exc:
             self._emit_error(f'Save failed: {type(exc).__name__}: {exc}')
 

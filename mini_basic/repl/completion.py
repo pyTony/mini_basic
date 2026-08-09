@@ -20,7 +20,7 @@ from typing import Callable, Iterable, List, Optional, Sequence, Tuple
 
 # After BBC/VAX abbrev expansion (LO. → LOAD, SA. → SAVE, …).
 _FILE_COMMAND_RE = re.compile(
-    r'^(?:LOAD|SAVE(?:\s+PRETTY)?|RUN|CD)(\s+)(.*)$',
+    r'^(?:LOAD|SAVE(?:\s+(?:PRETTY|REFS?|NUMBERED|LINES))?|RUN|CD)(\s+)(.*)$',
     re.IGNORECASE,
 )
 

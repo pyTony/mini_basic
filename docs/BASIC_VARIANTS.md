@@ -134,8 +134,10 @@ Full table and notes: always prefer the generated file over this excerpt.
 | Tokenized `.bbc` | Wilson or Russell binary | Detokenize → then same as text |
 | After LOAD | — | Always a **numbered** program map |
 
-Unnumbered is a **file / editor** convenience (like RISC OS Edit / TEXTLOAD renumbering), not a second in-memory program model.  
-`SAVE PRETTY` / `LIST PRETTY` export structured unnumbered text again.  
+Unnumbered is a **file / editor** convenience (like RISC OS Edit / TEXTLOAD renumbering), not a second in-memory program model.
+
+**Round-trip:** `LOAD` unnumbered → edit with `EDIT n` → bare `SAVE` defaults to **PRETTY** (keeps the file unnumbered).  
+`SAVE NUMBERED` forces classic line numbers. Numbered loads still bare-`SAVE` as numbered.  
 Details: `HELP PROGRAM`.
 
 ---

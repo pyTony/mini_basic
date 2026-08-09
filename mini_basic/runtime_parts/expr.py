@@ -359,19 +359,11 @@ class RuntimeExprMixin:
                 ):
                     return False
 
-        if announce:
-            if (
-                self.config.dialect == 'mini'
-                and source_was_numbered
-            ):
-                print('Note: numbered program; consider --dialect mits, commodore, or tiny', file=self._get_error_stream())
-            elif (
-                self.config.dialect == 'mini'
-                and not source_was_numbered
-            ):
-                print('Note: unnumbered program; consider --dialect bbc', file=self._get_error_stream())
-            elif self.config.dialect == 'bbc':
-                self._announce_bbc_sdl_keyword_hints(parsed_lines)
+        if announce and self.config.dialect == 'bbc':
+            # mini is the intentional default for both numbered and unnumbered
+            # sources; do not nag "consider --dialect …". SAVE of unnumbered
+            # loads defaults to PRETTY so the file stays unnumbered.
+            self._announce_bbc_sdl_keyword_hints(parsed_lines)
         return True
 
     def _apply_def_type_statement(

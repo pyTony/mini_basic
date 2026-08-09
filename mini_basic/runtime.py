@@ -437,20 +437,34 @@ def _parse_list_command(text: str) -> Optional[ListCommand]:
 
 
 def _parse_save_command(text: str) -> Tuple[Optional[str], str]:
-    """Parse SAVE [PRETTY|REFS] [filename].
+    """Parse SAVE [PRETTY|REFS|NUMBERED] [filename].
 
-    Returns (filename_or_None, mode) where mode is ``standard``, ``pretty``, or ``refs``.
+    Returns (filename_or_None, mode) where mode is ``standard``, ``pretty``,
+    ``refs``, or ``numbered`` (force line numbers even if source was unnumbered).
     """
     stripped = text.strip()
     mode = 'standard'
-    mode_match = re.match(r'^SAVE\s+(PRETTY|REFS?)\b', stripped, re.IGNORECASE)
+    mode_match = re.match(
+        r'^SAVE\s+(PRETTY|REFS?|NUMBERED|LINES)\b',
+        stripped,
+        re.IGNORECASE,
+    )
     if mode_match:
         token = mode_match.group(1).upper()
-        mode = 'refs' if token.startswith('REF') else 'pretty'
-    if re.fullmatch(r'SAVE(?:\s+(?:PRETTY|REFS?))?', stripped, re.IGNORECASE):
+        if token.startswith('REF'):
+            mode = 'refs'
+        elif token in ('NUMBERED', 'LINES'):
+            mode = 'numbered'
+        else:
+            mode = 'pretty'
+    if re.fullmatch(
+        r'SAVE(?:\s+(?:PRETTY|REFS?|NUMBERED|LINES))?',
+        stripped,
+        re.IGNORECASE,
+    ):
         return None, mode
     match = re.match(
-        r'^SAVE(?:\s+(?:PRETTY|REFS?))?\s+(.+)$',
+        r'^SAVE(?:\s+(?:PRETTY|REFS?|NUMBERED|LINES))?\s+(.+)$',
         stripped,
         re.IGNORECASE,
     )
@@ -689,7 +703,7 @@ def _execute_repl_line(interp: BASICInterpreter, text: str) -> bool:
         resolved = _resolve_save_filename(interp, filename)
         if resolved is None:
             if filename is not None:
-                print('? SAVE [PRETTY|REFS] filename')
+                print('? SAVE [PRETTY|REFS|NUMBERED] filename')
         else:
             interp.save(resolved, save_mode)
     elif u.startswith('LOAD'):
