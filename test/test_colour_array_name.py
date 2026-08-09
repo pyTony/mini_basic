@@ -152,6 +152,33 @@ class ColourArrayNameTests(unittest.TestCase):
         self.assertEqual(op, '=')
         self.assertEqual(rhs, '0')
 
+    def test_if_cond_line_number_without_then(self):
+        """MS-style IF Y$<>\"N\" 15 (no THEN) continues on empty INPUT."""
+        i = _interp('mini')
+        cond, body = i._split_bbc_compact_if_then('Y$ <> "N" 15')
+        self.assertEqual(cond, 'Y$ <> "N"')
+        self.assertEqual(body, '15')
+        for n, s in [
+            (10, 'A=1: F=1'),
+            (15, 'F=F*A'),
+            (20, 'PRINT A;'),
+            (30, 'A=A+1'),
+            (40, 'INPUT Y$'),
+            (50, 'IF Y$ <> "N" 15'),
+            (60, 'END'),
+        ]:
+            i.set_program_line(n, s)
+        buf = io.StringIO()
+        from unittest.mock import patch
+
+        with patch('builtins.input', side_effect=['', 'N']):
+            with redirect_stdout(buf):
+                i.run()
+        self.assertEqual(i.error_line_num, 0)
+        # two factorials then stop on N
+        self.assertIn('1', buf.getvalue())
+        self.assertIn('2', buf.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -1319,6 +1319,10 @@ class RuntimeCoreMixin:
             statement = then_part[match.end() :].strip()
             if not condition or not statement:
                 continue
+            # MS/BBC: IF cond linenum  (no THEN) — e.g. IF Y$<>"N" 15
+            if re.fullmatch(r'\d+', statement) and self._dialect_allows('if_then_line'):
+                best = (condition, statement)
+                continue
             if not self._looks_like_statement(statement):
                 continue
             best = (condition, statement)
@@ -1337,6 +1341,9 @@ class RuntimeCoreMixin:
         if not text or self._looks_like_statement(text):
             return False
         if self._find_then_keyword(text) is not None:
+            return False
+        # Not bare condition if a line number follows (IF cond 100 without THEN).
+        if re.search(r'\s+\d+\s*$', text) and self._dialect_allows('if_then_line'):
             return False
         # Comparisons or parenthesized predicates, e.g. (I%AND1)=0
         if re.search(r'(<>|<=|>=|<|>|=)', text):
