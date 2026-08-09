@@ -1604,7 +1604,7 @@ class RuntimeExprMixin:
         # must respect identifier case mode (see _unglue_trig_idents).
         # jclock: SINRADT with T in *degrees* (I%*30) means SIN(RAD(T)), not SINRAD(T).
         # Parenthesized SINRAD(x) still means sin(x radians) via the SINRAD builtin.
-        expr = self._unglue_trig_idents(expr)
+        expr = self._unglue_monadic_expr(expr)
         # VALMID$(s,i) → VAL(MID$(s,i)) (balanced parens)
         val_glued = re.compile(
             r'(?<![A-Za-z0-9_])VAL(MID\$|LEFT\$|RIGHT\$)\s*\(',
@@ -2572,8 +2572,7 @@ class RuntimeExprMixin:
         if not expr:
             return 0.0
         expr = self._substitute_boolean_literals(expr)
-        expr = self._unglue_inkey_digits(expr)
-        expr = self._unglue_asc_string_literal(expr)
+        expr = self._unglue_monadic_expr(expr)
         expr = self._expand_dynamic_calls(expr)
         expr = self._expand_file_calls(expr)
         expr = self._substitute_array_references(expr)
@@ -2684,7 +2683,7 @@ class RuntimeExprMixin:
         if not expr:
             return 0.0
         expr = self._substitute_boolean_literals(expr)
-        expr = self._unglue_asc_string_literal(expr)
+        expr = self._unglue_monadic_expr(expr)
         if self._expr_has_boolean_syntax(expr):
             # welcome: ASC"B"-(I%=M2) — expand parenthesized BBC =/<> into -1/0
             expanded = self._expand_parenthesized_bbc_comparisons(expr)
@@ -2717,6 +2716,55 @@ class RuntimeExprMixin:
         'ABS', 'INT', 'SGN', 'SNG', 'DBL', 'FLOAT',
         'RND',
     )
+
+    # Phase 2 peel: skip full monadic unglue when expr cannot need it (tight loops).
+    # False positives only re-run unglue; false negatives would leave glue unbroken.
+    _MONADIC_UNGLUE_CANDIDATE_CS = re.compile(
+        r'(?<![A-Za-z0-9_])(?:'
+        r'(?:SIN|COS|TAN)RAD(?=[A-Za-z_])|'
+        r'(?:SINRAD|COSRAD|TANRAD|ASIN|ACOS|ATAN|SIN|COS|TAN|ASN|ACS|ATN|'
+        r'DEG|RAD|LOG|EXP|SQR|SQRT|ABS|INT|SGN|SNG|DBL|FLOAT|RND)'
+        r'(?=[A-Za-z0-9.-])|'
+        r'NOT(?=[A-Za-z_0-9(-])|'
+        r'INKEY\d|'
+        r'ASC\s*"'
+        r')'
+    )
+    _MONADIC_UNGLUE_CANDIDATE_CI = re.compile(
+        r'(?<![A-Za-z0-9_])(?:'
+        r'(?:SIN|COS|TAN)RAD(?=[A-Za-z_])|'
+        r'(?:SINRAD|COSRAD|TANRAD|ASIN|ACOS|ATAN|SIN|COS|TAN|ASN|ACS|ATN|'
+        r'DEG|RAD|LOG|EXP|SQR|SQRT|ABS|INT|SGN|SNG|DBL|FLOAT|RND)'
+        r'(?=[A-Za-z0-9.-])|'
+        r'NOT(?=[A-Za-z_0-9(-])|'
+        r'INKEY\d|'
+        r'ASC\s*"'
+        r')',
+        re.IGNORECASE,
+    )
+
+    def _expr_may_need_monadic_unglue(self, expr: str) -> bool:
+        """True if monadic/NOT/INKEY/ASC glue might still be present."""
+        if not expr:
+            return False
+        if self._identifiers_case_sensitive():
+            return self._MONADIC_UNGLUE_CANDIDATE_CS.search(expr) is not None
+        return self._MONADIC_UNGLUE_CANDIDATE_CI.search(expr) is not None
+
+    def _unglue_monadic_expr(self, expr: str) -> str:
+        """Apply monadic BBC unglue; no-op when the expr cannot need it.
+
+        Entry-time canonicalize already rewrites program lines; this remains a
+        safety net for immediate mode / residual glue, with a cheap reject for
+        tight-loop expressions that are already parenthesized (``TAN(10)``).
+        """
+        if not self._expr_may_need_monadic_unglue(expr):
+            return expr
+        expr = self._unglue_unary_not(expr)
+        expr = self._unglue_trig_idents(expr)
+        expr = self._unglue_inkey_digits(expr)
+        expr = self._unglue_asc_string_literal(expr)
+        return expr
 
     def _unglue_trig_idents(self, expr: str) -> str:
         """Glued monadic BBC numerics: COSa / TAN10 / ABS3 / SINRADT / RND1.
@@ -2780,10 +2828,7 @@ class RuntimeExprMixin:
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
-        expr = self._unglue_unary_not(expr)
-        expr = self._unglue_trig_idents(expr)
-        expr = self._unglue_inkey_digits(expr)
-        expr = self._unglue_asc_string_literal(expr)
+        expr = self._unglue_monadic_expr(expr)
         # Stub MOD(array) as norm ~ non-zero for BBCSDL vector code like light() /= MOD(light())
         if expr.upper().startswith('MOD(') and ')' in expr:
             inner = expr[4:-1].strip()
@@ -2825,9 +2870,7 @@ class RuntimeExprMixin:
         expr = expr.strip()
         if not expr:
             return False
-        expr = self._unglue_unary_not(expr)
-        expr = self._unglue_trig_idents(expr)
-        expr = self._unglue_inkey_digits(expr)
+        expr = self._unglue_monadic_expr(expr)
         if self.config.use_compiled_exprs:
             return bool(
                 self._get_compiled_expr(expr, is_condition=True).eval_condition(self)

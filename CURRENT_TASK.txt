@@ -1,12 +1,8 @@
-Focus: idle after entry-time canonicalize Phase 1
+Focus: idle after canonicalize Phase 2a (monadic fast-reject)
 
-Phase 1: canonicalize_program_line on set_program_line (LOAD/EDIT); runtime unglue kept.
-Phase 2 later: remove runtime unglue families one by one under tests.
+Phase 1: entry canonicalize on set_program_line.
+Phase 2a: monadic unglue gated on eval; immediate canonicalize.
 
-Next open (FEATURES_DONE --):
-  - PRINT array subscript expansion
-  - phase2 graphics markers; 1.00 ship
-  - Phase 2 peel runtime unglue
-  DEFER: polly, poem
+Next: Phase 2b (other runtime rewrites) or PRINT array subscripts / 1.00 ship.
 
 Repo: C:\Users\Tony\mini_basic

@@ -120,7 +120,7 @@ Tokenized `.bbc` load already converts binary → text **once**. That path is cl
 | Unify LIST/SAVE formatters | **Done** (`format/save_case.py`) |
 | Case-sensitive trig glue | **Done** (P0) — model upper keywords vs lower idents |
 | True tokenized in-memory RUN | **Out of scope** (detokenize on load only) |
-| Strip runtime unglue | **Phase 2** — remove one rewrite family at a time under tests |
+| Strip runtime unglue | **Phase 2 started** — monadic family uses fast-reject on eval |
 
 ### Phase 1 contract (2026-08-09)
 
@@ -133,3 +133,13 @@ Tokenized `.bbc` load already converts binary → text **once**. That path is cl
 | **Runtime unglue** | **Still active** (dual-normalize until Phase 2 peels paths) |
 | **LIST prints** | Stored text after entry canonicalize (PRETTY may still re-indent) |
 | **Tests** | `test/test_entry_canonicalize.py` (idempotence, LOAD, REM, strings) |
+
+### Phase 2a — monadic family (2026-08-09)
+
+| | |
+|--|--|
+| **Hot path** | `_unglue_monadic_expr` → no-op unless `_expr_may_need_monadic_unglue` |
+| **Skips when** | Already parenthesized monadic form (`TAN(10)`), pure comparisons, etc. |
+| **Still unglues when** | Residual glue remains (`TAN10`, `NOT0`, `INKEY1`, `ASC"…"`) |
+| **Immediate mode** | `execute_immediate` runs `canonicalize_program_line` per colon segment |
+| **Next peels** | BBC dialect line glue at `_parse_command` time; operator normalize; etc. |

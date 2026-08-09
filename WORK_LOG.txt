@@ -89,3 +89,5 @@
 2026-08-09 14:03:03 WORK END PROC_FN_NAME_PATTERN consolidate: PROC4/DEFPROC4; VDU17 FEATURE OK via print path; batch close
 2026-08-09 14:21:54 WORK BEGIN entry-time line canonicalize phase1: add only, keep runtime unglue
 2026-08-09 14:23:25 WORK END entry-time canonicalize Phase1: set_program_line dual-normalize; runtime unglue kept
+2026-08-09 14:25:10 WORK BEGIN Phase2 peel: monadic unglue off hot eval after entry+immediate canonicalize
+2026-08-09 14:26:53 WORK END Phase2a monadic peel: fast-reject unglue + immediate canonicalize

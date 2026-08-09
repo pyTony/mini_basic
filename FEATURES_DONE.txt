@@ -139,7 +139,9 @@ OK unify dual LIST/SAVE formatters: format/save_case.py is sole LIST/SAVE author
 OK entry-time line canonicalize Phase 1: canonicalize_program_line on set_program_line
   (LOAD+EDIT); BBC glue + monadic outside strings; idempotent; runtime unglue kept
   (dual-normalize); docs/BBC_TOKENIZE_VS_UNGLUE.md; test_entry_canonicalize
--- Phase 2: peel runtime unglue one family at a time (after Phase 1 proven)
+OK Phase 2a monadic peel: _unglue_monadic_expr fast-reject on eval/expand;
+  immediate mode also entry-canonicalizes; safety net if glue remains
+-- Phase 2b+: peel more runtime families (parse_command dialect glue, …)
 OK compile WHILE CONT AND (I%<N) boolean path: mixed AND/OR/NOT/XOR + comparisons
   lower to -1/0 then &/|/^/~; pure bitwise squares path preserved; ~6–7× microbench;
   tests in test_squares_speed; pure-bitwise condition float coerce + NOT leading-space fix

@@ -4421,10 +4421,13 @@ class RuntimeExecutionMixin:
 
     def execute_immediate(self, text: str) -> None:
         self._maybe_auto_enable_pygame_from_text(text, announce=True)
-        parts = [
-            self._extract_label_prefix(part)
-            for part in self._split_colon_statements(text.strip())
-        ]
+        # Entry canonicalize per colon segment (same as set_program_line / Phase 1).
+        parts: List[Tuple[Optional[str], str]] = []
+        for part in self._split_colon_statements(text.strip()):
+            label, stmt = self._extract_label_prefix(part)
+            if stmt:
+                stmt = self.canonicalize_program_line(stmt)
+            parts.append((label, stmt))
         line_nums = sorted(self.program.keys()) or [0]
         self._active_line_num = 0
         self._active_stmt_parts = parts

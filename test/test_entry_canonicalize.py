@@ -77,6 +77,17 @@ class EntryCanonicalizeTests(unittest.TestCase):
             self.assertTrue(i.load('t.bas', announce=False))
             self.assertIn('PRINT TAB', i.program[10].upper())
 
+    def test_phase2_monadic_fast_reject(self):
+        """Already-parenthesized monadic forms skip full unglue work."""
+        i = self._bbc()
+        self.assertFalse(i._expr_may_need_monadic_unglue('TAN(10)+ABS(-3)'))
+        self.assertFalse(i._expr_may_need_monadic_unglue('I% < MAXITER%'))
+        self.assertTrue(i._expr_may_need_monadic_unglue('TAN10'))
+        self.assertTrue(i._expr_may_need_monadic_unglue('NOT0'))
+        # Direct eval still works (safety net when glue remains).
+        import math
+        self.assertAlmostEqual(float(i._eval_numeric('TAN10')), math.tan(10.0), places=5)
+
 
 if __name__ == '__main__':
     unittest.main()
