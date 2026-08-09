@@ -134,8 +134,8 @@ OK P0 case-sensitive trig unglue: tana stays var when case on; SINa/SINRADT stil
   _expand_numeric_builtin_calls uses same helper; fold mode IGNORECASE; tests
 OK P0 phase1 green 2026-08-09: 621 passed / 0 fail (3 xfail teletext/FOR glue);
   Loaded: stderr asserts; Clock MODE 8 path; dialect_hint dummy pygame no hang
--- unify dual LIST/SAVE formatters (runtime_parts/io.py vs format/save_case.py)
-  (step toward single glue/spacing authority; see docs/BBC_TOKENIZE_VS_UNGLUE.md)
+OK unify dual LIST/SAVE formatters: format/save_case.py is sole LIST/SAVE authority
+  (fold upper|lower|none; format_list_line + pretty/refs parts; phase1 622 pass)
 -- design/impl later: entry-time line canonicalize (LOAD + set_program_line) so RUN/LIST
   do not re-unglue every eval; not a quick patch — inventory call sites first
 -- compile WHILE CONT AND (I%<N) boolean path (or keep Mandelbrot EXIT WHILE workaround)

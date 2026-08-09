@@ -8,6 +8,9 @@ from .save_case import (
     fold_from_save_case,
     format_program_line,
     format_statement_part,
+    glue_bbc_proc_fn_names,
+    resolve_list_fold,
+    space_expr_segment,
 )
 from .using import UsingFormatter
 
@@ -17,4 +20,7 @@ __all__ = [
     'fold_from_save_case',
     'format_program_line',
     'format_statement_part',
+    'glue_bbc_proc_fn_names',
+    'resolve_list_fold',
+    'space_expr_segment',
 ]

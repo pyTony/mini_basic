@@ -1605,20 +1605,15 @@ class RuntimeProgramMixin:
 
             for part_index, display_part in enumerate(display_parts):
                 if split_statements:
-                    if case_fold is not None:
-                        formatted = (
-                            _format_statement_part_save_case(display_part, case_fold)
-                            if display_part.strip()
-                            else ''
-                        )
-                    else:
-                        label, body = self._extract_label_prefix(display_part)
-                        formatted = self._format_statement_part(body) if body else ''
-                        if label:
-                            label_text = f'{label.upper()}:'
-                            formatted = (
-                                f'{label_text} {formatted}'.strip() if formatted else label_text
-                            )
+                    # Same formatter as LIST/SAVE standard (fold none for mini).
+                    from mini_basic.format.save_case import (
+                        format_statement_part as _fmt_part,
+                        resolve_list_fold,
+                    )
+                    fold = resolve_list_fold(case_fold)
+                    formatted = (
+                        _fmt_part(display_part, fold) if display_part.strip() else ''
+                    )
                 else:
                     formatted = self.format_list_line(display_part)
 

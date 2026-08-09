@@ -1,12 +1,18 @@
-"""Fold keywords and identifiers when saving case-insensitive dialect programs."""
+"""Single LIST/SAVE line formatter (keyword fold + operator spacing + PROC glue).
+
+All program-list / save paths should use ``format_program_line`` so glue and
+spacing cannot drift between runtime LIST and dialect save-case folding.
+See ``docs/BBC_TOKENIZE_VS_UNGLUE.md``.
+"""
 from __future__ import annotations
 
 import re
-from typing import Callable, List, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 
 from ..constants import EXPR_RESERVED_WORDS, NUMERIC_BUILTIN_FUNCS
 
-Fold = Literal['upper', 'lower']
+# 'none' = mini-style LIST: uppercase statement keywords, preserve identifier case.
+Fold = Literal['upper', 'lower', 'none']
 
 # Keep in sync with expr/patterns.py (leading _ for BBCSDL names).
 VAR_BASE_PATTERN = r'[_A-Za-z][A-Za-z0-9_]*'
@@ -53,9 +59,6 @@ _RE_STMT_CMD = re.compile(
     r'^(' + '|'.join(sorted(_STMT_KEYWORDS, key=len, reverse=True)) + r')(?![A-Za-z0-9_])',
     re.IGNORECASE,
 )
-_RE_STMT_CMD_BBC = re.compile(
-    r'^(' + '|'.join(sorted(_STMT_KEYWORDS, key=len, reverse=True)) + r')(?![A-Za-z0-9_])',
-)
 _RE_FN = re.compile(
     rf'\bFN({VAR_BASE_PATTERN})(%|\$)?\b',
     re.IGNORECASE,
@@ -70,7 +73,16 @@ _RE_IDENTIFIER = re.compile(
 
 
 def _fold_text(text: str, fold: Fold) -> str:
+    if fold == 'none':
+        return text
     return text.upper() if fold == 'upper' else text.lower()
+
+
+def _fold_keyword_token(text: str, fold: Fold) -> str:
+    """Fold a statement/keyword token; mini LIST uppercases keywords."""
+    if fold == 'none':
+        return text.upper()
+    return _fold_text(text, fold)
 
 
 def _split_string_literal_regions(text: str) -> List[Tuple[bool, str]]:
@@ -144,37 +156,52 @@ def _split_colon_statements(line: str) -> List[str]:
     return parts
 
 
-def _space_expr_segment(segment: str, fold: Fold) -> str:
-    # Ensure type suffixes like % $ are glued, no space before them (e.g. result% not result %)
+def space_expr_segment(segment: str, fold: Fold = 'none') -> str:
+    """Format expression spacing; shared by LIST mini and dialect save-case paths."""
+    # Type suffixes glued (result% not result %)
     segment = re.sub(r'(\w)\s+([%$!#]+)', r'\1\2', segment)
-    segment = re.sub(r'([%$!#]+)\s+(\w)', r'\1\2', segment)
+    # Only glue % to a following binary digit (not modulo / next identifier)
+    segment = re.sub(r'%\s+([01])', r'%\1', segment)
 
-    segment = re.sub(r'\bMOD\b', _fold_text('MOD', fold), segment, flags=re.IGNORECASE)
-    segment = re.sub(r'\bTO\b', _fold_text('TO', fold), segment, flags=re.IGNORECASE)
-    segment = re.sub(r'\bSTEP\b', _fold_text('STEP', fold), segment, flags=re.IGNORECASE)
-    segment = re.sub(r'\bGOTO\b', _fold_text('GOTO', fold), segment, flags=re.IGNORECASE)
-    segment = re.sub(r'\bTHEN\b', _fold_text('THEN', fold), segment, flags=re.IGNORECASE)
-    # Space glued MOD/DIV for readability (consistent with execution)
-    segment = re.sub(r'(?<=[0-9)])(MOD|DIV)(?=[0-9A-Za-z_(])', r' \1 ', segment, flags=re.IGNORECASE)
+    segment = re.sub(r'\bMOD\b', _fold_keyword_token('MOD', fold), segment, flags=re.IGNORECASE)
+    segment = re.sub(r'\bTO\b', _fold_keyword_token('TO', fold), segment, flags=re.IGNORECASE)
+    segment = re.sub(r'\bSTEP\b', _fold_keyword_token('STEP', fold), segment, flags=re.IGNORECASE)
+    segment = re.sub(r'\bGOTO\b', _fold_keyword_token('GOTO', fold), segment, flags=re.IGNORECASE)
+    segment = re.sub(r'\bTHEN\b', _fold_keyword_token('THEN', fold), segment, flags=re.IGNORECASE)
+    segment = re.sub(
+        r'(?<=[0-9)])(MOD|DIV)(?=[0-9A-Za-z_(])',
+        r' \1 ',
+        segment,
+        flags=re.IGNORECASE,
+    )
     for op in ('>=', '<=', '<>'):
         segment = re.sub(rf'\s*{re.escape(op)}\s*', f' {op} ', segment)
     segment = re.sub(
-        rf'({VAR_BASE_PATTERN}[%$!#]?)\s*=\s*',
-        r'\1 = ',
+        rf'({VAR_BASE_PATTERN})([%$!#]?)\s*=\s*',
+        r'\1\2 = ',
         segment,
         flags=re.IGNORECASE,
     )
     segment = re.sub(r'=\s*(["\'])', r'= \1', segment)
-    segment = re.sub(r'([\w$)\]])([*/\\])', r'\1 \2', segment)
-    segment = re.sub(r'([*/\\])([\w"(])', r'\1 \2', segment)
-    segment = re.sub(r'(?<=[A-Za-z0-9_])\s+%\s+(?=[A-Za-z0-9_"(])', ' % ', segment)
-    segment = re.sub(r'([\w%$)\]])([+\-])(?=[\w"(])', r'\1 \2 ', segment)
+    # * / only — % is type suffix / binary, not spaced as operator here
+    segment = re.sub(r'([\w)])([*/])', r'\1 \2', segment)
+    segment = re.sub(r'([*/])([\w(])', r'\1 \2', segment)
+    segment = re.sub(r'([\w)])([+\-])(?=[\w(])', r'\1 \2 ', segment)
     segment = re.sub(r'(?<![=<>!+\-*/])\s*=\s*(?!=)', ' = ', segment)
     segment = re.sub(r'\s+', ' ', segment)
     return segment.strip()
 
 
+# Back-compat name used internally / tests
+_space_expr_segment = space_expr_segment
+
+
 def _fold_code_segment(segment: str, fold: Fold) -> str:
+    if fold == 'none':
+        # Keywords already normalized in space_expr_segment where needed;
+        # leave identifier case alone.
+        return segment
+
     def fold_fn(match: re.Match) -> str:
         name = match.group(1)
         suffix = match.group(2) or ''
@@ -216,25 +243,33 @@ def _format_expression(expr: str, fold: Fold) -> str:
         if is_string:
             parts.append(chunk)
         else:
-            spaced = _space_expr_segment(chunk, fold)
+            spaced = space_expr_segment(chunk, fold)
             parts.append(_fold_code_segment(spaced, fold))
-    return ''.join(parts)
+    return ''.join(parts).strip()
 
 
 def _format_statement_body(body: str, fold: Fold) -> str:
     stripped = body.strip()
     if not stripped:
         return stripped
+    # Apostrophe comments: never reformat.
     if stripped.startswith("'"):
-        return body
-    if _RE_REM.match(stripped):
-        return body
+        return stripped
+    # REM: dialect fold preserves full original text; mini LIST uppercases REM only.
+    rem_m = _RE_REM.match(stripped)
+    if rem_m is not None:
+        if fold == 'none':
+            rest = rem_m.group(1)
+            if rest and not rest[0].isspace():
+                return 'REM ' + rest.lstrip()
+            return 'REM' + rest
+        return stripped
     if stripped.startswith('*'):
-        return body
-    
+        return stripped
+
     match = _RE_STMT_CMD.match(stripped)
     if match:
-        cmd = _fold_text(match.group(1), fold)
+        cmd = _fold_keyword_token(match.group(1), fold)
         rest = stripped[match.end():].lstrip()
         if rest and rest[0] in '"\'(':
             rest = ' ' + rest
@@ -250,12 +285,12 @@ def format_statement_part(part: str, fold: Fold) -> str:
     stripped = part.strip()
     if not stripped:
         return stripped
-    # Preserve apostrophe / REM text (do not space FG$/RESET$ as operators).
     if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
-        return stripped
+        return _format_statement_body(stripped, fold)
     label_match = _RE_LABEL_PREFIX.match(stripped)
     if label_match and label_match.group(1).upper() not in _RESERVED_WORDS:
-        label = _fold_text(label_match.group(1), fold)
+        raw_label = label_match.group(1)
+        label = raw_label.upper() if fold == 'none' else _fold_text(raw_label, fold)
         body = label_match.group(2)
         formatted = _format_statement_body(body, fold)
         if formatted:
@@ -273,7 +308,6 @@ def glue_bbc_proc_fn_names(text: str) -> str:
     """
     text = re.sub(r'\bEND\s+PROC\b', 'ENDPROC', text, flags=re.IGNORECASE)
     text = re.sub(r'\bEND\s+FN\b', 'ENDFN', text, flags=re.IGNORECASE)
-    # DEF PROC NAME → DEFPROCNAME (space after DEF is optional; PROC+name must glue)
     text = re.sub(
         r'\bDEF\s+PROC\s+([A-Za-z_@])',
         r'DEFPROC\1',
@@ -302,6 +336,7 @@ def glue_bbc_proc_fn_names(text: str) -> str:
 
 
 def format_program_line(statement: str, fold: Fold) -> str:
+    """Canonical LIST/SAVE formatting for one program statement line."""
     parts = _split_colon_statements(statement)
     formatted = ': '.join(format_statement_part(part, fold) for part in parts)
     formatted = re.sub(r'=\s*(["\'])', r'= \1', formatted)
@@ -312,10 +347,19 @@ def fold_from_save_case(save_case: int) -> Fold:
     return 'lower' if int(save_case) == 1 else 'upper'
 
 
+def resolve_list_fold(detokenize_fold: Optional[Fold]) -> Fold:
+    """Map interpreter detokenize fold (or None for mini) to a Fold mode."""
+    if detokenize_fold is None:
+        return 'none'
+    return detokenize_fold
+
+
 __all__ = [
     'Fold',
     'fold_from_save_case',
     'format_program_line',
     'format_statement_part',
     'glue_bbc_proc_fn_names',
+    'resolve_list_fold',
+    'space_expr_segment',
 ]

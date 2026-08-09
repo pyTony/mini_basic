@@ -1,19 +1,14 @@
-Focus: unify dual LIST/SAVE formatters — runtime_parts/io.py vs format/save_case.py
+Focus: compile WHILE CONT AND (I%<N) boolean path — or keep Mandelbrot EXIT WHILE workaround
 
-Closed just now:
-  P0 case-sensitive trig unglue + phase1 green
-  LIST PRETTY comment preamble (MB_COLOR)
-  HELP topic footer (no fake menu numbers)
-  docs/BBC_TOKENIZE_VS_UNGLUE.md (entry-time canonicalize later)
+Just closed: unify dual LIST/SAVE formatters (format/save_case sole authority).
 
 Next plan (FEATURES_DONE --):
-  1. unify dual LIST/SAVE formatters (io vs save_case)  ← THIS
+  1. compile WHILE CONT AND (I%<N) boolean path  ← THIS
   2. (later) entry-time line canonicalize — design/inventory first
-  3. compile WHILE CONT AND (I%<N) boolean path
-  4. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
-  5. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
-  6. PRINT array subscript expansion
-  7. 1.00 ship (tag + RELEASE) when ready
-  DEFER: polly (sound), poem (MODE7 interactive)
+  3. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
+  4. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
+  5. PRINT array subscript expansion
+  6. phase2 graphics markers; 1.00 ship
+  DEFER: polly, poem
 
 Repo: C:\Users\Tony\mini_basic

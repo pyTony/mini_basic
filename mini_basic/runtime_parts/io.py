@@ -1597,72 +1597,11 @@ class RuntimeIoMixin:
         self._register_numeric_var(base, 'float')
         self.variables[base] = float(value)
 
-    def _format_expression(self, expr: str) -> str:
-        parts: List[str] = []
-        index = 0
-        while index < len(expr):
-            if expr[index] == '"':
-                end = index + 1
-                while end < len(expr) and expr[end] != '"':
-                    end += 1
-                end = min(end + 1, len(expr))
-                parts.append(expr[index:end])
-                index = end
-                continue
-            end = index
-            while end < len(expr) and expr[end] != '"':
-                end += 1
-            if end > index:
-                parts.append(self._space_expr_segment(expr[index:end]))
-            index = end
-        return ''.join(parts).strip()
-
-    def _format_statement_part(self, statement: str) -> str:
-        stmt = statement.strip()
-        if not stmt:
-            return stmt
-        if stmt.startswith('*'):
-            return stmt
-        # Do not pretty-print expressions inside REM / ' comments (FG$/RESET$ etc.).
-        if stmt.startswith("'") or re.match(r'^REM\b', stmt, re.IGNORECASE):
-            return stmt
-
-        # Match keywords but don't match variable names with suffixes
-        # Negative lookahead: only match full keyword, not prefix of var like TOTAL (starts with TO)
-        keywords = sorted(self._STMT_KEYWORDS, key=len, reverse=True)
-        keyword_pattern = r'^(' + '|'.join(keywords) + r')(?![A-Za-z0-9_])'
-        if self.config.dialect == 'bbc':
-            match = re.match(keyword_pattern, stmt)
-        else:
-            match = re.match(keyword_pattern, stmt, re.IGNORECASE)
-        if match:
-            cmd = match.group(1).upper()
-            rest = stmt[match.end():].lstrip()
-            # Don't add space before string literals or parenthesized expressions
-            if rest and rest[0] in '"\'(':
-                rest = ' ' + rest
-            elif rest and not rest[0].isspace():
-                rest = ' ' + rest
-            # Format the rest, but preserve variable suffixes
-            rest = self._format_expression(rest.strip())
-            # Ensure proper spacing between command and rest
-            if rest:
-                return f'{cmd} {rest}'.rstrip()
-            return cmd
-
-        return self._format_expression(stmt)
-
     def format_list_line(self, statement: str) -> str:
-        from mini_basic.format.save_case import glue_bbc_proc_fn_names
+        """LIST/SAVE line text via the single format/save_case authority."""
+        from mini_basic.format.save_case import format_program_line, resolve_list_fold
 
-        fold = self._detokenize_fold()
-        if fold is not None:
-            return _format_program_line_save_case(statement, fold)
-        parts = self._split_colon_statements(statement)
-        formatted = ': '.join(self._format_statement_part(part) for part in parts)
-        formatted = re.sub(r'=\s*(["\'])', r'= \1', formatted)
-        # Always glue PROC/FN names — required for Archimedes / RISC OS paste.
-        return glue_bbc_proc_fn_names(formatted)
+        return format_program_line(statement, resolve_list_fold(self._detokenize_fold()))
 
     def _format_line_number(
         self,

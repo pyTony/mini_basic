@@ -3275,47 +3275,10 @@ class RuntimeExprMixin:
         self.variables[base] = float(self._eval_assignment_expr(expr, kind='float'))
 
     def _space_expr_segment(self, segment: str) -> str:
-        """Format expression with consistent spacing, preserving variable suffixes."""
-        # First, ensure type suffixes are attached without spaces (n%, s$, etc.)
-        # This prevents LIST from inserting spaces before % etc.
-        segment = re.sub(r'(\w)\s+([%$!#]+)', r'\1\2', segment)   # keep as-is
-        segment = re.sub(r'%\s+([01])', r'%\1', segment)          # only glue % to a following binary digit
-        
-        # Handle keywords first
-        segment = re.sub(r'\bMOD\b', 'MOD', segment, flags=re.IGNORECASE)
-        segment = re.sub(r'\bTO\b', 'TO', segment, flags=re.IGNORECASE)
-        segment = re.sub(r'\bSTEP\b', 'STEP', segment, flags=re.IGNORECASE)
-        segment = re.sub(r'\bGOTO\b', 'GOTO', segment, flags=re.IGNORECASE)
-        segment = re.sub(r'\bTHEN\b', 'THEN', segment, flags=re.IGNORECASE)
-        # Space glued MOD/DIV for readability (consistent with execution normalizer)
-        segment = re.sub(r'(?<=[0-9)])(MOD|DIV)(?=[0-9A-Za-z_(])', r' \1 ', segment, flags=re.IGNORECASE)
+        """Delegate to format/save_case (single spacing authority)."""
+        from mini_basic.format.save_case import space_expr_segment
 
-        # Handle comparison operators
-        for op in ('>=', '<=', '<>'):
-            segment = re.sub(rf'\s*{re.escape(op)}\s*', f' {op} ', segment)
-
-        # Handle assignment: variable name (with optional suffix) = value
-        # BUT don't add space if it's a type suffix (%, $, !, #)
-        segment = re.sub(
-            rf'({self._VAR_BASE_PATTERN})([%$!#]?)\s*=\s*',
-            r'\1\2 = ',
-            segment,
-        )
-
-        # Handle binary operators: preserve suffixes, add spaces around operators
-        # Only * and / ; % is reserved for int suffix and not spaced as op here
-        segment = re.sub(r'([\w)])([*/])', r'\1 \2', segment)
-        segment = re.sub(r'([*/])([\w(])', r'\1 \2', segment)
-
-        # Handle + and - carefully (avoid breaking exponent notation)
-        segment = re.sub(r'([\w)])([+\-])(?=[\w(])', r'\1 \2 ', segment)
-
-        # Clean up assignment spacing (only for actual '=' operators)
-        segment = re.sub(r'(?<![=<>!+\-*/])\s*=\s*(?!=)', ' = ', segment)
-
-        # Remove double spaces
-        segment = re.sub(r'\s+', ' ', segment)
-        return segment
+        return space_expr_segment(segment, 'none')
 
     def _apply_structural_indents(self) -> None:
         """Replace any existing indent with structure-based indent.
