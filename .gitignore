@@ -100,3 +100,7 @@ test_reconstruct/
 # examples/**/*.png
 # examples/**/*.jpg
 # documentation/*.pdf
+
+# Always regenerated from policy .txt files
+status.html
+
