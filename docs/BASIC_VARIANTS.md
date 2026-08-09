@@ -187,7 +187,16 @@ Deferred rows are intentional non-goals until core language + corpus stay stable
 
 ---
 
-## 7. Maintaining the grids
+## 7. Tokenize once vs unglue at eval
+
+Real BBC BASIC **tokenizes at line entry**; mini_basic stores **text** and often
+**re-derives** keyword boundaries at run/LIST time. Glue rules (GOTO100, SINa,
+case-sensitive `tana` vs `SINa`) and a possible **entry-time canonicalize**
+roadmap are written up in [`BBC_TOKENIZE_VS_UNGLUE.md`](BBC_TOKENIZE_VS_UNGLUE.md).
+
+---
+
+## 8. Maintaining the grids
 
 1. Edit rows in `mini_basic/features/*.py` (e.g. `dialect_structure.py`, `bbc_family.py`).  
 2. Run `python -m mini_basic.features` to refresh `documentation/feature_matrices/`.  
