@@ -66,6 +66,17 @@ small_depth = st.integers(min_value=1, max_value=2)
 deep_depth = 4  # for explicit 4+ nesting tests (Phase 1 goal)
 
 
+def _test_interp(**kwargs) -> BASICInterpreter:
+    """Locked text-only interpreter (no pygame auto-enable / no hold)."""
+    cfg = {
+        "display": "none",
+        "display_locked": True,
+        "hold_display_open": False,
+    }
+    cfg.update(kwargs)
+    return BASICInterpreter(InterpreterConfig(**cfg))
+
+
 @st.composite
 def nested_control_expr_array(draw):
     """Generate a program with 4-5 levels of nesting (FOR + IF), DEF FN,
@@ -119,9 +130,7 @@ class TestCompositionalNesting(unittest.TestCase):
         suppress_health_check=[HealthCheck.too_slow],
     )
     def test_nested_for_if_fn_array_runs_without_runtime_error(self, prog: str):
-        interp = BASICInterpreter(
-            InterpreterConfig(dialect="mini", display="none", optimization_level=2)
-        )
+        interp = _test_interp(dialect="mini", optimization_level=2)
         buf = io.StringIO()
         with redirect_stdout(buf):
             # Fresh interpreter; no need for NEW (NEW is primarily a REPL command)
@@ -170,7 +179,7 @@ class TestPROCComposition(unittest.TestCase):
     @given(prog=proc_with_local_array())
     @settings(max_examples=5, deadline=5000)  # Phase 1: small for fast iteration
     def test_proc_local_array_called_from_nest(self, prog: str):
-        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        interp = _test_interp(dialect="bbc")
         buf = io.StringIO()
         with redirect_stdout(buf):
             for i, ln in enumerate(prog.splitlines(), 10):
@@ -186,9 +195,12 @@ def control_plus_file_io(draw):
     """Non-graphics: nested control (FOR) with file I/O (PRINT#/INPUT# inside/after loops).
     Writes numbers, reads back first numeric, prints it. Predictable output for invariant.
     Uses working_dir + tempdir. Hard bounds.
+
+    Channel vars ``f``/``g`` are reserved; value var must not collide (OPENOUT
+    reassigns the channel variable).
     """
     depth = draw(small_depth)
-    v = draw(safe_var)
+    v = draw(safe_var.filter(lambda s: s not in ("f", "g", "x")))
     lines = [
         f"{v} = 42",
         "f = OPENOUT \"data.txt\"",
@@ -215,7 +227,7 @@ class TestControlFileIO(unittest.TestCase):
     @settings(max_examples=5, deadline=5000)  # Phase 1: small for fast iteration
     def test_nested_control_with_file_io(self, prog: str):
         with tempfile.TemporaryDirectory() as tmp:
-            interp = BASICInterpreter(InterpreterConfig(dialect="mini", display="none"))
+            interp = _test_interp(dialect="mini")
             interp.working_dir = tmp
             buf = io.StringIO()
             with redirect_stdout(buf):
@@ -297,7 +309,7 @@ class TestWhileRepeatFileProcFn(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             # test both dialects for differential-ish behavior (non-gfx)
             for dialect in ("mini", "bbc"):
-                interp = BASICInterpreter(InterpreterConfig(dialect=dialect, display="none"))
+                interp = _test_interp(dialect=dialect)
                 interp.working_dir = tmp
                 buf = io.StringIO()
                 with redirect_stdout(buf):
@@ -325,7 +337,7 @@ class TestArrayBulkInit(unittest.TestCase):
 
     def test_string_array_bulk_assign(self):
         for dialect in ("bbc", "mini"):
-            interp = BASICInterpreter(InterpreterConfig(dialect=dialect, display="none"))
+            interp = _test_interp(dialect=dialect)
             interp.working_dir = tempfile.gettempdir()
             buf = io.StringIO()
             with redirect_stdout(buf):
@@ -343,7 +355,7 @@ class TestDeeperNesting4Plus(unittest.TestCase):
     """
 
     def test_4level_for_file(self):
-        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        interp = _test_interp(dialect="bbc")
         interp.working_dir = tempfile.gettempdir()
         buf = io.StringIO()
         with redirect_stdout(buf):
@@ -369,7 +381,7 @@ class TestDeeperDefFnComposition(unittest.TestCase):
     """
 
     def _run_lines(self, lines, dialect="bbc", workdir=None):
-        interp = BASICInterpreter(InterpreterConfig(dialect=dialect, display="none"))
+        interp = _test_interp(dialect=dialect)
         if workdir is not None:
             interp.working_dir = workdir
         else:

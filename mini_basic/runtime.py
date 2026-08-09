@@ -288,8 +288,9 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
         return ''.join(ch for ch in text if ch == '\t' or (ord(ch) >= 32 and ord(ch) != 127))
 
     default = _sanitize(default)
+    # pyreadline + input under pytest capture → "reading from stdin while output is captured"
     readline = _get_readline_module()
-    if readline is not None:
+    if readline is not None and sys.stdin.isatty():
 
         def _prefill_hook() -> None:
             readline.set_startup_hook(None)

@@ -1508,9 +1508,10 @@ class MiniBASICTests(unittest.TestCase):
         fake_readline.get_current_history_length.return_value = 1
         fake_readline.get_history_item.return_value = 'RUN'
         with patch('mini_basic.runtime.sys.platform', 'linux'):
-            with patch('mini_basic.runtime._get_readline_module', return_value=fake_readline):
-                with patch('builtins.input', return_value='PRINT "new"'):
-                    result = _prompt_editing_input('50 ', 'PRINT "old"')
+            with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
+                with patch('mini_basic.runtime._get_readline_module', return_value=fake_readline):
+                    with patch('builtins.input', return_value='PRINT "new"'):
+                        result = _prompt_editing_input('50 ', 'PRINT "old"')
         self.assertEqual(result, 'PRINT "new"')
         # Must not wipe history when prefilling EDIT/AUTO (paste + ↑ still work).
         fake_readline.clear_history.assert_not_called()

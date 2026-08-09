@@ -94,8 +94,10 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
     editor is only a fallback when no readline backend is installed.
     """
     default = _sanitize_basic_source(default)
+    # Never drive pyreadline/input under pytest capture (non-TTY) — that yields
+    # "pytest: reading from stdin while output is captured".
     readline = _get_readline_module()
-    if readline is not None:
+    if readline is not None and sys.stdin.isatty():
 
         def _prefill_hook() -> None:
             readline.set_startup_hook(None)
