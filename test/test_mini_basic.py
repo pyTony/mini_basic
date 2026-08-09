@@ -237,30 +237,15 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), "1\n2\n3")
 
-    def test_for_lowercase_rejected_when_case_sensitive(self):
-        """mini/bbc (case-sensitive): keywords must be uppercase — no free case."""
-        for dialect in ('mini', 'bbc'):
-            interp = BASICInterpreter(
-                InterpreterConfig(
-                    dialect=dialect,
-                    display='none',
-                    display_locked=True,
-                    hold_display_open=False,
-                )
-            )
-            self.assertTrue(interp._identifiers_case_sensitive())
-            interp.set_program_line(10, 'for i = 1 to 2')
-            interp.set_program_line(20, 'PRINT i')
-            interp.set_program_line(30, 'next i')
-            interp.set_program_line(40, 'END')
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                interp.run()
-            self.assertNotEqual(
-                buf.getvalue().strip(),
-                '1\n2',
-                msg=f'{dialect} must not accept lowercase for/to/next',
-            )
+    def test_for_lowercase_to(self):
+        """Keyword case is free; spaced lowercase FOR/TO/NEXT works."""
+        lines = [
+            (10, "for i = 1 to 2"),
+            (20, "PRINT i"),
+            (30, "next i"),
+            (40, "END"),
+        ]
+        self.assertEqual(self.run_program(lines), "1\n2")
 
     def test_immediate_for_colon_chain(self):
         interp = self.make_interp()
@@ -269,8 +254,23 @@ class MiniBASICTests(unittest.TestCase):
             interp.execute_immediate('FOR I = 1 TO 3: PRINT I: NEXT')
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
+    def test_immediate_for_colon_chain_lowercase(self):
+        interp = self.make_interp()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            _execute_repl_line(interp, 'for i = 1 to 3: print i : next i')
+        self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
+
+    def test_immediate_for_compact_digit_to(self):
+        """Immediate path: entry canonicalize spaces ``1to3`` → ``1 TO 3``."""
+        interp = self.make_interp()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.execute_immediate('for i=1to3:?i:next i')
+        self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
+
     def test_for_compact_digit_to_via_entry_canonicalize(self):
-        """Entry path: ``FOR I=1TO3`` → spaced TO (set_program_line, not raw program[])."""
+        """Program entry: ``FOR I=1TO3`` / ``for i=1to3`` via set_program_line."""
         for dialect in ('mini', 'bbc'):
             interp = BASICInterpreter(
                 InterpreterConfig(
@@ -280,11 +280,8 @@ class MiniBASICTests(unittest.TestCase):
                     hold_display_open=False,
                 )
             )
-            self.assertEqual(
-                interp.canonicalize_program_line('FOR I=1TO3'),
-                'FOR I=1 TO 3',
-            )
-            interp.set_program_line(10, 'FOR I=1TO3:?I:NEXT')
+            self.assertIn(' TO ', interp.canonicalize_program_line('FOR I=1TO3'))
+            interp.set_program_line(10, 'for i=1to3:?i:next i')
             self.assertIn(' TO ', interp.program[10])
             interp.set_program_line(20, 'END')
             buf = io.StringIO()
@@ -297,7 +294,7 @@ class MiniBASICTests(unittest.TestCase):
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.execute_immediate(
-                'TIME=0:FOR I%=1 TO 3:?I%:NEXT:PRINT TIME/100'
+                'TIME=0:for I%=1 TO 3:?I%:NEXT:PRINT TIME/100'
             )
         lines = buf.getvalue().strip().split('\n')
         self.assertEqual(lines[:3], ['1', '2', '3'])
@@ -305,11 +302,11 @@ class MiniBASICTests(unittest.TestCase):
         self.assertGreaterEqual(float(lines[3]), 0.0)
 
     def test_immediate_for_next_case_mismatch_mini(self):
-        """Loop var names stay case-sensitive: NEXT I does not match i."""
+        """Loop *variable* names stay case-sensitive: NEXT I does not match i."""
         interp = self.make_interp()
         buf = io.StringIO()
         with redirect_stdout(buf):
-            interp.execute_immediate('FOR i = 1 TO 3: PRINT i : NEXT I')
+            interp.execute_immediate('for i = 1 to 3: print i : next I')
         self.assertEqual(buf.getvalue(), '? FOR error (NEXT I does not match i)\n')
 
     def test_immediate_for_float_step(self):

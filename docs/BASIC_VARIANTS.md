@@ -90,8 +90,7 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 - **mits / commodore / tiny** ≈ classic **line-number + GOTO** teaching/museum dialects.  
 - **bbc** ≈ structured BBC family language (PROC, CASE, WHILE, …) without mini-only extras.  
 - **mini** = **bbc-like core + numbered programs + mini extensions** (BREAK/CONTINUE, ARG, ANSI helpers).
-  Default **case-sensitive**: keywords **uppercase only** (same posture as bbc); use
-  `CASE off` / fold dialects for free keyword case.
+  **Keywords** accept any case (`for`/`FOR`); **variable names** stay case-sensitive by default.
 
 ---
 
