@@ -138,7 +138,9 @@ OK unify dual LIST/SAVE formatters: format/save_case.py is sole LIST/SAVE author
   (fold upper|lower|none; format_list_line + pretty/refs parts; phase1 622 pass)
 -- design/impl later: entry-time line canonicalize (LOAD + set_program_line) so RUN/LIST
   do not re-unglue every eval; not a quick patch — inventory call sites first
--- compile WHILE CONT AND (I%<N) boolean path (or keep Mandelbrot EXIT WHILE workaround)
+OK compile WHILE CONT AND (I%<N) boolean path: mixed AND/OR/NOT/XOR + comparisons
+  lower to -1/0 then &/|/^/~; pure bitwise squares path preserved; ~6–7× microbench;
+  tests in test_squares_speed; pure-bitwise condition float coerce + NOT leading-space fix
 -- consolidate PROC_FN_NAME_PATTERN across all PROC/FN parse sites (world.bbc PROC4 runtime path)
 -- PygameDisplay.write VDU 17 colour control bytes (Hanoi disc bars garbled as latin-1 glyphs)
 

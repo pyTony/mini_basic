@@ -26,6 +26,69 @@ class SquaresSpeedTests(unittest.TestCase):
         self.assertFalse(ce.use_fallback)
         self.assertIsNotNone(ce.code)
 
+    def test_mixed_boolean_cont_and_comparison_compiles(self):
+        """WHILE CONT AND (I% < N) must compile (not recursive boolean fallback)."""
+        i = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', optimization_level=2)
+        )
+        i.variables['CONT'] = -1.0
+        i.int_variables['I'] = 0
+        expr = 'CONT AND (I% < 16)'
+        ce = i._get_compiled_expr(expr, is_condition=True)
+        self.assertFalse(ce.use_fallback, 'expected compiled path for mixed AND+compare')
+        self.assertIsNotNone(ce.code)
+        self.assertTrue(ce.eval_condition(i))
+        self.assertTrue(i._eval_condition(expr))
+        i.int_variables['I'] = 20
+        self.assertFalse(ce.eval_condition(i))
+        self.assertFalse(i._eval_condition(expr))
+        i.variables['CONT'] = 0.0
+        i.int_variables['I'] = 0
+        self.assertFalse(i._eval_condition(expr))
+        # Chain of comparisons (animal-style)
+        i.variables['A'] = 1.0
+        i.variables['B'] = 2.0
+        i.variables['C'] = 3.0
+        chain = 'A < B AND B < C'
+        ce2 = i._get_compiled_expr(chain, is_condition=True)
+        self.assertFalse(ce2.use_fallback)
+        self.assertTrue(ce2.eval_condition(i))
+        # Pure bitwise still compiles (no regression)
+        i.int_variables['X'] = 5
+        i.int_variables['Y'] = 3
+        ce3 = i._get_compiled_expr('(X% EOR Y%) AND 255', False)
+        self.assertFalse(ce3.use_fallback)
+        self.assertEqual(int(ce3.eval_numeric(i)), 6)
+
+    def test_mixed_boolean_while_loop_fast_path(self):
+        """Tiny WHILE with CONT AND (I%<N) must terminate correctly under opt=2."""
+        i = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', optimization_level=2)
+        )
+        lines = [
+            (10, 'CONT = TRUE'),
+            (20, 'I% = 0'),
+            (30, 'N% = 1000'),
+            (40, 'WHILE CONT AND (I% < N%)'),
+            (50, 'I% = I% + 1'),
+            (60, 'ENDWHILE'),
+            (70, 'PRINT I%'),
+            (80, 'END'),
+        ]
+        for ln, st in lines:
+            i.program[ln] = st
+        t0 = time.perf_counter()
+        # capture print
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            i.run()
+        elapsed = time.perf_counter() - t0
+        self.assertEqual(buf.getvalue().strip(), '1000')
+        # 1000 iterations of compiled condition should be well under a second
+        self.assertLess(elapsed, 2.0, f'WHILE mixed boolean took {elapsed:.3f}s')
+
     def test_squares_kernel_matches_formula(self):
         os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         try:

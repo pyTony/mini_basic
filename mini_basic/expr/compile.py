@@ -131,7 +131,16 @@ class CompiledExpr:
             # simple comparisons are deliberately compiled via prepare_simple_comparison
         ):
             return interp._eval_numeric(self.source) != 0
-        result = eval(self.code, SAFE_EVAL_GLOBALS, self._namespace(interp))
+        namespace = self._namespace(interp)
+        # Pure bitwise bytecode uses Python &/|/^/~; TRUE is often float -1.0.
+        # Mixed boolean lowers leaves with int(); pure path still needs coerce.
+        if interp._expr_is_pure_bitwise(self.source):
+            for key, val in list(namespace.items()):
+                if isinstance(val, float):
+                    namespace[key] = int(val)
+                elif isinstance(val, bool):
+                    namespace[key] = -1 if val else 0
+        result = eval(self.code, SAFE_EVAL_GLOBALS, namespace)
         return result != 0
 
 

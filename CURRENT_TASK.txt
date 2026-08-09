@@ -1,15 +1,13 @@
-Focus: compile WHILE CONT AND (I%<N) boolean path — or keep Mandelbrot EXIT WHILE workaround
+Focus: idle after compile WHILE CONT AND mixed boolean
 
-Closed (debug batch): dprint tags + HELP DEBUG; pygame missing/WSL fallback;
-  PRINTTAB → suggest --dialect bbc (hanoi OK).
+Closed: CONT AND (I%<N) / A<B AND B<C compile to bytecode (not recursive boolean).
 
 Next plan (FEATURES_DONE --):
-  1. compile WHILE CONT AND (I%<N) boolean path  ← THIS
-  2. (later) entry-time line canonicalize — design/inventory first
-  3. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
-  4. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
-  5. PRINT array subscript expansion
-  6. phase2 graphics markers; 1.00 ship
+  1. design/impl later: entry-time line canonicalize (inventory first)
+  2. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
+  3. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
+  4. PRINT array subscript expansion
+  5. phase2 graphics markers; 1.00 ship
   DEFER: polly, poem
 
 Repo: C:\Users\Tony\mini_basic

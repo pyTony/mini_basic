@@ -3261,12 +3261,18 @@ class MiniBASICTests(unittest.TestCase):
 
     def test_eval_condition_int_percent_suffix(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc'))
-        interp.int_variables['I%'] = 3
+        # Integer vars are stored by base name (I% → I), matching compile slots.
+        interp.int_variables['I'] = 3
         self.assertTrue(interp._eval_condition('I% < 5'))
         self.assertFalse(interp._eval_condition('I% >= 5'))
         interp.variables['CONT'] = -1.0
-        interp.int_variables['I%'] = 0
+        interp.int_variables['I'] = 0
         self.assertTrue(interp._eval_condition('CONT AND (I% < 16)'))
+        # Compiled path (opt default/on): must not fall back for Mandelbrot-style cond.
+        if interp.config.use_compiled_exprs:
+            ce = interp._get_compiled_expr('CONT AND (I% < 16)', is_condition=True)
+            self.assertFalse(ce.use_fallback)
+            self.assertTrue(ce.eval_condition(interp))
 
     def test_while_int_percent_condition(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))

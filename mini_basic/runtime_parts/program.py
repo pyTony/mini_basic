@@ -378,7 +378,8 @@ class RuntimeProgramMixin:
             if not (allow_bitwise and self._expr_is_pure_bitwise(expr)):
                 raise ValueError('boolean expression')
         if is_condition:
-            expr = self._normalize_condition(expr)
+            # strip: \bnot\b → ' NOT ' can leave a leading space → IndentationError
+            expr = self._normalize_condition(expr).strip()
         # TRUE/FALSE must become -1/0 before compile(); else Python NameError.
         expr = self._substitute_boolean_literals(expr)
         expr = self._substitute_bbc_hex_literals(expr)
@@ -443,6 +444,189 @@ class RuntimeProgramMixin:
             tuple(dict.fromkeys(int_l + int_r)),
             tuple(dict.fromkeys(sys_l + sys_r)),
         )
+
+    def _prepare_mixed_boolean_for_compile(
+        self, expr: str,
+    ) -> Tuple[str, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        """Compile AND/OR/NOT/XOR chains that mix comparisons and values.
+
+        Shapes like ``CONT AND (I% < MAXITER%)`` and ``A < B AND B < C`` lower
+        comparisons to BBC -1/0 then combine with Python ``&``/``|``/``^``/``~``.
+        EQV/IMP and string comparisons stay on the slow path.
+        """
+        expr = expr.strip()
+        if not expr:
+            raise ValueError('empty boolean')
+        if re.search(r'\b(EQV|IMP)\b', expr, re.IGNORECASE):
+            raise ValueError('boolean expression')
+        if self._expr_has_xor_eqv_imp_eor(expr):
+            py, end, needs_time, float_vars, int_vars, system_vars = (
+                self._compile_boolean_or_with_xor(expr, 0)
+            )
+        else:
+            py, end, needs_time, float_vars, int_vars, system_vars = (
+                self._compile_boolean_or_simple(expr, 0)
+            )
+        if self._boolean_skip_ws(expr, end) < len(expr):
+            raise ValueError('trailing syntax')
+        return py, needs_time, float_vars, int_vars, system_vars
+
+    def _compile_bool_merge(
+        self,
+        *parts: Tuple[bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]],
+    ) -> Tuple[bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        needs_time = any(p[0] for p in parts)
+        float_vars: Tuple[str, ...] = ()
+        int_vars: Tuple[str, ...] = ()
+        system_vars: Tuple[str, ...] = ()
+        for _, f, i, s in parts:
+            float_vars = tuple(dict.fromkeys(float_vars + f))
+            int_vars = tuple(dict.fromkeys(int_vars + i))
+            system_vars = tuple(dict.fromkeys(system_vars + s))
+        return needs_time, float_vars, int_vars, system_vars
+
+    def _compile_boolean_or_simple(
+        self, expr: str, index: int,
+    ) -> Tuple[str, int, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        left, index, nt, fv, iv, sv = self._compile_boolean_and(expr, index)
+        while True:
+            index = self._boolean_skip_ws(expr, index)
+            if not self._boolean_keyword_at(expr, index, 'OR'):
+                break
+            index += 3
+            right, index, nt_r, fv_r, iv_r, sv_r = self._compile_boolean_and(expr, index)
+            left = f'({left} | {right})'
+            nt, fv, iv, sv = self._compile_bool_merge(
+                (nt, fv, iv, sv), (nt_r, fv_r, iv_r, sv_r),
+            )
+        return left, index, nt, fv, iv, sv
+
+    def _compile_boolean_or_with_xor(
+        self, expr: str, index: int,
+    ) -> Tuple[str, int, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        """OR chain over XOR/EOR (no EQV/IMP — those raise earlier)."""
+        left, index, nt, fv, iv, sv = self._compile_boolean_xor(expr, index)
+        while True:
+            index = self._boolean_skip_ws(expr, index)
+            if not self._boolean_keyword_at(expr, index, 'OR'):
+                break
+            index += 3
+            right, index, nt_r, fv_r, iv_r, sv_r = self._compile_boolean_xor(expr, index)
+            left = f'({left} | {right})'
+            nt, fv, iv, sv = self._compile_bool_merge(
+                (nt, fv, iv, sv), (nt_r, fv_r, iv_r, sv_r),
+            )
+        return left, index, nt, fv, iv, sv
+
+    def _compile_boolean_xor(
+        self, expr: str, index: int,
+    ) -> Tuple[str, int, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        left, index, nt, fv, iv, sv = self._compile_boolean_and(expr, index)
+        while True:
+            index = self._boolean_skip_ws(expr, index)
+            xor_len = None
+            for word in ('XOR', 'EOR'):
+                if self._boolean_keyword_at(expr, index, word):
+                    xor_len = len(word)
+                    break
+            if xor_len is None:
+                break
+            index += xor_len
+            right, index, nt_r, fv_r, iv_r, sv_r = self._compile_boolean_and(expr, index)
+            left = f'({left} ^ {right})'
+            nt, fv, iv, sv = self._compile_bool_merge(
+                (nt, fv, iv, sv), (nt_r, fv_r, iv_r, sv_r),
+            )
+        return left, index, nt, fv, iv, sv
+
+    def _compile_boolean_and(
+        self, expr: str, index: int,
+    ) -> Tuple[str, int, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        left, index, nt, fv, iv, sv = self._compile_boolean_not(expr, index)
+        while True:
+            index = self._boolean_skip_ws(expr, index)
+            if not self._boolean_keyword_at(expr, index, 'AND'):
+                break
+            index += 3
+            right, index, nt_r, fv_r, iv_r, sv_r = self._compile_boolean_not(expr, index)
+            left = f'({left} & {right})'
+            nt, fv, iv, sv = self._compile_bool_merge(
+                (nt, fv, iv, sv), (nt_r, fv_r, iv_r, sv_r),
+            )
+        return left, index, nt, fv, iv, sv
+
+    def _compile_boolean_not(
+        self, expr: str, index: int,
+    ) -> Tuple[str, int, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        index = self._boolean_skip_ws(expr, index)
+        if self._boolean_keyword_at(expr, index, 'NOT'):
+            index += 3
+            inner, index, nt, fv, iv, sv = self._compile_boolean_not(expr, index)
+            return f'(~{inner})', index, nt, fv, iv, sv
+        return self._compile_boolean_comparison(expr, index)
+
+    def _compile_boolean_comparison(
+        self, expr: str, index: int,
+    ) -> Tuple[str, int, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
+        index = self._boolean_skip_ws(expr, index)
+        if index < len(expr) and expr[index] == '(':
+            end = self._match_paren(expr, index)
+            if end >= 0:
+                inner = expr[index + 1:end]
+                # Parenthesized comparison or boolean: (I% < N), (A AND B)
+                if (
+                    self._boolean_relop_at(
+                        inner, self._boolean_find_arith_end(inner, 0),
+                    )
+                    is not None
+                    or self._expr_has_boolean_syntax(inner)
+                ):
+                    if self._expr_has_xor_eqv_imp_eor(inner):
+                        py, i2, nt, fv, iv, sv = self._compile_boolean_or_with_xor(
+                            inner, 0,
+                        )
+                    else:
+                        py, i2, nt, fv, iv, sv = self._compile_boolean_or_simple(
+                            inner, 0,
+                        )
+                    if self._boolean_skip_ws(inner, i2) < len(inner.strip()):
+                        raise ValueError('trailing syntax')
+                    return f'({py})', end + 1, nt, fv, iv, sv
+
+        left_end = self._boolean_find_arith_end(expr, index)
+        left_fragment = expr[index:left_end].strip()
+        if not left_fragment:
+            raise ValueError('expected expression')
+        index = self._boolean_skip_ws(expr, left_end)
+        op = self._boolean_relop_at(expr, index)
+        if op is None:
+            left_py, nt, fv, iv, sv = self._prepare_expr_for_compile(
+                left_fragment, False, allow_bitwise=self._expr_is_pure_bitwise(left_fragment),
+            )
+            # Bitwise AND/OR with floats (TRUE=-1.0) needs int operands.
+            return f'int({left_py})', left_end, nt, fv, iv, sv
+        py_op = {'=': '==', '==': '==', '<>': '!=', '!=': '!='}.get(op, op)
+        index += len(op)
+        right_end = self._boolean_find_arith_end(expr, index)
+        right_fragment = expr[index:right_end].strip()
+        if not right_fragment:
+            raise ValueError('expected expression')
+        if (
+            self._fragment_is_string_expr(left_fragment)
+            or self._fragment_is_string_expr(right_fragment)
+        ):
+            raise ValueError('string comparison')
+        left_py, nt_l, fv_l, iv_l, sv_l = self._prepare_expr_for_compile(
+            left_fragment, False,
+        )
+        right_py, nt_r, fv_r, iv_r, sv_r = self._prepare_expr_for_compile(
+            right_fragment, False,
+        )
+        nt, fv, iv, sv = self._compile_bool_merge(
+            (nt_l, fv_l, iv_l, sv_l), (nt_r, fv_r, iv_r, sv_r),
+        )
+        py = f'(-1 if ({left_py}) {py_op} ({right_py}) else 0)'
+        return py, right_end, nt, fv, iv, sv
 
     def _extract_label_prefix(self, part: str) -> Tuple[Optional[str], str]:
         match = re.match(rf'^({self._VAR_BASE_PATTERN}):\s*(.*)$', part.strip())

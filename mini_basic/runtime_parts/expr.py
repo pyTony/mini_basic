@@ -281,7 +281,10 @@ class RuntimeExprMixin:
                     self._expr_has_logical_boolean_ops(stripped)
                     or self._expr_has_xor_eqv_imp_eor(stripped)
                 ):
-                    raise ValueError('boolean expression')
+                    # CONT AND (I% < N), A < B AND B < C — comparisons → -1/0 + &/|
+                    expr, needs_time, float_vars, int_vars, system_vars = (
+                        self._prepare_mixed_boolean_for_compile(stripped)
+                    )
                 else:
                     expr, needs_time, float_vars, int_vars, system_vars = (
                         self._prepare_simple_comparison_for_compile(stripped)
@@ -2771,8 +2774,11 @@ class RuntimeExprMixin:
             expanded = self._expand_parenthesized_bbc_comparisons(expr)
             if not self._expr_has_boolean_syntax(expanded):
                 expr = expanded
-            elif self._expr_is_pure_bitwise(expanded) and self.config.use_compiled_exprs:
-                return self._get_compiled_expr(expanded, is_condition=False).eval_numeric(self)
+            elif self.config.use_compiled_exprs:
+                compiled = self._get_compiled_expr(expanded, is_condition=False)
+                if not compiled.use_fallback and compiled.code is not None:
+                    return compiled.eval_numeric(self)
+                return self._eval_bbc_boolean_expr(expanded)
             else:
                 return self._eval_bbc_boolean_expr(expanded)
         if not self.config.use_compiled_exprs:
