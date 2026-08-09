@@ -64,3 +64,5 @@
 2026-08-09 09:27:21 WORK END REPL edit: history kept + word/home keys
 2026-08-09 10:39:48 WORK BEGIN bare EDIT: clarify UX (no fake screen editor)
 2026-08-09 10:40:16 WORK END bare EDIT: usage+LIST instead of EDIT> loop
+2026-08-09 10:45:26 WORK BEGIN dialect hint: portable numbered REM (no unnumbered/line 0)
+2026-08-09 10:46:44 WORK END dialect hint: portable numbered REM
