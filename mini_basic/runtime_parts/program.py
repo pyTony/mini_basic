@@ -1015,12 +1015,19 @@ class RuntimeProgramMixin:
             cmd_end = match.start(1) + len(cmd_text)
             if cmd_end < len(line):
                 nextch = line[cmd_end]
-                if nextch.isalnum() or nextch == '_':
+                # Identifier continuation or BBC type suffix glued to keyword:
+                # Colour&() / MODE% / PRINT$ are variables, not COLOUR/MODE/PRINT.
+                # (PRINT# is captured as a full token in the regex, so # here is safe.)
+                type_suffix = nextch in '%$!#&'
+                if nextch.isalnum() or nextch == '_' or type_suffix:
                     glued = line[cmd_end:]
                     # Allow some crunched forms for classic string functions:
                     # PRINTCHR$(84) sometimes worked (the ( reveals the function call)
                     # but PRINTCHR$84 (no parens) almost always syntax error.
-                    if re.match(r'(CHR\$|ASC|LEFT\$|RIGHT\$|MID\$|STR\$|INKEY\$)\(', glued, re.IGNORECASE):
+                    if type_suffix:
+                        # COLOUR&() = … / Colour&(i) — never a COLOUR statement.
+                        match = None
+                    elif re.match(r'(CHR\$|ASC|LEFT\$|RIGHT\$|MID\$|STR\$|INKEY\$)\(', glued, re.IGNORECASE):
                         pass  # crunched PRINTCHR$(84) tolerated in some 80s BASICs
                     elif re.match(r'(CHR\$|ASC|LEFT\$|RIGHT\$|MID\$|STR\$|INKEY\$)\s*\d', glued, re.IGNORECASE):
                         # bare numeric without () after $ , e.g. PRINTCHR$84 → error
@@ -1881,6 +1888,11 @@ class RuntimeProgramMixin:
         Only arithmetic compounds (``+=`` ``-=`` ``*=`` ``/=``) are recognized.
         Word forms like ``AND=`` / ``OR=`` are **not** BASIC compound assignment
         (they broke names such as ``aand=0``). Use ``A = A AND n`` instead.
+
+        Array LHS uses balanced parentheses so
+        ``Value() *= 2 * PI / SUM(Value())`` does not treat the final ``)`` as
+        closing the empty ``()`` via a greedy ``.*`` match (which used to leave
+        ``Value() *`` as a fake lvalue before a plain ``=``).
         """
 
         self.dprint('[ASSIGN]', repr(line))
@@ -1889,26 +1901,50 @@ class RuntimeProgramMixin:
         if text.upper().startswith("LET"):
             text = text[3:].lstrip()
 
-        # Maximal identifier/array LHS, then optional arithmetic compound op.
-        lhs_m = re.match(
-            rf'^({self._VAR_BASE_PATTERN}[%$!#&]?)(\s*\(.*\))?\s*',
-            text,
-            flags=self._identifier_re_flags() | re.DOTALL,
-        )
-        if lhs_m:
-            lhs = (lhs_m.group(1) + (lhs_m.group(2) or '')).strip()
-            rest = text[lhs_m.end() :]
+        flags = self._identifier_re_flags()
+        name_m = re.match(rf'^({self._VAR_BASE_PATTERN}[%$!#&]?)', text, flags=flags)
+        if name_m:
+            pos = name_m.end()
+            # Optional array index / whole-array (): balanced scan, not greedy .*
+            if pos < len(text) and text[pos] == '(':
+                depth = 0
+                j = pos
+                in_str = False
+                while j < len(text):
+                    ch = text[j]
+                    if ch == '"':
+                        in_str = not in_str
+                    elif not in_str:
+                        if ch == '(':
+                            depth += 1
+                        elif ch == ')':
+                            depth -= 1
+                            if depth == 0:
+                                j += 1
+                                break
+                    j += 1
+                else:
+                    j = pos  # unbalanced — leave as bare name
+                lhs = text[:j].strip()
+                rest = text[j:].lstrip()
+            else:
+                lhs = name_m.group(1)
+                rest = text[name_m.end() :].lstrip()
             op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
             if op_m:
                 return lhs, op_m.group(1), op_m.group(2).strip()
+            if rest.startswith('='):
+                rhs = rest[1:].strip()
+                self._validate_assignment_rhs(rhs)
+                return lhs, '=', rhs
 
-        if "=" in text:
-            var_part, expr = text.split("=", 1)
+        if '=' in text:
+            var_part, expr = text.split('=', 1)
             rhs = expr.strip()
             self._validate_assignment_rhs(rhs)
-            return var_part.strip(), "=", rhs
+            return var_part.strip(), '=', rhs
 
-        raise ValueError("assignment expected")
+        raise ValueError('assignment expected')
 
     def _program_display_lines(
         self,
