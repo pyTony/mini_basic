@@ -3963,6 +3963,11 @@ class MiniBASICTests(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn('=== REPL commands ===', out)
         self.assertIn('H.=HELP', out)
+        # Topic pages must not advertise 1-N menu picks without listing them.
+        self.assertNotIn('1-12 jump', out)
+        self.assertNotRegex(out, r'0 menu\s+1-\d+ jump')
+        self.assertIn('empty line → BASIC >', out)
+        self.assertIn('MENU or 0', out)
 
     def test_help_program_topic(self):
         from mini_basic.repl.help_topics import normalize_help_topic, print_help_topic

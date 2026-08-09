@@ -35,8 +35,14 @@ def _print_help_menu(selected: int = 1) -> None:
 
 
 def _print_topic_hint() -> None:
-    count = len(HELP_MENU_ITEMS)
-    print(f'  0 menu   1-{count} jump   empty line returns to BASIC >')
+    """Navigation after a topic page — do not invent in-page menu numbers.
+
+    Numbered 1–N choices only exist on the HELP menu itself. After HELP LIST
+    (or any named topic), advertising ``1-12 jump`` looks like choices on that
+    page that are not listed.
+    """
+    print('  empty line → BASIC >')
+    print('  MENU or 0 → topic list   (or type another topic name, e.g. REPL)')
 
 
 def _open_topic(
