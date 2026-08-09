@@ -1639,17 +1639,68 @@ class RuntimeIoMixin:
             print(line)
 
     def list_dir(self, pattern: Optional[str] = None) -> None:
-        print(self.working_dir)
+        """List a directory (DOS/BBC-style).
+
+        * ``DIR`` — current working directory
+        * ``DIR test`` / ``DIR test\\`` — contents of folder ``test`` (not just the name)
+        * ``DIR *.bas`` — name filter in the current directory
+        * ``DIR test\\*.py`` — name filter inside ``test``
+        """
+        search_dir = self.working_dir
+        name_filter: Optional[str] = None
+
+        if pattern:
+            raw = pattern.strip().strip('"\'')
+            if raw:
+                # Normalise path separators; keep trailing-sep info before strip.
+                norm = raw.replace('/', os.sep)
+                ends_as_dir = norm.endswith(os.sep) or (
+                    os.altsep is not None and norm.endswith(os.altsep)
+                )
+                stripped = norm.rstrip('/\\')
+                has_wild = any(ch in stripped for ch in '*?')
+
+                if has_wild:
+                    parent, base = os.path.split(stripped)
+                    if parent:
+                        search_dir = self.resolve_path(parent)
+                    name_filter = base or None
+                else:
+                    candidate = self.resolve_path(stripped) if stripped else self.working_dir
+                    if os.path.isdir(candidate):
+                        search_dir = candidate
+                    elif ends_as_dir:
+                        self._emit_error(f'? Directory not found: {pattern}')
+                        return
+                    elif os.path.isfile(candidate):
+                        print(os.path.dirname(candidate) or search_dir)
+                        print(f'         {os.path.basename(candidate)}')
+                        return
+                    else:
+                        # Bare token with no matching path: filter cwd basenames
+                        # (e.g. DIR hello when no such file — empty list).
+                        name_filter = stripped
+
+        print(search_dir)
         try:
-            entries = os.listdir(self.working_dir)
+            entries = os.listdir(search_dir)
         except OSError:
             self._emit_error('? Directory not accessible')
             return
-        if pattern:
-            entries = [name for name in entries if fnmatch.fnmatch(name.lower(), pattern.lower())]
-        entries.sort(key=lambda name: (not os.path.isdir(os.path.join(self.working_dir, name)), name.lower()))
+        if name_filter:
+            entries = [
+                name
+                for name in entries
+                if fnmatch.fnmatch(name.lower(), name_filter.lower())
+            ]
+        entries.sort(
+            key=lambda name: (
+                not os.path.isdir(os.path.join(search_dir, name)),
+                name.lower(),
+            )
+        )
         for name in entries:
-            full_path = os.path.join(self.working_dir, name)
+            full_path = os.path.join(search_dir, name)
             if os.path.isdir(full_path):
                 print(f'<DIR>    {name}')
             else:

@@ -2211,6 +2211,25 @@ class MiniBASICTests(unittest.TestCase):
             self.assertIn('hello.bas', listing)
             self.assertTrue(os.path.normpath(sub) in listing.splitlines()[0])
 
+            # DIR subdir / DIR subdir\ list contents (not only the folder name).
+            interp.change_dir(tmp)
+            nested = os.path.join(tmp, 'testdir')
+            os.mkdir(nested)
+            with open(os.path.join(nested, 'inside.bas'), 'w', encoding='utf-8') as f:
+                f.write('10 PRINT 1\n')
+            for spec in ('testdir', 'testdir' + os.sep, os.path.join('testdir', '*.bas')):
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    interp.list_dir(spec)
+                out = buf.getvalue()
+                self.assertIn('inside.bas', out, msg=f'DIR {spec!r} out={out!r}')
+                self.assertIn(os.path.normpath(nested), out.splitlines()[0])
+            # Bare DIR testdir must not stop at parent showing only <DIR> testdir.
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                interp.list_dir('testdir')
+            self.assertNotRegex(buf.getvalue().strip(), r'^.*\n<DIR>\s+testdir\s*$')
+
     def test_save_pretty_writes_unnumbered_indented_program(self):
         import os
         import tempfile
