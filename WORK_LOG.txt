@@ -76,3 +76,4 @@
 2026-08-09 11:50:48 WORK END batch: PRETTY preamble + HELP footer; next LIST/SAVE formatter unify
 2026-08-09 11:52:36 WORK BEGIN unify dual LIST/SAVE formatters (io vs save_case)
 2026-08-09 11:55:53 WORK END unify LIST/SAVE formatters: save_case sole authority; phase1 622 pass
+2026-08-09 12:21:13 WORK END debug batch: dprint/HELP DEBUG, pygame WSL fallback, PRINTTAB bbc hint; hanoi OK

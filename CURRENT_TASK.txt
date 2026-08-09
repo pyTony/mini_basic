@@ -1,6 +1,7 @@
 Focus: compile WHILE CONT AND (I%<N) boolean path — or keep Mandelbrot EXIT WHILE workaround
 
-Just closed: unify dual LIST/SAVE formatters (format/save_case sole authority).
+Closed (debug batch): dprint tags + HELP DEBUG; pygame missing/WSL fallback;
+  PRINTTAB → suggest --dialect bbc (hanoi OK).
 
 Next plan (FEATURES_DONE --):
   1. compile WHILE CONT AND (I%<N) boolean path  ← THIS
