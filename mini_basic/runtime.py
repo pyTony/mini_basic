@@ -809,6 +809,47 @@ def _execute_repl_line(interp: BASICInterpreter, text: str) -> bool:
     return True
 
 
+def _append_session_history(history: List[str], line: str) -> bool:
+    """Append to session history if non-empty and not a consecutive duplicate.
+
+    Returns True when a new entry was stored.
+    """
+    text = line.rstrip('\n')
+    if not text.strip():
+        return False
+    if history and history[-1] == text:
+        return False
+    history.append(text)
+    return True
+
+
+def _sync_readline_history(line: str) -> None:
+    """Ensure pyreadline/GNU readline has this line (first line often dropped)."""
+    text = line.rstrip('\n')
+    if not text.strip():
+        return
+    readline = _get_readline_module()
+    if readline is None:
+        return
+    try:
+        n = int(readline.get_current_history_length())
+        last = readline.get_history_item(n) if n > 0 else None
+        if last == text:
+            return
+        readline.add_history(text)
+    except Exception:
+        try:
+            readline.add_history(text)
+        except Exception:
+            pass
+
+
+def _record_repl_history(history: List[str], line: str) -> None:
+    """Session list + readline (used after ``input()``)."""
+    if _append_session_history(history, line):
+        _sync_readline_history(line)
+
+
 def _interactive_repl(interp: BASICInterpreter) -> None:
     readline_ok = _configure_repl_readline(
         working_dir=lambda: interp.working_dir,
@@ -842,18 +883,23 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
             try:
                 from .repl.windows_input import windows_repl_input
 
-                return windows_repl_input(
+                text = windows_repl_input(
                     '> ',
                     working_dir=lambda: interp.working_dir,
                     expand_abbrev=_expand_repl_abbrev,
                     history=repl_history,
                     idle=idle,
                 )
+                # windows_input already updated repl_history; keep readline in sync
+                _sync_readline_history(text)
+                return text
             except (ImportError, OSError, ValueError):
                 pass
         if idle is not None and not idle():
             raise ProgramExit()
-        return input('> ')
+        text = input('> ')
+        _record_repl_history(repl_history, text)
+        return text
 
     try:
         while True:

@@ -5195,6 +5195,29 @@ class MiniBASICTests(unittest.TestCase):
             matches = compute_matches(tmp, 'LOAD Man', 'Man')
             self.assertEqual(matches[0], 'mandelbrot.bas')
 
+    def test_record_repl_history_keeps_all_lines(self):
+        """Every non-empty REPL line is stored (including the first FOR)."""
+        from mini_basic.runtime import _record_repl_history
+
+        history: list[str] = []
+        fake_rl = MagicMock()
+        fake_rl.get_current_history_length.return_value = 0
+        fake_rl.get_history_item.return_value = None
+        with patch('mini_basic.runtime._get_readline_module', return_value=fake_rl):
+            _record_repl_history(history, 'for i=1to3:print i: next')
+            _record_repl_history(history, 'I%=101')
+            _record_repl_history(history, 'for i=1to3:print I%: next')
+            _record_repl_history(history, 'for i=1to3:print I%: next')  # consecutive dup
+        self.assertEqual(
+            history,
+            [
+                'for i=1to3:print i: next',
+                'I%=101',
+                'for i=1to3:print I%: next',
+            ],
+        )
+        self.assertEqual(fake_rl.add_history.call_count, 3)
+
     def test_interactive_repl_uses_windows_input_without_readline(self):
         """Win32 TTY without pyreadline falls back to windows_repl_input."""
         interp = self.make_interp()
