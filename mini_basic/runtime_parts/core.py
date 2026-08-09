@@ -1356,13 +1356,16 @@ class RuntimeCoreMixin:
                     '(DEF FN return: IF cond THEN =expr ELSE =expr)'
                 )
             return 'IF needs THEN before the true-branch statement'
-        if re.match(r'^.+?\s+=\s*.+', text) and not re.search(
-            r'\bTHEN\b', text, re.IGNORECASE
-        ):
-            return (
-                'IF needs THEN before =return '
-                '(use: IF cond THEN =expr)'
-            )
+        # Only flag DEF-FN style when the first non-space after a comparison-like
+        # ``=`` is itself ``=`` (``IF cond =expr``), not compact BBC
+        # ``IF Y% = n Colour&() OR= 8`` (condition uses =, body is a statement).
+        if not re.search(r'\bTHEN\b', text, re.IGNORECASE):
+            m = re.match(r'^.+?\s+=\s*(=.*)$', text)
+            if m:
+                return (
+                    'IF needs THEN before =return '
+                    '(use: IF cond THEN =expr)'
+                )
         return 'IF error'
 
     def _init_time_clock(self) -> None:

@@ -118,6 +118,40 @@ class ColourArrayNameTests(unittest.TestCase):
         self.assertIn('1', buf.getvalue())
         self.assertIn('3', buf.getvalue())
 
+    def test_piechart_compact_if_or_assign(self):
+        """piechart: IF Y% = Cy% + Depth Colour&() OR= 8 (no THEN)."""
+        i = _interp('bbc')
+        rest = 'Y% = Cy% + Depth Colour&() OR= 8'
+        cond, body = i._split_bbc_compact_if_then(rest)
+        self.assertEqual(cond, 'Y% = Cy% + Depth')
+        self.assertEqual(body, 'Colour&() OR= 8')
+        lhs, op, rhs = i._parse_assignment_statement(body)
+        self.assertEqual(lhs, 'Colour&()')
+        self.assertEqual(op, 'OR=')
+        self.assertEqual(rhs, '8')
+
+        i.set_program_line(10, 'DIM Colour&(2)')
+        i.set_program_line(20, 'Colour&() = 1, 2, 3')
+        i.set_program_line(30, 'Y% = 5')
+        i.set_program_line(40, 'Cy% = 0')
+        i.set_program_line(50, 'Depth = 5')
+        i.set_program_line(60, 'IF Y% = Cy% + Depth Colour&() OR= 8')
+        i.set_program_line(70, 'PRINT Colour&(0), Colour&(1), Colour&(2)')
+        i.set_program_line(80, 'END')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            i.run()
+        self.assertEqual(i.error_line_num, 0)
+        # 1|8=9, 2|8=10, 3|8=11
+        self.assertIn('9', buf.getvalue())
+        self.assertIn('10', buf.getvalue())
+        self.assertIn('11', buf.getvalue())
+        # aand=0 must not become AND=
+        lhs, op, rhs = i._parse_assignment_statement('aand=0')
+        self.assertEqual(lhs, 'aand')
+        self.assertEqual(op, '=')
+        self.assertEqual(rhs, '0')
+
 
 if __name__ == '__main__':
     unittest.main()

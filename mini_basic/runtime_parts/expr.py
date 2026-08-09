@@ -3138,6 +3138,16 @@ class RuntimeExprMixin:
                     rhs = float(self.eval_expr(expr))
                     for i, v in enumerate(data):
                         data[i] = float(v) - rhs
+                elif op in ('OR=', 'AND=', 'EOR=', 'XOR='):
+                    rhs = int(self._coerce_int_storage(self.eval_expr(expr)))
+                    for i, v in enumerate(data):
+                        cur = int(self._coerce_int_storage(v))
+                        if op == 'OR=':
+                            data[i] = cur | rhs
+                        elif op == 'AND=':
+                            data[i] = cur & rhs
+                        else:  # EOR= / XOR=
+                            data[i] = cur ^ rhs
                 else:
                     raise ValueError('whole-array compound assignment not supported')
                 if kind == 'int':
@@ -3162,6 +3172,15 @@ class RuntimeExprMixin:
             value = current * delta
         elif op == '/=':
             value = current / delta
+        elif op in ('OR=', 'AND=', 'EOR=', 'XOR='):
+            cur = int(self._coerce_int_storage(current))
+            rhs = int(self._coerce_int_storage(delta))
+            if op == 'OR=':
+                value = cur | rhs
+            elif op == 'AND=':
+                value = cur & rhs
+            else:
+                value = cur ^ rhs
         else:
             raise ValueError(f'unsupported compound assignment: {op}')
         if var_kind == 'int':

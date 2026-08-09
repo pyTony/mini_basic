@@ -1889,16 +1889,15 @@ class RuntimeProgramMixin:
         return label, label is not None
 
     def _parse_assignment_statement(self, line: str) -> Tuple[str, str, str]:
-        """Return (lvalue, operator, rhs) for = / += / -= / *= / /=.
+        """Return (lvalue, operator, rhs) for = / += / -= / *= / /= / OR= / AND= / …
 
-        Only arithmetic compounds (``+=`` ``-=`` ``*=`` ``/=``) are recognized.
-        Word forms like ``AND=`` / ``OR=`` are **not** BASIC compound assignment
-        (they broke names such as ``aand=0``). Use ``A = A AND n`` instead.
+        Arithmetic compounds: ``+=`` ``-=`` ``*=`` ``/=``.
+        Bitwise compounds (BBC array ops, piechart): ``OR=`` ``AND=`` ``EOR=`` ``XOR=``
+        only after a complete LHS (so ``aand=0`` stays assignment to ``aand``).
 
         Array LHS uses balanced parentheses so
-        ``Value() *= 2 * PI / SUM(Value())`` does not treat the final ``)`` as
-        closing the empty ``()`` via a greedy ``.*`` match (which used to leave
-        ``Value() *`` as a fake lvalue before a plain ``=``).
+        ``Value() *= 2 * PI / SUM(Value())`` and
+        ``Colour&() OR= 8`` parse correctly.
         """
 
         self.dprint('[ASSIGN]', repr(line))
@@ -1936,9 +1935,21 @@ class RuntimeProgramMixin:
             else:
                 lhs = name_m.group(1)
                 rest = text[name_m.end() :].lstrip()
+            # Arithmetic first, then word bitwise (after complete LHS only).
             op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
             if op_m:
                 return lhs, op_m.group(1), op_m.group(2).strip()
+            bit_flags = re.DOTALL
+            if not self._identifiers_case_sensitive():
+                bit_flags |= re.IGNORECASE
+            bit_m = re.match(
+                r'^(OR|AND|EOR|XOR)\s*=\s*(.+)$',
+                rest,
+                flags=bit_flags,
+            )
+            if bit_m:
+                op = bit_m.group(1).upper() + '='
+                return lhs, op, bit_m.group(2).strip()
             if rest.startswith('='):
                 rhs = rest[1:].strip()
                 self._validate_assignment_rhs(rhs)
