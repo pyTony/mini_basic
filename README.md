@@ -26,6 +26,8 @@ python -m mini_basic path/to/program.bas
 Build locally: `python -m build` — details in [`docs/PACKAGING.md`](docs/PACKAGING.md).  
 Full demo trees still use the repo or text-archive installer (`tools/install.ps1`), not the PyPI wheel.
 
+**Documentation map:** [`docs/INDEX.md`](docs/INDEX.md) (open in browser with `Open-MdRendered.ps1 .\docs\INDEX.md`).
+
 ## Quick start (from a source checkout)
 
 ```bash
