@@ -261,6 +261,20 @@ class RuntimeProgramMixin:
                 r'\bENDWHILE\b', 'WEND', statement, flags=re.IGNORECASE,
             )
             statement = self._normalize_two_word_closers(statement)
+            # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
+            # case-fold keywords, but still spaces compact TO/STEP at entry.
+            statement = re.sub(
+                r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])',
+                ' TO ',
+                statement,
+                flags=re.IGNORECASE,
+            )
+            statement = re.sub(
+                r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])',
+                ' STEP ',
+                statement,
+                flags=re.IGNORECASE,
+            )
         statement = self._expand_question_print(statement)
 
         # Expression-style monadic glue outside strings (not REM/'/DATA bodies).

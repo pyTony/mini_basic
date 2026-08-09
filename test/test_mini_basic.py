@@ -260,16 +260,56 @@ class MiniBASICTests(unittest.TestCase):
             _execute_repl_line(interp, 'for i = 1 to 3: print i : next i')
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
 
-    @pytest.mark.xfail(
-        reason='compact FOR glue for i=1to3 not yet in mini immediate path',
-        strict=False,
-    )
-    def test_immediate_for_compact_bbc_spacing(self):
-        interp = self.make_interp()
+    def test_for_compact_digit_to_via_entry_canonicalize_bbc(self):
+        """BBC entry path: ``FOR I=1TO3`` → spaced TO; must use set_program_line.
+
+        Lowercase ``for i=1to3`` is not a keyword when case-sensitive (bbc/mini).
+        Do not insert raw program[] lines — entry canonicalize is the contract.
+        """
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='none',
+                display_locked=True,
+                hold_display_open=False,
+            )
+        )
+        # Uppercase compact glue: entry normalize inserts spaces around TO.
+        self.assertEqual(
+            interp.canonicalize_program_line('FOR I=1TO3'),
+            'FOR I=1 TO 3',
+        )
+        interp.set_program_line(10, 'FOR I=1TO3:?I:NEXT')
+        self.assertIn(' TO ', interp.program[10])
+        interp.set_program_line(20, 'END')
         buf = io.StringIO()
         with redirect_stdout(buf):
-            interp.execute_immediate('for i=1to3:?i: next i')
+            interp.run()
         self.assertEqual(buf.getvalue().strip(), '1\n2\n3')
+
+    def test_for_lowercase_rejected_in_bbc_case_sensitive(self):
+        """BBC keywords are uppercase-only: ``for i=1to3`` is not a FOR loop.
+
+        mini still folds statement keywords (``for i = 1 to 2`` works); after
+        entry TO-spacing, lowercase compact may become a valid mini loop.
+        """
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='none',
+                display_locked=True,
+                hold_display_open=False,
+            )
+        )
+        self.assertTrue(interp._identifiers_case_sensitive())
+        interp.set_program_line(10, 'for i=1to3:?i:next i')
+        interp.set_program_line(20, 'END')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.run()
+        self.assertNotEqual(buf.getvalue().strip(), '1\n2\n3')
+        # Direct store without set_program_line is not the contract under test.
+        self.assertIn(' TO ', interp.program[10])  # entry still spaced TO
 
     def test_immediate_time_for_next_print_chain(self):
         interp = self.make_interp()
