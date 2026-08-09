@@ -1617,10 +1617,20 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(result, 'XPRINT')
 
     def test_prompt_editing_input_prefers_windows_editor(self):
+        """Win32 TTY without readline uses msvcrt editor (not bare input under capture)."""
         with patch('mini_basic.runtime.sys.platform', 'win32'):
             with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
-                with patch('mini_basic.runtime._windows_editing_input', return_value='PRINT 1') as win_edit:
-                    result = _prompt_editing_input('10 ', 'PRINT 0')
+                # pyreadline3 is often installed; force the Windows-editor branch.
+                with patch('mini_basic.runtime._get_readline_module', return_value=None):
+                    with patch(
+                        'mini_basic.runtime._windows_editing_input',
+                        return_value='PRINT 1',
+                    ) as win_edit:
+                        with patch(
+                            'builtins.input',
+                            side_effect=AssertionError('should not call input()'),
+                        ):
+                            result = _prompt_editing_input('10 ', 'PRINT 0')
         self.assertEqual(result, 'PRINT 1')
         win_edit.assert_called_once_with('10 ', 'PRINT 0')
 
