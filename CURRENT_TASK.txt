@@ -1,13 +1,7 @@
-Focus: idle after compile WHILE CONT AND mixed boolean
+Focus: trig digit glue TAN10 — BBC keyword+number like INKEY1
 
-Closed: CONT AND (I%<N) / A<B AND B<C compile to bytecode (not recursive boolean).
+Why: TAN10 was left as a name (letter-only unglue); user repro tan10=TAN10.
 
-Next plan (FEATURES_DONE --):
-  1. design/impl later: entry-time line canonicalize (inventory first)
-  2. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
-  3. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
-  4. PRINT array subscript expansion
-  5. phase2 graphics markers; 1.00 ship
-  DEFER: polly, poem
+Next after this: entry-time canonicalize / other FEATURES_DONE --
 
 Repo: C:\Users\Tony\mini_basic

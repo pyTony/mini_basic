@@ -511,6 +511,24 @@ class TestCaseSensitiveTrigIdents(unittest.TestCase):
         self.assertNotIn("?", err + out)
         self.assertTrue(out.strip().endswith("0") or out.strip() == "0")
 
+    def test_uppercase_TAN10_glues_digit_arg_when_case_sensitive(self):
+        """BBC keyword+number: TAN10 → TAN(10); tan10 LHS stays a variable."""
+        out, err = self._run(
+            ["tan10=TAN10", "PRINT tan10", "END"],
+            case_sensitive=True,
+        )
+        self.assertNotIn("?", err + out)
+        import math
+        self.assertAlmostEqual(float(out.strip()), math.tan(10.0), places=5)
+
+    def test_lowercase_tan10_is_variable_when_case_sensitive(self):
+        out, err = self._run(
+            ["tan10=5", "PRINT tan10", "END"],
+            case_sensitive=True,
+        )
+        self.assertNotIn("?", err + out)
+        self.assertEqual(out.strip(), "5")
+
     def test_fold_mode_still_unglues_lowercase_sina(self):
         out, err = self._run(
             ["a=0", "PRINT sina", "END"],
