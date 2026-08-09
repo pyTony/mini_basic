@@ -1623,6 +1623,8 @@ class RuntimeProgramMixin:
                     formatted = self.format_list_line(display_part)
 
                 structural_indent = loop_depths.get(line_num, 0) * 4 if mode in ('pretty', 'refs') else 0
+                if part_index > 0:
+                    structural_indent += 4
                 if mode in ('pretty', 'refs'):
                     # Always reindent from structure — never keep prior user indent.
                     indent_width = structural_indent
