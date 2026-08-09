@@ -858,6 +858,21 @@ class RuntimeCoreMixin:
         if keyword in self._UNIMPLEMENTED_COMMANDS:
             detail = self._UNIMPLEMENTED_COMMANDS[keyword]
             return f'? Unimplemented: {detail}'
+        # Crunched BBC forms (PRINTTAB, DEFPROC…) only expand in --dialect bbc.
+        if (
+            getattr(self.config, 'dialect', None) != 'bbc'
+            and re.search(
+                r'\b(PRINTTAB|PRINTSPC|PRINTCHR\$|DEFPROC|DEFPROC\w|'
+                r'ENDWHILE|ENDCASE|ENDIF|PROCPUT|PROC\w)\b',
+                line,
+                re.IGNORECASE,
+            )
+        ):
+            hint = keyword or line.strip().split()[0] if line.strip() else 'statement'
+            return (
+                f'? Unknown statement: {hint}  '
+                f'(BBC-style glued form? try: --dialect bbc)'
+            )
         if keyword:
             return f'? Unknown statement: {keyword}'
         preview = line.strip()
