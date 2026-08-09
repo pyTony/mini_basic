@@ -277,42 +277,10 @@ def _windows_editing_input(
 
 
 def _prompt_editing_input(prompt: str, default: str = '') -> str:
-    """
-    Prompt for editable BASIC source (EDIT, AUTO, bare line number).
+    """Delegate to helpers (single implementation used by EDIT/AUTO)."""
+    from .runtime_parts.helpers import _prompt_editing_input as _helpers_prompt
 
-    Prefer readline (GNU on Unix, pyreadline3 on Windows) so Unicode and
-    history work without the custom msvcrt redraw path. Fall back to that
-    editor only when no readline backend is available.
-    """
-    def _sanitize(text: str) -> str:
-        return ''.join(ch for ch in text if ch == '\t' or (ord(ch) >= 32 and ord(ch) != 127))
-
-    default = _sanitize(default)
-    # pyreadline + input under pytest capture → "reading from stdin while output is captured"
-    readline = _get_readline_module()
-    if readline is not None and sys.stdin.isatty():
-
-        def _prefill_hook() -> None:
-            readline.set_startup_hook(None)
-            if default:
-                readline.insert_text(default)
-                if hasattr(readline, 'redisplay'):
-                    readline.redisplay()
-
-        # Do not clear_history(): that wiped pastable history when editing lines.
-        readline.set_startup_hook(_prefill_hook)
-        try:
-            return _sanitize(input(prompt).rstrip())
-        finally:
-            readline.set_startup_hook(None)
-
-    if sys.platform == 'win32' and sys.stdin.isatty():
-        try:
-            return _windows_editing_input(prompt, default)
-        except (ImportError, OSError, ValueError):
-            pass
-
-    return _sanitize(input(prompt).rstrip())
+    return _helpers_prompt(prompt, default)
 
 
 def _parse_path_arg(text: str) -> str:

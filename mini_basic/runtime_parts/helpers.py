@@ -90,21 +90,33 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
     """
     Prompt for editable BASIC source (EDIT, AUTO, bare line number).
 
-    Prefer readline (GNU on Unix, pyreadline3 on Windows). Custom msvcrt
-    editor is only a fallback when no readline backend is installed.
+    When *default* is non-empty (EDIT n prefill), prefer the Windows msvcrt
+    editor: pyreadline3's startup-hook insert_text is unreliable and often
+    leaves an empty buffer. With no prefill, prefer readline when available.
     """
     default = _sanitize_basic_source(default)
+
+    # EDIT prefill path — Windows console editor always shows the old line.
+    if default and sys.platform == 'win32' and sys.stdin.isatty():
+        try:
+            return _windows_editing_input(prompt, default)
+        except (ImportError, OSError, ValueError):
+            pass
+
     # Never drive pyreadline/input under pytest capture (non-TTY) — that yields
     # "pytest: reading from stdin while output is captured".
     readline = _get_readline_module()
     if readline is not None and sys.stdin.isatty():
 
         def _prefill_hook() -> None:
-            readline.set_startup_hook(None)
+            # Keep hook until after insert (clearing first broke some pyreadline3).
             if default:
                 readline.insert_text(default)
                 if hasattr(readline, 'redisplay'):
-                    readline.redisplay()
+                    try:
+                        readline.redisplay()
+                    except Exception:
+                        pass
 
         # Do not clear_history(): that wiped pastable history when editing lines.
         readline.set_startup_hook(_prefill_hook)
@@ -119,6 +131,7 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
         except (ImportError, OSError, ValueError):
             pass
 
+    # Bare input() cannot prefill; edit_line already printed the old text above.
     return _sanitize_basic_source(input(prompt).rstrip())
 
 

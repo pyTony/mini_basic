@@ -1536,14 +1536,20 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(buf.getvalue(), '')
 
     def test_prompt_editing_input_prefills_program_line(self):
+        """Linux/readline path: startup hook inserts default (non-Windows)."""
+        from mini_basic.runtime_parts.helpers import _prompt_editing_input as helpers_prompt
+
         fake_readline = MagicMock()
         fake_readline.get_current_history_length.return_value = 1
         fake_readline.get_history_item.return_value = 'RUN'
-        with patch('mini_basic.runtime.sys.platform', 'linux'):
-            with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
-                with patch('mini_basic.runtime._get_readline_module', return_value=fake_readline):
+        with patch('mini_basic.runtime_parts.helpers.sys.platform', 'linux'):
+            with patch('mini_basic.runtime_parts.helpers.sys.stdin.isatty', return_value=True):
+                with patch(
+                    'mini_basic.runtime_parts.helpers._get_readline_module',
+                    return_value=fake_readline,
+                ):
                     with patch('builtins.input', return_value='PRINT "new"'):
-                        result = _prompt_editing_input('50 ', 'PRINT "old"')
+                        result = helpers_prompt('50 ', 'PRINT "old"')
         self.assertEqual(result, 'PRINT "new"')
         # Must not wipe history when prefilling EDIT/AUTO (paste + ↑ still work).
         fake_readline.clear_history.assert_not_called()
@@ -1649,20 +1655,26 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(result, 'XPRINT')
 
     def test_prompt_editing_input_prefers_windows_editor(self):
-        """Win32 TTY without readline uses msvcrt editor (not bare input under capture)."""
-        with patch('mini_basic.runtime.sys.platform', 'win32'):
-            with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
-                # pyreadline3 is often installed; force the Windows-editor branch.
-                with patch('mini_basic.runtime._get_readline_module', return_value=None):
+        """Win32 TTY: EDIT prefill uses msvcrt editor even if pyreadline is present."""
+        with patch('mini_basic.runtime_parts.helpers.sys.platform', 'win32'):
+            with patch('mini_basic.runtime_parts.helpers.sys.stdin.isatty', return_value=True):
+                with patch(
+                    'mini_basic.runtime_parts.helpers._get_readline_module',
+                    return_value=MagicMock(),
+                ):
                     with patch(
-                        'mini_basic.runtime._windows_editing_input',
+                        'mini_basic.runtime_parts.helpers._windows_editing_input',
                         return_value='PRINT 1',
                     ) as win_edit:
                         with patch(
                             'builtins.input',
                             side_effect=AssertionError('should not call input()'),
                         ):
-                            result = _prompt_editing_input('10 ', 'PRINT 0')
+                            from mini_basic.runtime_parts.helpers import (
+                                _prompt_editing_input as helpers_prompt,
+                            )
+
+                            result = helpers_prompt('10 ', 'PRINT 0')
         self.assertEqual(result, 'PRINT 1')
         win_edit.assert_called_once_with('10 ', 'PRINT 0')
 
