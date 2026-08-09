@@ -130,6 +130,9 @@ OK LIST spacing: do not glue % \$ ! # to following word (band% OF stays spaced);
 OK PROC/FN numeric names (PROC4 / FN4) in multiple regex sites; LIST does not space PROC from name
   (Claude archive part2; docs/SESSION_SUMMARY_archive_part2.md)
 OK _parse_command memoization cache (core + program) — Mandelbrot parse overhead cut ~30%
+-- P0 case-sensitive trig unglue: tana must stay var (not tan(a)) when case on;
+  fold mode may still unglue SIN/COS/TAN prefix; hypothesis var filter aligned
+-- P0 phase1 regression green: Loaded: stderr asserts; Clock.bas path; dialect_hint skips
 -- unify dual LIST/SAVE formatters (runtime_parts/io.py vs format/save_case.py)
 -- compile WHILE CONT AND (I%<N) boolean path (or keep Mandelbrot EXIT WHILE workaround)
 -- consolidate PROC_FN_NAME_PATTERN across all PROC/FN parse sites (world.bbc PROC4 runtime path)

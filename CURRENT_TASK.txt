@@ -1,9 +1,23 @@
-Focus: unify dual LIST/SAVE formatters — runtime_parts/io.py vs format/save_case.py
+Focus: P0 regression — case-sensitive trig unglue + phase1 green
 
-Closed: immediate/REPL edit + LOAD/SAVE/HELP; WAIT 0 quit/graphics (wheel).
+Closed recently: REPL/LOAD/SAVE/HELP; WAIT 0 quit; wheel graphics OK.
 
-Next plan (FEATURES_DONE --):
-  1. unify dual LIST/SAVE formatters (io vs save_case)  ← NEXT
+=== PRIORITY (issues first) ===
+P0. Case sensitivity / name glue (blocks phase1)
+  - `_unglue_trig_idents` always IGNORECASE: ``tana`` → ``tan(a)`` even when
+    identifiers are case-sensitive (mini/bbc). Vars like tana/sina break eval.
+  - Fix: only unglue uppercase SIN/COS/TAN… when case-sensitive; full fold when not.
+  - Hypothesis safe-var filter must match the same rules (prefix conflicts by mode).
+  - Prove: test_while_for_if_fn_array + explicit tana/PRINT tana under mini.
+
+P0. Phase1 regression hygiene (from 2026-08-09 run: 3 fail / 3 skip / 3 xfail)
+  - test_load_unnumbered_with_goto/gosub: "Loaded:" on error stream (stderr dual)
+  - test_clock_analogue: skip path wrong — use basics/Clock.bas (not repo-root Clock.bas)
+  - dialect_hint pygame skips: re-enable under SDL_VIDEODRIVER=dummy if safe
+  - Re-run: pytest -q -m "phase1 and not slow" --timeout=90 → 0 fail
+
+=== Then (previous quality plan) ===
+  1. unify dual LIST/SAVE formatters (io vs save_case)
   2. compile WHILE CONT AND (I%<N) boolean path
   3. consolidate PROC_FN_NAME_PATTERN (world.bbc PROC4)
   4. PygameDisplay.write VDU 17 colour bytes (Hanoi bars)
