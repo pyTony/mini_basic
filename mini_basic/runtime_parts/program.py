@@ -822,6 +822,30 @@ class RuntimeProgramMixin:
         """BBC file I/O: PRINT #ch  INPUT #ch  CLOSE #ch  ->  PRINT#ch etc."""
         return cls._RE_HASH_FILE_CMD.sub(r'\1#', line.strip())
 
+    # Residual BBC line glue that entry canonicalize may already have fixed.
+    # When absent, _parse_command skips _normalize_bbc_dialect_line (Phase 2b).
+    _BBC_DIALECT_NORMALIZE_CANDIDATE = re.compile(
+        r'PRINTTAB|PRINTSPC|PRINTCHR\$|'
+        r'DEFPROC|'
+        r'ENDWHILE|'
+        r'END\s+(?:IF|WHILE|PROC|CASE|FN|DEF)\b|'
+        r'REPEATUNTIL|'
+        r'CIRCLEFILL|'
+        r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])|'
+        r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])|'
+        r'\b(?:ORIGIN|SOUND|ENVELOPE|CLG|CLS|RESTORE|UNTIL|COLOUR|COLOR)(?=[0-9(])|'
+        r'\b(?:MODE|GCOL|VDU|PLOT|MOVE|DRAW|FOR|NEXT|PRINT|INPUT)(?=[0-9A-Za-z$%(])|'
+        r'\bPROC(?=[A-Za-z0-9])|'
+        r'\bINKEY\d',
+        re.IGNORECASE,
+    )
+
+    def _line_may_need_bbc_dialect_normalize(self, line: str) -> bool:
+        """True if BBC dialect line glue/normalize might still be needed."""
+        if not line:
+            return False
+        return self._BBC_DIALECT_NORMALIZE_CANDIDATE.search(line) is not None
+
     @staticmethod
     def _normalize_bbc_dialect_line(line: str) -> str:
         """BBC BASIC for SDL 2.0 uses compound closers (ENDIF, ENDWHILE, …).
@@ -961,7 +985,10 @@ class RuntimeProgramMixin:
         line = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', line, flags=re.IGNORECASE)
         line = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', line, flags=re.IGNORECASE)
         if self.config.dialect == 'bbc':
-            line = self._normalize_bbc_dialect_line(line)
+            # Phase 2b: skip full dialect normalize when entry canonicalize
+            # already removed glue (hot path for stored program lines).
+            if self._line_may_need_bbc_dialect_normalize(line):
+                line = self._normalize_bbc_dialect_line(line)
         else:
             line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
             line = self._normalize_two_word_closers(line)

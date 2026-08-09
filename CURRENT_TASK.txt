@@ -1,6 +1,6 @@
-Focus: Job 1 — PRINT array subscript expansion (PRINT a(i))
+Focus: Job 2 — Phase 2b peel: dialect glue at _parse_command
 
-Known gap: bare array subscripts in PRINT may not expand.
-Fix + phase0/1 tests; FEATURES_DONE -- → OK.
+Prefer fast-reject / skip dual-normalize when entry canonicalize already
+unglued BBC line forms (PRINTTAB, DEFPROC, …).
 
 Repo: C:\Users\Tony\mini_basic

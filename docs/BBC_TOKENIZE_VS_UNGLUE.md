@@ -142,4 +142,13 @@ Tokenized `.bbc` load already converts binary → text **once**. That path is cl
 | **Skips when** | Already parenthesized monadic form (`TAN(10)`), pure comparisons, etc. |
 | **Still unglues when** | Residual glue remains (`TAN10`, `NOT0`, `INKEY1`, `ASC"…"`) |
 | **Immediate mode** | `execute_immediate` runs `canonicalize_program_line` per colon segment |
-| **Next peels** | BBC dialect line glue at `_parse_command` time; operator normalize; etc. |
+| **Next peels** | operator normalize; remaining runtime rewrites |
+
+### Phase 2b — BBC dialect line glue at `_parse_command` (2026-08-09)
+
+| | |
+|--|--|
+| **Hot path** | `_parse_command` (bbc) → `_normalize_bbc_dialect_line` only if `_line_may_need_bbc_dialect_normalize` |
+| **Skips when** | No residual glued forms (`PRINT TAB…`, `FOR I% = … TO …`, `MODE 5`, …) |
+| **Still normalizes when** | `PRINTTAB`, `MODE5`, `FORI%=1TO10`, `DEFPROC4`, `END IF`, etc. |
+| **Tests** | `test_entry_canonicalize.test_phase2b_bbc_dialect_fast_reject` |

@@ -94,6 +94,21 @@ class EntryCanonicalizeTests(unittest.TestCase):
         import math
         self.assertAlmostEqual(float(i._eval_numeric('TAN10')), math.tan(10.0), places=5)
 
+    def test_phase2b_bbc_dialect_fast_reject(self):
+        """Stored canonical forms skip _normalize_bbc_dialect_line; glue still peels."""
+        i = self._bbc()
+        self.assertFalse(i._line_may_need_bbc_dialect_normalize('PRINT TAB(0);"x"'))
+        self.assertFalse(i._line_may_need_bbc_dialect_normalize('FOR I%=1 TO 10 STEP 2'))
+        self.assertFalse(i._line_may_need_bbc_dialect_normalize('MODE 5'))
+        self.assertTrue(i._line_may_need_bbc_dialect_normalize('PRINTTAB(0);"x"'))
+        self.assertTrue(i._line_may_need_bbc_dialect_normalize('FORI%=1TO10'))
+        self.assertTrue(i._line_may_need_bbc_dialect_normalize('MODE5'))
+        self.assertTrue(i._line_may_need_bbc_dialect_normalize('DEFPROC4'))
+        # Safety net: _parse_command still unglues residual PRINTTAB.
+        cmd, rest = i._parse_command('PRINTTAB(5);"hi"')
+        self.assertEqual(cmd, 'PRINT')
+        self.assertTrue(rest.upper().startswith('TAB'))
+
 
 if __name__ == '__main__':
     unittest.main()
