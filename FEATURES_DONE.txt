@@ -146,3 +146,5 @@ OK REPL/EDIT line edit: no clear_history on BASIC prefill (paste+↑ kept); shar
 OK bare EDIT: usage + LIST (not BBC full-screen / not redundant EDIT> loop); HELP REPL note
 OK dialect hint SAVE: numbered ``N REM dialect: …`` (N>=1), not unnumbered ' or line 0;
   legacy forms still load; mandelbrot examples updated
+OK HELP PROGRAM (LOAD/SAVE/LIST/AUTO/EDIT); LOAD bare name tries .bas then .bbc;
+  no unnumbered AUTO (document external editor + SAVE PRETTY / LOAD)

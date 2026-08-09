@@ -15,6 +15,7 @@ HELP_MENU_ITEMS: List[Tuple[str, str]] = [
     ('GRAPHICS', 'MODE, VDU, GCOL, PLOT, sprites, pygame'),
     ('MODES', 'BBC 0-7 and SDL 8-31 — resolution and implementation status'),
     ('REPL', 'LIST, RUN, LOAD, EDIT, abbreviations, Tab completion'),
+    ('PROGRAM', 'LOAD / SAVE / LIST / AUTO / EDIT — program file commands'),
     ('SYSTEM', '_argc, _optimization_level, TIME, ERR, ERL'),
     ('DIALECTS', 'mits / commodore / tiny / bbc / mini (same as MATRIX)'),
 ]
@@ -40,6 +41,13 @@ _HELP_ALIASES = {
     'IO': 'FILES',
     'REPL': 'REPL',
     'COMMANDS': 'REPL',
+    'PROGRAM': 'PROGRAM',
+    'PROG': 'PROGRAM',
+    'LOAD': 'PROGRAM',
+    'SAVE': 'PROGRAM',
+    'LIST': 'PROGRAM',
+    'AUTO': 'PROGRAM',
+    'EDIT': 'PROGRAM',
     'GRAPHICS': 'GRAPHICS',
     'GFX': 'GRAPHICS',
     'DISPLAY': 'GRAPHICS',
@@ -92,6 +100,7 @@ def _print_help_overview() -> None:
             '123 PRINT X          store a program line',
             'PRINT 1+2            immediate statement',
             'RUN  LIST  LOAD  SAVE  NEW  EDIT  MATRIX',
+            'HELP PROGRAM         LOAD/SAVE/LIST/AUTO options',
             'bye / quit / exit    leave REPL',
         ]),
     ]
@@ -395,24 +404,89 @@ def _print_help_modes() -> None:
 
 def _print_help_repl() -> None:
     _section('=== REPL commands ===', [
+        'HELP PROGRAM   full LOAD / SAVE / LIST / AUTO / EDIT reference',
         'LIST [PRETTY|REFS] [start[-end]]',
         'RUN  CONT  NEW',
         'SAVE [PRETTY|REFS] [file]   LOAD file   DIR [pattern]   CD [path]',
         'REN|RENUMBER [start[,step]]   AUTO [start[,step]]',
         'EDIT n      edit one program line (prefilled; empty Enter deletes)',
-        'EDIT        (no line) lists usage + LIST; not a full-screen editor',
-        'AUTO [n]    sequential new lines; or type 10 PRINT… at the > prompt',
+        'EDIT        (no line) usage + LIST; not a full-screen editor',
         'HELP [topic]   MATRIX (= HELP DIALECTS)',
         'DIALECT [mini|mits|commodore|tiny|bbc] [strict|loose]   CASE [on|off|auto]',
         '  bare DIALECT reports dialect, strict on/off, and case mode',
         'bye | quit | exit | goodbye | q',
         '',
-        'Tab completes filenames after LOAD, SAVE (*.bas + backups), RUN, CD',
+        'Tab completes filenames after LOAD, SAVE (*.bas/.bbc + backups), RUN, CD',
         '',
         'Abbreviations (BBC/VAX style):',
         'H.=HELP   L.=LIST   LO.=LOAD   R.=RUN   N.=NEW',
         'SA.=SAVE   MA.=MATRIX',
     ])
+
+
+def _print_help_program() -> None:
+    """LOAD / SAVE / LIST / AUTO / EDIT — how programs enter and leave the REPL."""
+    sections = [
+        ('=== Program files (LOAD / SAVE / LIST / AUTO) ===', [
+            'See also HELP FILES for OPENIN/PRINT# channel I/O (different topic).',
+        ]),
+        ('LOAD', [
+            'LOAD filename',
+            '  Load text .bas/.bbc or tokenized BBC (Wilson / Russell) binary.',
+            '  Bare name without extension: try exact path, then .bas, then .bbc',
+            '    e.g. LOAD demo  →  demo.bas or demo.bbc if present',
+            '  Quoted paths allowed: LOAD "my program.bas"',
+            '  Leading #!dialect or 1 REM dialect: … sets dialect (unless locked).',
+            'CHAIN "file" uses the same path rules as LOAD.',
+        ]),
+        ('SAVE', [
+            'SAVE [filename]              numbered lines as stored (default)',
+            'SAVE PRETTY [filename]       structural indent, unnumbered (reloadable)',
+            'SAVE REFS [filename]         like LIST REFS (jump targets numbered)',
+            '  Omit filename → reuse last LOADed/SAVEd name when known.',
+            '  Non-mini dialect: prepends  N REM dialect: …  (N>=1 free line).',
+            '  Extension is not invented on SAVE — type demo.bas if you want .bas.',
+            '  Tokenized SAVE is not implemented (text only).',
+        ]),
+        ('LIST', [
+            'LIST                         full program, numbered as stored',
+            'LIST PRETTY                  structural indent; may split multi-stmt lines',
+            'LIST REFS                    PRETTY-like; numbers mainly on GOTO targets',
+            'LIST 100                     single line',
+            'LIST 100-200   LIST 100,200  range (either punctuation)',
+            'LIST 100-      LIST ,200     open-ended range',
+            'LIST PRETTY 100-200          mode + range combined',
+            '  CLI: mini_basic --pretty file.bas   (list structured and exit)',
+        ]),
+        ('AUTO', [
+            'AUTO                         start 10, step 10',
+            'AUTO start                   e.g. AUTO 100',
+            'AUTO start,step              e.g. AUTO 100,5',
+            '  Prompts with the next line number; empty line ends AUTO.',
+            '  Type a full line number to jump; empty statement deletes that line.',
+            '  For multi-line DEF PROC/FN: enter the DEF header at > (block entry).',
+            '',
+            '  No unnumbered AUTO: structured (PRETTY) source is better authored in',
+            '  an external editor, then LOAD. SAVE PRETTY writes unnumbered form;',
+            '  LOAD auto-numbers unnumbered text. REPL line editing is single-line.',
+        ]),
+        ('EDIT', [
+            'EDIT n                       edit one stored line (prefilled buffer)',
+            '  Empty Enter deletes the line. Cursor/word keys on Windows console.',
+            'EDIT                         usage reminder + LIST (not BBC full-screen).',
+            '  No EDIT "file": open the program in your editor, then LOAD / SAVE.',
+            '  Type 10 PRINT "hi" at the > prompt to store/replace a line anytime.',
+            '  Bare 10 at > deletes line 10.',
+        ]),
+        ('Related', [
+            'DIR [pattern]   CD [path]   NEW   RENUMBER [start[,step]]',
+            'HELP REPL for abbreviations and Tab completion.',
+        ]),
+    ]
+    for index, (title, lines) in enumerate(sections):
+        if index:
+            print()
+        _section(title, lines)
 
 
 def _print_help_system() -> None:
@@ -460,6 +534,7 @@ _HELP_PRINTERS: Dict[str, Callable[[], None]] = {
     'GRAPHICS': _print_help_graphics,
     'MODES': _print_help_modes,
     'REPL': _print_help_repl,
+    'PROGRAM': _print_help_program,
     'SYSTEM': _print_help_system,
 }
 

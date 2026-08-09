@@ -2175,6 +2175,25 @@ class RuntimeCoreMixin:
             return os.path.normpath(filename)
         return os.path.normpath(os.path.join(self.working_dir, filename))
 
+    def resolve_load_path(self, filename: str) -> str:
+        """Resolve a LOAD/CHAIN path; append .bas/.bbc if the name has no extension.
+
+        If the exact path exists, it is returned. Otherwise, when the basename has
+        no extension, try ``.bas`` then ``.bbc`` (and uppercase variants). Does not
+        invent an extension when the user already supplied one (e.g. ``.txt``).
+        """
+        path = self.resolve_path(filename)
+        if os.path.isfile(path):
+            return path
+        _root, ext = os.path.splitext(path)
+        if ext:
+            return path
+        for suffix in ('.bas', '.bbc', '.BAS', '.BBC'):
+            candidate = path + suffix
+            if os.path.isfile(candidate):
+                return candidate
+        return path
+
     def change_dir(self, path: Optional[str] = None) -> None:
         if not path:
             print(self.working_dir)

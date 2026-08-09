@@ -2379,7 +2379,7 @@ class RuntimeExecutionMixin:
             )
             return
         try:
-            path = self.resolve_path(filename)
+            path = self.resolve_load_path(filename)
         except ValueError as exc:
             self._runtime_error(
                 self._error_message('? CHAIN error', exc), line_num, stmt_index

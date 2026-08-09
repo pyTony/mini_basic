@@ -1777,9 +1777,11 @@ class RuntimeIoMixin:
         """Load a BASIC program from disk.
 
         Returns True on success. On failure prints a specific reason and returns False.
+        Bare names without an extension try ``.bas`` then ``.bbc`` (see
+        ``resolve_load_path``).
         """
         try:
-            path = self.resolve_path(filename)
+            path = self.resolve_load_path(filename)
         except ValueError as exc:
             detail = str(exc).strip()
             if detail:
@@ -1788,7 +1790,18 @@ class RuntimeIoMixin:
                 self._emit_error('? LOAD filename')
             return False
         if not os.path.exists(path):
-            self._emit_error(f'File not found: {path}')
+            # Prefer a clear message when bare name missed all candidates.
+            try:
+                bare = self.resolve_path(filename)
+            except ValueError:
+                bare = path
+            _root, ext = os.path.splitext(bare)
+            if not ext and path == bare:
+                self._emit_error(
+                    f'File not found: {path} (also tried .bas / .bbc)',
+                )
+            else:
+                self._emit_error(f'File not found: {path}')
             return False
         if not os.path.isfile(path):
             self._emit_error(f'Not a file: {path}')

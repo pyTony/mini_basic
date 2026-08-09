@@ -1794,6 +1794,7 @@ class RuntimeProgramMixin:
         print('  10 PRINT…  type numbered lines at the > prompt to store')
         print('  10         bare line number at > deletes that line')
         print('  LIST       show the program')
+        print('  HELP PROGRAM   LOAD / SAVE / LIST / AUTO details')
         if self.program:
             print()
             self.list_program()

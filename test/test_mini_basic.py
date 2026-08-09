@@ -1822,6 +1822,44 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(interp.resolve_path('game.bas'), r'C:\Projects\basic\game.bas')
         self.assertEqual(interp.resolve_path(r'D:\temp\game.bas'), r'D:\temp\game.bas')
 
+    def test_resolve_load_path_appends_bas_or_bbc(self):
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            interp.working_dir = tmp
+            with open(os.path.join(tmp, 'demo.bas'), 'w', encoding='utf-8') as f:
+                f.write('10 END\n')
+            with open(os.path.join(tmp, 'other.bbc'), 'w', encoding='utf-8') as f:
+                f.write('10 END\n')
+            with open(os.path.join(tmp, 'exact.txt'), 'w', encoding='utf-8') as f:
+                f.write('10 END\n')
+            bas = interp.resolve_load_path('demo')
+            self.assertTrue(bas.lower().endswith('demo.bas'))
+            self.assertTrue(os.path.isfile(bas))
+            bbc = interp.resolve_load_path('other')
+            self.assertTrue(bbc.lower().endswith('other.bbc'))
+            # Existing extension is not rewritten.
+            txt = interp.resolve_load_path('exact.txt')
+            self.assertTrue(txt.lower().endswith('exact.txt'))
+            self.assertTrue(os.path.isfile(txt))
+            missing = interp.resolve_load_path('nope')
+            self.assertTrue(missing.lower().endswith('nope'))
+            self.assertFalse(os.path.isfile(missing))
+
+    def test_load_bare_name_finds_bas(self):
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'hello.bas'), 'w', encoding='utf-8') as f:
+                f.write('10 PRINT "ok"\n20 END\n')
+            interp.working_dir = tmp
+            self.assertTrue(interp.load('hello', announce=False))
+            self.assertEqual(interp.program[10], 'PRINT "ok"')
+
     def test_load_save_quoted_paths_with_spaces(self):
         import os
         import tempfile
@@ -3863,6 +3901,21 @@ class MiniBASICTests(unittest.TestCase):
         out = buf.getvalue()
         self.assertIn('=== REPL commands ===', out)
         self.assertIn('H.=HELP', out)
+
+    def test_help_program_topic(self):
+        from mini_basic.repl.help_topics import normalize_help_topic, print_help_topic
+
+        self.assertEqual(normalize_help_topic('LOAD'), 'PROGRAM')
+        self.assertEqual(normalize_help_topic('AUTO'), 'PROGRAM')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_help_topic('PROGRAM')
+        out = buf.getvalue()
+        self.assertIn('LOAD', out)
+        self.assertIn('SAVE PRETTY', out)
+        self.assertIn('LIST REFS', out)
+        self.assertIn('.bas', out)
+        self.assertIn('No unnumbered AUTO', out)
 
     def test_help_browser_empty_line_exits(self):
         from mini_basic.repl.help_browser import run_help_browser
