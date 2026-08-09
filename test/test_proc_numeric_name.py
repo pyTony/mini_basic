@@ -29,10 +29,19 @@ class ProcNumericNameTests(unittest.TestCase):
         self.assertIsNotNone(m2)
         self.assertEqual(m2.group(1), '4')
 
-    def test_proc4_runs(self):
-        i = BASICInterpreter(
-            InterpreterConfig(dialect='bbc', display='none', optimization_level=2)
+    def _bbc(self) -> BASICInterpreter:
+        return BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='none',
+                display_locked=True,
+                hold_display_open=False,
+                optimization_level=2,
+            )
         )
+
+    def test_proc4_runs(self):
+        i = self._bbc()
         lines = [
             (10, 'N%=0'),
             (20, 'PROC4(3)'),
@@ -43,16 +52,14 @@ class ProcNumericNameTests(unittest.TestCase):
             (120, 'ENDPROC'),
         ]
         for ln, st in lines:
-            i.program[ln] = st
+            i.set_program_line(ln, st)
         buf = io.StringIO()
         with redirect_stdout(buf):
             i.run()
         self.assertEqual(buf.getvalue().strip(), '6')
 
     def test_defproc4_glued_header(self):
-        i = BASICInterpreter(
-            InterpreterConfig(dialect='bbc', display='none')
-        )
+        i = self._bbc()
         lines = [
             (10, 'PROC4'),
             (20, 'PRINT "ok"'),
@@ -61,7 +68,7 @@ class ProcNumericNameTests(unittest.TestCase):
             (110, 'ENDPROC'),
         ]
         for ln, st in lines:
-            i.program[ln] = st
+            i.set_program_line(ln, st)
         buf = io.StringIO()
         with redirect_stdout(buf):
             i.run()

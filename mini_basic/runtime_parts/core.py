@@ -1233,41 +1233,26 @@ class RuntimeCoreMixin:
         cmd, _ = self._parse_command(text)
         if cmd:
             return True
-        # Recognize simple or compound assignment (for IF THEN etc.)
-        comp_match = self._COMPOUND_ASSIGN_RE.match(text)
-        if comp_match:
-            self.dprint(
-                '[COMPOUND]',
-                repr(text),
-                repr(comp_match.group(1)),
-                repr(comp_match.group(2)),
-                repr(comp_match.group(3)),
-            )
-            lhs = comp_match.group(1).strip()
-            # Reject "OR= 8" as a statement — keyword-only LHS (piechart compact IF)
-            if re.fullmatch(r'(OR|AND|EOR|XOR|DIV|MOD|NOT)', lhs, re.IGNORECASE):
-                return False
-            if self._parse_array_lvalue(lhs) is not None:
-                return True
-            if re.match(
-                rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)$',
-                lhs,
-                flags=self._identifier_re_flags(),
-            ):
-                return True
+        # Simple / compound assignment (same maximal-LHS rules as assign parse).
+        # ``aand=0`` is a normal assignment, not ``a`` AND= 0.
+        if '=' not in text:
             return False
-        if '=' in text:
-            lhs = text.split('=', 1)[0].strip()
-            if re.fullmatch(r'(OR|AND|EOR|XOR|DIV|MOD|NOT)', lhs, re.IGNORECASE):
-                return False
-            if self._parse_array_lvalue(lhs) is not None:
-                return True
-            if re.match(
-                rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)$',
-                lhs,
-                flags=self._identifier_re_flags(),
-            ):
-                return True
+        try:
+            lhs, op, _rhs = self._parse_assignment_statement(text)
+        except ValueError:
+            return False
+        if op != '=':
+            self.dprint('[COMPOUND]', repr(text), repr(lhs), repr(op))
+        if re.fullmatch(r'(OR|AND|EOR|XOR|DIV|MOD|NOT)', lhs, re.IGNORECASE):
+            return False
+        if self._parse_array_lvalue(lhs) is not None:
+            return True
+        if re.match(
+            rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)$',
+            lhs,
+            flags=self._identifier_re_flags(),
+        ):
+            return True
         return False
 
     def _classify_compact_if_branch(self, code: str, line_num: int) -> str:

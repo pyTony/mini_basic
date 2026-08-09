@@ -3138,16 +3138,6 @@ class RuntimeExprMixin:
                     rhs = float(self.eval_expr(expr))
                     for i, v in enumerate(data):
                         data[i] = float(v) - rhs
-                elif op in ('OR=', 'AND=', 'EOR=', 'XOR='):
-                    rhs = int(self.eval_expr(expr)) & 0xFF
-                    for i, v in enumerate(data):
-                        iv = int(v) & 0xFF
-                        if op == 'OR=':
-                            data[i] = iv | rhs
-                        elif op == 'AND=':
-                            data[i] = iv & rhs
-                        else:
-                            data[i] = iv ^ rhs
                 else:
                     raise ValueError('whole-array compound assignment not supported')
                 if kind == 'int':

@@ -1830,7 +1830,12 @@ class RuntimeProgramMixin:
         return label, label is not None
 
     def _parse_assignment_statement(self, line: str) -> Tuple[str, str, str]:
-        """Return (lvalue, operator, rhs) for =, +=, -=, *=, /= assignments."""
+        """Return (lvalue, operator, rhs) for = / += / -= / *= / /=.
+
+        Only arithmetic compounds (``+=`` ``-=`` ``*=`` ``/=``) are recognized.
+        Word forms like ``AND=`` / ``OR=`` are **not** BASIC compound assignment
+        (they broke names such as ``aand=0``). Use ``A = A AND n`` instead.
+        """
 
         self.dprint('[ASSIGN]', repr(line))
 
@@ -1838,13 +1843,18 @@ class RuntimeProgramMixin:
         if text.upper().startswith("LET"):
             text = text[3:].lstrip()
 
-        match = self._COMPOUND_ASSIGN_RE.fullmatch(text)
-        if match:
-            return (
-                match.group(1).strip(),
-                match.group(2),
-                match.group(3).strip(),
-            )
+        # Maximal identifier/array LHS, then optional arithmetic compound op.
+        lhs_m = re.match(
+            rf'^({self._VAR_BASE_PATTERN}[%$!#&]?)(\s*\(.*\))?\s*',
+            text,
+            flags=self._identifier_re_flags() | re.DOTALL,
+        )
+        if lhs_m:
+            lhs = (lhs_m.group(1) + (lhs_m.group(2) or '')).strip()
+            rest = text[lhs_m.end() :]
+            op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
+            if op_m:
+                return lhs, op_m.group(1), op_m.group(2).strip()
 
         if "=" in text:
             var_part, expr = text.split("=", 1)

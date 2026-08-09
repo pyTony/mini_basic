@@ -19,7 +19,13 @@ pytestmark = [pytest.mark.phase0]
 class EntryCanonicalizeTests(unittest.TestCase):
     def _bbc(self) -> BASICInterpreter:
         return BASICInterpreter(
-            InterpreterConfig(dialect='bbc', display='none', optimization_level=2)
+            InterpreterConfig(
+                dialect='bbc',
+                display='none',
+                display_locked=True,
+                hold_display_open=False,
+                optimization_level=2,
+            )
         )
 
     def test_idempotent(self):
