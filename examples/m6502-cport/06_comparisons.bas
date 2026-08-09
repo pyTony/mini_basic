@@ -1,0 +1,6 @@
+10 A=10
+20 B=20
+30 PRINT "A=B ";A=B
+40 PRINT "A<B ";A<B
+50 PRINT "A<>B ";A<>B
+60 END

@@ -1,6 +1,6 @@
-Focus: idle after removing tightly BBCSDL-only programs
+Focus: idle after adding M6502-CPORT examples
 
-Kept portable demos (wheel, saucer, hanoi, animal, piechart, welcome, …).
-Removed tools/physics/sounds + OpenGL/network demos from corpus and examples.
+examples/m6502-cport/ from https://github.com/garyexplains/BASIC-M6502-CPORT
+(cport/examples). Prefer --dialect mits.
 
 Repo: C:\Users\Tony\mini_basic

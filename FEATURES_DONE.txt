@@ -81,6 +81,8 @@ OK phase0 + cumulative regression 2026-08-02:
   pytest -m "phase0 and not slow" → 450 passed; -m "phase1 and not slow" → 563 passed
 OK Removed tightly BBCSDL-only programs (tools/physics/sounds trees + OpenGL/network
   demos) from corpus+examples; keep portable pygame demos (wheel, saucer, hanoi, …)
+OK examples/m6502-cport: 60 tutorials + apps/adv from garyexplains/BASIC-M6502-CPORT
+  (MIT; --dialect mits); README notes MS vs mini gaps (DEF FN, POKE, file I/O)
 -- Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)
 -- 1.00 ship: tag 1.0.0 + RELEASE notes when ready (packaging/wheel ready as 1.0.0.dev0)
 OK phase2: graphics suites marked phase2+graphics (excluded from phase1 markexpr);

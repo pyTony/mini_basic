@@ -1,0 +1,7 @@
+6
+LAMP,A brass oil lamp that still gives a warm glow,1,1
+STATUE,A marble knight watches the hall in silence,2,0
+KEY,A small iron key covered in dust,3,1
+BOOK,The book describes a kingdom lost beneath the sea,3,1
+APPLE,A surprisingly fresh green apple,4,1
+COIN,A silver coin stamped with an unknown queen,5,1
