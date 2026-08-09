@@ -74,7 +74,19 @@ Skipping either end is a policy violation.
    `python scripts/probe_agent_python.py` then `--kill-orphans` if orphans listed.
 5. Log end + rebuild status:  
    `python -c "from test.progress_runner import log_work_event, update_project_status; log_work_event('END <focus>: <result>', kind='WORK'); update_project_status()"`
-6. Commit policy-relevant file updates when code changed (branch workflow §4).
+6. **Git gate (required — continuous history):**
+   - Run `git status -sb` (and `git diff --stat` if anything is dirty).
+   - If this job changed **code, tests, packaging, or durable docs** (including
+     FEATURES_DONE / CORPUS_* / docs/SESSION_* when recording handoffs):
+     - Stay on a **focus branch** (never commit straight to `master`).
+     - Stage **explicit paths** (not blind `git add -A` if junk is present).
+     - **Commit** with a clear message referencing the focus.
+   - If dirty only with accidental noise (probes, logs): discard or leave untracked;
+     do not commit probes/`*.prof`/debug dumps.
+   - If you intentionally skip commit: one WORK_LOG line  
+     `NO-COMMIT <reason>` (e.g. user said wait / local experiment only).
+   - Never leave intentional deletes of packaging/docs (`LICENSE`, `MANIFEST.in`,
+     `docs/PACKAGING.md`, manuals) without user request — `git restore` them.
 
 ### Idle / waiting on user
 - If the only remaining work is user playtesting ready `[ ]` programs: set focus to the
@@ -83,10 +95,19 @@ Skipping either end is a policy violation.
 
 ## 4. Git Workflow (for all code changes)
 - Never commit directly to master.
-- Always work on a dedicated branch: git checkout -b fix/your-focus
-- Commit frequently with clear messages referencing the focus.
+- Always work on a dedicated branch: `git checkout -b fix/your-focus` (or continue the
+  existing focus branch if still open).
+- **Commit at every END job** that produced durable changes (see §3b step 6). Status
+  `.txt` bookkeeping without a commit is incomplete for continuous git use.
+- Prefer small, frequent commits with clear messages referencing the focus.
 - Merge to master only after user has explicitly approved the whole program.
 - Use git diff / git show / git log for history instead of loading full old files (light footprint).
+- Main-file coverage checklist when staging:
+  - `mini_basic/**` package code touched by the job
+  - matching `test/test_*.py` (not `_probe_*`)
+  - `FEATURES_DONE.txt` / `CURRENT_TASK.txt` / `WORK_LOG.txt` as updated
+  - `CORPUS_*` / `USER_APPROVAL*` if readiness changed
+  - `docs/` / packaging (`pyproject.toml`, `LICENSE`, `MANIFEST.in`) if changed
 
 ## 5. Resource Awareness & Light Footprint
 - Always run python scripts/verify_resources.py before and after heavy work.

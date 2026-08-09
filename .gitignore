@@ -71,13 +71,27 @@ desktop.ini
 *.swp
 *~
 
-# Local data / dumps
+# Local data / dumps / agent debug
 data.txt
 data2.txt
 hanoi_debug.txt
+world_debug*.txt
+*_fault.txt
+*_debug.txt
+*_debug2.txt
+*.prof
+ufo_function.py
+test_example.py
+example_module.py
+apply_fixes.py
+fix_var.py
 backup/
 *.bak
 test_reconstruct/
+
+# Regenerated status page (source of truth = CURRENT_TASK / FEATURES_DONE / …)
+# Uncomment if status.html churn pollutes every agent commit:
+# status.html
 
 # Large binary examples (keep sources; skip bulky assets if needed)
 # Uncomment if OneDrive thrash becomes a problem:

@@ -37,13 +37,18 @@ git checkout -b fix/short-description
 # work… then:
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 
-git add mini_basic/ test/test_relevant.py FEATURES_DONE.txt CURRENT_TASK.txt
-git status   # review: no _probe_*, no .coverage, no huge PDFs unless intended
+# END job git gate (AGENT_POLICY §3b step 6) — required when durable files changed:
+git status -sb
+git add mini_basic/ test/test_relevant.py FEATURES_DONE.txt CURRENT_TASK.txt WORK_LOG.txt
+# also stage docs/, CORPUS_*, packaging if this job touched them
+git status   # review: no _probe_*, no .coverage, no world_debug*, no huge PDFs unless intended
 git commit -m "fix: short description
 
 - What changed
 - Tests: pytest -m phase1 …"
 ```
+
+If you skip commit, log `NO-COMMIT <reason>` in WORK_LOG (policy exception only).
 
 After user approval of a whole program/feature:
 

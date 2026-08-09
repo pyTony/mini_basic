@@ -117,3 +117,20 @@ OK docs: SOUND/ENVELOPE limited behaviour (silent stubs + optional wait) in LANG
 OK interrupt poll throttle 50ms (session.terminal_interrupt_pending) — mandelbrot2 ~14s vs ~20s
 OK corpus menu tags [OK]/[DEFER]/[SLOW]/[NEW] via CORPUS_RUNNABLE blurbs
 OK phase0 fails: BBC int round tests; CONT AND pure-bitwise float coerce; matrix count 9
+
+OK LIST/SAVE formatter + expr bugs (Claude 2026-08-09; docs/SESSION_CLAUDE_2026-08-09_LIST_SAVE_FORMATTER.md):
+  MID$/LEFT$/RIGHT$ lvalue: re.IGNORECASE not inline (?i); spaces next to string lits; a0or0 not split as OR;
+  compound += and *REFRESH passthrough; --pretty colon-continuation +4 indent; load banners on stderr;
+  PYGAME_HIDE_SUPPORT_PROMPT at display import; soccerball --pretty round-trip OK
+
+OK PygameDisplay rgb_dirty unpack (sx, sy) not (sy, sx) — MODE 8 IndexError fix (Claude archive part1)
+OK *REFRESH OFF honored by CLS clear present gate; animation programs use *REFRESH frame present
+OK LIST spacing: do not glue % \$ ! # to following word (band% OF stays spaced); binary % only to 0/1
+
+OK PROC/FN numeric names (PROC4 / FN4) in multiple regex sites; LIST does not space PROC from name
+  (Claude archive part2; docs/SESSION_SUMMARY_archive_part2.md)
+OK _parse_command memoization cache (core + program) — Mandelbrot parse overhead cut ~30%
+-- unify dual LIST/SAVE formatters (runtime_parts/io.py vs format/save_case.py)
+-- compile WHILE CONT AND (I%<N) boolean path (or keep Mandelbrot EXIT WHILE workaround)
+-- consolidate PROC_FN_NAME_PATTERN across all PROC/FN parse sites (world.bbc PROC4 runtime path)
+-- PygameDisplay.write VDU 17 colour control bytes (Hanoi disc bars garbled as latin-1 glyphs)

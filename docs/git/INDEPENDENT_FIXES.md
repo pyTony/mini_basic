@@ -186,6 +186,8 @@ Never work directly on `master`. Never start a new focus until the current branc
 - Committing directly to `master` during a fix.
 - Creating a new branch for every tiny change (one focused branch per TODO item).
 - Forgetting to update status files as part of the commit.
+- Ending a job with only FEATURES_DONE/CURRENT_TASK updated and **no git commit**
+  (violates AGENT_POLICY §3b step 6 continuous-history gate).
 - Merging before user has explicitly approved the whole program.
 - Leaving old loose `runtime_fixed_*.py` files around — delete or ignore them; git is the record now.
 

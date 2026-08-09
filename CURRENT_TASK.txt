@@ -1,3 +1,3 @@
-Focus: None — idle after kbhit throttle + corpus menu + test fixes
+Focus: None — idle after tree cleanup + agent git END gate
 
 Repo: C:\Users\Tony\mini_basic
