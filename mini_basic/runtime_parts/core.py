@@ -105,22 +105,27 @@ class RuntimeCoreMixin:
     """Mixin providing core-related BASICInterpreter methods."""
 
     def dprint(self, *args, **kwargs) -> None:
-        """Debug print available on every mixin (defined on Core, first in MRO).
+        """Debug print on every runtime mixin (Core is first in MRO).
 
-        Implementation: ``mini_basic.util.debug.dprint`` — stderr + mini_basic.log.
-        Free function form when you only have config::
-
-            from mini_basic.util.debug import dprint
-            dprint(config, "msg", value)
+        Same as free ``from mini_basic.util.debug import dprint`` / package
+        ``from mini_basic import dprint`` — uses this interpreter's config.
         """
         from ..util.debug import dprint as _dprint
+        from ..util.debug import set_active_debug_config
 
+        set_active_debug_config(self.config)
         sep = kwargs.get('sep', ' ')
         end = kwargs.get('end', '\n')
-        _dprint(self.config, *args, sep=sep, end=end)
+        _dprint(*args, config=self.config, sep=sep, end=end)
 
     def __init__(self, config: Optional[InterpreterConfig] = None):
         self.config = config or InterpreterConfig()
+        try:
+            from ..util.debug import set_active_debug_config
+
+            set_active_debug_config(self.config)
+        except Exception:
+            pass
 
         self.program: Dict[int, str] = {}
         self.line_indent: Dict[int, int] = {}

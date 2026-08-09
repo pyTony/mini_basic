@@ -12,8 +12,10 @@ from unittest.mock import patch
 from mini_basic import BASICInterpreter, InterpreterConfig
 from mini_basic.util.debug import (
     announce_debug,
+    clear_active_debug_config,
     dprint,
     reset_announce_for_tests,
+    set_active_debug_config,
 )
 
 
@@ -62,6 +64,33 @@ class TestDprintCore(unittest.TestCase):
             ['--debug', '--dialect', 'bbc', 'x.bas']
         )
         self.assertTrue(config.DEBUG)
+
+    def test_dprint_without_config_uses_active_context(self):
+        cfg = InterpreterConfig(DEBUG=True, display='none')
+        set_active_debug_config(cfg)
+        err = io.StringIO()
+        with patch('sys.stderr', err):
+            dprint('BARE', 99)
+        self.assertIn('BARE', err.getvalue())
+        self.assertIn('99', err.getvalue())
+
+    def test_dprint_package_export(self):
+        from mini_basic import dprint as pkg_dprint
+
+        cfg = InterpreterConfig(DEBUG=True, display='none')
+        set_active_debug_config(cfg)
+        err = io.StringIO()
+        with patch('sys.stderr', err):
+            pkg_dprint('PKG_OK')
+        self.assertIn('PKG_OK', err.getvalue())
+
+    def test_env_minibasic_debug(self):
+        clear_active_debug_config()
+        err = io.StringIO()
+        with patch.dict(os.environ, {'MINI_BASIC_DEBUG': '1'}, clear=False):
+            with patch('sys.stderr', err):
+                dprint('ENV_OK')
+        self.assertIn('ENV_OK', err.getvalue())
 
 
 class TestVduBangNotEatenByIntVar(unittest.TestCase):

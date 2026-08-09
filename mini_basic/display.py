@@ -23,6 +23,9 @@ _TITLE_BAR_ESTIMATE = 40
 
 DEBUG = False
 
+# Package-wide debug helper (active config / MINI_BASIC_DEBUG / --debug).
+from mini_basic.util.debug import dprint  # noqa: F401
+
 from mini_basic.bbc_font import blit_char as blit_mos_char
 from mini_basic.bbc_graphics import BBCGraphics
 from mini_basic.bbc_modes import (

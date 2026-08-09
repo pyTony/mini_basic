@@ -10,6 +10,7 @@ import re
 from typing import List, Literal, Optional, Tuple
 
 from ..constants import EXPR_RESERVED_WORDS, NUMERIC_BUILTIN_FUNCS
+from ..util.debug import dprint  # noqa: F401 — available in this module
 
 # 'none' = mini-style LIST: uppercase statement keywords, preserve identifier case.
 Fold = Literal['upper', 'lower', 'none']

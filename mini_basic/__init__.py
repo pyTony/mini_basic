@@ -52,7 +52,7 @@ from .type_system import (
     UserProcedure,
     VarKind,
 )
-from .util import hard_exit
+from .util import dprint, hard_exit
 from .version import __version__, format_version_report, print_version_report
 
 __all__ = [
@@ -80,6 +80,7 @@ __all__ = [
     'UserProcedure',
     'UsingFormatter',
     'VarKind',
+    'dprint',
     'format_version_report',
     'print_version_report',
     '_execute_repl_line',

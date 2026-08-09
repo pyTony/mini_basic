@@ -1320,9 +1320,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     if not quiet and (target is None or interactive):
         _print_startup_banner()
 
-    if config.DEBUG:
-        from .util.debug import announce_debug, reset_announce_for_tests
+    from .util.debug import (
+        announce_debug,
+        reset_announce_for_tests,
+        set_active_debug_config,
+    )
 
+    set_active_debug_config(config)
+    if config.DEBUG:
         # Fresh process always announces once.
         reset_announce_for_tests()
         announce_debug(config)
