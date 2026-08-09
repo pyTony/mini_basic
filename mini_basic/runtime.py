@@ -203,8 +203,11 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         r'(?:\d|\))\s*%'
         rf'|{_VAR_BASE_PATTERN}\s*%\s*\d'
     )
+    # LHS is a simple var or array element only (not arbitrary expressions), so
+    # `a0or0 = 1` never matches as compound. Ops: += -= *= /= and BBC OR=/AND=/EOR=/XOR=.
     _COMPOUND_ASSIGN_RE = re.compile(
-        r'^(.+?)\s*((?:[+\-*/]|OR|AND|EOR|XOR)\s*=)\s*(.+)$',
+        r'^([_A-Za-z][A-Za-z0-9_]*[%$!#&]?(?:\s*\(.*\))?)\s*'
+        r'((?:[+\-*/]|OR|AND|EOR|XOR)=)\s*(.+)$',
         re.IGNORECASE | re.DOTALL,
     )
     _STMT_KEYWORDS = (

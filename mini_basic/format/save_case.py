@@ -169,7 +169,7 @@ def _space_expr_segment(segment: str, fold: Fold) -> str:
     segment = re.sub(r'([*/\\])([\w"(])', r'\1 \2', segment)
     segment = re.sub(r'(?<=[A-Za-z0-9_])\s+%\s+(?=[A-Za-z0-9_"(])', ' % ', segment)
     segment = re.sub(r'([\w%$)\]])([+\-])(?=[\w"(])', r'\1 \2 ', segment)
-    segment = re.sub(r'(?<![=<>!])\s*=\s*(?!=)', ' = ', segment)
+    segment = re.sub(r'(?<![=<>!+\-*/])\s*=\s*(?!=)', ' = ', segment)
     segment = re.sub(r'\s+', ' ', segment)
     return segment.strip()
 
@@ -229,7 +229,9 @@ def _format_statement_body(body: str, fold: Fold) -> str:
         return body
     if _RE_REM.match(stripped):
         return body
-
+    if stripped.startswith('*'):
+        return body
+    
     match = _RE_STMT_CMD.match(stripped)
     if match:
         cmd = _fold_text(match.group(1), fold)
