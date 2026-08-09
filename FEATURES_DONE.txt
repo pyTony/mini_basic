@@ -161,3 +161,7 @@ OK Phase close 2026-08-09: immediate/REPL edit + program files
   — no dialect-nag notes; tokenized run = BBC detokenize only (no token VM)
 OK WAIT 0 / RUN: poll window close + Esc (terminal focus); basics/wheel.bas *REFRESH restored
   (user confirmed pygame quit + graphics 2026-08-09)
+OK LIST PRETTY: comment preamble as free lines 1.. (not colon-joined line 0); REM/' unformatted
+  (MB_COLOR FG$/RESET$); poem ON ERROR still line-0 bootstrap
+OK HELP topic footer: no fake 1-N menu numbers; MENU/0 + empty line + topic name only
+OK Phase close 2026-08-09: P0 case/trig + phase1 green + PRETTY preamble + HELP chrome
