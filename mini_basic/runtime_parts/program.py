@@ -41,8 +41,10 @@ from ..expr.patterns import (
     RE_INT_DIV as _RE_INT_DIV,
     RE_MOD as _RE_MOD,
     RE_NUMERIC_FUNC_CALL as _RE_NUMERIC_FUNC_CALL,
+    RE_PROC_CALL_REST as _RE_PROC_CALL_REST,
     RE_TIME as _RE_TIME,
     RE_VAR_BASE_FULL as _RE_VAR_BASE_FULL,
+    PROC_FN_NAME_PATTERN as _PROC_FN_NAME_PATTERN,
     VAR_BASE_PATTERN as _VAR_BASE_PATTERN,
 )
 
@@ -735,9 +737,14 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bPRINTTAB\b', 'PRINT TAB', line, flags=re.IGNORECASE)
         line = re.sub(r'\bPRINTSPC\b', 'PRINT SPC', line, flags=re.IGNORECASE)
         line = re.sub(r'\bPRINTCHR\$\b', 'PRINT CHR$', line, flags=re.IGNORECASE)
-        # DEFPROCname / DEFPROCname( → DEF PROC name
+        # DEFPROCname / DEFPROC4 → DEF PROC name (numeric names: world.bbc)
         line = re.sub(r'\bDEFPROC\b', 'DEF PROC', line, flags=re.IGNORECASE)
-        line = re.sub(r'\bDEFPROC(?=[A-Za-z])', 'DEF PROC ', line, flags=re.IGNORECASE)
+        line = re.sub(
+            r'\bDEFPROC(?=[A-Za-z0-9])',
+            'DEF PROC ',
+            line,
+            flags=re.IGNORECASE,
+        )
         # REPEATUNTILTIME… (welcome) — \b after REPEATUNTIL fails when TIME follows
         line = re.sub(
             r'\bREPEATUNTIL(?=[A-Za-z_])',
@@ -1317,11 +1324,8 @@ class RuntimeProgramMixin:
             }
 
     def _parse_proc_call(self, rest: str) -> Tuple[str, List[str]]:
-        match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})\s*(?:\((.*)\))?$',
-            rest.strip(),
-            flags=re.IGNORECASE,
-        )
+        """Parse rest after command PROC (name may be numeric: PROC4 → rest ``4(...)``)."""
+        match = _RE_PROC_CALL_REST.match(rest.strip())
         if not match:
             raise ValueError('invalid PROC call')
         name = self._normalize_identifier(match.group(1))

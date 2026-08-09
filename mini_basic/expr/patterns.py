@@ -17,8 +17,23 @@ from ..constants import NUMERIC_BUILTIN_FUNC_RE
 # Variable names: letter followed by letters, digits, or underscore.
 # BBCSDL / BB4W allow leading underscore (flier: DIM _BOX(4,2)).
 VAR_BASE_PATTERN = r'[_A-Za-z][A-Za-z0-9_]*'
+# BBCSDL allows numeric PROC/FN names (world.bbc PROC4). One capture group = name.
 PROC_FN_NAME_PATTERN = rf'({VAR_BASE_PATTERN}|[0-9]+)'
 RE_VAR_BASE_FULL = re.compile(r'^[_A-Za-z][A-Za-z0-9_]*$')
+# Statement forms: PROC4(x) / PROC 4(x) / DEF PROC4 …
+RE_PROC_CALL = re.compile(
+    rf'^PROC_?\s*{PROC_FN_NAME_PATTERN}\s*(?:\((.*)\))?$',
+    re.IGNORECASE,
+)
+RE_DEF_PROC = re.compile(
+    rf'^PROC_?\s*{PROC_FN_NAME_PATTERN}\s*(?:\((.*)\))?\s*(.*)$',
+    re.IGNORECASE,
+)
+# After command 'PROC' is stripped: rest is ``4(args)`` or ``name(args)``.
+RE_PROC_CALL_REST = re.compile(
+    rf'^{PROC_FN_NAME_PATTERN}\s*(?:\((.*)\))?$',
+    re.IGNORECASE,
+)
 
 # Arithmetic and condition normalisation.
 RE_MOD = re.compile(r'\bMOD\b', re.IGNORECASE)
@@ -63,7 +78,7 @@ RE_FN_CALL = re.compile(
 RE_DYNAMIC_CALL_REMAINS = re.compile(
     rf'(?<![A-Za-z0-9_])(?:CHR\$|STR\$|ASC|LEFT\$|RIGHT\$|MID\$|UCASE\$|LCASE\$|'
     rf'ANSI\$|FG\$|BG\$|RGB\$|BGRGB\$|RESET\$|ARG\$|{NUMERIC_BUILTIN_FUNC_RE}|'
-    rf'FN{VAR_BASE_PATTERN}[%$]?)',
+    rf'FN_?{PROC_FN_NAME_PATTERN}[%$]?)',
     re.IGNORECASE,
 )
 
@@ -80,6 +95,7 @@ __all__ = [
     'RE_ARRAY_HEAD',
     'RE_COND_EQ',
     'RE_COND_NE',
+    'RE_DEF_PROC',
     'RE_DYNAMIC_CALL_REMAINS',
     'RE_FILE_FUNC',
     'RE_FILE_FUNC_BBC',
@@ -90,6 +106,8 @@ __all__ = [
     'RE_INT_DIV',
     'RE_MOD',
     'RE_NUMERIC_FUNC_CALL',
+    'RE_PROC_CALL',
+    'RE_PROC_CALL_REST',
     'RE_TIME',
     'RE_VAR_BASE_FULL',
     'VAR_BASE_PATTERN',

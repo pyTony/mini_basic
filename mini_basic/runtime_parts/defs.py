@@ -43,6 +43,7 @@ from ..expr.patterns import (
     RE_NUMERIC_FUNC_CALL as _RE_NUMERIC_FUNC_CALL,
     RE_TIME as _RE_TIME,
     RE_VAR_BASE_FULL as _RE_VAR_BASE_FULL,
+    PROC_FN_NAME_PATTERN as _PROC_FN_NAME_PATTERN,
     VAR_BASE_PATTERN as _VAR_BASE_PATTERN,
 )
 
@@ -106,7 +107,7 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_header(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN({self._VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\((.*)\)\s*$',
+            rf'^FN_?{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*$',
             rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -137,7 +138,7 @@ class RuntimeDefsMixin:
 
     def _def_fn_header_return_suffix(self, header_rest: str) -> Optional[str]:
         match = re.match(
-            rf'^FN({self._VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\(',
+            rf'^FN_?{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
             header_rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -163,7 +164,7 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_rest(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN({self._VAR_BASE_PATTERN}|[0-9]+)(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',
+            rf'^FN_?{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',
             rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -215,10 +216,11 @@ class RuntimeDefsMixin:
         """
         text = rest.strip()
         # Allow trailing body after the closing ')' or bare name.
+        # Use PROC_FN_NAME_PATTERN (includes numeric PROC4); not letter-only.
         match = re.match(
-            rf'^PROC_?\s*({self._VAR_BASE_PATTERN})\s*(?:\((.*)\))?\s*(.*)$',
+            rf'^PROC_?\s*{_PROC_FN_NAME_PATTERN}\s*(?:\((.*)\))?\s*(.*)$',
             text,
-            self._identifier_re_flags(),
+            re.IGNORECASE,
         )
         if not match:
             raise ValueError('invalid DEF PROC header')

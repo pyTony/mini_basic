@@ -85,3 +85,5 @@
 2026-08-09 12:49:28 WORK END BBC monadic glue: ABS/INT/SQR/SGN/LOG/EXP/ATN/RAD/RND/NOT digit+letter like TAN10
 2026-08-09 12:54:24 WORK BEGIN REPL: prefer pyreadline3 over custom msvcrt line editor
 2026-08-09 12:56:00 WORK END REPL: prefer pyreadline3 over custom msvcrt; note if missing
+2026-08-09 14:00:38 WORK END batch: monadic glue, mixed WHILE boolean, pyreadline3 REPL, docs INDEX, DIR path list
+2026-08-09 14:03:03 WORK END PROC_FN_NAME_PATTERN consolidate: PROC4/DEFPROC4; VDU17 FEATURE OK via print path; batch close

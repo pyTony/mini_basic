@@ -141,8 +141,10 @@ OK unify dual LIST/SAVE formatters: format/save_case.py is sole LIST/SAVE author
 OK compile WHILE CONT AND (I%<N) boolean path: mixed AND/OR/NOT/XOR + comparisons
   lower to -1/0 then &/|/^/~; pure bitwise squares path preserved; ~6–7× microbench;
   tests in test_squares_speed; pure-bitwise condition float coerce + NOT leading-space fix
--- consolidate PROC_FN_NAME_PATTERN across all PROC/FN parse sites (world.bbc PROC4 runtime path)
--- PygameDisplay.write VDU 17 colour control bytes (Hanoi disc bars garbled as latin-1 glyphs)
+OK consolidate PROC_FN_NAME_PATTERN: expr.patterns RE_PROC_CALL/REST/DEF_PROC;
+  runtime parse + DEF PROC4/PROC4 + DEFPROC4 glue; save_case FN/PROC; tests
+OK Hanoi VDU 17 colour stream: PRINT path `_display_write_vdu_string` (not glyph draw);
+  wrap tests phase0; set_colour on CHR$17 pairs (FEATURE was open as display.write)
 
 OK tree cleanup 2026-08-09: continuous-git END gate in AGENT_POLICY; gitignore debug dumps; Claude SESSION_* under docs/; junk removed (fd99199)
 

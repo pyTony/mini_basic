@@ -16,7 +16,8 @@ from ..util.debug import dprint  # noqa: F401 — available in this module
 Fold = Literal['upper', 'lower', 'none']
 
 # Keep in sync with expr/patterns.py (leading _ for BBCSDL names).
-VAR_BASE_PATTERN = r'[_A-Za-z][A-Za-z0-9_]*'
+from ..expr.patterns import PROC_FN_NAME_PATTERN, VAR_BASE_PATTERN
+
 RE_VAR_BASE_FULL = re.compile(rf'^{VAR_BASE_PATTERN}$')
 
 _STMT_KEYWORDS = (
@@ -61,11 +62,11 @@ _RE_STMT_CMD = re.compile(
     re.IGNORECASE,
 )
 _RE_FN = re.compile(
-    rf'\bFN({VAR_BASE_PATTERN})(%|\$)?\b',
+    rf'\bFN_?{PROC_FN_NAME_PATTERN}(%|\$)?\b',
     re.IGNORECASE,
 )
 _RE_PROC = re.compile(
-    rf'\bPROC({VAR_BASE_PATTERN})\b',
+    rf'\bPROC_?{PROC_FN_NAME_PATTERN}\b',
     re.IGNORECASE,
 )
 _RE_IDENTIFIER = re.compile(
