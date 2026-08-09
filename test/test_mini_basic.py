@@ -5165,15 +5165,37 @@ class MiniBASICTests(unittest.TestCase):
             matches = compute_matches(tmp, 'LOAD Man', 'Man')
             self.assertEqual(matches[0], 'mandelbrot.bas')
 
-    def test_interactive_repl_uses_windows_input_on_win32(self):
+    def test_interactive_repl_uses_windows_input_without_readline(self):
+        """Win32 TTY without pyreadline falls back to windows_repl_input."""
+        interp = self.make_interp()
+        # Always stub input() so a wrong path cannot hang under pytest capture.
+        with patch('builtins.input', side_effect=AssertionError('should use windows_repl_input')):
+            with patch('mini_basic.runtime._configure_repl_readline', return_value=False):
+                with patch('mini_basic.runtime.sys.platform', 'win32'):
+                    with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
+                        with patch(
+                            'mini_basic.repl.windows_input.windows_repl_input',
+                            return_value='QUIT',
+                        ) as win_in:
+                            from mini_basic.runtime import _interactive_repl
+                            _interactive_repl(interp)
+        win_in.assert_called_once()
+
+    def test_interactive_repl_prefers_input_when_readline_ok(self):
+        """With readline/pyreadline, text REPL uses input() (not msvcrt editor)."""
         interp = self.make_interp()
         with patch('mini_basic.runtime._configure_repl_readline', return_value=True):
             with patch('mini_basic.runtime.sys.platform', 'win32'):
                 with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
-                    with patch('mini_basic.repl.windows_input.windows_repl_input', return_value='QUIT') as win_in:
-                        from mini_basic import _interactive_repl
-                        _interactive_repl(interp)
-        win_in.assert_called_once()
+                    with patch(
+                        'mini_basic.repl.windows_input.windows_repl_input',
+                        side_effect=AssertionError('should use input()'),
+                    ) as win_in:
+                        with patch('builtins.input', return_value='QUIT') as plain_in:
+                            from mini_basic.runtime import _interactive_repl
+                            _interactive_repl(interp)
+        plain_in.assert_called()
+        win_in.assert_not_called()
 
     def test_read_string_data_into_string_array(self):
         lines = [

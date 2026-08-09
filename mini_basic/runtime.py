@@ -830,10 +830,15 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
 
     def _read_repl_line() -> str:
         idle = _pump_pygame_while_idle if interp._display_enabled() else None
-        # Prefer pyreadline3 / GNU readline (requirements-repl.txt) for Unicode
-        # and low-latency editing. Custom msvcrt editor only when pygame must
-        # pump the window while waiting for keys, or when no readline backend.
-        if idle is not None and sys.platform == 'win32' and sys.stdin.isatty():
+        # Prefer pyreadline3/input for normal text REPL (Unicode-safe).
+        # Use custom Windows editor when: pygame needs idle pump mid-input, or
+        # no readline backend is available on a win32 TTY.
+        use_windows_editor = (
+            sys.platform == 'win32'
+            and sys.stdin.isatty()
+            and (idle is not None or not readline_ok)
+        )
+        if use_windows_editor:
             try:
                 from .repl.windows_input import windows_repl_input
 
