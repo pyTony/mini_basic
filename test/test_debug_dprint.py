@@ -72,7 +72,7 @@ class TestDprintCore(unittest.TestCase):
     def test_cli_debug_flag_sets_config(self):
         from mini_basic.runtime import _parse_main_args
 
-        _t, _a, _i, _q, _tr, _lm, config = _parse_main_args(
+        _t, _a, _i, _q, _tr, _lm, config, _c = _parse_main_args(
             ['--debug', '--dialect', 'bbc', 'x.bas']
         )
         self.assertTrue(config.DEBUG)

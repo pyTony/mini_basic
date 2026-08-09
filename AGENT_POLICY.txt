@@ -17,10 +17,33 @@
 ## 2. Single Focus Rule (HIGHEST PRIORITY)
 - Work on **exactly one** task / program / focus at a time.
 - Never touch another program until the current one has explicit user approval.
-- Identify the single focus from:
-  - CURRENT_TASK.txt
-  - FEATURES_DONE.txt lines starting with "--"
+
+### 2a. Queue priority (always — do not invent another order)
+**User-raised issues are always next.** Anything the user reports, requests, or redirects
+to in chat preempts the standing autonomous queue.
+
+Priority order when choosing work (first match wins):
+
+1. **User issue / request** (this chat or still open in CURRENT_TASK as user-driven)
+   - Bug report, “it crashes”, “could you add…”, UX complaint, doc gap they asked for,
+     “also do X”, mid-session redirect — **top of queue immediately**.
+   - Park autonomous Job N: note it under CURRENT_TASK “Parked: …”, do **not** continue
+     Job N until the user issue is done or the user explicitly says resume the queue.
+2. **Uncommitted product work** from the interrupted/prior focus (land or finish safely).
+3. **Active CURRENT_TASK Focus** if still unfinished and *not* superseded by (1).
+4. **Standing autonomous queue** — FEATURES_DONE `--` lines / continuation plan Jobs
+   (PRINT arrays, Phase 2b, phase2 markers, 1.00 ship prep, …).
+5. **Deferred / optional** only when higher slots are empty.
+
+Identify focus from (in that spirit):
+  - Latest user message and open user-driven lines in CURRENT_TASK.txt
+  - FEATURES_DONE.txt lines starting with "--" (especially `-- USER: …` if used)
   - CORPUS_AUDIT.txt or USER_APPROVAL*.txt
+
+Recording user issues (so the next session still picks them first):
+  - Set CURRENT_TASK Focus to the user issue **before** other work.
+  - Prefer a FEATURES_DONE line `-- USER: <short issue>` until fixed → `OK USER: …`.
+  - Never ask “what next?” while any user issue is open.
 
 ## 3. Status & Communication
 - **Source of truth = project .txt files**, not status.html:
@@ -178,8 +201,11 @@ User chat **always preempts** long autonomous runs. This is not optional.
    - Bug reports → fix or note in `CURRENT_TASK.txt` / `FEATURES_DONE.txt`
 4. **Refresh status**: update `CURRENT_TASK.txt` focus if needed; regenerate `status.html` so "Currently Working On" is not stale `None`.
 5. **Resume** agentic TODO only after the interrupt is handled:
-   - Prefer returning to the interrupted focus (e.g. piechart) unless the user redirected.
-   - If the user approved a ready program, do not reopen it; pick next agent-blocked item.
+   - If the user raised a new issue or redirected: that issue is **queue top** (§2a);
+     park the previous autonomous focus until the user issue is closed.
+   - Prefer returning to the interrupted focus only when the user did **not** redirect.
+   - If the user approved a ready program, do not reopen it; pick next agent-blocked item
+     (still after any open user issues).
 6. **Do not** treat user testing of *ready* programs as a conflict with single-focus agent work on a *different* blocked program (e.g. user tests saucer while agent works piechart). Parallel user-play is allowed; parallel *agent* coding on two programs is not.
 
 ### Workload when interrupted

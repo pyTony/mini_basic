@@ -4,9 +4,11 @@ from __future__ import annotations
 from typing import Callable, Dict, List, Optional, Tuple
 
 from mini_basic.bbc_modes import BB4W_MODE_SPECS, BBCModeSpec, BBC_MODE_SPECS, bbc_os_scales
+from mini_basic.repl.cli_help import print_cli_help
 
 HELP_MENU_ITEMS: List[Tuple[str, str]] = [
     ('OVERVIEW', 'quick tour of the interpreter'),
+    ('CLI', 'full command-line --help (flags, session files, -i)'),
     ('FUNCTIONS', 'numeric/math builtins (SIN, RND, CVI, ...)'),
     ('STRINGS', 'string functions (MID$, STR$, MKI$, colours, ...)'),
     ('OPERATORS', 'comparisons, logic, arithmetic'),
@@ -30,6 +32,16 @@ _HELP_ALIASES = {
     'OVERVIEW': 'OVERVIEW',
     'STARTUP': 'OVERVIEW',
     'ALL': 'OVERVIEW',
+    'CLI': 'CLI',
+    'USAGE': 'CLI',
+    'OPTIONS': 'CLI',
+    'OPTION': 'CLI',
+    'FLAGS': 'CLI',
+    'COMMANDLINE': 'CLI',
+    'CMDLINE': 'CLI',
+    'ARGS': 'CLI',
+    'ARGV': 'CLI',
+    'SHELL': 'CLI',
     'FUNCTIONS': 'FUNCTIONS',
     'FUNCTION': 'FUNCTIONS',
     'FUNCS': 'FUNCTIONS',
@@ -94,16 +106,20 @@ def _print_help_overview() -> None:
             'HELP INDEX lists topics; HELP FUNCTIONS lists every builtin.',
         ]),
         ('Quick start', [
-            'mini_basic file.bas [args]    load and RUN',
-            'mini_basic -i                 REPL after RUN',
+            'mini_basic file.bas [args]    load and RUN (then exit unless -i)',
+            'mini_basic -i                 open > REPL (no file)',
+            'mini_basic file.bas -i        RUN then stay at >',
+            'mini_basic INPUT.TXT          session script (numbered lines + RUN/Q)',
             'mini_basic --pretty file.bas  LIST structured, exit',
             '--dialect mits|commodore|tiny|bbc|mini   --strict-dialect   --pygame',
             'Program file: #!bbc  or  1 REM dialect: bbc  (prefer numbered REM; not line 0)',
+            'Full shell flags: HELP CLI  (same text as mini_basic --help)',
         ]),
         ('At the > prompt', [
             '123 PRINT X          store a program line',
             'PRINT 1+2            immediate statement',
             'RUN  LIST  LOAD  SAVE  NEW  EDIT  MATRIX',
+            'HELP CLI             full command-line options (same as --help)',
             'HELP PROGRAM         LOAD/SAVE/LIST/AUTO options',
             'HELP DEBUG           --debug and filter tags',
             'bye / quit / exit    leave REPL',
@@ -113,6 +129,13 @@ def _print_help_overview() -> None:
         if index:
             print()
         _section(title, lines)
+
+
+def _print_help_cli() -> None:
+    """Same detailed text as ``mini_basic --help`` / ``-h``."""
+    print('=== Command line (same as mini_basic --help) ===')
+    print()
+    print_cli_help()
 
 
 def _print_help_functions() -> None:
@@ -409,6 +432,7 @@ def _print_help_modes() -> None:
 
 def _print_help_repl() -> None:
     _section('=== REPL commands ===', [
+        'HELP CLI       full command-line --help (flags, -i, session files)',
         'HELP PROGRAM   full LOAD / SAVE / LIST / AUTO / EDIT reference',
         'LIST [PRETTY|REFS] [start[-end]]',
         'RUN  CONT  NEW',
@@ -421,6 +445,12 @@ def _print_help_repl() -> None:
         'DIALECT [mini|mits|commodore|tiny|bbc] [strict|loose]   CASE [on|off|auto]',
         '  bare DIALECT reports dialect, strict on/off, and case mode',
         'bye | quit | exit | goodbye | q',
+        '',
+        'Entering the REPL from the shell:',
+        '  mini_basic              or  mini_basic -i     open > prompt',
+        '  mini_basic file.bas -i  RUN program, then stay at >',
+        '  mini_basic file.bas     RUN then exit (no > unless -i)',
+        '  mini_basic INPUT.TXT    session script then exit (use -i to stay)',
         '',
         'Tab completes filenames after LOAD, SAVE (*.bas/.bbc + backups), RUN, CD',
         'Windows: pip install -r requirements-repl.txt  (pyreadline3 line editing)',
@@ -597,6 +627,7 @@ def _print_help_debug() -> None:
 _HELP_PRINTERS: Dict[str, Callable[[], None]] = {
     'INDEX': _print_help_index,
     'OVERVIEW': _print_help_overview,
+    'CLI': _print_help_cli,
     'FUNCTIONS': _print_help_functions,
     'STRINGS': _print_help_strings,
     'OPERATORS': _print_help_operators,

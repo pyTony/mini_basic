@@ -76,9 +76,10 @@ TODOs originate primarily from:
    - Open session todos; `log_work_event('BEGIN …')` + `update_project_status()`.
 
 2. **Determine single focus** (Single Focus Rule — never agent-code two programs at once):
-   - Highest priority blocking issue for current program.
-   - Or next from priority list / CURRENT_TASK.
-   - Hierarchy: current program's blockers > next logical program > deferred.
+   - **User-raised issues always go first** (AGENT_POLICY §2a) — bug reports, feature
+     requests in chat, redirects. Park the standing queue; do not ask “what next?”.
+   - Then: land uncommitted product work → finish active CURRENT_TASK → FEATURES_DONE
+     `--` / continuation plan → deferred.
    - User may *playtest* other ready programs in parallel; agent does not code them in parallel.
 
 3. **Do work autonomously** (check user input at midpoints — §6b):

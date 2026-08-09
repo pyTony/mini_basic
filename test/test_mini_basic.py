@@ -3992,7 +3992,8 @@ class MiniBASICTests(unittest.TestCase):
     def test_help_browser_menu_and_functions(self):
         from mini_basic.repl.help_browser import run_help_browser
 
-        lines = iter(['2', ''])
+        # Menu: 1 OVERVIEW, 2 CLI, 3 FUNCTIONS, ...
+        lines = iter(['3', ''])
 
         def fake_read(_prompt: str) -> str:
             return next(lines)
@@ -4074,7 +4075,8 @@ class MiniBASICTests(unittest.TestCase):
     def test_help_browser_index_returns_to_menu(self):
         from mini_basic.repl.help_browser import run_help_browser
 
-        lines = iter(['9', '0', ''])
+        # 10 = REPL (CLI inserted as menu item 2)
+        lines = iter(['10', '0', ''])
 
         def fake_read(_prompt: str) -> str:
             return next(lines)
@@ -4089,7 +4091,7 @@ class MiniBASICTests(unittest.TestCase):
     def test_help_browser_zero_returns_to_menu(self):
         from mini_basic.repl.help_browser import run_help_browser
 
-        lines = iter(['9', '0', ''])
+        lines = iter(['10', '0', ''])
 
         def fake_read(_prompt: str) -> str:
             return next(lines)
@@ -4103,7 +4105,7 @@ class MiniBASICTests(unittest.TestCase):
     def test_help_browser_menu_rejects_topic_name(self):
         from mini_basic.repl.help_browser import run_help_browser
 
-        lines = iter(['REPL', '2', ''])
+        lines = iter(['REPL', '3', ''])
 
         def fake_read(_prompt: str) -> str:
             return next(lines)
@@ -4120,9 +4122,24 @@ class MiniBASICTests(unittest.TestCase):
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            _print_help_menu(3)
+            _print_help_menu(4)
         out = buf.getvalue()
-        self.assertIn('>  3 STRINGS', out)
+        self.assertIn('>  4 STRINGS', out)
+
+    def test_help_cli_topic_matches_shell_help(self):
+        from mini_basic.repl.cli_help import cli_help_lines
+        from mini_basic.repl.help_topics import normalize_help_topic, print_help_topic
+
+        self.assertEqual(normalize_help_topic('USAGE'), 'CLI')
+        self.assertEqual(normalize_help_topic('OPTIONS'), 'CLI')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_help_topic('CLI')
+        out = buf.getvalue()
+        body = '\n'.join(cli_help_lines())
+        self.assertIn('INPUT.TXT', out)
+        self.assertIn('-i, --interactive', out)
+        self.assertIn(body, out)
 
     def test_help_modes_topic_lists_implementation_status(self):
         from mini_basic.repl.help_topics import normalize_help_topic, print_help_topic

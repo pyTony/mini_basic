@@ -1,4 +1,5 @@
 """Interactive REPL helpers (tab completion, command history on Windows)."""
+from .cli_help import cli_help_lines, print_cli_help
 from .help_browser import run_help_browser
 from .help_topics import HELP_MENU_ITEMS, normalize_help_topic, print_help, print_help_topic
 from .windows_input import windows_repl_input
@@ -15,12 +16,14 @@ from .completion import (
 __all__ = [
     'FileCompletionContext',
     'HELP_MENU_ITEMS',
+    'cli_help_lines',
     'compute_matches',
     'configure_readline',
     'file_command_context',
     'is_load_save_file',
     'iter_filename_completions',
     'normalize_help_topic',
+    'print_cli_help',
     'print_help',
     'print_help_topic',
     'run_help_browser',

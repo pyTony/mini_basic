@@ -20,10 +20,10 @@ pytestmark = [pytest.mark.phase1]
 
 
 def test_parse_slow_default_and_ms():
-    _t, _a, _i, _q, _tr, _lm, cfg = _parse_main_args(['--slow', 'prog.bas'])
+    _t, _a, _i, _q, _tr, _lm, cfg, _c = _parse_main_args(['--slow', 'prog.bas'])
     assert cfg.run_slow_ms == 50.0
     assert _t == 'prog.bas'
-    _t, _a, _i, _q, _tr, _lm, cfg = _parse_main_args(['--slow', '200', 'prog.bas'])
+    _t, _a, _i, _q, _tr, _lm, cfg, _c = _parse_main_args(['--slow', '200', 'prog.bas'])
     assert cfg.run_slow_ms == 200.0
     assert _t == 'prog.bas'
 

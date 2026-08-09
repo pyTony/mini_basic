@@ -628,7 +628,7 @@ def _print_dialect_compatibility_matrix() -> None:
 
 def _print_startup_banner() -> None:
     print('=== mini-BASIC ===')
-    print('  HELP (menu)   HELP MODES   HELP REPL   HELP FUNCTIONS   MATRIX')
+    print('  HELP (menu)   HELP CLI   HELP REPL   HELP FUNCTIONS   MATRIX')
 
 
 def _parse_dialect_repl_command(text: str) -> Optional[Tuple[Optional[Dialect], Optional[bool]]]:
@@ -946,7 +946,13 @@ _REPL_COMMAND_PREFIXES = (
 
 
 def _looks_like_repl_command_script(lines: List[str]) -> bool:
-    """True when the first substantive line is a mini_basic REPL/meta command."""
+    """True for REPL session scripts (meta commands and/or typed program lines).
+
+    Accepts classic .mbs (LOAD/RUN/…) and INPUT.TXT style (numbered lines + RUN/Q/DIR).
+    Pure numbered listings without session commands stay programs.
+    """
+    saw_session = False
+    saw_numbered = False
     for raw in lines:
         line = raw.strip()
         if not line or line.startswith("'") or line.startswith('#'):
@@ -954,20 +960,36 @@ def _looks_like_repl_command_script(lines: List[str]) -> bool:
         if re.match(r'^REM\b', line, re.IGNORECASE):
             continue
         upper = line.upper()
+        if re.match(r'^\d+(\s|$)', line):
+            saw_numbered = True
+            continue
+        if line.strip().lower() in _CLI_EXIT_WORDS:
+            saw_session = True
+            continue
+        is_meta = False
         for prefix in _REPL_COMMAND_PREFIXES:
             if upper == prefix or upper.startswith(prefix + ' '):
-                return True
-        return False
-    return False
+                is_meta = True
+                break
+        if is_meta:
+            saw_session = True
+            continue
+        # Immediate BASIC (PRINT, FOR, assignment, …) implies a session file.
+        saw_session = True
+    # Numbered-only → program; any session/meta/immediate → command script.
+    return saw_session
 
 
 def _script_file_kind(path: str) -> str:
+    if path == '-':
+        return 'commands'
     ext = os.path.splitext(path)[1].lower()
     if ext == '.bas':
         return 'program'
     if ext in ('.mbs', '.cmd'):
         return 'commands'
-    if ext == '.txt':
+    # .txt and extensionless: sniff for REPL session vs pure program
+    if ext in ('.txt', ''):
         try:
             with open(path, 'r', encoding='utf-8') as handle:
                 sample = handle.readlines()
@@ -1016,7 +1038,36 @@ def _run_bas_file(interp: BASICInterpreter, path: str) -> int:
     return 0
 
 
+def _run_command_script_lines(
+    interp: BASICInterpreter,
+    lines: List[str],
+    *,
+    echo: bool = False,
+) -> int:
+    """Execute REPL lines (from a .mbs/.txt session file or stdin)."""
+    for raw in lines:
+        line = raw.rstrip('\n\r')
+        stripped = line.strip()
+        if not stripped or stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
+            continue
+        if stripped.startswith('#'):
+            continue
+        if echo:
+            print(f'> {stripped}')
+        if not _execute_repl_line(interp, stripped):
+            break
+    return 0
+
+
 def _run_command_script(interp: BASICInterpreter, path: str) -> int:
+    if path == '-':
+        try:
+            lines = sys.stdin.readlines()
+        except OSError as exc:
+            print(f'Load failed: cannot read stdin ({type(exc).__name__}: {exc})')
+            return 1
+        return _run_command_script_lines(interp, lines)
+
     try:
         resolved = interp.resolve_path(path)
     except ValueError as exc:
@@ -1033,15 +1084,7 @@ def _run_command_script(interp: BASICInterpreter, path: str) -> int:
         print(f'Load failed: cannot read command script {resolved} ({type(exc).__name__}: {exc})')
         return 1
 
-    for raw in lines:
-        line = raw.strip()
-        if not line or line.startswith("'") or line.startswith('REM '):
-            continue
-        if line.startswith('#'):
-            continue
-        if not _execute_repl_line(interp, line):
-            break
-    return 0
+    return _run_command_script_lines(interp, lines)
 
 
 def _normalize_dialect(value: Optional[str]) -> Optional[Dialect]:
@@ -1090,9 +1133,26 @@ def _apply_pygame_display_defaults(
         )
 
 
+def _command_text_to_lines(text: str) -> List[str]:
+    """Split ``-c`` / ``--command`` payload into REPL lines (like Python ``-c``)."""
+    if not text:
+        return []
+    # Normalize newlines; keep empty lines out (session runner already skips them).
+    return text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+
+
 def _parse_main_args(
     argv: Optional[List[str]] = None,
-) -> Tuple[Optional[str], List[str], bool, bool, bool, Optional[str], InterpreterConfig]:
+) -> Tuple[
+    Optional[str],
+    List[str],
+    bool,
+    bool,
+    bool,
+    Optional[str],
+    InterpreterConfig,
+    List[str],
+]:
     args = list(argv if argv is not None else sys.argv[1:])
     interactive = False
     quiet = False
@@ -1100,6 +1160,9 @@ def _parse_main_args(
     list_mode: Optional[str] = None
     target: Optional[str] = None
     program_args: List[str] = []
+    # Python-style -c: each -c adds REPL line(s). Prefer a file/pipe for multi-line
+    # in PowerShell (quoting is painful); use repeated -c for one line each.
+    command_chunks: List[str] = []
     config = InterpreterConfig()
     scale_specified = False
     gfx_customized = False
@@ -1142,6 +1205,13 @@ def _parse_main_args(
         if token == '--trace':
             trace = True
             index += 1
+            continue
+        if token in ('-c', '--command'):
+            if index + 1 >= len(args):
+                print('? -c / --command requires a string (REPL lines; use \\n or repeat -c)')
+                raise SystemExit(2)
+            command_chunks.append(str(args[index + 1]))
+            index += 2
             continue
         if token in ('-p', '--pretty'):
             list_mode = 'pretty'
@@ -1289,59 +1359,9 @@ def _parse_main_args(
             print_version_report()
             raise SystemExit(0)
         if token in ('-h', '--help'):
-            print('Usage: mini_basic.py [options] file.bas [program args...]')
-            print('  file.bas   load and RUN the program')
-            print('  file.mbs   run REPL commands (LOAD, RUN, ...)')
-            print('  -V, --version  version, implementation status, MINIBASIC_DIR')
-            print('  -p, --pretty   load file.bas, LIST PRETTY (structured), exit')
-            print('  --list         load file.bas, LIST (standard), exit')
-            print('  --refs         load file.bas, LIST REFS (GOTO targets), exit')
-            print('  -i, --interactive  stay in REPL after RUN, or after --pretty/--list/--refs')
-            print('  -q         suppress startup banner and load messages')
-            print('  -d, --dialect mini|mits|commodore|tiny|bbc')
-            print('             mini = full superset (default)')
-            print('             mits = numbered/GOTO era (ELIZA.BAS)')
-            print('             commodore = C64/VIC-20 MS BASIC V2 (IF GOTO, numbered)')
-            print('             tiny = Tiny BASIC 1975 (IF THEN stmt only, numbered)')
-            print('             bbc  = BBC-style structured (BETH.BAS); GOTO allowed')
-            print('  File hint: #!bbc  or  1 REM dialect: bbc  (unless --dialect set)')
-            print('  --strict-dialect  treat dialect violations as load errors')
-            print('  --input-exit      mini dialect only: bye/quit/exit at INPUT ends RUN')
-            print('  --pygame          SDL/pygame window (same as --display pygame)')
-            print('  --display pygame|terminal|none')
-            print('                    bbc/mini: graphics programs auto-enable pygame when a GUI is available')
-            print('                    (text-only Linux/SSH without DISPLAY: stay terminal; use --display pygame to force)')
-            print('  --fps N           cap pygame frame rate (0 = unlimited; default 60)')
-            print('  --scale N         pixel scale for pygame (exact; default: largest that fits)')
-            print('  --cols N --rows N text grid size for pygame')
-            print('  --gfx-width N --gfx-height N graphics framebuffer size')
-            print('  --hold / --no-hold keep or close pygame window after END')
-            print('  --slow [ms]         pause after each BASIC line (default 50 ms); shows graphics frames')
-            print('  --tee-terminal      mirror pygame PRINT/INPUT to the terminal')
-            print('                      (or set _tee_terminal = 1 in the program)')
-            print('  --debug             interpreter debug to stderr + mini_basic.log')
-            print('  --debug-filter TAG  only lines containing TAG (HELP DEBUG lists tags)')
-            print()
-            print('Environment: MINIBASIC_DIR=path   install/launcher tree (see --version)')
-            print('             MINI_BASIC_DIALECT=mini|mits|commodore|tiny|bbc')
-            print('             MINIBASIC_SLOW=ms    same as --slow (milliseconds per line)')
-            print('             MINIBASIC_NO_GRAPHICS=1 or MINIBASIC_DISPLAY=terminal')
-            print('             MINI_BASIC_DEBUG=1 / MINI_BASIC_DEBUG_FILTER=TAG')
-            print('             (never auto-open pygame; Ctrl+C / ESC in the terminal stops RUN)')
-            print()
-            print('Program args are available as _argc, ARG$(n), and ARG(n).')
-            print()
-            print('Examples:')
-            print('  mini_basic.py --dialect mits ELIZA.BAS')
-            print('  mini_basic.py --dialect bbc BETH.BAS')
-            print('  mini_basic.py --pygame examples/mini/sprites_demo.bas')
-            print('  mini_basic.py --display pygame --scale 2 examples/mini/bbc_graphics_demo.bas')
-            print('  mini_basic.py --pretty --dialect bbc BETH.BAS')
-            print('  mini_basic.py --pretty -i BETH.BAS')
-            print('  mini_basic.py mandelbrot_color_only.bas 32')
-            print('  mini_basic.py beth.mbs')
-            print()
-            print('REPL: bye/quit/exit at > prompt. INPUT is standard unless --input-exit.')
+            from .repl.cli_help import print_cli_help
+
+            print_cli_help()
             raise SystemExit(0)
         if token == '--':
             program_args = args[index + 1:]
@@ -1350,11 +1370,17 @@ def _parse_main_args(
             print(f'Unknown option: {token}')
             raise SystemExit()
 
-        if target is None:
+        # With -c, further non-options are program args (like python -c ... arg).
+        if command_chunks:
+            program_args.append(token)
+        elif target is None:
             target = token
         else:
             program_args.append(token)
         index += 1
+    if command_chunks and target is not None:
+        print('? cannot combine -c / --command with a program or session file')
+        raise SystemExit(2)
     if config.display == 'pygame':
         _apply_pygame_display_defaults(
             config,
@@ -1363,11 +1389,23 @@ def _parse_main_args(
             rows_customized=rows_customized,
             scale_specified=scale_specified,
         )
-    return target, program_args, interactive, quiet, trace, list_mode, config
+    command_lines: List[str] = []
+    for chunk in command_chunks:
+        command_lines.extend(_command_text_to_lines(chunk))
+    return target, program_args, interactive, quiet, trace, list_mode, config, command_lines
 
 
 def main(argv: Optional[List[str]] = None) -> int:
-    target, program_args, interactive, quiet, trace, list_mode, config = _parse_main_args(argv)
+    (
+        target,
+        program_args,
+        interactive,
+        quiet,
+        trace,
+        list_mode,
+        config,
+        command_lines,
+    ) = _parse_main_args(argv)
     if target and config.display == 'pygame':
         config.display_caption = os.path.basename(target)
     if not quiet and (target is None or interactive):
@@ -1410,6 +1448,19 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not interactive:
             return 0
 
+    if command_lines:
+        try:
+            status = _run_command_script_lines(interp, command_lines)
+        except BasicRuntimeError:
+            status = 1
+        if status != 0 and not interactive:
+            return status
+        if not interactive:
+            return 0
+        # -i after -c: drop into interactive REPL
+        _interactive_repl(interp)
+        return 0
+
     if target is not None:
         kind = _script_file_kind(target)
         try:
@@ -1430,7 +1481,23 @@ def main(argv: Optional[List[str]] = None) -> int:
         if not interactive:
             if config.display == 'pygame':
                 return 0
+            # Command scripts should not force a console pause.
+            if kind == 'commands':
+                return 0
             return EXIT_HOLD_CONSOLE
+
+    # Piped/redirected stdin (PowerShell/cmd): treat as a REPL command session.
+    try:
+        stdin_tty = sys.stdin.isatty()
+    except Exception:
+        stdin_tty = True
+    if not stdin_tty:
+        try:
+            lines = sys.stdin.readlines()
+        except OSError as exc:
+            print(f'Load failed: cannot read stdin ({type(exc).__name__}: {exc})')
+            return 1
+        return _run_command_script_lines(interp, lines)
 
     _interactive_repl(interp)
     return 0
