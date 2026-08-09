@@ -1512,8 +1512,8 @@ class MiniBASICTests(unittest.TestCase):
                 with patch('builtins.input', return_value='PRINT "new"'):
                     result = _prompt_editing_input('50 ', 'PRINT "old"')
         self.assertEqual(result, 'PRINT "new"')
-        fake_readline.clear_history.assert_called()
-        fake_readline.add_history.assert_any_call('PRINT "old"')
+        # Must not wipe history when prefilling EDIT/AUTO (paste + ↑ still work).
+        fake_readline.clear_history.assert_not_called()
         prefill_hook = fake_readline.set_startup_hook.call_args_list[0][0][0]
         prefill_hook()
         fake_readline.insert_text.assert_called_with('PRINT "old"')
@@ -1544,6 +1544,29 @@ class MiniBASICTests(unittest.TestCase):
     def test_windows_arrow_action_parses_vt100_right(self):
         keys = iter(['[', 'C'])
         self.assertEqual(_windows_arrow_action(lambda: next(keys), '\x1b'), 'right')
+
+    def test_windows_arrow_action_home_end_and_word(self):
+        self.assertEqual(_windows_arrow_action(lambda: 'G', '\xe0'), 'home')
+        self.assertEqual(_windows_arrow_action(lambda: 'O', '\xe0'), 'end')
+        self.assertEqual(_windows_arrow_action(lambda: 's', '\xe0'), 'word_left')
+        self.assertEqual(_windows_arrow_action(lambda: 't', '\xe0'), 'word_right')
+        keys = iter(['[', 'H'])
+        self.assertEqual(_windows_arrow_action(lambda: next(keys), '\x1b'), 'home')
+        keys = iter(['[', '1', ';', '5', 'D'])
+        self.assertEqual(_windows_arrow_action(lambda: next(keys), '\x1b'), 'word_left')
+
+    def test_windows_apply_arrow_word_and_home(self):
+        buf = list('PRINT A + B')
+        buf, cur, redraw = _windows_apply_arrow('home', buf, len(buf), '')
+        self.assertEqual(cur, 0)
+        self.assertFalse(redraw)
+        buf, cur, redraw = _windows_apply_arrow('word_right', buf, 0, '')
+        self.assertEqual(cur, 6)  # after PRINT
+        self.assertEqual(''.join(buf), 'PRINT A + B')
+        buf, cur, redraw = _windows_apply_arrow('word_backspace', buf, cur, '')
+        self.assertEqual(''.join(buf), 'A + B')
+        self.assertEqual(cur, 0)
+        self.assertTrue(redraw)
 
     def test_windows_editing_input_vt100_right_fills_default(self):
         keys = list('\x1b[C\n')
@@ -1580,6 +1603,17 @@ class MiniBASICTests(unittest.TestCase):
             getwch=lambda: keys.pop(0),
         )
         self.assertEqual(result, 'PRINT "Finishe')
+
+    def test_windows_editing_input_home_and_ctrl_w(self):
+        # Home then type X; Ctrl+W deletes previous word from end.
+        keys = list('\x1b[H') + list('X') + list('\x05') + list('\x17') + list('\n')
+        result = _windows_editing_input(
+            '10 ',
+            'PRINT HI',
+            getwch=lambda: keys.pop(0),
+        )
+        # Prefill PRINT HI, Home, insert X → XPRINT HI, End, Ctrl+W → XPRINT
+        self.assertEqual(result, 'XPRINT')
 
     def test_prompt_editing_input_prefers_windows_editor(self):
         with patch('mini_basic.runtime.sys.platform', 'win32'):

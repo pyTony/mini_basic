@@ -1,4 +1,17 @@
-"""Windows console REPL input with history and Tab filename completion."""
+"""Windows console REPL / line input with history, Tab completion, and word editing.
+
+Editing keys (Windows console + common VT sequences):
+  Left/Right, Up/Down history
+  Home / End (or Ctrl+A / Ctrl+E)
+  Ctrl+Left / Ctrl+Right — move by word
+  Ctrl+Backspace / Ctrl+W — delete previous word
+  Delete / Ctrl+Delete — delete char / next word
+  Ctrl+K — kill to end of line
+  Ctrl+U — kill to start of line
+
+Paste: console paste injects characters; multi-line pastes submit on each CR
+so numbered BASIC lines enter one per line (standard interactive BASIC).
+"""
 from __future__ import annotations
 
 import sys
@@ -14,17 +27,52 @@ from .completion import (
 )
 
 _COMPLETER_DELIMS = ' \t\n;'
+_WORD_BREAK = frozenset(' \t\n;,:()+-*/=<>"\'')
 
 
-def _windows_arrow_action(getwch, prefix: str) -> Optional[str]:
+def _word_left(buffer: List[str], cursor: int) -> int:
+    if cursor <= 0:
+        return 0
+    i = cursor - 1
+    while i > 0 and buffer[i] in _WORD_BREAK:
+        i -= 1
+    while i > 0 and buffer[i - 1] not in _WORD_BREAK:
+        i -= 1
+    return i
+
+
+def _word_right(buffer: List[str], cursor: int) -> int:
+    n = len(buffer)
+    if cursor >= n:
+        return n
+    i = cursor
+    while i < n and buffer[i] not in _WORD_BREAK:
+        i += 1
+    while i < n and buffer[i] in _WORD_BREAK:
+        i += 1
+    return i
+
+
+def parse_special_key(getwch, prefix: str) -> Optional[str]:
+    """Map Windows / VT special key sequences to action names."""
+    # Windows scan codes after 0x00 / 0xE0
     legacy = {
         'K': 'left',
         'M': 'right',
         'H': 'up',
         'P': 'down',
+        'G': 'home',
+        'O': 'end',
+        'S': 'delete',
+        's': 'word_left',   # Ctrl+Left
+        't': 'word_right',  # Ctrl+Right
+        '\x93': 'word_delete',  # Ctrl+Delete (some consoles)
     }
     if prefix in ('\x00', '\xe0'):
         code = getwch()
+        # Ctrl+Delete often arrives as 0xE0 0x93
+        if isinstance(code, str) and len(code) == 1 and ord(code) == 0x93:
+            return 'word_delete'
         return legacy.get(code)
 
     if prefix != '\x1b':
@@ -34,23 +82,148 @@ def _windows_arrow_action(getwch, prefix: str) -> Optional[str]:
         second = getwch()
     except (EOFError, OSError):
         return None
-    if second == '[':
+
+    # ESC O H / F = home/end (application mode)
+    if second == 'O':
         code = getwch()
         return {
             'D': 'left',
             'C': 'right',
             'A': 'up',
             'B': 'down',
+            'H': 'home',
+            'F': 'end',
         }.get(code)
-    if second == 'O':
-        code = getwch()
+
+    if second != '[':
+        return None
+
+    # CSI: collect until letter or ~
+    params: List[str] = []
+    chunk = ''
+    while True:
+        try:
+            ch = getwch()
+        except (EOFError, OSError):
+            return None
+        # CSI params are digits (and ';'); final byte is a letter or '~'.
+        # Do not treat ';' as a terminator — it separates multi-param sequences
+        # like ESC [ 1 ; 5 D (Ctrl+Left).
+        if ch == '~' or (len(ch) == 1 and ch.isalpha()):
+            if chunk:
+                params.append(chunk)
+            final = ch
+            break
+        if ch == ';':
+            params.append(chunk)
+            chunk = ''
+            continue
+        chunk += ch
+
+    # ESC [ H / F
+    if final in ('H', 'F'):
+        return 'home' if final == 'H' else 'end'
+    # ESC [ 1~ home, 4~ end, 3~ delete
+    if final == '~' and params:
+        return {
+            '1': 'home',
+            '4': 'end',
+            '3': 'delete',
+            '7': 'home',
+            '8': 'end',
+        }.get(params[0])
+    # ESC [ 1 ; 5 D = Ctrl+Left
+    if final in ('D', 'C', 'A', 'B') and len(params) >= 2 and params[-1] == '5':
+        return {
+            'D': 'word_left',
+            'C': 'word_right',
+            'A': 'up',
+            'B': 'down',
+        }.get(final)
+    if final in ('D', 'C', 'A', 'B'):
         return {
             'D': 'left',
             'C': 'right',
-            'H': 'up',
-            'F': 'down',
-        }.get(code)
+            'A': 'up',
+            'B': 'down',
+        }.get(final)
     return None
+
+
+# Back-compat alias used by tests / runtime
+_windows_arrow_action = parse_special_key
+
+
+def apply_line_edit(
+    action: str,
+    buffer: List[str],
+    cursor: int,
+    *,
+    default: str = '',
+) -> Tuple[List[str], int, bool]:
+    """Apply a named edit action. Returns (buffer, cursor, needs_full_redraw)."""
+    redraw = False
+    if action == 'left' and cursor > 0:
+        cursor -= 1
+    elif action == 'right':
+        if cursor < len(buffer):
+            cursor += 1
+        elif not buffer and default:
+            buffer[:] = list(default)
+            cursor = len(buffer)
+            redraw = True
+    elif action == 'home':
+        cursor = 0
+    elif action == 'end':
+        cursor = len(buffer)
+    elif action == 'word_left':
+        cursor = _word_left(buffer, cursor)
+    elif action == 'word_right':
+        cursor = _word_right(buffer, cursor)
+    elif action == 'backspace':
+        if cursor > 0:
+            del buffer[cursor - 1]
+            cursor -= 1
+            redraw = True
+    elif action == 'delete':
+        if cursor < len(buffer):
+            del buffer[cursor]
+            redraw = True
+    elif action == 'word_backspace':
+        start = _word_left(buffer, cursor)
+        if start < cursor:
+            del buffer[start:cursor]
+            cursor = start
+            redraw = True
+    elif action == 'word_delete':
+        end = _word_right(buffer, cursor)
+        if end > cursor:
+            del buffer[cursor:end]
+            redraw = True
+    elif action == 'kill_end':
+        if cursor < len(buffer):
+            del buffer[cursor:]
+            redraw = True
+    elif action == 'kill_start':
+        if cursor > 0:
+            del buffer[:cursor]
+            cursor = 0
+            redraw = True
+    elif action == 'up' and default:
+        buffer[:] = list(default)
+        cursor = len(buffer)
+        redraw = True
+    return buffer, cursor, redraw
+
+
+def _windows_apply_arrow(
+    action: str,
+    buffer: List[str],
+    cursor: int,
+    default: str,
+) -> Tuple[List[str], int, bool]:
+    """Back-compat for tests expecting (buffer, cursor, redraw) tuple returns."""
+    return apply_line_edit(action, buffer, cursor, default=default)
 
 
 def _completion_word(line: str, cursor: int) -> Tuple[str, int]:
@@ -120,27 +293,42 @@ def _append_history(history: List[str], line: str) -> None:
     history.append(line)
 
 
-def windows_repl_input(
+def _is_editable_char(ch: str) -> bool:
+    if not ch:
+        return False
+    o = ord(ch[0])
+    if o == 9:
+        return True
+    if o < 32 or o == 127:
+        return False
+    return True
+
+
+def windows_line_edit(
     prompt: str,
-    working_dir: Callable[[], str],
-    expand_abbrev: Callable[[str], str],
+    *,
+    default: str = '',
     getwch=None,
     history: Optional[List[str]] = None,
     idle: Optional[Callable[[], bool]] = None,
+    working_dir: Optional[Callable[[], str]] = None,
+    expand_abbrev: Optional[Callable[[str], str]] = None,
+    use_history: bool = True,
+    use_completion: bool = False,
 ) -> str:
-    """Read one REPL line with history and Tab filename completion on Windows."""
-    import msvcrt  # noqa: F811 — used for getwch default and kbhit polling
+    """Shared Windows line editor for REPL and AUTO/EDIT prompts."""
+    import msvcrt
 
     if getwch is None:
         if not sys.stdin.isatty():
-            return input(prompt)
+            return input(prompt).rstrip()
         getwch = msvcrt.getwch
 
     if history is None:
         history = []
 
-    buffer: List[str] = []
-    cursor = 0
+    buffer: List[str] = list(default)
+    cursor = len(buffer)
     tab_cycle: TabCompletionCycle | None = None
     hist_index = -1
 
@@ -160,8 +348,12 @@ def windows_repl_input(
         hist_index = index
         redraw()
 
-    sys.stdout.write(prompt)
-    sys.stdout.flush()
+    # Prefill default without clearing console history / paste context.
+    if default:
+        redraw()
+    else:
+        sys.stdout.write(prompt)
+        sys.stdout.flush()
 
     while True:
         if idle is not None:
@@ -171,76 +363,162 @@ def windows_repl_input(
                 time.sleep(0.005)
                 continue
         key = getwch()
+
+        # Enter
         if key in ('\r', '\n'):
+            # Ignore lone LF after CR (Windows paste \r\n)
+            if key == '\n' and not buffer and not default:
+                continue
             sys.stdout.write('\n')
             sys.stdout.flush()
             line = ''.join(buffer)
-            _append_history(history, line)
-            return line
+            if use_history:
+                _append_history(history, line)
+            return line.rstrip()
+
         if key == '\x03':
             raise KeyboardInterrupt
-        if key == '\t':
+
+        # Ctrl+A / Ctrl+E
+        if key == '\x01':
+            buffer, cursor, need = apply_line_edit('home', buffer, cursor)
+            place_cursor()
+            continue
+        if key == '\x05':
+            buffer, cursor, need = apply_line_edit('end', buffer, cursor)
+            place_cursor()
+            continue
+        # Ctrl+W / Ctrl+Backspace (often \x7f or \x08 with modifiers already handled)
+        if key == '\x17':
+            hist_index = -1
+            buffer, cursor, need = apply_line_edit('word_backspace', buffer, cursor)
+            if need:
+                redraw()
+            continue
+        # Ctrl+K / Ctrl+U
+        if key == '\x0b':
+            hist_index = -1
+            buffer, cursor, need = apply_line_edit('kill_end', buffer, cursor)
+            if need:
+                redraw()
+            continue
+        if key == '\x15':
+            hist_index = -1
+            buffer, cursor, need = apply_line_edit('kill_start', buffer, cursor)
+            if need:
+                redraw()
+            continue
+
+        if use_completion and key == '\t' and working_dir and expand_abbrev:
             cursor, tab_cycle, needs_redraw = _apply_tab_completion(
-                buffer,
-                cursor,
-                working_dir(),
-                expand_abbrev,
-                tab_cycle,
+                buffer, cursor, working_dir(), expand_abbrev, tab_cycle,
             )
             if needs_redraw:
                 redraw()
             continue
         tab_cycle = None
+
+        # Backspace
         if key in ('\x08', '\x7f'):
             hist_index = -1
-            if cursor > 0:
-                del buffer[cursor - 1]
-                cursor -= 1
+            # Ctrl+Backspace on many Windows terminals is \x7f with empty buffer edge —
+            # treat plain backspace; word delete via Ctrl+W or extended key.
+            buffer, cursor, need = apply_line_edit('backspace', buffer, cursor)
+            if need:
                 redraw()
             continue
+
         if key in ('\x00', '\xe0', '\x1b'):
-            action = _windows_arrow_action(getwch, key)
-            if action == 'left' and cursor > 0:
-                cursor -= 1
-                place_cursor()
-            elif action == 'right':
-                if cursor == len(buffer):
-                    cursor, needs_redraw = _apply_accept_completion(
-                        buffer,
-                        cursor,
-                        working_dir(),
-                        expand_abbrev,
-                    )
-                    if needs_redraw:
-                        tab_cycle = None
-                        redraw()
-                        continue
-                if cursor < len(buffer):
-                    cursor += 1
-                    place_cursor()
-            elif action == 'up' and history:
+            action = parse_special_key(getwch, key)
+            if action is None:
+                continue
+            if action == 'up' and use_history and history:
                 if hist_index == -1:
                     load_history_entry(len(history) - 1)
                 elif hist_index > 0:
                     load_history_entry(hist_index - 1)
-            elif action == 'down' and history and hist_index >= 0:
+                continue
+            if action == 'down' and use_history and history and hist_index >= 0:
                 if hist_index < len(history) - 1:
                     load_history_entry(hist_index + 1)
                 else:
                     hist_index = -1
-                    buffer = []
-                    cursor = 0
+                    # Restore empty line for new input — do not wipe default edit buffer
+                    # when we started with a prefilled EDIT line.
+                    if default and not history:
+                        buffer = list(default)
+                        cursor = len(buffer)
+                    else:
+                        buffer = []
+                        cursor = 0
                     redraw()
-            continue
-        # Drop C0 controls (e.g. Ctrl+S = U+0013) so they never enter BASIC source.
-        if key and len(key) == 1:
-            o = ord(key)
-            if o < 32 or o == 127:
                 continue
+            if action == 'right' and use_completion and working_dir and expand_abbrev:
+                if cursor == len(buffer):
+                    cursor, needs_redraw = _apply_accept_completion(
+                        buffer, cursor, working_dir(), expand_abbrev,
+                    )
+                    if needs_redraw:
+                        redraw()
+                        continue
+            hist_index = -1
+            buffer, cursor, need = apply_line_edit(action, buffer, cursor, default=default)
+            if need:
+                redraw()
+            else:
+                place_cursor()
+            continue
+
+        if not _is_editable_char(key):
+            continue
         hist_index = -1
         buffer.insert(cursor, key)
         cursor += 1
         redraw()
 
 
-__all__ = ['windows_repl_input']
+def windows_repl_input(
+    prompt: str,
+    working_dir: Callable[[], str],
+    expand_abbrev: Callable[[str], str],
+    getwch=None,
+    history: Optional[List[str]] = None,
+    idle: Optional[Callable[[], bool]] = None,
+) -> str:
+    """Read one REPL line with history, Tab completion, and word editing."""
+    return windows_line_edit(
+        prompt,
+        getwch=getwch,
+        history=history,
+        idle=idle,
+        working_dir=working_dir,
+        expand_abbrev=expand_abbrev,
+        use_history=True,
+        use_completion=True,
+    )
+
+
+def windows_editing_input(
+    prompt: str,
+    default: str = '',
+    getwch=None,
+) -> str:
+    """AUTO/EDIT style single-line editor (prefill default, no Tab completion)."""
+    return windows_line_edit(
+        prompt,
+        default=default,
+        getwch=getwch,
+        use_history=False,
+        use_completion=False,
+    )
+
+
+__all__ = [
+    'windows_repl_input',
+    'windows_editing_input',
+    'windows_line_edit',
+    'parse_special_key',
+    'apply_line_edit',
+    '_windows_arrow_action',
+    '_windows_apply_arrow',
+]

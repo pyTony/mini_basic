@@ -1,4 +1,4 @@
-Focus: None — clean start 2026-08-09; work from fix/* branches; commit at every END
+Focus: None — REPL line edit done (history kept + word/home keys); next from FEATURES_DONE --
 
 Repo: C:\Users\Tony\mini_basic
 Baseline: docs/CLEAN_START.md + git tag clean-start-2026-08-09

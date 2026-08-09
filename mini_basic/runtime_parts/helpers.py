@@ -29,68 +29,6 @@ def _get_readline_module():
     return None
 
 
-def _windows_arrow_action(getwch, prefix: str) -> Optional[str]:
-    legacy = {
-        'K': 'left',
-        'M': 'right',
-        'H': 'up',
-        'P': 'down',
-    }
-    if prefix in ('\x00', '\xe0'):
-        code = getwch()
-        return legacy.get(code)
-
-    if prefix != '\x1b':
-        return None
-
-    try:
-        second = getwch()
-    except (EOFError, OSError):
-        return None
-    if second == '[':
-        code = getwch()
-        vt100 = {
-            'D': 'left',
-            'C': 'right',
-            'A': 'up',
-            'B': 'down',
-        }
-        return vt100.get(code)
-    if second == 'O':
-        code = getwch()
-        vt52 = {
-            'D': 'left',
-            'C': 'right',
-            'H': 'up',
-            'F': 'down',
-        }
-        return vt52.get(code)
-    return None
-
-
-def _windows_apply_arrow(
-    action: str,
-    buffer: List[str],
-    cursor: int,
-    default: str,
-) -> Tuple[List[str], int, bool]:
-    redraw = False
-    if action == 'left' and cursor > 0:
-        cursor -= 1
-    elif action == 'right':
-        if cursor < len(buffer):
-            cursor += 1
-        elif not buffer and default:
-            buffer[:] = list(default)
-            cursor = len(buffer)
-            redraw = True
-    elif action == 'up' and default:
-        buffer[:] = list(default)
-        cursor = len(buffer)
-        redraw = True
-    return buffer, cursor, redraw
-
-
 def _is_editable_char(ch: str) -> bool:
     """Accept normal BASIC source characters; drop accidental C0 controls.
 
@@ -113,66 +51,49 @@ def _sanitize_basic_source(text: str) -> str:
     return ''.join(ch for ch in text if ch == '\t' or (ord(ch) >= 32 and ord(ch) != 127))
 
 
+def _windows_arrow_action(getwch, prefix: str) -> Optional[str]:
+    """Map special keys (arrows, Home/End, Ctrl+Left/Right, …)."""
+    from mini_basic.repl.windows_input import parse_special_key
+
+    return parse_special_key(getwch, prefix)
+
+
+def _windows_apply_arrow(
+    action: str,
+    buffer: List[str],
+    cursor: int,
+    default: str,
+) -> Tuple[List[str], int, bool]:
+    """Apply named line-edit action (shared with REPL)."""
+    from mini_basic.repl.windows_input import apply_line_edit
+
+    return apply_line_edit(action, buffer, cursor, default=default)
+
+
 def _windows_editing_input(
     prompt: str,
     default: str = '',
     getwch=None,
 ) -> str:
-    import msvcrt
+    """AUTO/EDIT line editor: Home/End, word motion, kill keys (like terminal)."""
+    from mini_basic.repl.windows_input import windows_editing_input
 
-    if getwch is None:
-        if not sys.stdin.isatty():
-            return _sanitize_basic_source(input(prompt).rstrip())
-        getwch = msvcrt.getwch
-
-    buffer = list(_sanitize_basic_source(default))
-    cursor = len(buffer)
-
-    def place_cursor() -> None:
-        column = len(prompt) + cursor + 1
-        sys.stdout.write(f'\x1b[{column}G')
-        sys.stdout.flush()
-
-    def redraw() -> None:
-        sys.stdout.write('\x1b[2K\r' + prompt + ''.join(buffer))
-        place_cursor()
-
-    redraw()
-
-    while True:
-        key = getwch()
-        if key in ('\r', '\n'):
-            sys.stdout.write('\n')
-            sys.stdout.flush()
-            return _sanitize_basic_source(''.join(buffer).rstrip())
-        if key == '\x03':
-            raise KeyboardInterrupt
-        if key in ('\x08', '\x7f'):
-            if cursor > 0:
-                del buffer[cursor - 1]
-                cursor -= 1
-                redraw()
-            continue
-        if key in ('\x00', '\xe0', '\x1b'):
-            action = _windows_arrow_action(getwch, key)
-            if action:
-                buffer, cursor, needs_redraw = _windows_apply_arrow(
-                    action, buffer, cursor, default,
-                )
-                if needs_redraw:
-                    redraw()
-                else:
-                    place_cursor()
-            continue
-        # Ignore control keys (e.g. Ctrl+S = U+0013) so they never enter source.
-        if not _is_editable_char(key):
-            continue
-        buffer.insert(cursor, key)
-        cursor += 1
-        redraw()
+    text = windows_editing_input(
+        prompt,
+        default=_sanitize_basic_source(default),
+        getwch=getwch,
+    )
+    return _sanitize_basic_source(text)
 
 
 def _prompt_editing_input(prompt: str, default: str = '') -> str:
+    """
+    Prompt for editable BASIC source (EDIT, AUTO, bare line number).
+
+    On Windows TTYs use the shared msvcrt editor (word/line keys).
+    Elsewhere prefer readline prefill without clearing history so paste and
+    prior commands remain available.
+    """
     if sys.platform == 'win32' and sys.stdin.isatty():
         try:
             return _windows_editing_input(prompt, default)
@@ -182,15 +103,6 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
     default = _sanitize_basic_source(default)
     readline = _get_readline_module()
     if readline is not None:
-        saved_history: List[str] = []
-        for index in range(1, readline.get_current_history_length() + 1):
-            item = readline.get_history_item(index)
-            if item is not None:
-                saved_history.append(item)
-        if hasattr(readline, 'clear_history'):
-            readline.clear_history()
-        if default:
-            readline.add_history(default)
 
         def _prefill_hook() -> None:
             readline.set_startup_hook(None)
@@ -199,15 +111,12 @@ def _prompt_editing_input(prompt: str, default: str = '') -> str:
                 if hasattr(readline, 'redisplay'):
                     readline.redisplay()
 
+        # Do not clear_history(): that wiped pastable history when editing lines.
         readline.set_startup_hook(_prefill_hook)
         try:
             return _sanitize_basic_source(input(prompt).rstrip())
         finally:
             readline.set_startup_hook(None)
-            if hasattr(readline, 'clear_history'):
-                readline.clear_history()
-            for item in saved_history:
-                readline.add_history(item)
 
     return _sanitize_basic_source(input(prompt).rstrip())
 

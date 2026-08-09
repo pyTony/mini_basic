@@ -60,3 +60,4 @@
 2026-08-09 08:58:24 WORK END cleanup commit fd99199: continuous-git END gate + structure hygiene
 2026-08-09 08:59:31 WORK END commit interpreter diffs: compound-assign LHS + save_case +=/*REFRESH; strip debug prints
 2026-08-09 09:08:56 WORK WORK Clean start 2026-08-09: tree clean; docs/CLEAN_START.md; tag clean-start-2026-08-09
+2026-08-09 09:24:52 WORK BEGIN REPL edit: keep history + word/line keys

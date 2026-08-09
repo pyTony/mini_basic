@@ -140,3 +140,6 @@ OK tree cleanup 2026-08-09: continuous-git END gate in AGENT_POLICY; gitignore d
 OK compound-assign: simple var/array LHS only (keeps OR=/AND=); save_case += and * star passthrough (committed)
 
 OK Clean start 2026-08-09 @ cf06f59 — working tree clean; continuous-git END gate; docs/CLEAN_START.md + tag clean-start-2026-08-09
+
+OK REPL/EDIT line edit: no clear_history on BASIC prefill (paste+↑ kept); shared windows_input
+  word/Home/End/Ctrl+W/K/U + CSI Ctrl+arrows; helpers+runtime wire; tests
