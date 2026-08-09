@@ -136,8 +136,10 @@ OK P0 phase1 green 2026-08-09: 621 passed / 0 fail (3 xfail teletext/FOR glue);
   Loaded: stderr asserts; Clock MODE 8 path; dialect_hint dummy pygame no hang
 OK unify dual LIST/SAVE formatters: format/save_case.py is sole LIST/SAVE authority
   (fold upper|lower|none; format_list_line + pretty/refs parts; phase1 622 pass)
--- design/impl later: entry-time line canonicalize (LOAD + set_program_line) so RUN/LIST
-  do not re-unglue every eval; not a quick patch — inventory call sites first
+OK entry-time line canonicalize Phase 1: canonicalize_program_line on set_program_line
+  (LOAD+EDIT); BBC glue + monadic outside strings; idempotent; runtime unglue kept
+  (dual-normalize); docs/BBC_TOKENIZE_VS_UNGLUE.md; test_entry_canonicalize
+-- Phase 2: peel runtime unglue one family at a time (after Phase 1 proven)
 OK compile WHILE CONT AND (I%<N) boolean path: mixed AND/OR/NOT/XOR + comparisons
   lower to -1/0 then &/|/^/~; pure bitwise squares path preserved; ~6–7× microbench;
   tests in test_squares_speed; pure-bitwise condition float coerce + NOT leading-space fix

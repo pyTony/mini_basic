@@ -233,17 +233,110 @@ class RuntimeProgramMixin:
             return None
         return int(match.group(1))
 
+    def canonicalize_program_line(self, statement: str) -> str:
+        """Normalize one program statement at entry (LOAD / EDIT / set_program_line).
+
+        Phase 1 (dual-normalize): store already-glued BBC forms so hot paths
+        *may* skip work later. Runtime unglue/normalize is **not** removed yet —
+        both layers run until each rewrite is proven covered at entry.
+
+        Must be **idempotent**: ``canonicalize(canonicalize(s)) == canonicalize(s)``.
+        Does not rewrite REM / ``'`` comment / DATA payloads (except outer line forms).
+        See ``docs/BBC_TOKENIZE_VS_UNGLUE.md``.
+        """
+        from .helpers import _sanitize_basic_source
+
+        statement = _sanitize_basic_source(statement)
+        # Type suffixes glued (A $ → A$); leave % (modulo / integer suffix).
+        statement = re.sub(r'(\w)\s+([!$#]+)', r'\1\2', statement)
+        statement = re.sub(r'([!$#]+)\s+(\w)', r'\1\2', statement)
+
+        statement = self._normalize_hash_file_commands(statement)
+        statement = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', statement, flags=re.IGNORECASE)
+        statement = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', statement, flags=re.IGNORECASE)
+        if self.config.dialect == 'bbc':
+            statement = self._normalize_bbc_dialect_line(statement)
+        else:
+            statement = re.sub(
+                r'\bENDWHILE\b', 'WEND', statement, flags=re.IGNORECASE,
+            )
+            statement = self._normalize_two_word_closers(statement)
+        statement = self._expand_question_print(statement)
+
+        # Expression-style monadic glue outside strings (not REM/'/DATA bodies).
+        if not self._line_skips_expr_canonicalize(statement):
+            statement = self._map_outside_strings(
+                statement, self._unglue_unary_not,
+            )
+            statement = self._map_outside_strings(
+                statement, self._unglue_trig_idents,
+            )
+            statement = self._map_outside_strings(
+                statement, self._unglue_inkey_digits,
+            )
+            statement = self._map_outside_strings(
+                statement, self._unglue_asc_string_literal,
+            )
+        return statement
+
+    def _line_skips_expr_canonicalize(self, statement: str) -> bool:
+        """True for full-line comments / DATA where monadic unglue must not run."""
+        text = statement.strip()
+        if not text:
+            return True
+        # Optional label: name:
+        label_m = re.match(
+            rf'^({self._VAR_BASE_PATTERN}):\s*(.*)$',
+            text,
+            self._identifier_re_flags(),
+        )
+        if label_m and not self._is_statement_keyword(label_m.group(1)):
+            text = label_m.group(2).strip()
+        if not text:
+            return True
+        if text.startswith("'") or text.startswith('‘'):
+            return True
+        upper = text[:4].upper()
+        if upper.startswith('REM') and (
+            len(text) == 3 or text[3].isspace() or text[3] in "'"
+        ):
+            return True
+        if text.upper().startswith('DATA') and (
+            len(text) == 4 or text[4].isspace() or text[4] == ','
+        ):
+            return True
+        return False
+
+    def _map_outside_strings(self, text: str, transform) -> str:
+        """Apply ``transform`` to non-string spans only (double-quoted BASIC strings)."""
+        parts: List[str] = []
+        i = 0
+        n = len(text)
+        while i < n:
+            if text[i] == '"':
+                j = i + 1
+                while j < n:
+                    if text[j] == '"':
+                        if j + 1 < n and text[j + 1] == '"':
+                            j += 2
+                            continue
+                        j += 1
+                        break
+                    j += 1
+                parts.append(text[i:j])
+                i = j
+                continue
+            j = i
+            while j < n and text[j] != '"':
+                j += 1
+            parts.append(transform(text[i:j]))
+            i = j
+        return ''.join(parts)
+
     def set_program_line(self, line_num: int, statement: str, indent: int = 0):
         if self._program_source_numbered is None:
             self._program_source_numbered = True
-        # Drop accidental C0 controls (e.g. Ctrl+S = U+0013 from console EDIT)
-        # that break Python compile() on expressions like TIME >= 100.
-        from .helpers import _sanitize_basic_source
-        statement = _sanitize_basic_source(statement)
-        # Normalize: glue type suffixes to var names.
-        # Only glue $, !, # (rarely operators). Leave % alone because it is also the modulo operator.
-        statement = re.sub(r'(\w)\s+([!$#]+)', r'\1\2', statement)
-        statement = re.sub(r'([!$#]+)\s+(\w)', r'\1\2', statement)
+        statement = self.canonicalize_program_line(statement)
         self.program[line_num] = statement
         if indent > 0:
             self.line_indent[line_num] = indent
@@ -811,7 +904,7 @@ class RuntimeProgramMixin:
                     r'\bENDPROC\b', '\x00ENDPROC\x00', chunk, flags=re.IGNORECASE,
                 )
                 chunk = re.sub(
-                    r'\bPROC(?=[A-Za-z])', 'PROC ', chunk, flags=re.IGNORECASE,
+                    r'\bPROC(?=[A-Za-z0-9])', 'PROC ', chunk, flags=re.IGNORECASE,
                 )
                 chunk = chunk.replace('\x00ENDPROC\x00', 'ENDPROC')
                 chunk = re.sub(

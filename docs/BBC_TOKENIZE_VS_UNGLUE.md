@@ -1,7 +1,7 @@
 # BBC BASIC tokenization vs mini_basic unglue
 
-**Status:** design note (not implemented as load-time canonicalize)  
-**Date:** 2026-08-09  
+**Status:** Phase 1 **implemented** (entry canonicalize + dual runtime unglue)  
+**Date:** 2026-08-09 (updated)  
 **Related:** case-sensitive trig unglue (P0), dual LIST/SAVE formatters, `BASIC_VARIANTS.md`
 
 This records a discussion of how **real BBC BASIC** treats glued forms, and whether mini_basic should **normalize once at entry** instead of **re-ungluing on every eval**.
@@ -116,9 +116,20 @@ Tokenized `.bbc` load already converts binary → text **once**. That path is cl
 
 | Item | Decision |
 |------|----------|
-| Full load-time unglue store | **Planned design**, not immediate patch |
-| Unify LIST/SAVE formatters | **Next quality todo** (centralize spacing) |
+| Full load-time unglue store | **Phase 1 done** — `canonicalize_program_line` on `set_program_line` (LOAD + REPL/EDIT) |
+| Unify LIST/SAVE formatters | **Done** (`format/save_case.py`) |
 | Case-sensitive trig glue | **Done** (P0) — model upper keywords vs lower idents |
 | True tokenized in-memory RUN | **Out of scope** (detokenize on load only) |
+| Strip runtime unglue | **Phase 2** — remove one rewrite family at a time under tests |
 
-When implementing entry-time canonicalize, update this note with the inventory and the final “what LIST prints vs what is stored” contract.
+### Phase 1 contract (2026-08-09)
+
+| | |
+|--|--|
+| **API** | `BASICInterpreter.canonicalize_program_line(statement)` |
+| **Wired at** | `set_program_line` → all LOAD paths that use it, REPL AUTO/EDIT numbered entry |
+| **Does** | Sanitize C0; glue `$`/`!`/`#` suffixes; BBC dialect line glue (`PRINTTAB`, `DEFPROC`, `1TO10`, `MODE5`, …); monadic unglue outside strings (`TAN10`, `INKEY1`, …) |
+| **Skips monadic on** | Full-line `REM` / `'` / `DATA` |
+| **Runtime unglue** | **Still active** (dual-normalize until Phase 2 peels paths) |
+| **LIST prints** | Stored text after entry canonicalize (PRETTY may still re-indent) |
+| **Tests** | `test/test_entry_canonicalize.py` (idempotence, LOAD, REM, strings) |
