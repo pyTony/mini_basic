@@ -1,13 +1,25 @@
-"""Shebang and REM dialect hints embedded in .bas program sources."""
+"""Shebang and REM dialect hints embedded in .bas program sources.
+
+Portable form for SAVE / examples (other BASICs can load the file as a program):
+
+  1 REM dialect: bbc
+
+Avoid unnumbered ``' dialect: …`` and line ``0`` — many classic loaders reject
+unnumbered lines or line numbers below 1. mini_basic still *accepts* those
+legacy forms on LOAD (and strips a leading hint line when ``strip_line``).
+"""
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import List, Optional, Tuple
+from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from .type_system import Dialect
 
 _DIALECT_TOKEN = r'(mini|mits|bbc|commodore|tiny)'
+
+# Classic BBC-ish upper bound; stay well below for free-line search.
+_MAX_HINT_LINE = 65279
 
 
 @dataclass(frozen=True)
@@ -95,7 +107,7 @@ def _comment_body_and_source(line: str) -> Optional[Tuple[str, str]]:
 
 
 def parse_comment_dialect_line(line: str) -> Optional[DialectHint]:
-    """Parse `REM dialect: bbc` or `' dialect: bbc` (BBC SAVE/EDIT style)."""
+    """Parse `REM dialect: bbc` or `' dialect: bbc` (optional leading line number)."""
     parsed = _comment_body_and_source(line)
     if parsed is None:
         return None
@@ -135,8 +147,56 @@ def parse_rem_dialect_line(line: str) -> Optional[DialectHint]:
     return parse_comment_dialect_line(line)
 
 
+def program_has_dialect_hint(program: Dict[int, str]) -> bool:
+    """True if any stored program line is a dialect hint comment."""
+    for line_num in sorted(program):
+        if parse_comment_dialect_line(program[line_num]) is not None:
+            return True
+    return False
+
+
+def first_free_hint_line_number(used: Iterable[int]) -> Optional[int]:
+    """Smallest line number >= 1 not already used (portable; never 0)."""
+    taken: Set[int] = {int(n) for n in used if int(n) >= 1}
+    n = 1
+    while n in taken:
+        n += 1
+        if n > _MAX_HINT_LINE:
+            return None
+    return n
+
+
+def format_save_dialect_hint(
+    dialect: Dialect,
+    *,
+    program_line_numbers: Optional[Iterable[int]] = None,
+    numbered: bool = True,
+) -> Optional[str]:
+    """Text line to prepend on SAVE for non-mini dialects.
+
+    * ``numbered=True`` (standard SAVE): ``N REM dialect: bbc`` with free N >= 1
+    * ``numbered=False`` (pretty SAVE): ``REM dialect: bbc`` (structured text only)
+
+    Returns None for mini dialect, or when no free line number exists.
+    """
+    if dialect == 'mini':
+        return None
+    body = f'REM dialect: {dialect}'
+    if not numbered:
+        return body
+    n = first_free_hint_line_number(program_line_numbers or ())
+    if n is None:
+        return None
+    return f'{n} {body}'
+
+
 def split_dialect_hints(raw_lines: List[str]) -> Tuple[List[str], Optional[DialectHint]]:
-    """Remove dialect hint lines from source and return the hint, if any."""
+    """Remove a leading dialect hint line from source and return the hint, if any.
+
+    Accepts shebang, unnumbered REM/' , or numbered ``1 REM dialect: …`` as the
+    first non-blank line. Numbered hints are stripped so they do not become
+    program lines on reload into mini_basic.
+    """
     lines = list(raw_lines)
     hint: Optional[DialectHint] = None
 

@@ -612,7 +612,7 @@ def _print_dialect_compatibility_matrix() -> None:
     print('  + = yes   - = rejected in strict dialect   ~ = extension (bbc warns on load)')
     print('  tiny: use GOTO for branches; IF 1 THEN PRINT X ok, IF 1 THEN 100 not ok')
     print('  REPL: --dialect mits|commodore|tiny|bbc|mini   strict: --strict-dialect')
-    print('  File: #!bbc  or  REM dialect: bbc  at top of .bas (overrides env)')
+    print('  File: #!bbc  or  1 REM dialect: bbc  at top of .bas (overrides env)')
     print('  REPL: DIALECT [mini|mits|commodore|tiny|bbc]   CASE [on|off|auto]   MATRIX')
 
 
@@ -1240,7 +1240,7 @@ def _parse_main_args(
             print('             commodore = C64/VIC-20 MS BASIC V2 (IF GOTO, numbered)')
             print('             tiny = Tiny BASIC 1975 (IF THEN stmt only, numbered)')
             print('             bbc  = BBC-style structured (BETH.BAS); GOTO allowed')
-            print('  File hint: #!bbc  or  REM dialect: bbc  (unless --dialect set)')
+            print('  File hint: #!bbc  or  1 REM dialect: bbc  (unless --dialect set)')
             print('  --strict-dialect  treat dialect violations as load errors')
             print('  --input-exit      mini dialect only: bye/quit/exit at INPUT ends RUN')
             print('  --pygame          SDL/pygame window (same as --display pygame)')

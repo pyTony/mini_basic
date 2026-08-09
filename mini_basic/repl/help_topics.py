@@ -86,7 +86,7 @@ def _print_help_overview() -> None:
             'mini_basic -i                 REPL after RUN',
             'mini_basic --pretty file.bas  LIST structured, exit',
             '--dialect mits|commodore|tiny|bbc|mini   --strict-dialect   --pygame',
-            'Program file: #!bbc  or  REM dialect: bbc  (shebang-style hint)',
+            'Program file: #!bbc  or  1 REM dialect: bbc  (prefer numbered REM; not line 0)',
         ]),
         ('At the > prompt', [
             '123 PRINT X          store a program line',

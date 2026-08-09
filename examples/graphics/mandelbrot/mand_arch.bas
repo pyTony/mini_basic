@@ -1,4 +1,4 @@
-0 ' dialect: bbc
+1 REM dialect: bbc
 10 REM Coarse Mandelbrot — MODE 2, Archimedes OS units (scale 8x4).
 20 REM True float iteration (not the old broken TEMP/50 hybrid).
 30 REM Fat RECTANGLE blocks so the set is visible; progressive refresh.

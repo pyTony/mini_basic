@@ -308,7 +308,7 @@ class RuntimeExprMixin:
         *,
         announce: bool = False,
     ) -> None:
-        """Apply first REM/' dialect: hint in stored program (e.g. numbered line 0)."""
+        """Apply first REM/' dialect: hint found in the stored program."""
         for line_num in sorted(self.program):
             hint = parse_comment_dialect_line(self.program[line_num])
             if hint is not None:

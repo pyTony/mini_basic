@@ -1,4 +1,4 @@
-0 ' dialect: bbc
+1 REM dialect: bbc
 10 REM Full-screen Mandelbrot MODE 9 (640x512, OS scale 2) — SDL-like solid blocks.
 20 REM Do not use lone PLOT 69 with STEP: that leaves black gaps between samples.
 30 REM RECTANGLE FILL size matches STEP so tiles abut (see BBCSDL reference look).

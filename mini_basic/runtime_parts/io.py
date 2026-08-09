@@ -1728,9 +1728,22 @@ class RuntimeIoMixin:
                 self._apply_structural_indents()
 
             with open(path, 'w', encoding='utf-8') as f:
-                # Automatically add a compatible dialect hint (using ') when not using mini
-                if self.config.dialect != 'mini':
-                    f.write(f"' dialect: {self.config.dialect}\n")
+                # Portable dialect marker for non-mini (other BASICs can load the file).
+                # Prefer "N REM dialect: bbc" (N>=1), not unnumbered "'" or line 0.
+                from ..dialect_hint import format_save_dialect_hint, program_has_dialect_hint
+
+                if (
+                    self.config.dialect != 'mini'
+                    and not program_has_dialect_hint(self.program)
+                ):
+                    numbered_hint = mode_key not in ('pretty',)
+                    hint_line = format_save_dialect_hint(
+                        self.config.dialect,
+                        program_line_numbers=self.program.keys(),
+                        numbered=numbered_hint,
+                    )
+                    if hint_line:
+                        f.write(f'{hint_line}\n')
 
                 if mode_key == 'pretty':
                     for line in self._program_display_lines(
