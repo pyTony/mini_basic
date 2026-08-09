@@ -17,6 +17,7 @@ HELP_MENU_ITEMS: List[Tuple[str, str]] = [
     ('REPL', 'LIST, RUN, LOAD, EDIT, abbreviations, Tab completion'),
     ('PROGRAM', 'LOAD / SAVE / LIST / AUTO / EDIT — program file commands'),
     ('SYSTEM', '_argc, _optimization_level, TIME, ERR, ERL'),
+    ('DEBUG', '--debug / --debug-filter tags (IF, DIM, VDU, …)'),
     ('DIALECTS', 'mits / commodore / tiny / bbc / mini (same as MATRIX)'),
 ]
 
@@ -59,6 +60,9 @@ _HELP_ALIASES = {
     'STMTS': 'STATEMENTS',
     'SYSTEM': 'SYSTEM',
     'SYS': 'SYSTEM',
+    'DEBUG': 'DEBUG',
+    'DPRINT': 'DEBUG',
+    'FILTER': 'DEBUG',
     'DIALECTS': 'DIALECTS',
     'DIALECT': 'DIALECTS',
     'MATRIX': 'DIALECTS',
@@ -101,6 +105,7 @@ def _print_help_overview() -> None:
             'PRINT 1+2            immediate statement',
             'RUN  LIST  LOAD  SAVE  NEW  EDIT  MATRIX',
             'HELP PROGRAM         LOAD/SAVE/LIST/AUTO options',
+            'HELP DEBUG           --debug and filter tags',
             'bye / quit / exit    leave REPL',
         ]),
     ]
@@ -524,7 +529,67 @@ def _print_help_system() -> None:
         '  PRINT _epsilon, _float_digits, _ieee754',
         '  examples/mini/find_epsilon.bas   discover epsilon in BASIC',
         '  examples/mini/near_float.bas     NEAR / NEARSIG comparisons',
+        '',
+        'Debug: HELP DEBUG   (CLI --debug / --debug-filter)',
     ])
+
+
+def _print_help_debug() -> None:
+    """CLI and REPL help for interpreter debug output (dprint / --debug-filter)."""
+    sections = [
+        ('=== Debug output (--debug) ===', [
+            'When debugging the interpreter (not your BASIC PRINT), turn on a quiet',
+            'side channel that writes to the terminal (stderr) and mini_basic.log.',
+            'Normal program output on stdout is unchanged.',
+            '',
+            'Turn on (from the shell, before starting mini_basic):',
+            '  mini_basic --debug file.bas',
+            '  mini_basic --debug --debug-filter IF file.bas',
+            '  mini_basic --debug --debug-filter [VDU] -i',
+            '',
+            'Environment (same idea, no CLI flags):',
+            '  set MINI_BASIC_DEBUG=1',
+            '  set MINI_BASIC_DEBUG_FILTER=DIM',
+            '',
+            'Filter is a simple substring: a line is shown only if the filter text',
+            'appears in that debug line. Tags below are the usual filter keys.',
+        ]),
+        ('Filter tags (first word of each debug line)', [
+            'Tag          What it marks',
+            '----------   -----------------------------------------------',
+            '[EXEC]       each BASIC line about to run (very chatty)',
+            '[CMD]        command word + rest after parse',
+            '[IF]         IF / THEN / condition evaluation',
+            '[DIM]        DIM array declaration and store',
+            '[ARRAY]      array reference substitution problems',
+            '[BOOL]       boolean expression parse (AND/OR trees)',
+            '[CMP]        comparison operands (string vs number path)',
+            '[AND]        steps inside a boolean AND chain',
+            '[ASSIGN]     LET / assignment parse',
+            '[COMPOUND]   +=  -=  *=  /= recognition',
+            '[VDU]        text written with embedded VDU/colour codes',
+            '[MOVE]       MOVE graphics (if enabled at that site)',
+            '',
+            'Examples:',
+            '  --debug-filter IF      only IF-related lines (matches [IF])',
+            '  --debug-filter [DIM]   only DIM lines (brackets optional)',
+            '  --debug-filter VDU     colour / VDU write path',
+            '  --debug-filter ASSIGN  assignment parse only',
+            '',
+            'Without --debug-filter, --debug prints every tagged line (noisy).',
+            'Prefer a filter while tracking one bug.',
+        ]),
+        ('From Python (developers)', [
+            'from mini_basic import dprint',
+            'dprint("[IF]", "enter")     # same tags; needs --debug or active config',
+            'On the interpreter object:  interp.dprint("[DIM]", "store", name)',
+            'See mini_basic/util/debug.py for the full API.',
+        ]),
+    ]
+    for index, (title, lines) in enumerate(sections):
+        if index:
+            print()
+        _section(title, lines)
 
 
 _HELP_PRINTERS: Dict[str, Callable[[], None]] = {
@@ -540,6 +605,7 @@ _HELP_PRINTERS: Dict[str, Callable[[], None]] = {
     'REPL': _print_help_repl,
     'PROGRAM': _print_help_program,
     'SYSTEM': _print_help_system,
+    'DEBUG': _print_help_debug,
 }
 
 

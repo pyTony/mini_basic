@@ -3985,6 +3985,23 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('.bas', out)
         self.assertIn('No unnumbered AUTO', out)
 
+    def test_help_debug_topic(self):
+        from mini_basic.repl.help_topics import normalize_help_topic, print_help_topic
+
+        self.assertEqual(normalize_help_topic('DEBUG'), 'DEBUG')
+        self.assertEqual(normalize_help_topic('DPRINT'), 'DEBUG')
+        self.assertEqual(normalize_help_topic('FILTER'), 'DEBUG')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            print_help_topic('DEBUG')
+        out = buf.getvalue()
+        self.assertIn('--debug', out)
+        self.assertIn('--debug-filter', out)
+        self.assertIn('[IF]', out)
+        self.assertIn('[DIM]', out)
+        self.assertIn('[VDU]', out)
+        self.assertIn('MINI_BASIC_DEBUG', out)
+
     def test_help_browser_empty_line_exits(self):
         from mini_basic.repl.help_browser import run_help_browser
 
