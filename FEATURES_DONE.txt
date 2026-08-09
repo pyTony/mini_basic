@@ -185,6 +185,8 @@ OK pygame missing: terminal fallback + WSL/venv/apt install hints (no hard crash
 OK PRINTTAB etc.: stay bbc-only; mini unknown-statement hints --dialect bbc
   (user confirmed hanoi under --dialect bbc 2026-08-09)
 OK Phase close 2026-08-09: debug/dprint + WSL pygame UX + hanoi dialect hint
+OK piechart re-confirmed 2026-08-09 (user): MODE3 run OK; compact IF + Colour&() OR=
+  was unfamiliar syntax, not a regression (parser OR=/IF hint improved 74af4dd)
 OK Queue policy: user-raised issues always top of work queue (AGENT_POLICY §2a);
   park standing jobs; record with CURRENT_TASK Focus and optional -- USER: lines
 OK Session scripts: .txt sniff (numbered+RUN/Q), stdin batch, CLI -c/--command
