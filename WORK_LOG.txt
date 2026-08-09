@@ -66,3 +66,5 @@
 2026-08-09 10:40:16 WORK END bare EDIT: usage+LIST instead of EDIT> loop
 2026-08-09 10:45:26 WORK BEGIN dialect hint: portable numbered REM (no unnumbered/line 0)
 2026-08-09 10:46:44 WORK END dialect hint: portable numbered REM
+2026-08-09 10:52:59 WORK BEGIN HELP PROGRAM + LOAD auto .bas/.bbc extension
+2026-08-09 10:54:29 WORK END HELP PROGRAM + LOAD extension probe
