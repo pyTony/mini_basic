@@ -412,11 +412,45 @@ class RuntimeGraphicsMixin:
         self._last_emitted_fg_colour = self.text_fg_colour
         return self._ansi_fg_for_bbc_colour(self.text_fg_colour)
 
+    def _live_terminal_size(self) -> Optional[Tuple[int, int]]:
+        """Return (cols, rows) from the host terminal when it is a real TTY.
+
+        Used for PRINT wrap / comma zones so a resizable console is not stuck
+        at the MODE/default 80×30 grid. Returns None for pipes, tests, pygame.
+        """
+        backend = (self.config.display or 'terminal').strip().lower()
+        if backend in ('none', 'null', 'pygame'):
+            return None
+        if self.config.display_locked and backend == 'none':
+            return None
+        try:
+            if not sys.stdout.isatty():
+                return None
+        except Exception:
+            return None
+        try:
+            import shutil
+
+            size = shutil.get_terminal_size(fallback=(0, 0))
+            cols = int(size.columns)
+            rows = int(size.lines)
+            if cols < 1 or rows < 1:
+                return None
+            return cols, rows
+        except Exception:
+            return None
+
     def _text_cols(self) -> int:
-        return self.config.display_cols
+        live = self._live_terminal_size()
+        if live is not None:
+            return live[0]
+        return max(1, int(self.config.display_cols))
 
     def _text_rows(self) -> int:
-        return self.config.display_rows
+        live = self._live_terminal_size()
+        if live is not None:
+            return live[1]
+        return max(1, int(self.config.display_rows))
 
     @staticmethod
     def _bbc_text_colour_code(code: int) -> int:

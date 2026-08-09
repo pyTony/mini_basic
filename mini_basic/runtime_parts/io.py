@@ -1050,7 +1050,13 @@ class RuntimeIoMixin:
             prefix = '\n'
             self._print_finish_line()
         field_width = self.print_field_width
+        # 0 = tight comma: one space (not classic fixed zone). Useful in
+        # resizable terminals where zone 10 looks sparse or wraps oddly.
         if field_width <= 0:
+            if force_advance or self.print_column > 0:
+                self.print_column += 1
+                self.text_col += 1
+                return prefix + ' '
             return prefix
         if force_advance:
             remainder = self.print_column % field_width
@@ -1144,6 +1150,7 @@ class RuntimeIoMixin:
     def _print_emit_number_field(self, text: str) -> str:
         field_width = self.print_field_width
         if field_width <= 0:
+            # Tight mode: no right-justified zone; print as-is.
             return self._print_emit(text)
         remaining = field_width - (self.print_column % field_width)
         if remaining <= 0:

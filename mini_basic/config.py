@@ -124,7 +124,8 @@ SYSTEM_VAR_SPEC: Dict[str, Dict[str, object]] = {
         'target': 'interpreter',
         'attr': 'print_field_width',
         'kind': 'int',
-        'min': 1,
+        # 0 = no zone pad (single space between comma items); classic default is 10
+        'min': 0,
         'max': 255,
     },
     '_cols': {
@@ -132,8 +133,8 @@ SYSTEM_VAR_SPEC: Dict[str, Dict[str, object]] = {
         'attr': 'display_cols',
         'kind': 'int',
         'min': 1,
-        'max': 255,
-        'readonly': True,
+        'max': 512,
+        # Not readonly: program may set; live terminal width used when 0 / auto
     },
     '_rows': {
         'target': 'config',
