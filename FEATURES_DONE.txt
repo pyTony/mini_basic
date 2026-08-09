@@ -138,3 +138,5 @@ OK _parse_command memoization cache (core + program) — Mandelbrot parse overhe
 OK tree cleanup 2026-08-09: continuous-git END gate in AGENT_POLICY; gitignore debug dumps; Claude SESSION_* under docs/; junk removed (fd99199)
 
 OK compound-assign: simple var/array LHS only (keeps OR=/AND=); save_case += and * star passthrough (committed)
+
+OK Clean start 2026-08-09 @ cf06f59 — working tree clean; continuous-git END gate; docs/CLEAN_START.md + tag clean-start-2026-08-09
