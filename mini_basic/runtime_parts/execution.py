@@ -1975,6 +1975,27 @@ class RuntimeExecutionMixin:
         elif self._display_enabled():
             self._sync_graphics()
 
+    def _service_run_events(self) -> None:
+        """Poll terminal ESC/Ctrl+C and pygame window close (incl. ESC in window).
+
+        Needed during WAIT and tight loops: focus is often on the *terminal*
+        (REPL) while the game window is open; window close only appears via
+        ``poll()``, not ``pump_events()`` alone. WAIT 0 previously skipped both.
+        """
+        self._check_user_interrupt()
+        if not self._display_enabled():
+            return
+        try:
+            disp = self._display
+            if hasattr(disp, 'pump_events'):
+                disp.pump_events()
+            if hasattr(disp, 'poll') and not disp.poll():
+                self._invoke_on_close_and_exit()
+        except ProgramExit:
+            raise
+        except Exception:
+            pass
+
     def _execute_wait(
         self,
         rest: str,
@@ -2007,25 +2028,21 @@ class RuntimeExecutionMixin:
             if self._terminal_tee_enabled() and not getattr(self, '_wait_exit_hint_shown', False):
                 self._wait_exit_hint_shown = True
                 self._tee_terminal_write(
-                    '(Waiting — close the game window to exit, or press Ctrl+C.)\n',
+                    '(Waiting — close the game window, or press Esc/Ctrl+C in the terminal.)\n',
                 )
 
             if centiseconds > 0:
                 deadline = time.time() + centiseconds / 100.0
                 while time.time() < deadline:
-                    if self._display_enabled():
-                        try:
-                            if hasattr(self._display, 'pump_events'):
-                                self._display.pump_events()
-                            if not self._display.poll():
-                                self._invoke_on_close_and_exit()
-                        except ProgramExit:
-                            raise
-                        except Exception:
-                            pass
+                    self._service_run_events()
                     remaining = deadline - time.time()
                     if remaining > 0:
                         time.sleep(min(0.02, remaining))
+            else:
+                # WAIT 0: yield one slice so TIME can advance and UI stays responsive
+                # (wheel: REPEAT WAIT 0 : UNTIL T% <> TIME).
+                self._service_run_events()
+                time.sleep(0.005)
 
         except (KeyboardInterrupt, ProgramExit):
             raise
@@ -4543,17 +4560,11 @@ class RuntimeExecutionMixin:
                 line_nums = self._run_line_nums
                 try:
                     while i < len(line_nums):
-                        self._check_user_interrupt()
+                        self._service_run_events()
                         current = line_nums[i]
                         next_target = self.execute_line(
                             current, self.program[current], line_nums,
                         )
-                        if self._display_enabled():
-                            try:
-                                if hasattr(self._display, 'pump_events'):
-                                    self._display.pump_events()
-                            except Exception:
-                                pass
                         if next_target == -1:
                             return
                         if next_target is not None:

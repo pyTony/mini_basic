@@ -15,7 +15,7 @@
    120        GCOL 0
    125        CIRCLE x1%,y1%,80
    130    NEXT
-   135    ' * REFRESH
+   135    * REFRESH
    140    REPEAT WAIT 0
    150    UNTIL T% <> TIME
    160    T% = TIME
