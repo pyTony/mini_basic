@@ -18,7 +18,7 @@ import os
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 
 import pytest
 from hypothesis import given, example, strategies as st, settings, HealthCheck
@@ -65,17 +65,34 @@ _KEYWORD_STEMS = tuple(sorted(
 ))
 
 
+# Stems that still glue in case-sensitive mini/bbc when written in *lowercase*
+# (fold-only glue, or statement keywords always rewritten case-insensitively).
+_FOLD_OR_STMT_PREFIX_STEMS = frozenset(_ADDITIONAL_EXCLUSIONS) | {
+    "for", "to", "step", "next", "goto", "gosub", "return", "case", "when",
+    "and", "or", "not", "mod", "div", "if", "then", "else", "end", "dim",
+}
+
+
 def _is_safe_hypothesis_var(name: str) -> bool:
+    """Reject names unsafe under mini (case-sensitive) generative tests.
+
+    Lowercase ``tana`` is a valid identifier when case-sensitive (trig unglue
+    only matches uppercase SIN/COS/TAN). Still reject statement prefixes
+    (``forx``) and digit-glued keyword tails (``to0``).
+    """
     if name in _BUILTIN_EXCLUSIONS | _ADDITIONAL_EXCLUSIONS:
         return False
     for stem in _KEYWORD_STEMS:
         if name == stem:
             return False
-        # to0 / for1 / step3 — stem + non-letter continuation
-        if name.startswith(stem) and len(name) > len(stem) and not name[len(stem)].isalpha():
+        if not name.startswith(stem) or len(name) <= len(stem):
+            continue
+        rest0 = name[len(stem)]
+        # to0 / for1 — stem + non-letter
+        if not rest0.isalpha():
             return False
-        # forx / nextx — full keyword prefix when stem is a statement keyword
-        if stem in _ADDITIONAL_EXCLUSIONS and name.startswith(stem):
+        # forx / nextx / andx — statement / operator keywords as prefixes
+        if stem in _FOLD_OR_STMT_PREFIX_STEMS:
             return False
     return True
 
@@ -457,6 +474,49 @@ class TestNestedForMatching(unittest.TestCase):
         self.assertNotIn("?", out, f"prog:\n{prog}\nout:\n{out}")
         # Expect 4 lines of output like "1 1\n1 2\n2 1\n2 2\n" or similar
         self.assertEqual(len(out.strip().splitlines()), 4, f"prog:\n{prog}\nout:\n{out}")
+
+
+class TestCaseSensitiveTrigIdents(unittest.TestCase):
+    """Case-sensitive: lowercase tana/sina are vars; uppercase SINa still glues."""
+
+    def _run(self, lines, *, case_sensitive: bool):
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect="mini",
+                display="none",
+                identifiers_case_sensitive=case_sensitive,
+            )
+        )
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            for i, line in enumerate(lines, 1):
+                interp.set_program_line(i * 10, line)
+            interp.run()
+        return buf.getvalue(), err.getvalue()
+
+    def test_lowercase_tana_is_variable_when_case_sensitive(self):
+        out, err = self._run(
+            ["tana=5", "PRINT tana", "END"],
+            case_sensitive=True,
+        )
+        self.assertNotIn("?", err + out)
+        self.assertEqual(out.strip(), "5")
+
+    def test_uppercase_SINa_still_glues_when_case_sensitive(self):
+        out, err = self._run(
+            ["a=0", "PRINT SINa", "END"],
+            case_sensitive=True,
+        )
+        self.assertNotIn("?", err + out)
+        self.assertTrue(out.strip().endswith("0") or out.strip() == "0")
+
+    def test_fold_mode_still_unglues_lowercase_sina(self):
+        out, err = self._run(
+            ["a=0", "PRINT sina", "END"],
+            case_sensitive=False,
+        )
+        self.assertNotIn("?", err + out)
 
 
 class TestForCaseSensitiveToVar(unittest.TestCase):

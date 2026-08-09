@@ -111,27 +111,44 @@ class DialectHintTests(unittest.TestCase):
         self.assertEqual(interp.config.dialect, 'bbc')
         self.assertEqual(buf.getvalue().strip(), 'ok')
 
-    @unittest.skip(reason="Hangs because display stays open")
     def test_line_zero_dialect_and_mode_enable_pygame_before_run(self):
-        interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='terminal'))
+        old_driver = os.environ.get('SDL_VIDEODRIVER')
+        os.environ['SDL_VIDEODRIVER'] = 'dummy'
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='mini',
+                display='terminal',
+                hold_display_open=False,
+            ),
+        )
         interp.program = {
-            0: "' dialect: bbc",
+            1: 'REM dialect: bbc',
             10: 'MODE 2',
             20: 'GCOL 0, 1',
             30: 'END',
         }
-        with redirect_stdout(io.StringIO()):
-            interp._apply_dialect_hints_from_program(announce=False)
-            interp._maybe_auto_enable_pygame_from_program(announce=False)
-        self.assertEqual(interp.config.dialect, 'bbc')
-        self.assertEqual(interp.config.display, 'pygame')
+        try:
+            with redirect_stdout(io.StringIO()):
+                interp._apply_dialect_hints_from_program(announce=False)
+                interp._maybe_auto_enable_pygame_from_program(announce=False)
+            self.assertEqual(interp.config.dialect, 'bbc')
+            self.assertEqual(interp.config.display, 'pygame')
+        finally:
+            interp._shutdown_display()
+            if old_driver is None:
+                os.environ.pop('SDL_VIDEODRIVER', None)
+            else:
+                os.environ['SDL_VIDEODRIVER'] = old_driver
 
-    @unittest.skip(reason="Hangs because display stays open")
     def test_gcol_enables_pygame_mid_run_when_only_mode_in_program(self):
         old_driver = os.environ.get('SDL_VIDEODRIVER')
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         interp = BASICInterpreter(
-            InterpreterConfig(dialect='mini', display='terminal', hold_display_open=False),
+            InterpreterConfig(
+                dialect='mini',
+                display='terminal',
+                hold_display_open=False,
+            ),
         )
         interp.program = {
             10: 'MODE 2',
@@ -140,15 +157,20 @@ class DialectHintTests(unittest.TestCase):
         }
         try:
             with redirect_stdout(io.StringIO()):
-                interp.run()
+                # Force no hold even if config is overridden by display enable.
+                with patch.object(interp, '_shutdown_display', lambda *a, **k: None):
+                    interp.run()
             self.assertEqual(interp.config.display, 'pygame')
         finally:
-            interp._shutdown_display()
+            try:
+                interp._shutdown_display(hold=False)
+            except Exception:
+                pass
             if old_driver is None:
                 os.environ.pop('SDL_VIDEODRIVER', None)
             else:
                 os.environ['SDL_VIDEODRIVER'] = old_driver
-            
+
 
 if __name__ == '__main__':
     unittest.main()

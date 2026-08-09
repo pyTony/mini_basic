@@ -1591,24 +1591,11 @@ class RuntimeExprMixin:
             return '0'
 
     def _expand_numeric_builtin_calls(self, expr: str) -> str:
-        # Always match builtin function names case-insensitively (EVAL, SIN, etc. are keywords).
-        # Variable identifier case-sensitivity is handled separately in substitution.
-        # BBC glued bare-arg forms before general match.
+        # Builtin *keywords* match case-insensitively below; glued COSa / SINRADT
+        # must respect identifier case mode (see _unglue_trig_idents).
         # jclock: SINRADT with T in *degrees* (I%*30) means SIN(RAD(T)), not SINRAD(T).
         # Parenthesized SINRAD(x) still means sin(x radians) via the SINRAD builtin.
-        expr = re.sub(
-            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
-            r'\1(RAD(\2))',
-            expr,
-            flags=re.IGNORECASE,
-        )
-        # piechart: COSa / SINa / COSb → COS(a) / SIN(a) / COS(b)
-        expr = re.sub(
-            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
-            r'\1(\2)',
-            expr,
-            flags=re.IGNORECASE,
-        )
+        expr = self._unglue_trig_idents(expr)
         # VALMID$(s,i) → VAL(MID$(s,i)) (balanced parens)
         val_glued = re.compile(
             r'(?<![A-Za-z0-9_])VAL(MID\$|LEFT\$|RIGHT\$)\s*\(',
@@ -2695,23 +2682,33 @@ class RuntimeExprMixin:
         return self._eval_arith_core_slow(expr)
 
     def _unglue_unary_not(self, expr: str) -> str:
-        """BBC often glues unary NOT: NOTX → NOT X (saucer PLOT 69,NOTX,Y)."""
+        """BBC often glues unary NOT: NOTX → NOT X (saucer PLOT 69,NOTX,Y).
+
+        Case-sensitive dialects: only uppercase NOT is a keyword (``notx`` stays
+        an identifier). Fold mode: case-insensitive (classic MS-style).
+        """
+        if self._identifiers_case_sensitive():
+            return re.sub(r'(?<![A-Za-z0-9_])NOT(?=[A-Za-z_(])', 'NOT ', expr)
         return re.sub(r'\bNOT(?=[A-Za-z_(])', 'NOT ', expr, flags=re.IGNORECASE)
 
     def _unglue_trig_idents(self, expr: str) -> str:
-        """COSa / SINRADT → COS(a) / SIN(RAD(T)) before compile (MOVE/PLOT coords)."""
-        expr = re.sub(
-            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
-            r'\1(RAD(\2))',
-            expr,
-            flags=re.IGNORECASE,
-        )
-        expr = re.sub(
-            r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])',
-            r'\1(\2)',
-            expr,
-            flags=re.IGNORECASE,
-        )
+        """COSa / SINRADT → COS(a) / SIN(RAD(T)) before compile (MOVE/PLOT coords).
+
+        Case-sensitive (mini/bbc default): keywords are uppercase only, so
+        ``SINa`` / ``SINRADT`` unglue but lowercase ``tana`` / ``sina`` stay
+        variable names. Fold mode: case-insensitive unglue for BBCSDL glue style.
+        """
+        if self._identifiers_case_sensitive():
+            flags = 0
+            # Uppercase function names only (BBC keyword rule).
+            rad = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
+            bare = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
+        else:
+            flags = re.IGNORECASE
+            rad = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)RAD([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
+            bare = r'(?<![A-Za-z0-9_])(SIN|COS|TAN)([A-Za-z_][\w%]*)(?![A-Za-z0-9_$(])'
+        expr = re.sub(rad, r'\1(RAD(\2))', expr, flags=flags)
+        expr = re.sub(bare, r'\1(\2)', expr, flags=flags)
         return expr
 
     def _unglue_inkey_digits(self, expr: str) -> str:
@@ -2778,6 +2775,7 @@ class RuntimeExprMixin:
         if not expr:
             return False
         expr = self._unglue_unary_not(expr)
+        expr = self._unglue_trig_idents(expr)
         expr = self._unglue_inkey_digits(expr)
         if self.config.use_compiled_exprs:
             return bool(

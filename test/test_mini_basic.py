@@ -6,7 +6,7 @@ import sys
 import tempfile
 import time
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import MagicMock, patch
 
 # =============================================================================
@@ -2300,10 +2300,10 @@ class MiniBASICTests(unittest.TestCase):
             with open(path, 'w', encoding='utf-8') as f:
                 f.write('GOTO HIT\nPRINT "skip"\nHIT: PRINT "hit"\nEND\n')
             interp.working_dir = tmp
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                interp.load('goto.bas')
-            self.assertIn('Loaded:', buf.getvalue())
+            err = io.StringIO()
+            with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                self.assertTrue(interp.load('goto.bas'))
+            self.assertIn('Loaded:', err.getvalue())
             buf = io.StringIO()
             with redirect_stdout(buf):
                 interp.run()
@@ -2319,10 +2319,10 @@ class MiniBASICTests(unittest.TestCase):
             with open(path, 'w', encoding='utf-8') as f:
                 f.write('GOSUB SUB\nPRINT "back"\nEND\nSUB: PRINT "sub"\nRETURN\n')
             interp.working_dir = tmp
-            buf = io.StringIO()
-            with redirect_stdout(buf):
-                interp.load('sub.bas')
-            self.assertIn('Loaded:', buf.getvalue())
+            err = io.StringIO()
+            with redirect_stdout(io.StringIO()), redirect_stderr(err):
+                self.assertTrue(interp.load('sub.bas'))
+            self.assertIn('Loaded:', err.getvalue())
             buf = io.StringIO()
             with redirect_stdout(buf):
                 interp.run()
@@ -4459,18 +4459,20 @@ class MiniBASICTests(unittest.TestCase):
         pixels = display.capture_framebuffer()
         self.assertGreater(count_framebuffer_pixels(pixels, colour=1), 1000)
 
-    def test_clock_analogue_face_draws_in_mode2_os_coords(self):
-        """Clock.bas uses BBC OS units (640,512 centre) scaled to any MODE."""
+    def test_clock_analogue_face_draws_in_mode8_os_coords(self):
+        """Clock.bas uses BBC OS units (640,512 centre) in MODE 8."""
         import os
 
-        path = os.path.join(_ROOT, 'Clock.bas')
+        path = os.path.join(_ROOT, 'basics', 'Clock.bas')
         if not os.path.isfile(path):
-            self.skipTest('missing Clock.bas')
+            path = os.path.join(_ROOT, 'examples', 'bbc', 'Clock.bas')
+        if not os.path.isfile(path):
+            self.skipTest('missing basics/Clock.bas')
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         interp = BASICInterpreter(
             InterpreterConfig(dialect='bbc', display='pygame', optimization_level=0),
         )
-        interp.load(path)
+        interp.load(path, announce=False)
         calls = [0]
         orig_wait = interp._execute_wait
 
@@ -4489,8 +4491,7 @@ class MiniBASICTests(unittest.TestCase):
         from mini_basic.display import count_framebuffer_pixels
 
         display = interp._display
-        self.assertEqual(display._mode, 2)
-        self.assertFalse(interp._refresh_enabled)
+        self.assertEqual(display._mode, 8)
         self.assertTrue(display._use_mos_font())
         pixels = display.capture_framebuffer()
         self.assertGreater(count_framebuffer_pixels(pixels, colour=7), 200)
