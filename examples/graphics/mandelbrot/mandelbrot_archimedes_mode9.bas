@@ -23,12 +23,12 @@
 220   FOR PX% = 0 TO NX% - ST% STEP ST%
 230     CX = XMIN + (PX% / (NX% - 1)) * (XMAX - XMIN)
 240     I% = 0 : ZX = 0 : ZY = 0 : CONT = -1
-250     WHILE I% < MAXITER%
+250     WHILE CONT AND (I% < MAXITER%)
 260       TEMP = ZX * ZX - ZY * ZY
 270       ZY = 2 * ZX * ZY + CY
 280       ZX = TEMP + CX
 290       I% = I% + 1
-300       IF (ZX * ZX + ZY * ZY > 4) THEN EXIT WHILE
+300       CONT = (ZX * ZX + ZY * ZY < 4)
 310     ENDWHILE
 320     IF I% < MAXITER% THEN
 330       COL% = (I% MOD 7) + 1

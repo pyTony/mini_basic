@@ -71,6 +71,13 @@ desktop.ini
 *.swp
 *~
 
+# Embedded Python / REPL deps (local install tree, not vendored in repo)
+tools/python-embed/
+
+# Local scratch I/O
+INPUT.TXT
+out.txt
+
 # Local data / dumps / agent debug
 data.txt
 data2.txt
