@@ -1,7 +1,6 @@
-Focus: idle after mandelbrot hot-path micro-opts (user quota-saving pause)
+Focus: piechart compact IF — Colour&() OR= 8 must stay the body
 
-Recent: user 76.2s full Mandelbrot (best so far). Extra general wins: compiled
-ns reuse, eval cache-hit, assignment parse cache, precompiled bool regex.
-4-line compute 2.32s → 1.62s. Waiting on user full retime.
+Recent: IF Y% = Cy% + Depth Colour&() OR= 8 split as linenum 8 (if_then_line).
+Not caused by Mandelbrot perf. User asked for this fix.
 
 Repo: D:\1\OneDrive - FFWPU-Fin\mini_basic

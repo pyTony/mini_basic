@@ -109,3 +109,5 @@
 2026-08-13 08:16:55 WORK BEGIN mandelbrot: compile numeric comparisons (CONT= zx*zx+zy*zy<4)
 2026-08-13 08:31:06 WORK END mandelbrot: compiled numeric comparison + 50ms poll; 4-line bench compute 2.24s / gfx 2.64s
 2026-08-13 08:39:47 WORK END mandelbrot micro-opts: cache-hit eval, ns reuse, assign parse cache, precompiled bool regex; 4-line 1.62s vs 2.32s
+2026-08-13 08:57:04 WORK BEGIN piechart compact IF: do not let trailing 8 steal Colour&() OR= body
+2026-08-13 08:57:50 WORK END piechart compact IF: linenum split does not overwrite Colour&() OR= body

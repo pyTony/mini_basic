@@ -1320,8 +1320,11 @@ class RuntimeCoreMixin:
             if not condition or not statement:
                 continue
             # MS/BBC: IF cond linenum  (no THEN) — e.g. IF Y$<>"N" 15
+            # Do not let a trailing RHS number steal a real statement already
+            # found: piechart ``IF Y% = Cy% + Depth Colour&() OR= 8``.
             if re.fullmatch(r'\d+', statement) and self._dialect_allows('if_then_line'):
-                best = (condition, statement)
+                if best is None:
+                    best = (condition, statement)
                 continue
             if not self._looks_like_statement(statement):
                 continue

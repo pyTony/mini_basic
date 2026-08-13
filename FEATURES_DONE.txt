@@ -198,4 +198,5 @@ OK Mandelbrot numeric comparison compile: CONT=(ZX*ZX+ZY*ZY<4) uses compiled -1/
   throttled 50ms in _service_run_events; compute_only 81.5s full / ~2.3s for 4 scanlines
 OK eval hot-path: reuse compiled ns (no clear), cache-hit skip boolean scan,
   memoize assignment parse, precompile AND/OR/cmp regexes; 4-line 2.32s→1.62s
+OK piechart compact IF: trailing linenum 8 no longer steals ``Colour&() OR= 8``
 -- Mandelbrot still ~20×+ slower than BBCSDL (~3s); leftover is statement dispatch
