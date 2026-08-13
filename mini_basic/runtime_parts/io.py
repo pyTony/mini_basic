@@ -1897,6 +1897,16 @@ class RuntimeIoMixin:
         if announce:
             print(f'Loaded: {path}', file=self._get_error_stream())
         self._apply_dialect_hints_from_parsed_lines(parsed_lines, announce=announce)
+        already_gfx = self._display_backend_name() == 'pygame'
         self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+        if (
+            announce
+            and already_gfx
+            and self._program_statements_use_graphics(parsed_lines)
+        ):
+            print(
+                f'Graphics: {os.path.basename(path)} (pygame)',
+                file=self._get_error_stream(),
+            )
         return True
 

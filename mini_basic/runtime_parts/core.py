@@ -2027,6 +2027,7 @@ class RuntimeCoreMixin:
         self.array_storage.clear()
         self.data_pointer = 0
         self._rnd_last = 0.0
+        self._refresh_enabled = True
         self.stack.clear()
         self.if_stack.clear()
         self.gosub_stack.clear()
@@ -2074,6 +2075,8 @@ class RuntimeCoreMixin:
         self._prepare_run()
         self._apply_dialect_hints_from_program(announce=False)
         self._maybe_auto_enable_pygame_from_program(announce=True)
+        self._apply_program_refresh_off_at_start()
+        self._announce_program_graphics()
         self._ensure_display()
 
         self._run_interrupt_watch = True

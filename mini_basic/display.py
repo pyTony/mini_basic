@@ -1119,7 +1119,13 @@ class PygameDisplay(DisplayBackend):
                 self._gfx = None
             self._refresh_font()
             self.clear()
-            self.present()
+            # *REFRESH OFF programs (soccerball): MODE/COLOUR must not flip a
+            # green empty frame while CIRCLE FILL still runs.
+            if getattr(self, '_refresh_enabled', True):
+                self.present()
+            else:
+                self.mark_dirty()
+                self._compose_full = True
             self.pump_events()
         else:
             self._refresh_font()

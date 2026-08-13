@@ -402,7 +402,10 @@ class BBCGraphics:
         trgb = self._truecolour_rgb
         n = x1 - x0 + 1
         if mode == 0:
-            row[x0 : x1 + 1] = [colour] * n
+            if self._np is not None:
+                row[x0 : x1 + 1] = colour
+            else:
+                row[x0 : x1 + 1] = [colour] * n
             if trgb is not None and colour != 0:
                 for sx in range(x0, x1 + 1):
                     rgb_row[sx] = trgb

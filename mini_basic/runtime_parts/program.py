@@ -791,6 +791,38 @@ class RuntimeProgramMixin:
         ]
         self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
 
+    def _current_program_parsed_lines(self) -> List[Tuple[int, str, int]]:
+        return [
+            (line_num, statement, self.line_indent.get(line_num, 0))
+            for line_num, statement in sorted(self.program.items())
+        ]
+
+    def _program_uses_refresh_off(self) -> bool:
+        """True if the program turns automatic refresh off (draw then *REFRESH)."""
+        for _, statement, _ in self._current_program_parsed_lines():
+            for part in self._split_colon_statements(statement):
+                raw = part.strip().lstrip('*').strip().upper()
+                if raw.startswith('REFRESH') and raw[7:].strip().startswith('OFF'):
+                    return True
+        return False
+
+    def _apply_program_refresh_off_at_start(self) -> None:
+        """Don't flash MODE/COLOUR before the first *REFRESH (REPL second RUN)."""
+        if not self._program_uses_refresh_off():
+            return
+        self._refresh_enabled = False
+        if self._display is not None:
+            setattr(self._display, '_refresh_enabled', False)
+
+    def _announce_program_graphics(self) -> None:
+        if not self.program:
+            return
+        if not self._program_statements_use_graphics(self._current_program_parsed_lines()):
+            return
+        name = os.path.basename(self.loaded_filename or '') or 'program'
+        backend = self._display_backend_name()
+        print(f'Graphics: {name} ({backend})')
+
     def _scan_statement_dialect_violations(self, statement: str) -> List[str]:
         violations: List[str] = []
         for part in self._split_colon_statements(statement):

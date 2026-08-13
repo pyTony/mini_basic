@@ -89,6 +89,19 @@ class AutoEnableGuiGateTests(unittest.TestCase):
                 interp._maybe_auto_enable_pygame_display(parsed, announce=False)
         self.assertEqual(interp.config.display, 'pygame')
 
+    def test_refresh_off_program_starts_without_auto_present(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
+        )
+        interp.program[10] = 'MODE 9'
+        interp.program[20] = '*REFRESH OFF'
+        interp.program[30] = 'CIRCLE FILL 0,0,10'
+        interp.program[40] = '*REFRESH'
+        self.assertTrue(interp._program_uses_refresh_off())
+        interp._refresh_enabled = True
+        interp._apply_program_refresh_off_at_start()
+        self.assertFalse(interp._refresh_enabled)
+
     def test_load_updates_caption_from_basename(self):
         interp = BASICInterpreter(
             InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
