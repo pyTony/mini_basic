@@ -965,6 +965,19 @@ class PygameDisplay(DisplayBackend):
                 if self._window_fits_on_screen():
                     break
             win_w, win_h = self._window_client_size()
+        self._refresh_window_caption()
+        logical_w, logical_h = self._logical_canvas_size()
+        self._canvas = pygame.Surface((logical_w, logical_h))
+        if self._font is None:
+            self._refresh_font()
+        if self._clock is None:
+            self._clock = pygame.time.Clock()
+
+    def _refresh_window_caption(self) -> None:
+        """Apply ``self.caption`` plus MODE/scale to the OS window title."""
+        pygame = self._pygame
+        if pygame is None or not getattr(pygame, 'display', None):
+            return
         spec = bbc_mode_spec(self._mode)
         if spec is not None and spec.plot_enabled and spec.gfx_width:
             mode_note = f' MODE{self._mode} {spec.gfx_width}x{spec.gfx_height}'
@@ -972,15 +985,15 @@ class PygameDisplay(DisplayBackend):
             mode_note = ' MODE7 Teletext'
         else:
             mode_note = f' MODE{self._mode}' if self._mode <= 7 else ''
-        pygame.display.set_caption(
-            f'{self.caption}{mode_note} ({self.scale}x, {win_w}x{win_h})'
-        )
-        logical_w, logical_h = self._logical_canvas_size()
-        self._canvas = pygame.Surface((logical_w, logical_h))
-        if self._font is None:
-            self._refresh_font()
-        if self._clock is None:
-            self._clock = pygame.time.Clock()
+        try:
+            win_w, win_h = self._window_client_size()
+            suffix = f' ({self.scale}x, {win_w}x{win_h})'
+        except Exception:
+            suffix = f' ({self.scale}x)'
+        try:
+            pygame.display.set_caption(f'{self.caption}{mode_note}{suffix}')
+        except Exception:
+            pass
 
     def _center_window(self) -> None:
         pygame = self._pygame

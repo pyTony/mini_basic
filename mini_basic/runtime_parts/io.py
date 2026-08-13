@@ -1892,7 +1892,8 @@ class RuntimeIoMixin:
         self._program_source_numbered = source_was_numbered
         for line_num, statement, indent in parsed_lines:
             self.set_program_line(line_num, statement, indent)
-        self.loaded_filename = filename
+        self.loaded_filename = path
+        self._sync_display_caption(os.path.basename(path))
         if announce:
             print(f'Loaded: {path}', file=self._get_error_stream())
         self._apply_dialect_hints_from_parsed_lines(parsed_lines, announce=announce)

@@ -496,6 +496,22 @@ class RuntimeGraphicsMixin:
             return
         self._enable_pygame_display(announce=announce)
 
+    def _sync_display_caption(self, caption: str) -> None:
+        """Window title follows the last successful LOAD (not the first .bbc)."""
+        name = str(caption or '').strip() or 'mini_basic'
+        self.config.display_caption = name
+        disp = self._display
+        if disp is None:
+            return
+        if hasattr(disp, 'caption'):
+            disp.caption = name
+        refresh = getattr(disp, '_refresh_window_caption', None)
+        if callable(refresh):
+            try:
+                refresh()
+            except Exception:
+                pass
+
     def _enable_pygame_display(self, *, announce: bool = True) -> None:
         if self.config.display_locked:
             return
@@ -524,7 +540,7 @@ class RuntimeGraphicsMixin:
         self.config.hold_display_open = True
         _apply_pygame_display_defaults(self.config)
         if self.loaded_filename:
-            self.config.display_caption = os.path.basename(self.loaded_filename)
+            self._sync_display_caption(os.path.basename(self.loaded_filename))
         if announce:
             print(
                 'Graphics detected; pygame display enabled '

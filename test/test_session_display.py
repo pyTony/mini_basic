@@ -89,6 +89,22 @@ class AutoEnableGuiGateTests(unittest.TestCase):
                 interp._maybe_auto_enable_pygame_display(parsed, announce=False)
         self.assertEqual(interp.config.display, 'pygame')
 
+    def test_load_updates_caption_from_basename(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
+        )
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        bbc = os.path.join(root, 'examples', 'graphics', 'soccerball.bbc')
+        bas = os.path.join(root, 'examples', 'graphics', 'soccerball.bas')
+        if not (os.path.isfile(bbc) and os.path.isfile(bas)):
+            self.skipTest('soccerball examples missing')
+        with redirect_stdout(StringIO()):
+            self.assertTrue(interp.load(bbc, announce=False))
+        self.assertEqual(interp.config.display_caption, 'soccerball.bbc')
+        with redirect_stdout(StringIO()):
+            self.assertTrue(interp.load(bas, announce=False))
+        self.assertEqual(interp.config.display_caption, 'soccerball.bas')
+
     def test_ensure_display_replaces_terminal_after_auto_pygame(self):
         """REPL already has TerminalDisplay; RUN must swap to pygame (not paint console)."""
         os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
