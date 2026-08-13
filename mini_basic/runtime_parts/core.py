@@ -2078,6 +2078,7 @@ class RuntimeCoreMixin:
         self._apply_program_refresh_off_at_start()
         self._announce_program_graphics()
         self._ensure_display()
+        self._apply_program_refresh_off_at_start()
 
         self._run_interrupt_watch = True
         try:

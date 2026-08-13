@@ -374,7 +374,11 @@ class RuntimeGraphicsMixin:
         if hasattr(self._display, 'fps_limit'):
             self._display.fps_limit = max(0, int(self.config.display_fps_limit))
         # Reopen after user closed the window (or first open).
+        if self._display is not None:
+            setattr(self._display, '_refresh_enabled', self._refresh_enabled)
         if not self._display_live or not self._display_is_alive():
+            if self._display is not None:
+                setattr(self._display, '_refresh_enabled', self._refresh_enabled)
             try:
                 self._display.begin_run()
             except Exception:

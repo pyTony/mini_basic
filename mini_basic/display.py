@@ -1058,7 +1058,10 @@ class PygameDisplay(DisplayBackend):
         except Exception:
             pass
         self.clear()
-        self.present()
+        # After closing the window and RUN again, leftover COLOUR 130 must
+        # not flip a green empty frame before *REFRESH.
+        if getattr(self, '_refresh_enabled', True):
+            self.present()
 
     def end_run(self) -> None:
         if self._open or self._screen is not None:

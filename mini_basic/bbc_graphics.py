@@ -101,9 +101,9 @@ class BBCGraphics:
         self.gcol_bg: GColState = (0, 0)
         self._np = _try_numpy()
         self.pixels = self._alloc_pixels(width, height, fill=0)
-        self.rgb_pixels: List[List[Optional[RGB]]] = [
-            [None for _ in range(width)] for _ in range(height)
-        ]
+        # Allocate only when truecolour/DISPLAY writes; soccerball MODE/CLS
+        # used to build 640×512 Nones every RUN (~seconds).
+        self.rgb_pixels: Optional[List[List[Optional[RGB]]]] = None
         self.rgb_dirty: set[Tuple[int, int]] = set()  # (sx, sy) with non-None rgb_pixels entry
         self._truecolour_rgb: Optional[RGB] = None
         # Optional screen-space ellipse clip (scx, scy, srx, sry) from last CIRCLE FILL.
@@ -174,6 +174,13 @@ class BBCGraphics:
         sy = self.height - 1 - int(abs_y) // max(1, self.y_scale)
         return sx, sy
 
+    def _ensure_rgb_pixels(self) -> List[List[Optional[RGB]]]:
+        if self.rgb_pixels is None:
+            self.rgb_pixels = [
+                [None for _ in range(self.width)] for _ in range(self.height)
+            ]
+        return self.rgb_pixels
+
     def clear_graphics(self, bg_colour: int | None = None) -> None:
         """CLG / VDU 16 — fill graphics window (or full screen) with GCOL background.
 
@@ -186,17 +193,11 @@ class BBCGraphics:
         if self._viewport_os is None:
             if self.pixels_is_numpy:
                 self.pixels.fill(bg_b)
-                # rgb overrides: cheap full clear
-                for y in range(self.height):
-                    rgb_row = self.rgb_pixels[y]
-                    for x in range(self.width):
-                        rgb_row[x] = None
             else:
+                fill = [bg_b] * self.width
                 for y, row in enumerate(self.pixels):
-                    rgb_row = self.rgb_pixels[y]
-                    for x in range(self.width):
-                        row[x] = bg_b
-                        rgb_row[x] = None
+                    row[:] = fill
+            self.rgb_pixels = None
             self.rgb_dirty.clear()
             self.mark_full_dirty()
             self.plot_count = 0
@@ -223,10 +224,11 @@ class BBCGraphics:
         else:
             for sy in range(sy0, sy1 + 1):
                 row = self.pixels[sy]
-                rgb_row = self.rgb_pixels[sy]
+                rgb_row = self.rgb_pixels[sy] if self.rgb_pixels is not None else None
                 for sx in range(sx0, sx1 + 1):
                     row[sx] = bg_b
-                    rgb_row[sx] = None
+                    if rgb_row is not None:
+                        rgb_row[sx] = None
         # Drop rgb_dirty points inside the cleared rect
         if self.rgb_dirty:
             self.rgb_dirty = {
@@ -398,27 +400,29 @@ class BBCGraphics:
             return
         mode, colour = gcol
         row = self.pixels[sy]
-        rgb_row = self.rgb_pixels[sy]
         trgb = self._truecolour_rgb
         n = x1 - x0 + 1
         if mode == 0:
-            if self._np is not None:
+            if self.pixels_is_numpy:
                 row[x0 : x1 + 1] = colour
             else:
                 row[x0 : x1 + 1] = [colour] * n
             if trgb is not None and colour != 0:
+                rgb_row = self._ensure_rgb_pixels()[sy]
                 for sx in range(x0, x1 + 1):
                     rgb_row[sx] = trgb
                     self.rgb_dirty.add((sx, sy))
-            elif colour == 0:
+            elif colour == 0 and self.rgb_pixels is not None:
+                rgb_row = self.rgb_pixels[sy]
                 for sx in range(x0, x1 + 1):
                     if rgb_row[sx] is not None:
                         rgb_row[sx] = None
                         self.rgb_dirty.discard((sx, sy))
         else:
+            rgb_row = self._ensure_rgb_pixels()[sy] if trgb is not None else None
             for sx in range(x0, x1 + 1):
                 row[sx] = apply_gcol(int(row[sx]), colour, mode)
-                if trgb is not None and int(row[sx]) != 0:
+                if rgb_row is not None and int(row[sx]) != 0:
                     rgb_row[sx] = trgb
                     self.rgb_dirty.add((sx, sy))
         self._mark_pixel_dirty(x0, sy)
@@ -443,11 +447,9 @@ class BBCGraphics:
         self._mark_pixel_dirty(sx, sy)
         self.plot_count += 1
         if self._truecolour_rgb is not None and new != 0:
-            self.rgb_pixels[sy][sx] = self._truecolour_rgb
+            self._ensure_rgb_pixels()[sy][sx] = self._truecolour_rgb
             self.rgb_dirty.add((sx, sy))
-        else:
-            # Drop DISPLAY/truecolour overrides so palette GCOL (incl. XOR mode 3
-            # VDU 5 labels on piechart) is what present() shows.
+        elif self.rgb_pixels is not None:
             self.rgb_pixels[sy][sx] = None
             self.rgb_dirty.discard((sx, sy))
 
@@ -466,7 +468,7 @@ class BBCGraphics:
             if not pixel_inside_disc_ellipse(sx, sy, scx, scy, srx, sry):
                 return
         self.pixels[sy][sx] = int(colour) & 0xFF
-        self.rgb_pixels[sy][sx] = (
+        self._ensure_rgb_pixels()[sy][sx] = (
             int(rgb[0]) & 0xFF,
             int(rgb[1]) & 0xFF,
             int(rgb[2]) & 0xFF,
@@ -795,7 +797,11 @@ class BBCGraphics:
             uy = float((h - 1 - sy) * ys - oy - cy)
             uy2 = uy * uy
             row = self.pixels[sy]
-            rgb_row = self.rgb_pixels[sy]
+            rgb_row = (
+                self._ensure_rgb_pixels()[sy]
+                if true_rgb is not None or self.rgb_pixels is not None
+                else None
+            )
             for sx in range(x_lo, x_hi + 1):
                 ux = float(sx * xs - ox - cx)
                 if ux * ux + uy2 > r2:
@@ -811,10 +817,10 @@ class BBCGraphics:
                         continue
                 if use_replace:
                     row[sx] = colour_b
-                    if true_rgb is not None:
+                    if true_rgb is not None and rgb_row is not None:
                         rgb_row[sx] = true_rgb
                         self.rgb_dirty.add((sx, sy))
-                    else:
+                    elif rgb_row is not None:
                         rgb_row[sx] = None
                         self.rgb_dirty.discard((sx, sy))
                     painted += 1
@@ -866,12 +872,13 @@ class BBCGraphics:
         patch[mask] = colour_b
         n = int(mask.sum())
         if true_rgb is not None:
+            layer = self._ensure_rgb_pixels()
             ys_i, xs_i = np.nonzero(mask)
             for j, i in zip(ys_i.tolist(), xs_i.tolist()):
                 py, px = y_lo + j, x_lo + i
-                self.rgb_pixels[py][px] = true_rgb
+                layer[py][px] = true_rgb
                 self.rgb_dirty.add((px, py))
-        elif self.rgb_dirty:
+        elif self.rgb_dirty and self.rgb_pixels is not None:
             # Only scrub overrides if any exist (piechart uses palette only).
             ys_i, xs_i = np.nonzero(mask)
             for j, i in zip(ys_i.tolist(), xs_i.tolist()):

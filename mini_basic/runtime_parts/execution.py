@@ -2336,7 +2336,9 @@ class RuntimeExecutionMixin:
                                 if d < best_d:
                                     best_d, best = d, ci
                             gfx.pixels[py][px] = best
-                            if hasattr(gfx, 'rgb_pixels'):
+                            if hasattr(gfx, '_ensure_rgb_pixels'):
+                                gfx._ensure_rgb_pixels()[py][px] = (r, g, b)
+                            elif getattr(gfx, 'rgb_pixels', None) is not None:
                                 gfx.rgb_pixels[py][px] = (r, g, b)
                                 if hasattr(gfx, 'rgb_dirty'):
                                     gfx.rgb_dirty.add((px, py))
