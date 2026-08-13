@@ -942,9 +942,8 @@ def _looks_like_repl_command_script(lines: List[str]) -> bool:
         if is_meta:
             saw_session = True
             continue
-        # Immediate BASIC (PRINT, FOR, assignment, …) implies a session file.
-        saw_session = True
-    # Numbered-only → program; any session/meta/immediate → command script.
+        # Unnumbered BASIC (fern.txt MODE/FOR/…) is a program, not a session.
+        # Session files are numbered+RUN/Q or LOAD/LIST/… meta lines.
     return saw_session
 
 
@@ -1455,11 +1454,12 @@ def main(argv: Optional[List[str]] = None) -> int:
             return EXIT_HOLD_CONSOLE
 
     # Piped/redirected stdin (PowerShell/cmd): treat as a REPL command session.
+    # Explicit -i still means interactive REPL (pytest capture is not a TTY).
     try:
         stdin_tty = sys.stdin.isatty()
     except Exception:
         stdin_tty = True
-    if not stdin_tty:
+    if not interactive and not stdin_tty:
         try:
             lines = sys.stdin.readlines()
         except OSError as exc:

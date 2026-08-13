@@ -4428,6 +4428,20 @@ class RuntimeExecutionMixin:
             stmt_index += 1
         return None
 
+    def _fold_immediate_statement_keyword(self, stmt: str) -> str:
+        """REPL: allow ``for``/``print``/``next`` even when program keywords are uppercase."""
+        match = re.match(r'^([A-Za-z]+)\b', stmt)
+        if not match:
+            return stmt
+        word = match.group(1)
+        upper = word.upper()
+        if upper not in self._STMT_KEYWORDS:
+            return stmt
+        rest = stmt[match.end():]
+        if rest[:1] in '=$!#&%' or (rest[:1].isalnum()):
+            return stmt
+        return upper + rest
+
     def execute_immediate(self, text: str) -> None:
         self._maybe_auto_enable_pygame_from_text(text, announce=True)
         # Entry canonicalize per colon segment (same as set_program_line / Phase 1).
@@ -4436,6 +4450,7 @@ class RuntimeExecutionMixin:
             label, stmt = self._extract_label_prefix(part)
             if stmt:
                 stmt = self.canonicalize_program_line(stmt)
+                stmt = self._fold_immediate_statement_keyword(stmt)
             parts.append((label, stmt))
         line_nums = sorted(self.program.keys()) or [0]
         self._active_line_num = 0
