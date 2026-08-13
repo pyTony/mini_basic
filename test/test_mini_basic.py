@@ -4377,26 +4377,37 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), '10.53')
 
-    def test_compound_let_allows_spaces_around_operator(self):
-        """soccerball.bas: I% + = 1 and C + = 0.03."""
+    def test_old_save_spaced_compound_assign_is_glued(self):
+        """Pre-fix SAVE wrote ``I% + = 1``; entry canonicalize restores ``+=``."""
         interp = self.make_interp()
         self.assertEqual(
-            interp._parse_assignment_statement('I% + = 1'),
-            ('I%', '+=', '1'),
+            interp.canonicalize_program_line('I% + = 1'),
+            'I% += 1',
         )
         self.assertEqual(
-            interp._parse_assignment_statement('C + = 0.03'),
-            ('C', '+=', '0.03'),
+            interp.canonicalize_program_line('C + = 0.03'),
+            'C += 0.03',
         )
-        lines = [
+        from mini_basic.format.save_case import space_expr_segment
+
+        self.assertEqual(space_expr_segment('I% += 1'), 'I% += 1')
+        self.assertEqual(space_expr_segment('I% + = 1'), 'I% += 1')
+        self.assertNotIn('+ =', space_expr_segment('I%+=1'))
+        interp = self.make_interp()
+        for n, s in [
             (10, 'I%=0'),
             (20, 'I% + = 1'),
             (30, 'C=0'),
             (40, 'C + = 0.03'),
             (50, 'PRINT I%; C'),
             (60, 'END'),
-        ]
-        self.assertEqual(self.run_program(lines), '10.03')
+        ]:
+            interp.set_program_line(n, s)
+        self.assertEqual(interp.program[20], 'I% += 1')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.run()
+        self.assertEqual(buf.getvalue().strip(), '10.03')
 
     def test_compound_let_all_operators(self):
         # A%: 10-3=7, *2=14, /4=3.5 → rounds to 4 (BBC int assign, not trunc to 3)

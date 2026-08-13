@@ -276,6 +276,11 @@ class RuntimeProgramMixin:
                 flags=re.IGNORECASE,
             )
         statement = self._expand_question_print(statement)
+        # Older LIST/SAVE split ``+=`` into ``+ =`` (soccerball ``I% + = 1``).
+        if not self._line_skips_expr_canonicalize(statement):
+            statement = self._map_outside_strings(
+                statement, lambda s: re.sub(r'([+\-*/])\s+=', r'\1=', s),
+            )
 
         # Expression-style monadic glue outside strings (not REM/'/DATA bodies).
         if not self._line_skips_expr_canonicalize(statement):
@@ -1947,10 +1952,9 @@ class RuntimeProgramMixin:
                 lhs = name_m.group(1)
                 rest = text[name_m.end() :].lstrip()
             # Arithmetic first, then word bitwise (after complete LHS only).
-            # Allow spaces: soccerball ``I% + = 1`` / ``C + = 0.03``.
-            op_m = re.match(r'^([+\-*/])\s*=\s*(.+)$', rest, flags=re.DOTALL)
+            op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
             if op_m:
-                return _remember((lhs, op_m.group(1) + '=', op_m.group(2).strip()))
+                return _remember((lhs, op_m.group(1), op_m.group(2).strip()))
             bit_flags = re.DOTALL
             if not self._identifiers_case_sensitive():
                 bit_flags |= re.IGNORECASE

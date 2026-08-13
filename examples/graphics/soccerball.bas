@@ -22,12 +22,12 @@
    220 X% = 3200 * TMP(0,I%) / (36 + TMP(1,I%))
    230 Y% = 3200 * TMP(2,I%) / (36 + TMP(1,I%))
    240 IF K%<2 MOVE X%,Y%ELSE IF Z<-2.5 PLOT 85,X%,Y%
-   250 I% + = 1
+   250 I% += 1
    260 NEXT
    270 NEXT J%
    280 WAIT 1
    290 * REFRESH
-   300 C + = 0.03
+   300 C += 0.03
    310 UNTIL FALSE
    320 END
    330 DATA 0, 1, T, -P, 2, R, P, 2, R, -1, Q, S, 1, Q, S

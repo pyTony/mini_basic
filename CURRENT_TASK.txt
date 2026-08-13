@@ -1,5 +1,6 @@
-Focus: soccerball — accept spaced compound assign (I% + = 1)
+Focus: idle after repairing old SAVE spaced += (soccerball)
 
-Recent: soccerball.bas line 250 ``I% + = 1`` was parsed as variable ``I% +``.
+Recent: ``I% + = 1`` is not language; pre-fix SAVE artifact. Canonicalize + formatter
+glue; repaired soccerball.bas copies and basics/factorial.bas.
 
 Repo: D:\1\OneDrive - FFWPU-Fin\mini_basic
