@@ -201,4 +201,5 @@ OK eval hot-path: reuse compiled ns (no clear), cache-hit skip boolean scan,
 OK piechart compact IF: trailing linenum 8 no longer steals ``Colour&() OR= 8``
 OK old SAVE ``I% + = 1`` / ``* REFRESH``: glue at entry + LIST/SAVE; soccerball/wheel/factorial repaired
 OK phase1 leftovers: -i skips piped-stdin session; fern.txt is a program; REPL folds for/print
+OK NEXT I,J / NEXT ,, closes that many FOR loops (BBC unnamed list)
 -- Mandelbrot still ~20×+ slower than BBCSDL (~3s); leftover is statement dispatch

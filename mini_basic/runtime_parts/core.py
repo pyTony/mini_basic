@@ -2000,14 +2000,15 @@ class RuntimeCoreMixin:
                 if depth > 0:
                     depth -= 1
             elif cmd == 'NEXT':
-                if depth > 0:
-                    depth -= 1
+                names = self._parse_next_vars(rest)
+                n = len(names)
+                if depth >= n:
+                    depth -= n
                     continue
-                next_var = ''
-                if rest.strip():
-                    next_var, _ = self._parse_var_token(rest.strip())
-                if next_var and not self._loop_var_matches(next_var, loop_var):
-                    return next_var
+                our = names[depth]
+                if our and not self._loop_var_matches(our, loop_var):
+                    return our
+                return None
         return None
 
     def _swap_lvalues(self, left_token: str, right_token: str) -> None:

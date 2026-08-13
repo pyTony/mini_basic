@@ -743,6 +743,29 @@ class TestForSameLineBody(unittest.TestCase):
         lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
         self.assertEqual(lines, ["1|1", "1|2", "2|1", "2|2"])
 
+    def test_next_double_comma_closes_three_loops(self):
+        """BBC NEXT ,, is NEXT:NEXT:NEXT (unnamed)."""
+        out = self._run([
+            'FOR I%=1 TO 2:FOR J%=1 TO 2:FOR K%=1 TO 2:'
+            'PRINT I%;J%;K%:NEXT ,,',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+        self.assertEqual(
+            lines,
+            ['111', '112', '121', '122', '211', '212', '221', '222'],
+        )
+
+    def test_next_named_list_closes_inner_then_outer(self):
+        out = self._run([
+            'FOR I=1 TO 2:FOR J=1 TO 2:PRINT I;J:NEXT J,I',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+        self.assertEqual(lines, ['11', '12', '21', '22'])
+
 
 class TestIfColonTail(unittest.TestCase):
     """BBC single-line IF: rest of line (including colon-split stmts) is conditional.

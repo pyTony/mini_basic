@@ -685,6 +685,8 @@ class RuntimeExecutionMixin:
                 if not cmd and not crest:
                     continue
                 if cmd == 'NEXT':
+                    if ',' in crest:
+                        return None
                     nvar = ''
                     if crest.strip():
                         nvar, _ = self._parse_var_token(crest.strip())
@@ -1490,6 +1492,20 @@ class RuntimeExecutionMixin:
             return self._run_stmts[line_num]
         return self._parse_line_statements(self.program.get(line_num, ''))
 
+    def _parse_next_vars(self, rest: str) -> List[str]:
+        """NEXT I,J / NEXT ,, → one name per slot (empty = innermost unnamed)."""
+        text = rest.strip()
+        if not text:
+            return ['']
+        names: List[str] = []
+        for part in text.split(','):
+            part = part.strip()
+            if not part:
+                names.append('')
+            else:
+                names.append(self._parse_var_token(part)[0])
+        return names or ['']
+
     def _find_matching_next_stmt_index(
         self,
         loop_var: str,
@@ -1508,13 +1524,13 @@ class RuntimeExecutionMixin:
                 if depth > 0:
                     depth -= 1
             elif cmd == 'NEXT':
-                if depth > 0:
-                    depth -= 1
+                names = self._parse_next_vars(rest)
+                n = len(names)
+                if depth >= n:
+                    depth -= n
                     continue
-                next_var = ''
-                if rest.strip():
-                    next_var, _ = self._parse_var_token(rest.strip())
-                if not next_var or self._loop_var_matches(next_var, loop_var):
+                our = names[depth]
+                if not our or self._loop_var_matches(our, loop_var):
                     return idx
         return -1
 
@@ -1530,13 +1546,12 @@ class RuntimeExecutionMixin:
                     v, _ = self._parse_var_token(v)
                     stack.append(v)
             elif cmd == 'NEXT':
-                next_var = ''
-                if rest.strip():
-                    next_var, _ = self._parse_var_token(rest.strip())
-                if not stack:
-                    return -1
-                top = stack[-1]
-                if not next_var or self._loop_var_matches(next_var, top):
+                for next_var in self._parse_next_vars(rest):
+                    if not stack:
+                        return -1
+                    top = stack[-1]
+                    if next_var and not self._loop_var_matches(next_var, top):
+                        return -1
                     popped = stack.pop()
                     if self._loop_var_matches(popped, loop_var):
                         return line_num
@@ -3223,10 +3238,7 @@ class RuntimeExecutionMixin:
                 return None
 
         if cmd == 'NEXT':
-            next_var = ''
-            if rest.strip():
-                next_var, _ = self._parse_var_token(rest.strip())
-
+          for next_var in self._parse_next_vars(rest):
             # Search the stack for matching FOR (support jumping to outer NEXT, popping abandoned inners)
             frame_index = None
             for idx in range(len(self.stack) - 1, -1, -1):
@@ -3351,7 +3363,7 @@ class RuntimeExecutionMixin:
                 return frame.body_line
 
             self.stack.pop()
-            return None
+          return None
 
         if cmd == 'WEND':
             if not self.stack or self.stack[-1].kind != 'while':
