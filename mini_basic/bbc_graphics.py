@@ -372,6 +372,56 @@ class BBCGraphics:
             return (self.gcol_bg, True)
         return (self.gcol_fg, False)
 
+    def _disc_x_span(self, sy: int) -> Optional[Tuple[int, int]]:
+        """Inclusive x-range of ``_clip_disc`` on scanline ``sy``, or None if no clip.
+
+        Outside the disc returns (1, 0) so callers see an empty span.
+        """
+        clip = self._clip_disc
+        if clip is None:
+            return None
+        scx, scy, srx, sry = clip
+        if sry <= 0 or abs(sy - scy) > sry:
+            return (1, 0)
+        half_x = int(
+            math.sqrt(max(0.0, float(srx * srx * (1.0 - ((sy - scy) / float(sry)) ** 2))))
+        )
+        return scx - half_x, scx + half_x
+
+    def _fill_hspan_screen(self, x0: int, x1: int, sy: int, gcol: GColState) -> None:
+        """Fill inclusive [x0, x1] on screen row sy (GCOL replace uses a slice)."""
+        if not (0 <= sy < self.height) or x0 > x1:
+            return
+        x0 = max(0, x0)
+        x1 = min(self.width - 1, x1)
+        if x0 > x1:
+            return
+        mode, colour = gcol
+        row = self.pixels[sy]
+        rgb_row = self.rgb_pixels[sy]
+        trgb = self._truecolour_rgb
+        n = x1 - x0 + 1
+        if mode == 0:
+            row[x0 : x1 + 1] = [colour] * n
+            if trgb is not None and colour != 0:
+                for sx in range(x0, x1 + 1):
+                    rgb_row[sx] = trgb
+                    self.rgb_dirty.add((sx, sy))
+            elif colour == 0:
+                for sx in range(x0, x1 + 1):
+                    if rgb_row[sx] is not None:
+                        rgb_row[sx] = None
+                        self.rgb_dirty.discard((sx, sy))
+        else:
+            for sx in range(x0, x1 + 1):
+                row[sx] = apply_gcol(int(row[sx]), colour, mode)
+                if trgb is not None and int(row[sx]) != 0:
+                    rgb_row[sx] = trgb
+                    self.rgb_dirty.add((sx, sy))
+        self._mark_pixel_dirty(x0, sy)
+        self._mark_pixel_dirty(x1, sy)
+        self.plot_count += n
+
     def _put_screen_pixel(self, sx: int, sy: int, gcol: GColState) -> None:
         if not (0 <= sx < self.width and 0 <= sy < self.height):
             return
@@ -541,29 +591,7 @@ class BBCGraphics:
                 )
                 x0 = max(0, scx - half_x)
                 x1s = min(w, scx + half_x + 1)
-                row = self.pixels[spy]
-                rgb_row = self.rgb_pixels[spy]
-                trgb = self._truecolour_rgb
-                if mode == 0:
-                    for sx in range(x0, x1s):
-                        row[sx] = colour
-                        if trgb is not None and colour != 0:
-                            rgb_row[sx] = trgb
-                            self.rgb_dirty.add((sx, spy))
-                        elif colour == 0:
-                            rgb_row[sx] = None
-                            self.rgb_dirty.discard((sx, spy))
-                else:
-                    for sx in range(x0, x1s):
-                        row[sx] = apply_gcol(int(row[sx]), colour, mode)
-                        if trgb is not None and int(row[sx]) != 0:
-                            rgb_row[sx] = trgb
-                            self.rgb_dirty.add((sx, spy))
-                if x1s > x0:
-                    self._mark_pixel_dirty(x0, spy)
-                    self._mark_pixel_dirty(x1s - 1, spy)
-                    self.plot_count += x1s - x0
-
+                self._fill_hspan_screen(x0, x1s - 1, spy, gcol)
             # Clip later PLOT fills to the disc silhouette (pixel mask, not vertex pull-in).
             self._clip_disc = (scx, scy, srx, sry)
         else:
@@ -884,5 +912,10 @@ class BBCGraphics:
                 continue
             x_left = int(math.floor(min(xs)))
             x_right = int(math.ceil(max(xs)))
-            for x in range(x_left, x_right + 1):
-                self._put_screen_pixel(x, y, gcol)
+            clip_span = self._disc_x_span(y)
+            if clip_span is not None:
+                x_left = max(x_left, clip_span[0])
+                x_right = min(x_right, clip_span[1])
+            if x_left > x_right:
+                continue
+            self._fill_hspan_screen(x_left, x_right, y, gcol)
