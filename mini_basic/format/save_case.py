@@ -269,7 +269,8 @@ def _format_statement_body(body: str, fold: Fold) -> str:
             return 'REM' + rest
         return stripped
     if stripped.startswith('*'):
-        return stripped
+        # Old SAVE treated * as multiply (``* REFRESH``). Glue REFRESH only.
+        return re.sub(r'^\*\s+REFRESH\b', '*REFRESH', stripped, flags=re.IGNORECASE)
 
     match = _RE_STMT_CMD.match(stripped)
     if match:

@@ -7,7 +7,7 @@
     70 FOR I% = 0 TO 59
     80 READ XYZ(0,I%), XYZ(1,I%), XYZ(2,I%)
     90 NEXT
-   100 * REFRESH OFF
+   100 *REFRESH OFF
    110 B = 0.5: C = 0
    120 B() = COS(B), 0, -SIN(B), 0, 1, 0, SIN(B), 0, COS(B)
    130 REPEAT
@@ -26,7 +26,7 @@
    260 NEXT
    270 NEXT J%
    280 WAIT 1
-   290 * REFRESH
+   290 *REFRESH
    300 C += 0.03
    310 UNTIL FALSE
    320 END

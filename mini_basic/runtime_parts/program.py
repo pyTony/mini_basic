@@ -276,10 +276,14 @@ class RuntimeProgramMixin:
                 flags=re.IGNORECASE,
             )
         statement = self._expand_question_print(statement)
-        # Older LIST/SAVE split ``+=`` into ``+ =`` (soccerball ``I% + = 1``).
+        # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):
             statement = self._map_outside_strings(
                 statement, lambda s: re.sub(r'([+\-*/])\s+=', r'\1=', s),
+            )
+            statement = self._map_outside_strings(
+                statement,
+                lambda s: re.sub(r'\*\s+REFRESH\b', '*REFRESH', s, flags=re.IGNORECASE),
             )
 
         # Expression-style monadic glue outside strings (not REM/'/DATA bodies).

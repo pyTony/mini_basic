@@ -1,7 +1,7 @@
     10 MODE 8
     15 OFF
     20 ORIGIN 640,512
-    25 * REFRESH OFF
+    25 *REFRESH OFF
     30 m1% = 400
     40 REPEAT
     50     CLG
@@ -15,7 +15,7 @@
    120         GCOL 0
    125         CIRCLE x1%,y1%,80
    130     NEXT
-   135     * REFRESH
+   135     *REFRESH
    140     REPEAT WAIT 0
    150     UNTIL T% <> TIME
    160     T% = TIME

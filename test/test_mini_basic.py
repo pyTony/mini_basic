@@ -4393,6 +4393,13 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(space_expr_segment('I% += 1'), 'I% += 1')
         self.assertEqual(space_expr_segment('I% + = 1'), 'I% += 1')
         self.assertNotIn('+ =', space_expr_segment('I%+=1'))
+        self.assertEqual(
+            interp.canonicalize_program_line('* REFRESH OFF'),
+            '*REFRESH OFF',
+        )
+        from mini_basic.format.save_case import format_statement_part
+
+        self.assertEqual(format_statement_part('* REFRESH', 'none'), '*REFRESH')
         interp = self.make_interp()
         for n, s in [
             (10, 'I%=0'),
