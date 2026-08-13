@@ -4377,6 +4377,27 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), '10.53')
 
+    def test_compound_let_allows_spaces_around_operator(self):
+        """soccerball.bas: I% + = 1 and C + = 0.03."""
+        interp = self.make_interp()
+        self.assertEqual(
+            interp._parse_assignment_statement('I% + = 1'),
+            ('I%', '+=', '1'),
+        )
+        self.assertEqual(
+            interp._parse_assignment_statement('C + = 0.03'),
+            ('C', '+=', '0.03'),
+        )
+        lines = [
+            (10, 'I%=0'),
+            (20, 'I% + = 1'),
+            (30, 'C=0'),
+            (40, 'C + = 0.03'),
+            (50, 'PRINT I%; C'),
+            (60, 'END'),
+        ]
+        self.assertEqual(self.run_program(lines), '10.03')
+
     def test_compound_let_all_operators(self):
         # A%: 10-3=7, *2=14, /4=3.5 → rounds to 4 (BBC int assign, not trunc to 3)
         lines = [

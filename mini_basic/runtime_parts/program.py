@@ -1947,9 +1947,10 @@ class RuntimeProgramMixin:
                 lhs = name_m.group(1)
                 rest = text[name_m.end() :].lstrip()
             # Arithmetic first, then word bitwise (after complete LHS only).
-            op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
+            # Allow spaces: soccerball ``I% + = 1`` / ``C + = 0.03``.
+            op_m = re.match(r'^([+\-*/])\s*=\s*(.+)$', rest, flags=re.DOTALL)
             if op_m:
-                return _remember((lhs, op_m.group(1), op_m.group(2).strip()))
+                return _remember((lhs, op_m.group(1) + '=', op_m.group(2).strip()))
             bit_flags = re.DOTALL
             if not self._identifiers_case_sensitive():
                 bit_flags |= re.IGNORECASE

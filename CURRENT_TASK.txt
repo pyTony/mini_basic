@@ -1,6 +1,5 @@
-Focus: piechart compact IF — Colour&() OR= 8 must stay the body
+Focus: soccerball — accept spaced compound assign (I% + = 1)
 
-Recent: IF Y% = Cy% + Depth Colour&() OR= 8 split as linenum 8 (if_then_line).
-Not caused by Mandelbrot perf. User asked for this fix.
+Recent: soccerball.bas line 250 ``I% + = 1`` was parsed as variable ``I% +``.
 
 Repo: D:\1\OneDrive - FFWPU-Fin\mini_basic

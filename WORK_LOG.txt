@@ -111,3 +111,4 @@
 2026-08-13 08:39:47 WORK END mandelbrot micro-opts: cache-hit eval, ns reuse, assign parse cache, precompiled bool regex; 4-line 1.62s vs 2.32s
 2026-08-13 08:57:04 WORK BEGIN piechart compact IF: do not let trailing 8 steal Colour&() OR= body
 2026-08-13 08:57:50 WORK END piechart compact IF: linenum split does not overwrite Colour&() OR= body
+2026-08-13 09:08:46 WORK END soccerball: parse I% + = 1 as +=
