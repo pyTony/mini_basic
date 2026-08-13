@@ -193,3 +193,8 @@ OK Queue policy: user-raised issues always top of work queue (AGENT_POLICY §2a)
   park standing jobs; record with CURRENT_TASK Focus and optional -- USER: lines
 OK Session scripts: .txt sniff (numbered+RUN/Q), stdin batch, CLI -c/--command
   (repeat -c for PS); HELP CLI = full --help (repl/cli_help.py); tests session_script
+OK Mandelbrot numeric comparison compile: CONT=(ZX*ZX+ZY*ZY<4) uses compiled -1/0
+  (eval_numeric no longer force-falls back to _eval_bbc_boolean_expr); pygame poll
+  throttled 50ms in _service_run_events; compute_only 81.5s full / ~2.3s for 4 scanlines
+-- Mandelbrot still ~25× slower than BBCSDL (~3s); remaining cost is statement
+  dispatch + compiled eval namespace, not boolean parse / Clock.tick-during-run

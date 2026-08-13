@@ -547,7 +547,7 @@ class RuntimeProgramMixin:
             False,
         )
         return (
-            f'({left_py}) {py_op} ({right_py})',
+            f'(-1 if ({left_py}) {py_op} ({right_py}) else 0)',
             needs_time_l or needs_time_r,
             tuple(dict.fromkeys(float_l + float_r)),
             tuple(dict.fromkeys(int_l + int_r)),

@@ -1,6 +1,7 @@
-Focus: idle after session catch-up (WORK_LOG was stale at Phase2a)
+Focus: mandelbrot — compiled numeric comparisons landed; waiting on user timing
 
-Recent: session CLI/HELP CLI; PRINT arrays; Phase 2b; drop SDL-only trees;
-m6502-cport examples; case-on uppercase keywords; piechart OR=/IF; MITS summary.
+Recent: 4 scanlines NY%=16: compute-only 2.24s, dummy pygame 2.64s.
+Full compute-only was 81.5s. Graphics extra is small vs interpreter loop.
+SDL reference still ~3s for the full MODE 9 program.
 
-Repo: C:\Users\Tony\mini_basic
+Repo: D:\1\OneDrive - FFWPU-Fin\mini_basic

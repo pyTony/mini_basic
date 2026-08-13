@@ -1981,10 +1981,19 @@ class RuntimeExecutionMixin:
         Needed during WAIT and tight loops: focus is often on the *terminal*
         (REPL) while the game window is open; window close only appears via
         ``poll()``, not ``pump_events()`` alone. WAIT 0 previously skipped both.
+
+        Pygame poll is throttled (~50ms). Mandelbrot-style plot loops execute
+        well over a million statements; polling every line dominates runtime
+        (event.get/post + mouse). Window-close latency stays under one tick.
         """
         self._check_user_interrupt()
         if not self._display_enabled():
             return
+        now = time.perf_counter()
+        last = getattr(self, '_last_service_run_events', 0.0)
+        if now - last < 0.05:
+            return
+        self._last_service_run_events = now
         try:
             disp = self._display
             if hasattr(disp, 'pump_events'):

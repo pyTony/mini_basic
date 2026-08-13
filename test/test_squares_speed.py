@@ -26,6 +26,30 @@ class SquaresSpeedTests(unittest.TestCase):
         self.assertFalse(ce.use_fallback)
         self.assertIsNotNone(ce.code)
 
+    def test_comparison_assignment_uses_compiled_numeric(self):
+        """CONT = (ZX*ZX+ZY*ZY < 4) must eval compiled -1/0, not boolean parser."""
+        i = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', optimization_level=2)
+        )
+        i.variables['ZX'] = 0.0
+        i.variables['ZY'] = 0.0
+        expr = 'ZX * ZX + ZY * ZY < 4'
+        ce = i._get_compiled_expr(expr, is_condition=False)
+        self.assertFalse(ce.use_fallback, 'expected compiled path for numeric comparison')
+        self.assertIsNotNone(ce.code)
+        self.assertEqual(int(ce.eval_numeric(i)), -1)
+        self.assertEqual(int(i._eval_numeric(expr)), -1)
+        i.variables['ZX'] = 3.0
+        self.assertEqual(int(ce.eval_numeric(i)), 0)
+        self.assertEqual(int(i._eval_numeric('(ZX * ZX + ZY * ZY < 4)')), 0)
+        # Mixed AND as a numeric value (same BBC -1/0) also stays compiled.
+        i.variables['CONT'] = -1.0
+        i.int_variables['I'] = 0
+        mixed = 'CONT AND (I% < 16)'
+        ce_m = i._get_compiled_expr(mixed, is_condition=False)
+        self.assertFalse(ce_m.use_fallback)
+        self.assertEqual(int(ce_m.eval_numeric(i)), -1)
+
     def test_mixed_boolean_cont_and_comparison_compiles(self):
         """WHILE CONT AND (I% < N) must compile (not recursive boolean fallback)."""
         i = BASICInterpreter(

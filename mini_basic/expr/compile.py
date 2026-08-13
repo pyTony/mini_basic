@@ -96,17 +96,13 @@ class CompiledExpr:
             self.use_fallback
             or self.code is None
             or interp._expr_has_array_ref(self.source)
-            or (
-                not self.is_condition
-                and interp._expr_has_boolean_syntax(self.source)
-                and not interp._expr_is_pure_bitwise(self.source)
-            )
         ):
             return interp._eval_numeric_slow(self.source)
         namespace = self._namespace(interp)
-        # Pure bitwise path after parenthesized comparisons expand to -1/0:
-        # e.g. CONT AND (I% < 16) → CONT AND -1. CONT may be float TRUE (-1.0);
+        # Pure bitwise bytecode uses Python &/|/^/~. TRUE is often float -1.0;
         # Python & requires ints — BBC AND/OR/EOR always integer-coerce.
+        # Mixed boolean compile already wraps values as int(...); this covers
+        # the pure-bitwise path ((X% EOR Y%) AND 255).
         if interp._expr_is_pure_bitwise(self.source):
             for key, val in list(namespace.items()):
                 if isinstance(val, float):
@@ -114,6 +110,9 @@ class CompiledExpr:
                 elif isinstance(val, bool):
                     namespace[key] = -1 if val else 0
         result = eval(self.code, SAFE_EVAL_GLOBALS, namespace)
+        # Simple comparisons compile to Python bool; BBC TRUE is -1, not 1.
+        if isinstance(result, bool):
+            return -1.0 if result else 0.0
         # Preserve exact precision for integer results (e.g. a bigint literal left
         # behind by FN-call expansion, such as FNfact(100)). Forcing float() here
         # would silently truncate anything past ~53 bits of mantissa, and would
