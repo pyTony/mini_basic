@@ -1,7 +1,7 @@
-Focus: mandelbrot — compiled numeric comparisons landed; waiting on user timing
+Focus: idle after mandelbrot hot-path micro-opts (user quota-saving pause)
 
-Recent: 4 scanlines NY%=16: compute-only 2.24s, dummy pygame 2.64s.
-Full compute-only was 81.5s. Graphics extra is small vs interpreter loop.
-SDL reference still ~3s for the full MODE 9 program.
+Recent: user 76.2s full Mandelbrot (best so far). Extra general wins: compiled
+ns reuse, eval cache-hit, assignment parse cache, precompiled bool regex.
+4-line compute 2.32s → 1.62s. Waiting on user full retime.
 
 Repo: D:\1\OneDrive - FFWPU-Fin\mini_basic

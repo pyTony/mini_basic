@@ -108,3 +108,4 @@
 2026-08-09 17:36:05 WORK END WORK_LOG catch-up post-Phase2a session
 2026-08-13 08:16:55 WORK BEGIN mandelbrot: compile numeric comparisons (CONT= zx*zx+zy*zy<4)
 2026-08-13 08:31:06 WORK END mandelbrot: compiled numeric comparison + 50ms poll; 4-line bench compute 2.24s / gfx 2.64s
+2026-08-13 08:39:47 WORK END mandelbrot micro-opts: cache-hit eval, ns reuse, assign parse cache, precompiled bool regex; 4-line 1.62s vs 2.32s

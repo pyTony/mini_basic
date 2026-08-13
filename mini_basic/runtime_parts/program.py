@@ -460,7 +460,8 @@ class RuntimeProgramMixin:
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
-        self._parse_command_cache = {}          # <-- add this line
+        self._parse_command_cache = {}
+        self._assign_parse_cache = {}
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()
@@ -1899,8 +1900,18 @@ class RuntimeProgramMixin:
         ``Value() *= 2 * PI / SUM(Value())`` and
         ``Colour&() OR= 8`` parse correctly.
         """
+        cache = getattr(self, '_assign_parse_cache', None)
+        if cache is not None:
+            hit = cache.get(line)
+            if hit is not None:
+                return hit
 
         self.dprint('[ASSIGN]', repr(line))
+
+        def _remember(triple: Tuple[str, str, str]) -> Tuple[str, str, str]:
+            if cache is not None:
+                cache[line] = triple
+            return triple
 
         text = line.strip()
         if text.upper().startswith("LET"):
@@ -1938,7 +1949,7 @@ class RuntimeProgramMixin:
             # Arithmetic first, then word bitwise (after complete LHS only).
             op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
             if op_m:
-                return lhs, op_m.group(1), op_m.group(2).strip()
+                return _remember((lhs, op_m.group(1), op_m.group(2).strip()))
             bit_flags = re.DOTALL
             if not self._identifiers_case_sensitive():
                 bit_flags |= re.IGNORECASE
@@ -1949,17 +1960,17 @@ class RuntimeProgramMixin:
             )
             if bit_m:
                 op = bit_m.group(1).upper() + '='
-                return lhs, op, bit_m.group(2).strip()
+                return _remember((lhs, op, bit_m.group(2).strip()))
             if rest.startswith('='):
                 rhs = rest[1:].strip()
                 self._validate_assignment_rhs(rhs)
-                return lhs, '=', rhs
+                return _remember((lhs, '=', rhs))
 
         if '=' in text:
             var_part, expr = text.split('=', 1)
             rhs = expr.strip()
             self._validate_assignment_rhs(rhs)
-            return var_part.strip(), '=', rhs
+            return _remember((var_part.strip(), '=', rhs))
 
         raise ValueError('assignment expected')
 

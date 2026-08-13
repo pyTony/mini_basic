@@ -196,5 +196,6 @@ OK Session scripts: .txt sniff (numbered+RUN/Q), stdin batch, CLI -c/--command
 OK Mandelbrot numeric comparison compile: CONT=(ZX*ZX+ZY*ZY<4) uses compiled -1/0
   (eval_numeric no longer force-falls back to _eval_bbc_boolean_expr); pygame poll
   throttled 50ms in _service_run_events; compute_only 81.5s full / ~2.3s for 4 scanlines
--- Mandelbrot still ~25× slower than BBCSDL (~3s); remaining cost is statement
-  dispatch + compiled eval namespace, not boolean parse / Clock.tick-during-run
+OK eval hot-path: reuse compiled ns (no clear), cache-hit skip boolean scan,
+  memoize assignment parse, precompile AND/OR/cmp regexes; 4-line 2.32s→1.62s
+-- Mandelbrot still ~20×+ slower than BBCSDL (~3s); leftover is statement dispatch

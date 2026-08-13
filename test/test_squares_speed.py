@@ -26,6 +26,16 @@ class SquaresSpeedTests(unittest.TestCase):
         self.assertFalse(ce.use_fallback)
         self.assertIsNotNone(ce.code)
 
+    def test_assignment_parse_is_cached(self):
+        i = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', optimization_level=2)
+        )
+        i._assign_parse_cache = {}
+        first = i._parse_assignment_statement('CONT=(ZX*ZX+ZY*ZY<4)')
+        second = i._parse_assignment_statement('CONT=(ZX*ZX+ZY*ZY<4)')
+        self.assertEqual(first, ('CONT', '=', '(ZX*ZX+ZY*ZY<4)'))
+        self.assertIs(first, second)
+
     def test_comparison_assignment_uses_compiled_numeric(self):
         """CONT = (ZX*ZX+ZY*ZY < 4) must eval compiled -1/0, not boolean parser."""
         i = BASICInterpreter(

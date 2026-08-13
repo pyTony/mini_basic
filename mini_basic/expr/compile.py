@@ -49,6 +49,8 @@ class CompiledExpr:
         'needs_time',
         'is_condition',
         'use_fallback',
+        'has_array',
+        'needs_int_coerce',
         '_ns_cache',
     )
 
@@ -71,6 +73,8 @@ class CompiledExpr:
         self.needs_time = needs_time
         self.is_condition = is_condition
         self.use_fallback = use_fallback
+        self.has_array = False
+        self.needs_int_coerce = False
         self._ns_cache: Optional[Dict[str, float]] = None
 
     def _namespace(self, interp: BASICInterpreter) -> Dict[str, float]:
@@ -78,13 +82,13 @@ class CompiledExpr:
         if namespace is None:
             namespace = {}
             self._ns_cache = namespace
-        else:
-            namespace.clear()
         if self.needs_time:
             namespace['__basic_time__'] = interp._get_time()
         for name in self.float_vars:
             if name in interp.variables:
                 namespace[name] = interp.variables[name]
+            else:
+                namespace.pop(name, None)
         for name in self.int_vars:
             namespace[int_slot(name)] = interp.int_variables.get(name, 0)
         for name in self.system_vars:
@@ -92,18 +96,14 @@ class CompiledExpr:
         return namespace
 
     def eval_numeric(self, interp: BASICInterpreter) -> float:
-        if (
-            self.use_fallback
-            or self.code is None
-            or interp._expr_has_array_ref(self.source)
-        ):
+        if self.use_fallback or self.code is None or self.has_array:
             return interp._eval_numeric_slow(self.source)
         namespace = self._namespace(interp)
         # Pure bitwise bytecode uses Python &/|/^/~. TRUE is often float -1.0;
         # Python & requires ints — BBC AND/OR/EOR always integer-coerce.
         # Mixed boolean compile already wraps values as int(...); this covers
         # the pure-bitwise path ((X% EOR Y%) AND 255).
-        if interp._expr_is_pure_bitwise(self.source):
+        if self.needs_int_coerce:
             for key, val in list(namespace.items()):
                 if isinstance(val, float):
                     namespace[key] = int(val)
@@ -122,18 +122,10 @@ class CompiledExpr:
         return float(result)
 
     def eval_condition(self, interp: BASICInterpreter) -> bool:
-        if (
-            self.use_fallback
-            or self.code is None
-            or interp._expr_has_array_ref(self.source)
-            # NOTE: do not force fallback on boolean syntax here:
-            # simple comparisons are deliberately compiled via prepare_simple_comparison
-        ):
+        if self.use_fallback or self.code is None or self.has_array:
             return interp._eval_numeric(self.source) != 0
         namespace = self._namespace(interp)
-        # Pure bitwise bytecode uses Python &/|/^/~; TRUE is often float -1.0.
-        # Mixed boolean lowers leaves with int(); pure path still needs coerce.
-        if interp._expr_is_pure_bitwise(self.source):
+        if self.needs_int_coerce:
             for key, val in list(namespace.items()):
                 if isinstance(val, float):
                     namespace[key] = int(val)

@@ -268,6 +268,8 @@ class RuntimeExprMixin:
 
         try:
             stripped = source.strip()
+            compiled.has_array = '(' in stripped and self._expr_has_array_ref(stripped)
+            compiled.needs_int_coerce = self._expr_is_pure_bitwise(stripped)
             if self._boolean_literal_value(stripped) is not None:
                 raise ValueError('boolean literal')
             if self._expr_has_boolean_syntax(stripped):
@@ -2482,20 +2484,27 @@ class RuntimeExprMixin:
             index += 1
         return False
 
+    _RE_BOOL_WORDS = re.compile(r'\b(AND|OR|NOT|XOR|EOR|EQV|IMP)\b', re.IGNORECASE)
+    _RE_BITWISE_WORDS = re.compile(r'\b(AND|OR|NOT|XOR|EOR)\b', re.IGNORECASE)
+    _RE_EQV_IMP = re.compile(r'\b(EQV|IMP)\b', re.IGNORECASE)
+    _RE_AND_OR_NOT = re.compile(r'\b(AND|OR|NOT)\b', re.IGNORECASE)
+    _RE_XOR_EQV_IMP_EOR = re.compile(r'\b(XOR|EOR|EQV|IMP)\b', re.IGNORECASE)
+    _RE_PAREN_CMP = re.compile(r'\(([^()]*?)(<>|<=|>=|<|>|=)([^()]*)\)')
+
     def _expr_is_pure_bitwise(self, expr: str) -> bool:
         """AND/OR/EOR/XOR/NOT as integer bitwise (no EQV/IMP/comparisons).
 
         squares.bbc: ``(X% EOR Y%) AND 255`` must compile to ``^``/``&`` rather than
         the recursive boolean parser (orders of magnitude slower in pixel loops).
         """
-        if re.search(r'\b(EQV|IMP)\b', expr, re.IGNORECASE):
+        if self._RE_EQV_IMP.search(expr):
             return False
-        if not re.search(r'\b(AND|OR|NOT|XOR|EOR)\b', expr, re.IGNORECASE):
+        if not self._RE_BITWISE_WORDS.search(expr):
             return False
         return not self._expr_has_comparison_op(expr)
 
     def _expr_has_boolean_syntax(self, expr: str) -> bool:
-        if re.search(r'\b(AND|OR|NOT|XOR|EOR|EQV|IMP)\b', expr, re.IGNORECASE):
+        if self._RE_BOOL_WORDS.search(expr):
             return True
         return self._expr_has_comparison_op(expr)
 
@@ -2605,9 +2614,7 @@ class RuntimeExprMixin:
         return self._eval_arith_core_slow(expr)
 
     def _expr_has_xor_eqv_imp_eor(self, expr: str) -> bool:
-        return bool(
-            re.search(r'\b(XOR|EOR|EQV|IMP)\b', expr, re.IGNORECASE),
-        )
+        return bool(self._RE_XOR_EQV_IMP_EOR.search(expr))
 
     def _eval_bbc_boolean_expr(self, expr: str) -> object:
         self.dprint('[BOOL]', 'in', repr(expr))
@@ -2622,7 +2629,7 @@ class RuntimeExprMixin:
         return value
 
     def _expr_has_logical_boolean_ops(self, expr: str) -> bool:
-        return bool(re.search(r'\b(AND|OR|NOT)\b', expr, re.IGNORECASE))
+        return bool(self._RE_AND_OR_NOT.search(expr))
 
     def _expand_parenthesized_bbc_comparisons(self, expr: str) -> str:
         """Turn ``(a=b)`` / ``(a<>b)`` into -1/0 so arithmetic can use them.
@@ -2630,10 +2637,10 @@ class RuntimeExprMixin:
         Welcome: ``CHR$(ASC"B"-(I%=M2))`` — BBC comparison yields -1/0, not
         Python assignment (which raises ``cannot assign to literal``).
         """
+        if '(' not in expr:
+            return expr
         # Innermost (...) that contains a comparison and no nested parens.
-        pattern = re.compile(
-            r'\(([^()]*?)(<>|<=|>=|<|>|=)([^()]*)\)',
-        )
+        pattern = self._RE_PAREN_CMP
         guard = 0
         while guard < 32:
             guard += 1
@@ -2829,6 +2836,10 @@ class RuntimeExprMixin:
         if not expr:
             return 0.0
         expr = self._unglue_monadic_expr(expr)
+        if self.config.use_compiled_exprs:
+            cached = self._compiled_expr_cache.get((expr, False))
+            if cached is not None and cached.code is not None and not cached.use_fallback:
+                return cached.eval_numeric(self)
         # Stub MOD(array) as norm ~ non-zero for BBCSDL vector code like light() /= MOD(light())
         if expr.upper().startswith('MOD(') and ')' in expr:
             inner = expr[4:-1].strip()
