@@ -113,7 +113,7 @@ def compute_tmp(
 def load_soccerball_arrays() -> Tuple[List[List[float]], List[List[float]]]:
     from mini_basic import BASICInterpreter, InterpreterConfig
 
-    soccer = os.path.join(_ROOT, '..', 'examples', 'games', 'soccerball.bas')
+    soccer = os.path.join(_ROOT, 'examples', 'games', 'soccerball.bas')
     interp = BASICInterpreter(
         InterpreterConfig(dialect='bbc', display='none', optimization_level=0),
     )
