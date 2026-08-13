@@ -575,6 +575,38 @@ class BBCGraphics:
             for x in range(left, right + 1):
                 self._put_pixel(x, y, gcol)
 
+    def _fill_disc_numpy(
+        self, scx: int, scy: int, srx: int, sry: int, colour: int,
+    ) -> bool:
+        """Palette replace-fill of a screen ellipse; caches the boolean mask."""
+        np = self._np
+        if np is None or not self.pixels_is_numpy:
+            return False
+        cache = getattr(BBCGraphics, '_disc_mask_cache', None)
+        if cache is None:
+            BBCGraphics._disc_mask_cache = {}
+            cache = BBCGraphics._disc_mask_cache
+        key = (self.width, self.height, scx, scy, srx, sry)
+        mask = cache.get(key)
+        if mask is None:
+            yy = np.arange(self.height, dtype=np.float64)[:, None]
+            xx = np.arange(self.width, dtype=np.float64)[None, :]
+            rx = float(max(1, srx))
+            ry = float(max(1, sry))
+            mask = ((xx - scx) / rx) ** 2 + ((yy - scy) / ry) ** 2 <= 1.0001
+            if len(cache) >= 6:
+                cache.clear()
+            cache[key] = mask
+        self.pixels[mask] = int(colour) & 0xFF
+        x0 = max(0, scx - srx)
+        y0 = max(0, scy - sry)
+        x1 = min(self.width - 1, scx + srx)
+        y1 = min(self.height - 1, scy + sry)
+        self._mark_pixel_dirty(x0, y0)
+        self._mark_pixel_dirty(x1, y1)
+        self.plot_count += int(mask.sum())
+        return True
+
     def _circle(self, code: int, x1: int, y1: int, *, filled: bool) -> None:
         if len(self.stack) < 1:
             return
@@ -583,21 +615,24 @@ class BBCGraphics:
         gcol, _ = self._plot_subcolour(code & 7)
         mode, colour = gcol
         if filled:
-            # Scanline fill in screen coordinates — avoids per-pixel _to_screen calls.
             scx, scy = self._to_screen(cx, cy)
             srx, sry = disc_screen_radii(radius, self.x_scale, self.y_scale)
-            h, w = self.height, self.width
-            for spy in range(max(0, scy - sry), min(h, scy + sry + 1)):
-                dy = spy - scy
-                if abs(dy) > sry:
-                    continue
-                half_x = int(
-                    math.sqrt(max(0.0, float(srx * srx * (1.0 - (dy / sry) ** 2))))
-                )
-                x0 = max(0, scx - half_x)
-                x1s = min(w, scx + half_x + 1)
-                self._fill_hspan_screen(x0, x1s - 1, spy, gcol)
-            # Clip later PLOT fills to the disc silhouette (pixel mask, not vertex pull-in).
+            if mode == 0 and self.pixels_is_numpy and self._fill_disc_numpy(
+                scx, scy, srx, sry, colour,
+            ):
+                pass
+            else:
+                h, w = self.height, self.width
+                for spy in range(max(0, scy - sry), min(h, scy + sry + 1)):
+                    dy = spy - scy
+                    if abs(dy) > sry:
+                        continue
+                    half_x = int(
+                        math.sqrt(max(0.0, float(srx * srx * (1.0 - (dy / sry) ** 2))))
+                    )
+                    x0 = max(0, scx - half_x)
+                    x1s = min(w, scx + half_x + 1)
+                    self._fill_hspan_screen(x0, x1s - 1, spy, gcol)
             self._clip_disc = (scx, scy, srx, sry)
         else:
             if radius <= 0:

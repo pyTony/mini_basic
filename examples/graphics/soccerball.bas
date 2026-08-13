@@ -27,7 +27,7 @@
    270 NEXT J%
    280 WAIT 1
    290 *REFRESH
-   300 C += 0.03
+   300 C += 0.5
    310 UNTIL FALSE
    320 END
    330 DATA 0, 1, T, -P, 2, R, P, 2, R, -1, Q, S, 1, Q, S
