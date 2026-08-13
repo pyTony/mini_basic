@@ -363,6 +363,11 @@ class TerminalDisplay(DisplayBackend):
 
     def end_run(self) -> None:
         self.present(force=True)
+        try:
+            sys.stdout.write('\x1b[0m')
+            sys.stdout.flush()
+        except Exception:
+            pass
         self._open = False
 
     def set_text_dimensions(self, cols: int, rows: int) -> None:

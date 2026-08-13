@@ -316,6 +316,17 @@ class RuntimeGraphicsMixin:
         backend = (self.config.display or 'terminal').strip().lower()
         if backend in ('none', 'null'):
             return
+        # REPL already has TerminalDisplay; CLI never did. After auto-enable
+        # pygame, drop the console backend or MODE/COLOUR paint the terminal
+        # (soccerball COLOUR 130 → green text screen) and CIRCLE/PLOT are no-ops.
+        if backend == 'pygame' and self._display is not None:
+            if type(self._display).__name__ != 'PygameDisplay':
+                try:
+                    self._display.end_run()
+                except Exception:
+                    pass
+                self._display = None
+                self._display_live = False
         if backend in ('', 'terminal'):
             # Create a real TerminalDisplay (grid + batched ANSI present)
             # so that high-volume TAB/PRINT programs are fast in terminal mode.
