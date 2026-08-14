@@ -1,6 +1,0 @@
-Focus: idle — public main docs updated (no tag)
-
-1.00 README / RELEASE / git links on main. Version stays 1.0.0.dev0
-until tagged.
-
-Repo: C:\Users\Tony\mini_basic

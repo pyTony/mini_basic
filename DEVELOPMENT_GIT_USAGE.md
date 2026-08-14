@@ -1,8 +1,7 @@
 # Git Usage for mini_basic Development
 
 **Quick start:** `GIT_QUICKSTART.md`  
-**Agent fixes:** `docs/git/INDEPENDENT_FIXES.md`  
-**Policy:** `AGENT_POLICY.txt` (single focus, branch, no loose `runtime_fixed_*.py`)
+**LLM notes:** `docs/LLM.md`
 
 ---
 
@@ -32,7 +31,6 @@ The modular package is the product. **Track**:
 - `mini_basic/version.py`, `__init__.py`, `__main__.py`
 - Focused tests: `test/test_*.py` (not probe scripts)
 - `pytest.ini`, `.gitignore`, `README.md`, `HOWTO.md`
-- Status that agents maintain: `FEATURES_DONE.txt`, `CURRENT_TASK.txt`, `AGENT_POLICY.txt`
 - Curated demos: `examples/vdu/`, `examples/teletext/`, small bas files
 
 **Ignore** (see `.gitignore`): probes, coverage, `__pycache__`, resource JSON churn, most generated `dist/` archives.
@@ -56,7 +54,6 @@ python -m pytest -q -m "phase1 and not slow" --timeout=45
 # Stage deliberately (avoid git add . when status is huge)
 git add mini_basic/display.py mini_basic/version.py
 git add test/test_rgb_dirty_coords.py
-git add FEATURES_DONE.txt CURRENT_TASK.txt
 git add .gitignore GIT_QUICKSTART.md DEVELOPMENT_GIT_USAGE.md
 
 git status   # confirm no _probe_*, no .coverage
@@ -106,14 +103,13 @@ Naming: `fix/…`, `feat/…`, `docs/…`, `test/…`.
 
 ---
 
-## 7. Agent / LLM checklist
+## 7. Checklist
 
 1. `cd C:\Users\Tony\mini_basic`; confirm `git rev-parse --show-toplevel`.
 2. Create/switch to a **branch** for the single focus.
 3. Prefer explicit `git add` paths; never commit probe dumps.
 4. Run `pytest -m "phase1 and not slow"` (includes phase0).
-5. Update `CURRENT_TASK` / `FEATURES_DONE` when policy requires.
-6. **Do not** invent a second repo under `Programming/` unless the user asks.
+5. **Do not** invent a second repo under `Programming/` unless the user asks.
 
 ---
 

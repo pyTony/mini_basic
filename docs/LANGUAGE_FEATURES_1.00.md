@@ -3,7 +3,7 @@
 **Status:** Ready to ship as **1.00** under the scope locked below  
 **Version line:** `1.0.0.dev0` (PEP 440 / PyPI) → tag **`1.0.0`** when this document is accepted  
 **Date:** 2026-08-03  
-**Related:** [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`FEATURES_DONE.txt`](../FEATURES_DONE.txt) · [`CORPUS_AUDIT.txt`](../CORPUS_AUDIT.txt) · [`USER_APPROVAL.txt`](../USER_APPROVAL.txt)
+**Related:** [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`RELEASE_1.00.md`](RELEASE_1.00.md) · [`LLM.md`](LLM.md)
 
 This is the **language and graphics baseline** for 1.00. It states what is in, what is out, and **why the product qualifies** without claiming full BBCSDL / RISC OS parity.
 
@@ -189,7 +189,7 @@ Corpus snippets accepted the same way: `SOUND 1,1,255,255`, `SOUND &11,0,1,1` (w
 |------|--------|
 | Corpus `ALL` runnable | **22 OK** |
 | Explicit DEFER only | **poem** (interactive MODE7); music/tools/physics not in corpus |
-| Phase 0 / 1 pytest | Large green regression (phase0 + phase1 markers; see FEATURES_DONE) |
+| Phase 0 / 1 pytest | Large green regression (phase0 + phase1 markers) |
 | Focused graphics tests | piechart sectors/labels, welcome chars/envelope, VDU A–C, squares speed, soccerball, etc. |
 
 ### 5.2 User visual approval (graphics language exercised)

@@ -24,7 +24,7 @@ Do **not** treat `Programming\mini_basic` as a second source of truth unless you
 
 1. **One repo** — work in `C:\Users\Tony\mini_basic` only.
 2. **Branch for work** — never commit feature work straight to `main` during a fix.
-3. **Small commits** — one focus (AGENT_POLICY); prefer explicit `git add paths`.
+3. **Small commits** — one focus; prefer explicit `git add paths`.
 4. **Ignore noise** — probes, `__pycache__`, coverage (see `.gitignore`).
 5. **Track the package** — almost all of `mini_basic/` must be versioned (mixins, util, tests). Untracked runtime = broken history.
 
@@ -40,18 +40,15 @@ git checkout -b fix/short-description
 # work… then:
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 
-# END job git gate (AGENT_POLICY §3b step 6) — required when durable files changed:
 git status -sb
-git add mini_basic/ test/test_relevant.py FEATURES_DONE.txt CURRENT_TASK.txt WORK_LOG.txt
-# also stage docs/, CORPUS_*, packaging if this job touched them
-git status   # review: no _probe_*, no .coverage, no world_debug*, no huge PDFs unless intended
+git add mini_basic/ test/test_relevant.py
+# also stage docs/ if this job touched them
+git status   # review: no _probe_*, no .coverage, no world_debug*
 git commit -m "fix: short description
 
 - What changed
 - Tests: pytest -m phase1 …"
 ```
-
-If you skip commit, log `NO-COMMIT <reason>` in WORK_LOG (policy exception only).
 
 After user approval of a whole program/feature:
 
@@ -67,7 +64,7 @@ git branch -d fix/short-description
 |--------|--------|
 | `mini_basic/**/*.py` (package) | `test/_probe_*.py`, `test/_debug_*.py` |
 | Focused `test/test_*.py` | `.coverage`, `test/logs/`, `__pycache__` |
-| `FEATURES_DONE.txt`, `CURRENT_TASK.txt`, policy docs | `.resource_*.json`, `RESOURCE_CHECK.txt` |
+| Focused docs under `docs/` | `.resource_*.json`, `RESOURCE_CHECK.txt` |
 | Small examples under `examples/` (demos) | Huge game asset trees |
 | `pytest.ini`, `.gitignore` | Generated `dist/` text parts unless shipping |
 
@@ -90,5 +87,4 @@ git status -u --short -- mini_basic/
 ## More detail
 
 - `DEVELOPMENT_GIT_USAGE.md` — full guide
-- `docs/git/INDEPENDENT_FIXES.md` — branch naming / agent checklist
-- `AGENT_POLICY.txt` — single focus, status BEGIN/END
+- `docs/LLM.md` — language / test notes

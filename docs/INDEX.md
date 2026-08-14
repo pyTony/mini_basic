@@ -41,6 +41,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Language / graphics baseline for 1.00 ship |
 | [PACKAGING.md](PACKAGING.md) | Wheel contents, extras (`display` / `repl` / `all`), build |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialects and BBC family vs mini_basic |
+| [LLM.md](LLM.md) | Short notes for people and LLMs |
 
 ## Language and implementation
 
@@ -72,13 +73,10 @@ python -m pip install -U -e ".[all]"
 
 | Doc | What it is |
 |-----|------------|
-| [../GIT_QUICKSTART.md](../GIT_QUICKSTART.md) | Short continuous-git checklist |
+| [../GIT_QUICKSTART.md](../GIT_QUICKSTART.md) | Short git checklist |
 | [../DEVELOPMENT_GIT_USAGE.md](../DEVELOPMENT_GIT_USAGE.md) | Fuller git / branch guide |
 | [git/README.md](git/README.md) | `docs/git/` folder |
-| [git/INDEPENDENT_FIXES.md](git/INDEPENDENT_FIXES.md) | Agent fix branches / independent fixes |
-| [../DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md](../DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md) | Agent pipeline / LLM guide |
-| [CLEAN_START.md](CLEAN_START.md) | Clean-start baseline notes |
-| [../AGENT_POLICY.txt](../AGENT_POLICY.txt) | Agent operating rules (BEGIN/END, commits) |
+| [LLM.md](LLM.md) | Language / test notes for LLMs |
 
 ## Feature matrices and manuals (`documentation/`)
 
@@ -97,15 +95,6 @@ Regenerate matrices from the package:
 ```bash
 python -m mini_basic.features
 ```
-
-## Session / history archives
-
-| Doc | What it is |
-|-----|------------|
-| [SESSION_SUMMARIES_INDEX.md](SESSION_SUMMARIES_INDEX.md) | Index of archived session write-ups |
-| [SESSION_CLAUDE_2026-08-09_LIST_SAVE_FORMATTER.md](SESSION_CLAUDE_2026-08-09_LIST_SAVE_FORMATTER.md) | LIST/SAVE formatter session |
-| [SESSION_SUMMARY_archive_part1.md](SESSION_SUMMARY_archive_part1.md) | Archive part 1 |
-| [SESSION_SUMMARY_archive_part2.md](SESSION_SUMMARY_archive_part2.md) | Archive part 2 |
 
 ## Examples (READMEs)
 

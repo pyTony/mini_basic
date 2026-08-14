@@ -8,7 +8,7 @@ REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
 
 Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).
 
-**Docs:** [`docs/RELEASE_1.00.md`](docs/RELEASE_1.00.md) · [`docs/INDEX.md`](docs/INDEX.md)
+**Docs:** [`docs/RELEASE_1.00.md`](docs/RELEASE_1.00.md) · [`docs/INDEX.md`](docs/INDEX.md) · [`docs/LLM.md`](docs/LLM.md)
 
 **Project root:** `C:\Users\Tony\mini_basic`
 
@@ -105,10 +105,7 @@ python test/corpus_audit_probe.py          # writes CORPUS_AUDIT.txt
 ## Development notes
 
 - **Git:** branch-per-focus; see `GIT_QUICKSTART.md` and `DEVELOPMENT_GIT_USAGE.md`.
-- **Status:** agents update `CURRENT_TASK.txt` / `FEATURES_DONE.txt`; heartbeat refreshes `status.html`
-  (`python scripts/progress_heartbeat.py`).
-- **Local vs full tree:** see `docs/git/INDEPENDENT_FIXES.md` if you keep a light
-  clone vs the full tree at `C:\Users\Tony\mini_basic`.
+- **LLM / contributors:** [`docs/LLM.md`](docs/LLM.md).
 
 ## Import map
 

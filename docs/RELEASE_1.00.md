@@ -82,8 +82,7 @@ Regular users never need this.
 1. [ ] Accept this file + LANGUAGE_FEATURES_1.00  
 2. [ ] `__version__` / `pyproject.toml` already `1.0.0`  
 3. [ ] `pytest -q -m "phase1 and not slow"` green on the release machine  
-4. [ ] `git tag 1.0.0` when you want it  
-5. [ ] FEATURES_DONE: `-- 1.00 ship` → `OK 1.00 tagged …`
+4. [ ] `git tag 1.0.0` when you want it
 
 ---
 

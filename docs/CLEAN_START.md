@@ -5,20 +5,17 @@
 
 Working tree was **clean** (no pending product diffs). From this point:
 
-## Going forward (agents + humans)
+## Going forward
 
-1. **One focus branch per job:** `git checkout -b fix/<short-name>` from a clean tip (this tag or updated master after merge).
-2. **END job = bookkeeping + git** (AGENT_POLICY §3b): FEATURES_DONE / CURRENT_TASK / WORK_LOG + **commit** (or `NO-COMMIT <reason>`).
-3. **Stage explicit paths** — not probes, not `*.prof`, not `world_debug*`.
-4. **Do not delete** packaging/docs (`LICENSE`, `MANIFEST.in`, `docs/PACKAGING.md`, manuals) without user request.
-5. **Local-only repo** — no remote required; history is continuous local commits.
+1. **One focus branch per job:** `git checkout -b fix/<short-name>` from a clean tip.
+2. **Stage explicit paths** — not probes, not `*.prof`, not `world_debug*`.
+3. **Do not delete** packaging/docs (`LICENSE`, `MANIFEST.in`, `docs/PACKAGING.md`, manuals) without user request.
 
 ## What this baseline includes (high level)
 
 - Modular `mini_basic` package + tests + corpus menus
-- 1.00 language / packaging docs; Claude LIST/SAVE and earlier session archives under `docs/SESSION_*`
-- Continuous-git END gate in AGENT_POLICY / GIT_QUICKSTART
-- Tree hygiene (.gitignore debug dumps; junk removed)
+- 1.00 language / packaging docs
+- Tree hygiene (`.gitignore` debug dumps)
 
 ## Tag
 

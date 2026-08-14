@@ -42,7 +42,28 @@ _run_one_probe.py
 _t_*.py
 *_session_summary.md
 
-# Status / resource churn (optional keep FEATURES_DONE etc. tracked)
+# Local agent / status (kept on disk, not on public GitHub)
+AGENT_POLICY.txt
+CURRENT_TASK.txt
+FEATURES_DONE.txt
+WORK_LOG.txt
+USER_APPROVAL.txt
+USER_APPROVAL_AGENT.txt
+USER_VERIFY_SNIPPETS.txt
+DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md
+CORPUS_AUDIT.txt
+CORPUS_RUNNABLE.txt
+SYNC_TEST.txt
+DEBUG_STEP.txt
+FOLLOW_PROGRESS.txt
+PROGRESS.txt
+STATUS.txt
+COMPARE_REPORT.txt
+mcps/
+docs/SESSION_*.md
+docs/git/INDEPENDENT_FIXES.md
+
+# Status / resource churn
 .resource_crash.json
 .resource_peak.json
 .status_heartbeat_meta.json

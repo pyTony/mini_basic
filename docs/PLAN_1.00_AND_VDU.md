@@ -2,7 +2,7 @@
 
 **Goal:** Finish a honest **1.00** release without burning full-day agent tokens on unbounded parity.
 
-**Rules:** One focus per session · fixed acceptance criteria · corpus-driven · no drive-by refactors · update `FEATURES_DONE.txt` / `CURRENT_TASK.txt` only.
+**Rules:** One focus per session · fixed acceptance criteria · corpus-driven · no drive-by refactors.
 
 ---
 
@@ -75,17 +75,11 @@
 | Rule | Practice |
 |------|----------|
 | One focus | One VDU family **or** one corpus program — never both |
-| Fixed exit | 1 pytest target green → log FEATURES_DONE → **stop** |
+| Fixed exit | 1 pytest target green → **stop** |
 | Small diff | Prefer only `_execute_vdu` + one test file |
 | Short probes | `pytest -q path::Test` not long animations |
 | Session budget | ≤3 code regions + ≤2 test files per chat |
-| Bookkeeping | `CURRENT_TASK.txt` + `FEATURES_DONE` only (no huge status rewrites) |
-
-**Session template for `CURRENT_TASK.txt`:**
-
-```
-Focus: VDU 17 — same as COLOUR one-arg; test_vdu_17_sets_fg
-```
+| Bookkeeping | Keep the public docs in sync; local notes stay local |
 
 ---
 
@@ -123,7 +117,7 @@ Focus: VDU 17 — same as COLOUR one-arg; test_vdu_17_sets_fg
 - `--version` / version constant  
 - `RELEASE_1.00.md` or README: dialects, VDU table, env vars, deferred  
 - Green: phase1 pytest + VDU tests + session_display  
-- Freeze FEATURES_DONE “1.00 baseline”
+- Freeze the 1.00 language baseline in `LANGUAGE_FEATURES_1.00.md`
 
 ---
 
@@ -150,11 +144,4 @@ Focus: VDU 17 — same as COLOUR one-arg; test_vdu_17_sets_fg
 
 ## 7. Tracking
 
-After each session, append to `FEATURES_DONE.txt`:
-
-```
-OK VDU 17 COLOUR via VDU statement + test_…
--- VDU 20 reset colours
-```
-
-Keep open 1.00 todos as `--` lines; promote to `OK` only when acceptance met.
+Record finished VDU work in tests and `LANGUAGE_FEATURES_1.00.md`. Local checklists stay off GitHub.
