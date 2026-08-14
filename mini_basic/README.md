@@ -15,7 +15,7 @@ CLI: `python -m mini_basic` (see top-level `README.md` for project-wide docs).
 | `type_system.py` | `VarKind`, `BasicRuntimeError`, control-flow frames |
 | `config.py` | `InterpreterConfig`, defaults |
 | `constants.py` | Builtin tables, dialect reserved words |
-| `display.py` | Terminal / pygame / null displays |
+| `display.py` | Terminal / null (optional pygame extra) |
 | `expr/` | Compiled expression cache + patterns |
 | `format/` | `PRINT USING`, save-case helpers |
 | `repl/` | Completion, help browser, Windows input |
@@ -35,7 +35,6 @@ from mini_basic.expr import CompiledExpr, patterns
 
 ```bash
 python -m mini_basic examples/mini/hello_args.bas
-python -m mini_basic --pygame examples/mini/bbc_graphics_demo.bas
 ```
 
 ## Tests

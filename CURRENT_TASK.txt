@@ -1,6 +1,6 @@
-Focus: idle after repairing old SAVE spaced += (soccerball)
+Focus: idle — public main docs updated (no tag)
 
-Recent: ``I% + = 1`` is not language; pre-fix SAVE artifact. Canonicalize + formatter
-glue; repaired soccerball.bas copies and basics/factorial.bas.
+1.00 README / RELEASE / git links on main. Version stays 1.0.0.dev0
+until tagged.
 
-Repo: D:\1\OneDrive - FFWPU-Fin\mini_basic
+Repo: C:\Users\Tony\mini_basic

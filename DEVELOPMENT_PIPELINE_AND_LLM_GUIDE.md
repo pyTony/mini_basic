@@ -6,7 +6,7 @@ It is intended for any LLM, agent, or developer to pick up and continue correctl
 
 ## 1. Status Implementation Overview
 
-The status system is designed for monitoring (especially phone/tablet via OneDrive sync) and autonomous agent coordination.
+The status system is designed for monitoring (especially phone/tablet via `status.html`) and autonomous agent coordination.
 
 Core components:
 

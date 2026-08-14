@@ -59,7 +59,7 @@ Recording user issues (so the next session still picks them first):
 - Do **not** rely on a frequent empty "heartbeat rewrite" of status.html.
   Heartbeat is light: poll .txt change + rare check that agents still touch
   CURRENT_TASK / FEATURES_DONE (staleness warning if idle too long).
-- Only use status.html for progress *display* (phone/OneDrive).
+- Only use status.html for progress *display* (phone / browser).
 - Never use phone summaries, RSS, or other channels (they have been removed).
 
 ## 3b. MUST-FOLLOW: Agentic Job Status Script (BEGIN + END)
@@ -101,7 +101,7 @@ Skipping either end is a policy violation.
    - Run `git status -sb` (and `git diff --stat` if anything is dirty).
    - If this job changed **code, tests, packaging, or durable docs** (including
      FEATURES_DONE / CORPUS_* / docs/SESSION_* when recording handoffs):
-     - Stay on a **focus branch** (never commit straight to `master`).
+     - Stay on a **focus branch** (never commit straight to `main`).
      - Stage **explicit paths** (not blind `git add -A` if junk is present).
      - **Commit** with a clear message referencing the focus.
    - If dirty only with accidental noise (probes, logs): discard or leave untracked;

@@ -37,6 +37,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 |-----|------------|
 | [../README.md](../README.md) | Overview, quick start, pip install summary |
 | [../HOWTO.md](../HOWTO.md) | Install archives, text parts, common tasks |
+| [RELEASE_1.00.md](RELEASE_1.00.md) | 1.00 release notes + tag checklist (user gate) |
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Language / graphics baseline for 1.00 ship |
 | [PACKAGING.md](PACKAGING.md) | Wheel contents, extras (`display` / `repl` / `all`), build |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialects and BBC family vs mini_basic |
@@ -108,11 +109,14 @@ python -m mini_basic.features
 
 ## Examples (READMEs)
 
+Git tree (not in the pip wheel): [github.com/pyTony/mini_basic](https://github.com/pyTony/mini_basic) · [examples/](https://github.com/pyTony/mini_basic/tree/main/examples)
+
 | Doc | What it is |
 |-----|------------|
 | [../examples/README.txt](../examples/README.txt) | Examples tree map |
 | [../examples/vdu/README.md](../examples/vdu/README.md) | VDU demos |
 | [../examples/teletext/README.md](../examples/teletext/README.md) | Teletext samples |
+| [../examples/m6502-cport/README.md](../examples/m6502-cport/README.md) | M6502 C-port tutorials ([upstream](https://github.com/garyexplains/BASIC-M6502-CPORT)) |
 
 ## Runtime internals (package)
 

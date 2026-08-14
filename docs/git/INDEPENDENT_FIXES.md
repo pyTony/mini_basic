@@ -17,10 +17,10 @@ Previous development created many loose backup files (`runtime_fixed_*.py`, `run
 
 Before starting any fix session:
 
-1. Be in the **git tree** (OneDrive via junction):
+1. Be in the **git tree**:
    ```powershell
    cd C:\Users\Tony\mini_basic
-   git rev-parse --show-toplevel   # OneDrive path
+   git rev-parse --show-toplevel
    # C:\Users\Tony\Programming\mini_basic is often an install copy — not the git home
    ```
 2. Read the policy documents (every session):
@@ -28,9 +28,9 @@ Before starting any fix session:
    Get-Content AGENT_POLICY.txt -TotalCount 80
    Get-Content DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md -TotalCount 50
    ```
-3. Ensure you are on a clean `master` (or create a branch from it):
+3. Ensure you are on a clean `main` (or create a branch from it):
    ```powershell
-   git checkout master
+   git checkout main
    git status
    ```
 
@@ -107,8 +107,8 @@ Tell the user:
 ### 5. Merge After User Final Approval
 
 ```powershell
-git checkout master
-git pull origin master 2>$null
+git checkout main
+git pull origin main 2>$null
 
 git merge --no-ff fix/rem-clean-handling -m "merge: fix/rem-clean-handling (user approved)"
 
@@ -116,18 +116,18 @@ git merge --no-ff fix/rem-clean-handling -m "merge: fix/rem-clean-handling (user
 git tag fix-rem-clean-handling-2026-07-09
 
 git branch -d fix/rem-clean-handling
-git push origin master --tags
+git push origin main --tags
 ```
 
 Using `--no-ff` keeps the branch history visible in the log.
 
 ## Advanced Topics
 
-### OneDrive junction (single tree)
+### Single tree
 
-- Work in `C:\Users\Tony\mini_basic` (junction → OneDrive). **One git repo only.**
+- Work in `C:\Users\Tony\mini_basic`. **One git repo only.**
 - `Programming\mini_basic` may be an install snapshot without `.git` — do not treat it as a second history to “port” into.
-- Details: `DEVELOPMENT_GIT_USAGE.md` §1.
+- Details: `DEVELOPMENT_GIT_USAGE.md` section 1.
 
 ### Large Directories & .gitignore
 
@@ -173,17 +173,17 @@ At the very start of every autonomous session:
 
 ```powershell
 git branch --show-current
-if ((git branch --show-current) -eq 'master') {
+if ((git branch --show-current) -eq 'main') {
     $focus = (Get-Content CURRENT_TASK.txt | Where {$_ -notmatch '^#'} | Select -First 1).Trim() -replace '\s+', '-'
     git checkout -b "fix/$focus"
 }
 ```
 
-Never work directly on `master`. Never start a new focus until the current branch has been merged after user approval.
+Never work directly on `main`. Never start a new focus until the current branch has been merged after user approval.
 
 ## Common Mistakes to Avoid
 
-- Committing directly to `master` during a fix.
+- Committing directly to `main` during a fix.
 - Creating a new branch for every tiny change (one focused branch per TODO item).
 - Forgetting to update status files as part of the commit.
 - Ending a job with only FEATURES_DONE/CURRENT_TASK updated and **no git commit**
