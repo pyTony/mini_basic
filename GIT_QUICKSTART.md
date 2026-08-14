@@ -24,7 +24,7 @@ Do **not** treat `Programming\mini_basic` as a second source of truth unless you
 
 1. **One repo** — work in `C:\Users\Tony\mini_basic` only.
 2. **Branch for work** — never commit feature work straight to `main` during a fix.
-3. **Small commits** — one focus; prefer explicit `git add paths`.
+3. **Small commits** — one focus; `git add` only the files you changed. Never `git add -f` agent/status files (they are in `.gitignore`).
 4. **Ignore noise** — probes, `__pycache__`, coverage (see `.gitignore`).
 5. **Track the package** — almost all of `mini_basic/` must be versioned (mixins, util, tests). Untracked runtime = broken history.
 
