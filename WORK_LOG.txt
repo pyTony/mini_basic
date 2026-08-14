@@ -113,3 +113,9 @@
 2026-08-13 08:57:50 WORK END piechart compact IF: linenum split does not overwrite Colour&() OR= body
 2026-08-13 09:08:46 WORK END soccerball: parse I% + = 1 as +=
 2026-08-13 09:13:35 WORK END old SAVE +=: glue at entry/LIST; repaired soccerball+factorial
+2026-08-14 00:50:22 WORK END soccerball close/FPS + phase1 leftovers + a0to unglue + NEXT I%,J%,K% FOR order; status.html rebuilt
+2026-08-14 00:52:51 WORK BEGIN Phase 2c: peel operator normalize off hot eval
+2026-08-14 00:53:25 WORK END Phase 2c: operator normalize fast-reject on hot eval; 10MOD3/A%AND1 still rewrite
+2026-08-14 01:20:27 WORK END HEX$/BIN$ string funcs (MS/QB64/Locomotive); STR$~ remains BBC hex
+2026-08-14 01:34:58 WORK END PRINT ~n BBC hex (same digits as STR$~ / HEX$)
+2026-08-14 12:00:00 WORK END 1.00 prep: docs/RELEASE_1.00.md + tag checklist; version stays 1.0.0.dev0 (user gate)

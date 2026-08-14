@@ -86,7 +86,7 @@ OK examples/m6502-cport: 60 tutorials + apps/adv from garyexplains/BASIC-M6502-C
 OK MITS summary + tests: docs/MITS_IMPLEMENTATION.md; test_m6502_cport_mits
   (42 pass / 6 documented gaps on 01–48); markers mits + m6502_cport
 -- Phase D poem.txt: DEFER (MODE7 interactive GET/INKEY; audit 20s timeout)
--- 1.00 ship: tag 1.0.0 + RELEASE notes when ready (packaging/wheel ready as 1.0.0.dev0)
+-- 1.00 ship: tag 1.0.0 when user accepts docs/RELEASE_1.00.md (notes ready; still 1.0.0.dev0)
 OK phase2: graphics suites marked phase2+graphics (excluded from phase1 markexpr);
   test_bbc_graphics pure math stays phase1 non_gfx; pytest.ini + test/README
 
@@ -150,7 +150,10 @@ OK Phase 2a monadic peel: _unglue_monadic_expr fast-reject on eval/expand;
   immediate mode also entry-canonicalizes; safety net if glue remains
 OK Phase 2b: _parse_command BBC dialect normalize fast-reject when no residual
   glue (PRINTTAB/MODE5/FORI…); safety net still peels; test_entry_canonicalize
--- Phase 2c+: peel more runtime families (operator normalize, …)
+OK Phase 2c: _normalize_operators fast-reject when no AND/MOD/DIV/^/<< glue
+  (ZX*ZX+ZY*ZY skips rewrite; 10MOD3 / A%AND1 / X^2 still translate)
+OK HEX$(n [,w]) / BIN$(n [,w]): MS/QB64 / Locomotive aliases; STR$~ stays BBC hex
+OK PRINT ~n BBC hex (applies to following numeric items; same digits as STR$~)
 OK compile WHILE CONT AND (I%<N) boolean path: mixed AND/OR/NOT/XOR + comparisons
   lower to -1/0 then &/|/^/~; pure bitwise squares path preserved; ~6–7× microbench;
   tests in test_squares_speed; pure-bitwise condition float coerce + NOT leading-space fix
@@ -202,5 +205,11 @@ OK piechart compact IF: trailing linenum 8 no longer steals ``Colour&() OR= 8``
 OK old SAVE ``I% + = 1`` / ``* REFRESH``: glue at entry + LIST/SAVE; soccerball/wheel/factorial repaired
 OK phase1 leftovers: -i skips piped-stdin session; fern.txt is a program; REPL folds for/print
 OK NEXT I,J / NEXT ,, closes that many FOR loops (BBC unnamed list)
+OK NEXT I%,J%,K% in FOR order is the same as inner-first NEXT K%,J%,I%
+OK soccerball second RUN: do not pygame.quit() on end_run; drop Clock so
+  tick() cannot SDL_Delay the previous RUN; pump-aware FPS cap (X during wait)
+OK phase1 leftovers: LOAD remembers relative name; no Graphics banner when
+  display=none; TerminalDisplay ANSI reset only on TTY
+OK TO/STEP unglue: not mid-identifier (a0to=a0to+1); 1TO10 / I%TO still split
 OK CIRCLE FILL / PLOT 85 spans: slice write + disc clip by scanline (soccerball first frame)
 -- Mandelbrot still ~20×+ slower than BBCSDL (~3s); leftover is statement dispatch

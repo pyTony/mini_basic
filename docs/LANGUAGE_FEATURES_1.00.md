@@ -2,8 +2,8 @@
 
 **Status:** Ready to ship as **1.00** under the scope locked below  
 **Version line:** `1.0.0.dev0` (PEP 440 / PyPI) → tag **`1.0.0`** when this document is accepted  
-**Date:** 2026-08-03  
-**Related:** [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`FEATURES_DONE.txt`](../FEATURES_DONE.txt) · [`CORPUS_AUDIT.txt`](../CORPUS_AUDIT.txt) · [`USER_APPROVAL.txt`](../USER_APPROVAL.txt)
+**Date:** 2026-08-09 (notes refreshed)  
+**Related:** [`RELEASE_1.00.md`](RELEASE_1.00.md) · [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`FEATURES_DONE.txt`](../FEATURES_DONE.txt) · [`CORPUS_AUDIT.txt`](../CORPUS_AUDIT.txt) · [`USER_APPROVAL.txt`](../USER_APPROVAL.txt)
 
 This is the **language and graphics baseline** for 1.00. It states what is in, what is out, and **why the product qualifies** without claiming full BBCSDL / RISC OS parity.
 
@@ -73,13 +73,13 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 | Feature | Notes |
 |---------|--------|
 | Float, integer `%`, string `$` | Optional bigint for `%` where enabled. |
-| Arrays `DIM` | Numeric/string; some PRINT-subscript expansion still a known gap. |
+| Arrays `DIM` | Numeric/string/`&` byte; `PRINT a(i)` expanded; whole-array ops for bbc demos. |
 | Operators | `+ - * /`, `DIV`, `MOD`, `^`, shifts `<<` `>>`. |
 | Bitwise | `AND` `OR` `EOR`/`XOR` `NOT` (integer bitwise path; pure bitwise can compile). |
 | Relations / logic | `=` `<>` `<` `>` … ; BBC TRUE = **-1**. |
 | Hex / binary forms | BBC-style literals where implemented. |
 | Built-ins | `SIN` `COS` `TAN` `ASN` `ACS` `ATN` `SQR` `ABS` `INT` `SGN` `RND` `LOG` `EXP` `RAD` `DEG` … |
-| Strings | `LEFT$` `RIGHT$` `MID$` `STR$` `VAL` `ASC` `CHR$` `LEN` `INSTR` `STRING$` … |
+| Strings | `LEFT$` `RIGHT$` `MID$` `STR$` `STR$~` `HEX$` `BIN$` `VAL` `ASC` `CHR$` `LEN` `INSTR` `STRING$` … |
 | Time | `TIME`, `TIME$` (where provided). |
 | System stubs | `@%`, `@vdu%!n`, `@lib$` / `@dir$` partial, `@ispal%` stub, etc. |
 
@@ -87,7 +87,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 
 | Feature | Notes |
 |---------|--------|
-| `PRINT` / `?` | TAB, SPC, commas/semicolons; VDU embedded sequences. |
+| `PRINT` / `?` | TAB, SPC, commas/semicolons; `PRINT ~n` hex; VDU embedded sequences. |
 | `INPUT` / `LINE INPUT` | |
 | `GET` / `GET$` / `INKEY` / `INKEY$` | Positive timeout present for graphics; glued `INKEY1`. |
 | Files | `OPENIN` / `OPENOUT` / `OPENUP`, `PRINT#` / `INPUT#` / `BGET#` / `BPUT#`, `EOF#`, `CLOSE#`. |
@@ -187,7 +187,7 @@ Corpus snippets accepted the same way: `SOUND 1,1,255,255`, `SOUND &11,0,1,1` (w
 
 | Gate | Result |
 |------|--------|
-| Corpus `ALL` runnable | **22 OK** |
+| Corpus `ALL` runnable | **21 OK** (portable subset; tools/physics/sounds removed) |
 | Explicit DEFER only | **poem** (interactive MODE7); music/tools/physics not in corpus |
 | Phase 0 / 1 pytest | Large green regression (phase0 + phase1 markers; see FEATURES_DONE) |
 | Focused graphics tests | piechart sectors/labels, welcome chars/envelope, VDU A–C, squares speed, soccerball, etc. |
@@ -253,7 +253,7 @@ From `mini_basic/features/deferred.py` and project policy:
 3. **Quality gates** are closed: corpus audit OK-or-DEFER, regression phases green, version/reportability in place.  
 4. **Scope is honest:** deferred rows are listed; 1.00 does not pretend to be BBCSDL-with-sound or RISC OS.
 
-**To tag 1.00:** accept this document, set `__version__ = '1.00'`, add a one-page `RELEASE_1.00.md` changelog pointer to this file if desired, and keep polly/poem on the post-1.00 backlog.
+**To tag 1.00:** accept this document and [`RELEASE_1.00.md`](RELEASE_1.00.md), set `__version__` / `pyproject.toml` to `1.0.0`, run phase1 pytest, then `git tag 1.0.0`. Do not auto-tag.
 
 ---
 

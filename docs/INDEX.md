@@ -37,6 +37,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 |-----|------------|
 | [../README.md](../README.md) | Overview, quick start, pip install summary |
 | [../HOWTO.md](../HOWTO.md) | Install archives, text parts, common tasks |
+| [RELEASE_1.00.md](RELEASE_1.00.md) | 1.00 release notes + tag checklist (user gate) |
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Language / graphics baseline for 1.00 ship |
 | [PACKAGING.md](PACKAGING.md) | Wheel contents, extras (`display` / `repl` / `all`), build |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialects and BBC family vs mini_basic |
