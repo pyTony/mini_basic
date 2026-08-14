@@ -23,7 +23,7 @@ Only the **importable interpreter package** under `mini_basic/`:
 | Path | Why |
 |------|-----|
 | `test/`, `tools/`, `utils/`, `scripts/` | Dev/agent tooling |
-| `examples/`, `basics/`, `test/corpus/` | Demos and BBCSDL corpus (install separately or use text-archive dist) |
+| `examples/`, `basics/`, `test/corpus/` | Demos and BBCSDL corpus — get from [git](https://github.com/pyTony/mini_basic/tree/main/examples), not the wheel |
 | `documentation/*.pdf`, large media | Not required to run the interpreter |
 | `tools/python-embed/` | Bundled Python tree for offline installers |
 | Agent status files, probes, `__pycache__` | Local noise |

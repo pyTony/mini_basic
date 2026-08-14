@@ -4,6 +4,15 @@ mini-BASIC example programs
 Project root: parent of this examples/ folder.
 Tests: ../test/   Main README: ../README.md
 
+Git (this tree):
+  https://github.com/pyTony/mini_basic
+  https://github.com/pyTony/mini_basic/tree/main/examples
+
+Upstream (third-party sources):
+  M6502 C-port:  https://github.com/garyexplains/BASIC-M6502-CPORT
+  BBCSDL demos:  https://github.com/rtrussell/BBCSDL/tree/master/examples
+                 https://www.bbcbasic.co.uk/bbcsdl/examples/index.html
+
 Run from project root (mini_basic):
 
   python mini_basic.py --dialect mits examples/mits/menu.bas

@@ -1,33 +1,23 @@
 # Git Usage for mini_basic Development
 
 **Quick start:** `GIT_QUICKSTART.md`  
-**Agent fixes:** `docs/git/INDEPENDENT_FIXES.md`  
-**Policy:** `AGENT_POLICY.txt` (single focus, branch, no loose `runtime_fixed_*.py`)
+**LLM notes:** `docs/LLM.md`
 
 ---
 
-## 1. Layout (current reality)
+## 1. Layout
 
-```
-C:\Users\Tony\mini_basic
-        │
-        │  directory junction
-        ▼
-D:\1\OneDrive - FFWPU-Fin\mini_basic   ← real folder + .git
-```
+**Project root:** `C:\Users\Tony\mini_basic`
 
 | Path | Role |
 |------|------|
-| `C:\Users\Tony\mini_basic` | **Junction** — use this day-to-day |
-| OneDrive path above | **Canonical tree** (git root, full corpus, sync) |
+| `C:\Users\Tony\mini_basic` | **Git working tree** (use this) |
 | `C:\Users\Tony\Programming\mini_basic` | Optional **install / run** copy (often **not** a git repo) |
 
-**Do not** maintain two divergent git histories with manual `Copy-Item` as the primary workflow. The junction *is* the OneDrive source.
+**Do not** maintain two divergent git histories with manual `Copy-Item` as the primary workflow.
 
 ```powershell
 cd C:\Users\Tony\mini_basic
-(Get-Item .).LinkType    # Junction
-(Get-Item .).Target      # OneDrive path
 git rev-parse --show-toplevel
 ```
 
@@ -41,10 +31,9 @@ The modular package is the product. **Track**:
 - `mini_basic/version.py`, `__init__.py`, `__main__.py`
 - Focused tests: `test/test_*.py` (not probe scripts)
 - `pytest.ini`, `.gitignore`, `README.md`, `HOWTO.md`
-- Status that agents maintain: `FEATURES_DONE.txt`, `CURRENT_TASK.txt`, `AGENT_POLICY.txt`
 - Curated demos: `examples/vdu/`, `examples/teletext/`, small bas files
 
-**Ignore** (see `.gitignore`): probes, coverage, `__pycache__`, OneDrive junk, resource JSON churn, most generated `dist/` archives.
+**Ignore** (see `.gitignore`): probes, coverage, `__pycache__`, resource JSON churn, most generated `dist/` archives.
 
 If `git status -u --short -- mini_basic/` shows many `??` package files, the history is incomplete — add them on the next feature commit.
 
@@ -56,7 +45,7 @@ If `git status -u --short -- mini_basic/` shows many `??` package files, the his
 cd C:\Users\Tony\mini_basic
 
 # Branch per focus
-git checkout master
+git checkout main
 git checkout -b fix/topic-name
 
 # Work + tests
@@ -65,31 +54,22 @@ python -m pytest -q -m "phase1 and not slow" --timeout=45
 # Stage deliberately (avoid git add . when status is huge)
 git add mini_basic/display.py mini_basic/version.py
 git add test/test_rgb_dirty_coords.py
-git add FEATURES_DONE.txt CURRENT_TASK.txt
 git add .gitignore GIT_QUICKSTART.md DEVELOPMENT_GIT_USAGE.md
 
 git status   # confirm no _probe_*, no .coverage
 git commit -m "fix: short description"
 ```
 
-Merge to `master` only after user approval of the focused work (same as before).
+Merge to `main` only after user approval of the focused work (same as before).
 
 ---
 
-## 4. OneDrive caveats
-
-- Sync may lock files during long pytest or agent runs.
-- Prefer not to commit multi‑MB PDFs / game asset trees every commit.
-- If git behaves oddly, pause OneDrive sync briefly or work and commit, then resume.
-
----
-
-## 5. MINIBASIC_DIR
+## 4. MINIBASIC_DIR
 
 | Variable | Meaning |
 |----------|---------|
-| `MINIBASIC_DIR` | Install/launcher tree (process + User env) |
-| Git toplevel | Always the OneDrive path |
+| `MINIBASIC_DIR` | Install/launcher tree (`C:\Users\Tony\mini_basic`) |
+| Git toplevel | `C:\Users\Tony\mini_basic` |
 
 ```powershell
 python -m mini_basic --version   # package path + MINIBASIC_DIR
@@ -99,7 +79,7 @@ Install scripts (`tools/install.ps1`, `tools/dev_install.ps1`) set `MINIBASIC_DI
 
 ---
 
-## 6. Text archives / distribution
+## 5. Text archives / distribution
 
 - `tools/create_text_archive.py` / reconstruct scripts produce `*_text_part*.txt`.
 - Those parts are **distribution artifacts** — usually ignored by `.gitignore`.
@@ -107,14 +87,14 @@ Install scripts (`tools/install.ps1`, `tools/dev_install.ps1`) set `MINIBASIC_DI
 
 ---
 
-## 7. Branching (unchanged principles)
+## 6. Branching (unchanged principles)
 
 ```powershell
 git checkout -b fix/soccerball-green-screen
 # … fix + tests …
 git commit -m "fix: blank text cells must not overpaint graphics after COLOR 130"
 # after approval:
-git checkout master
+git checkout main
 git merge --no-ff fix/soccerball-green-screen
 git branch -d fix/soccerball-green-screen
 ```
@@ -123,18 +103,17 @@ Naming: `fix/…`, `feat/…`, `docs/…`, `test/…`.
 
 ---
 
-## 8. Agent / LLM checklist
+## 7. Checklist
 
-1. `cd` to junction (`C:\Users\Tony\mini_basic`); confirm `git rev-parse --show-toplevel`.
+1. `cd C:\Users\Tony\mini_basic`; confirm `git rev-parse --show-toplevel`.
 2. Create/switch to a **branch** for the single focus.
 3. Prefer explicit `git add` paths; never commit probe dumps.
 4. Run `pytest -m "phase1 and not slow"` (includes phase0).
-5. Update `CURRENT_TASK` / `FEATURES_DONE` when policy requires.
-6. **Do not** invent a second repo under `Programming/` unless the user asks.
+5. **Do not** invent a second repo under `Programming/` unless the user asks.
 
 ---
 
-## 9. Useful commands
+## 8. Useful commands
 
 ```powershell
 # Package still untracked?
@@ -153,7 +132,7 @@ git branch -vv
 
 ---
 
-## 10. Optional: seed a full package commit
+## 9. Optional: seed a full package commit
 
 If the package was never fully added after modularization:
 

@@ -1,43 +1,34 @@
 # mini_basic
 
-Python BASIC interpreter with multi-dialect support (especially BBC BASIC / BBCSDL-style),
-REPL/CLI, file I/O, and optional graphics (terminal / pygame).
+Python BASIC interpreter: multi-dialect (mini / bbc / mits / commodore / tiny),
+REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
 
-**CLI entry points:** `python -m mini_basic` · `mini-basic` / `minibasic` (after pip install) · `python mini_basic.py` · `mb.py`
+**CLI:** `python -m mini_basic` · `python mini_basic.py` · `mb.py`  
+(After a pip install: `mini-basic` / `minibasic`.)
 
-Version: see `mini_basic/version.py` / `pyproject.toml` (PEP 440, e.g. `1.0.0.dev0`).
+Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).
 
-## Install (pip / wheel)
+**Docs:** [`docs/RELEASE_1.00.md`](docs/RELEASE_1.00.md) · [`docs/INDEX.md`](docs/INDEX.md) · [`docs/LLM.md`](docs/LLM.md)
 
-The **wheel contains only the interpreter package** (not examples, tests, or tools).
+**Project root:** `C:\Users\Tony\mini_basic`
 
-```bash
-# From a built wheel (local):
-pip install dist/mini_basic-*.whl
+**Git (examples + developer tree):** [github.com/pyTony/mini_basic](https://github.com/pyTony/mini_basic)  
+`git clone https://github.com/pyTony/mini_basic.git`
 
-# Optional graphics / Windows REPL completion:
-pip install "mini-basic[display]"
-pip install "mini-basic[all]"
+| On GitHub | What |
+|-----------|------|
+| [examples/](https://github.com/pyTony/mini_basic/tree/main/examples) | Curated BASIC programs ([README](https://github.com/pyTony/mini_basic/blob/main/examples/README.txt)) |
+| [basics/](https://github.com/pyTony/mini_basic/tree/main/basics) | Small standalone `.bas` files |
+| [docs/](https://github.com/pyTony/mini_basic/tree/main/docs) | Language / release notes |
+| [GIT_QUICKSTART.md](https://github.com/pyTony/mini_basic/blob/main/GIT_QUICKSTART.md) | Developer git checklist |
 
-mini-basic --version
-python -m mini_basic path/to/program.bas
-```
+Upstream (not this repo): [garyexplains/BASIC-M6502-CPORT](https://github.com/garyexplains/BASIC-M6502-CPORT) · [rtrussell/BBCSDL examples](https://github.com/rtrussell/BBCSDL/tree/master/examples)
 
-Build locally: `python -m build` — details in [`docs/PACKAGING.md`](docs/PACKAGING.md).  
-Full demo trees still use the repo or text-archive installer (`tools/install.ps1`), not the PyPI wheel.
-
-**Documentation map:** [`docs/INDEX.md`](docs/INDEX.md) (open in browser with `Open-MdRendered.ps1 .\docs\INDEX.md`).
-
-## Quick start (from a source checkout)
+## Quick start
 
 ```bash
-# Text / default display
 python -m mini_basic examples/mini/hello_args.bas
-
-# Graphics (pygame)
-python -m mini_basic --pygame examples/mini/bbc_graphics_demo.bas
-
-# Interactive REPL
+python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
 python -m mini_basic
 ```
 
@@ -114,10 +105,7 @@ python test/corpus_audit_probe.py          # writes CORPUS_AUDIT.txt
 ## Development notes
 
 - **Git:** branch-per-focus; see `GIT_QUICKSTART.md` and `DEVELOPMENT_GIT_USAGE.md`.
-- **Status:** agents update `CURRENT_TASK.txt` / `FEATURES_DONE.txt`; heartbeat refreshes `status.html`
-  (`python scripts/progress_heartbeat.py`).
-- **Local vs full tree:** see earlier notes in `docs/git/INDEPENDENT_FIXES.md` if you maintain a light
-  dev clone vs a full OneDrive tree.
+- **LLM / contributors:** [`docs/LLM.md`](docs/LLM.md).
 
 ## Import map
 

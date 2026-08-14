@@ -251,5 +251,5 @@ pip install -r requirements-display.txt
 - Wrong tree active → set `MINIBASIC_DIR` to the reconstructed project root.
 - Missing graphics → `pip install -r requirements-display.txt`.
 
-For agent/pipeline notes see `DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md`.  
-For git rules see `GIT_QUICKSTART.md` and `docs/git/`.
+For language notes see `docs/LLM.md`.  
+For git rules see `GIT_QUICKSTART.md`.

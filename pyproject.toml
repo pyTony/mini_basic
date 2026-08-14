@@ -14,7 +14,7 @@ build-backend = "setuptools.build_meta"
 name = "mini-basic"
 # Keep in sync with mini_basic/version.py (PEP 440; 1.00-dev → 1.0.0.dev0).
 version = "1.0.0.dev0"
-description = "Multi-dialect BASIC interpreter with BBC-style graphics (optional pygame)"
+description = "Multi-dialect BASIC interpreter (console / text)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "MIT"
@@ -23,7 +23,6 @@ authors = [{ name = "tonyv" }]
 keywords = [
     "BASIC",
     "BBC BASIC",
-    "BBCSDL",
     "interpreter",
     "education",
     "retro",
@@ -44,10 +43,11 @@ classifiers = [
     "Topic :: Education",
     "Topic :: Software Development :: Interpreters",
 ]
-# Core install is text/terminal only. Graphics and Windows REPL extras are optional.
+# Regular install: interpreter only (no pygame, no build tools).
 dependencies = []
 
 [project.optional-dependencies]
+# Not part of regular 1.00 — optional second flavor.
 display = ["pygame-ce>=2.5.0"]
 repl = ["pyreadline3>=3.5.0; platform_system == 'Windows'"]
 all = [
@@ -56,9 +56,10 @@ all = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/local/mini_basic"
-Documentation = "https://github.com/local/mini_basic/blob/master/docs/LANGUAGE_FEATURES_1.00.md"
-# Replace Homepage when a public remote exists.
+Homepage = "https://github.com/pyTony/mini_basic"
+Documentation = "https://github.com/pyTony/mini_basic/blob/main/docs/LANGUAGE_FEATURES_1.00.md"
+Examples = "https://github.com/pyTony/mini_basic/tree/main/examples"
+Source = "https://github.com/pyTony/mini_basic"
 
 [project.scripts]
 mini-basic = "mini_basic:main"

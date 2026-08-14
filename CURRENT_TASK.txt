@@ -1,6 +1,0 @@
-Focus: idle — 1.00 prep notes ready (no tag)
-
-docs/RELEASE_1.00.md drafted. Version stays 1.0.0.dev0 until user
-accepts + phase1 green + git tag 1.0.0.
-
-Repo: C:\Users\Tony\mini_basic
