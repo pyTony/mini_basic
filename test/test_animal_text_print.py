@@ -1,4 +1,4 @@
-"""Regression: animal.txt header strings render without spaced-out letters."""
+"""Short regressions for animal-style PRINT / INPUT / FNstrip — no full listing."""
 from __future__ import annotations
 
 import io
@@ -16,8 +16,8 @@ if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from mini_basic import BASICInterpreter, InterpreterConfig
+from test.animal_snippets import FNSTRIP_LINES, bbc_none, load_lines
 
-# Some cases use pygame display backends.
 pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
 
 
@@ -65,7 +65,6 @@ class AnimalTextPrintTests(unittest.TestCase):
         self.assertIn('Play', ''.join(ch for _, ch in play_letters))
         gaps = [b - a for a, b in zip(animal_cols, animal_cols[1:])]
         self.assertTrue(all(gap == 1 for gap in gaps))
-        # MOS 8×8 path leaves pygame SysFont unused (_font is None).
         cell_w = display._effective_cell_width()
         if display._font is not None:
             self.assertLessEqual(display._font.size('M')[0], cell_w + 1)
@@ -73,7 +72,6 @@ class AnimalTextPrintTests(unittest.TestCase):
             self.assertLessEqual(8, cell_w + 1)
 
     def test_input_syncs_print_column_before_following_print(self) -> None:
-        """Stale print_column after INPUT must not wrap the next PRINT mid-word."""
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.config.display_cols = 80
         interp.print_column = 54
@@ -85,31 +83,11 @@ class AnimalTextPrintTests(unittest.TestCase):
         self.assertEqual(text, 'Please tell me a question that would distinguish ')
 
     def test_input_prompt_flushed_before_blocking_read(self) -> None:
-        """INPUT string prompt must appear before input() blocks (PROCnew teach path)."""
-        path = os.path.join(
-            _ROOT,
-            'test',
-            'corpus',
-            'bbcsdl',
-            'games',
-            'animal.txt',
-        )
-        if not os.path.isfile(path):
-            self.skipTest('animal.txt corpus file missing')
-        # Lock text/none so LOAD does not auto-enable pygame (prompt stays on stdout).
-        interp = BASICInterpreter(
-            InterpreterConfig(
-                dialect='bbc',
-                display='none',
-                display_locked=True,
-            )
-        )
-        interp.load(path)
+        """INPUT string prompt must appear before input() blocks."""
+        interp = bbc_none()
+        interp.set_program_line(10, 'INPUT "What animal were you thinking of? ",V$')
+        interp.set_program_line(20, 'END')
         interp._prepare_run()
-        input_line = next(
-            n for n, stmt in interp.program.items()
-            if 'What animal were you thinking of' in stmt
-        )
         stream = io.StringIO()
         visible: list[str] = []
 
@@ -120,44 +98,19 @@ class AnimalTextPrintTests(unittest.TestCase):
         with mock.patch.object(interp, '_get_program_stdout', return_value=stream), mock.patch.object(
             interp, '_read_program_input', side_effect=read_input,
         ):
-            interp.execute_line(input_line, interp.program[input_line], sorted(interp.program))
+            interp.execute_line(10, interp.program[10], [10, 20])
 
         self.assertTrue(visible, 'INPUT never called _read_program_input')
         self.assertIn('What animal were you thinking of?', visible[0])
 
     def test_fnstrip_preserves_albatross(self) -> None:
-        path = os.path.join(
-            _ROOT,
-            'test',
-            'corpus',
-            'bbcsdl',
-            'games',
-            'animal.txt',
-        )
-        if not os.path.isfile(path):
-            self.skipTest('animal.txt corpus file missing')
-        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
-        interp.load(path)
-        interp._prepare_run()
+        interp = load_lines(bbc_none(), FNSTRIP_LINES)
         fn = interp._lookup_user_function('STRIP')
         self.assertIsNotNone(fn)
-        got = interp._eval_user_function(fn, ['"albatross"'])
-        self.assertEqual(got, 'albatross')
+        self.assertEqual(interp._eval_user_function(fn, ['"albatross"']), 'albatross')
 
     def test_fnstrip_strips_leading_article(self) -> None:
-        path = os.path.join(
-            _ROOT,
-            'test',
-            'corpus',
-            'bbcsdl',
-            'games',
-            'animal.txt',
-        )
-        if not os.path.isfile(path):
-            self.skipTest('animal.txt corpus file missing')
-        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
-        interp.load(path)
-        interp._prepare_run()
+        interp = load_lines(bbc_none(), FNSTRIP_LINES)
         fn = interp._lookup_user_function('STRIP')
         self.assertIsNotNone(fn)
         self.assertEqual(interp._eval_user_function(fn, ['"a sparrow"']), 'sparrow')
