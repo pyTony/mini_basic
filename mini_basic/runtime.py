@@ -1375,7 +1375,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ) = _parse_main_args(argv)
     if target and config.display == 'pygame':
         config.display_caption = os.path.basename(target)
-    if not quiet and (target is None or interactive):
+    # -c / --command is a script, not a REPL session — no HELP banner.
+    if not quiet and not command_lines and (target is None or interactive):
         _print_startup_banner()
 
     from .util.debug import (

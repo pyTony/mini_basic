@@ -60,6 +60,16 @@ class SessionScriptTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('4', buf.getvalue())
 
+    def test_main_dash_c_no_banner_without_quiet(self):
+        """pip-from-GitHub smoke: -c PRINT 6*7 is just the answer."""
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            code = main(['-c', 'PRINT 6*7'])
+        self.assertEqual(code, 0)
+        out = buf.getvalue()
+        self.assertIn('42', out)
+        self.assertNotIn('=== mini-BASIC ===', out)
+
     def test_main_dash_c_session_lines(self):
         buf = io.StringIO()
         with redirect_stdout(buf):
