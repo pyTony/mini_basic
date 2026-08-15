@@ -20,7 +20,7 @@ Sources: corpus `.txt` listings (tokenized `.bbc` files are binary).
 | **jclock** | `WHEN` colon, `SINRADT`, live `MOUSE`/`TIME$` | WHEN / `SINRAD` snippets | Hands follow the mouse |
 | **flier** | 400+ lines, `_BOX`/`_LINE`, `DRAW`/`OSCLI` ship | Leading-underscore names only | Rotating ship |
 | **filters** | FIR / array slice waveforms, `ORIGIN` | `Original` vs `ORIGIN` glue | Waveform look |
-| **hanoi** | `GET`/`INPUT` play, `VDU 17` disc colours | Wrap + disc 7≠8 (`128+DISC-(DISC>7)`) | Play OK (2026-08-15) |
+| **hanoi** | `GET`/`INPUT` play, `VDU 17` disc colours | Wrap + disc 7≠8 (`128+DISC-(DISC>7)`) | Play + disc 8 red OK (2026-08-15) |
 | **animal** | Interactive tree, `OPENIN`/`OPENOUT` `animal.dat`, `FNquery` loop | Short STRIP/ART/QUERY/INPUT snippets | Play + save the tree |
 | **fern** | Long `DRAW` chaos; `UNTIL FALSE` | Parked `graphics_confirm` only | Draws OK (2026-08-15) |
 
