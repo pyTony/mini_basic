@@ -19,7 +19,7 @@ from test.animal_snippets import (
     load_lines,
 )
 
-pytestmark = [pytest.mark.phase2, pytest.mark.non_gfx]
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class InteractiveAnimalTests(unittest.TestCase):

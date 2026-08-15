@@ -3,7 +3,7 @@ import io
 import os
 import sys
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
 import pytest
@@ -14,21 +14,26 @@ if _ROOT not in sys.path:
 
 from mini_basic import BASICInterpreter, InterpreterConfig
 
-# Includes optional pygame display cases — phase2 isolation.
-pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class BBCDialectSDLTests(unittest.TestCase):
     def _run_bbc(self, lines, *, display='none'):
         interp = BASICInterpreter(
-            InterpreterConfig(dialect='bbc', display=display, optimization_level=0),
+            InterpreterConfig(
+                dialect='bbc',
+                display=display,
+                display_locked=display == 'none',
+                optimization_level=0,
+            ),
         )
         for line_num, statement in lines:
             interp.program[line_num] = statement
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
             interp.run()
-        return buf.getvalue().rstrip('\n'), interp
+        return (buf.getvalue() + err.getvalue()).rstrip('\n'), interp
 
     def test_numbered_program_allowed_without_warning(self):
         buf = io.StringIO()
@@ -59,11 +64,12 @@ class BBCDialectSDLTests(unittest.TestCase):
         cmd, _ = interp._parse_command('END WHILE')
         self.assertEqual(cmd, 'WEND')
 
-    def test_break_maps_to_exit_for_in_bbc_dialect(self):
+    def test_break_is_mini_only_not_silent_bbc_exit_for(self):
+        """BREAK is a mini extension. bbc keeps the word; it is not EXIT FOR."""
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         cmd, rest = interp._parse_command('BREAK')
-        self.assertEqual(cmd, 'EXIT')
-        self.assertEqual(rest.strip().upper(), 'FOR')
+        self.assertEqual(cmd, 'BREAK')
+        self.assertEqual(rest, '')
 
     def test_break_stays_break_in_mini_dialect(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none'))
@@ -93,7 +99,7 @@ class BBCDialectSDLTests(unittest.TestCase):
         self.assertEqual(interp.text_fg_colour, 7)
         self.assertEqual(interp.text_bg_colour, 0)
 
-    def test_break_in_for_loop_exits_like_exit_for(self):
+    def test_break_in_bbc_for_is_an_error(self):
         out, _ = self._run_bbc([
             (10, 'FOR I = 1 TO 5'),
             (20, 'BREAK'),
@@ -101,7 +107,7 @@ class BBCDialectSDLTests(unittest.TestCase):
             (40, 'PRINT I'),
             (50, 'END'),
         ])
-        self.assertEqual(out, '1')
+        self.assertIn('? BREAK error', out)
 
     def test_inkey_negative_scan_returns_minus_one_when_idle(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))

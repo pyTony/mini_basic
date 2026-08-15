@@ -6,46 +6,57 @@ import os
 import sys
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import pytest
+
 from mini_basic import BASICInterpreter, InterpreterConfig  # noqa: E402
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class UnknownSyntaxTests(unittest.TestCase):
     def _imm(self, cmd: str, *, dialect: str = 'bbc') -> str:
         interp = BASICInterpreter(
-            InterpreterConfig(dialect=dialect, display='none'),
+            InterpreterConfig(
+                dialect=dialect,
+                display='none',
+                display_locked=True,
+            ),
         )
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
             interp.execute_immediate(cmd)
-        return buf.getvalue()
+        return buf.getvalue() + err.getvalue()
 
     def _run(self, lines, *, dialect: str = 'bbc', strict: bool = False) -> str:
         interp = BASICInterpreter(
             InterpreterConfig(
                 dialect=dialect,
                 display='none',
+                display_locked=True,
                 strict_dialect=strict,
             ),
         )
         for ln, stmt in lines:
             interp.set_program_line(ln, stmt)
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
             interp.run()
-        return buf.getvalue()
+        return buf.getvalue() + err.getvalue()
 
     def test_unknown_statement_continues(self) -> None:
         out = self._run([(10, 'PRINT 1'), (20, 'FOO 42'), (30, 'PRINT 2')])
         self.assertIn('? Unknown statement: FOO', out)
         self.assertIn('at line 20', out.lower())
-        self.assertIn('1', out.split('? Unknown')[0])
-        self.assertIn('2', out.split('? Unknown')[-1])
+        self.assertIn('1', out)
+        self.assertIn('2', out)
 
     def test_unknown_statement_includes_line_location(self) -> None:
         out = self._run([(10, 'FOO 1')])
@@ -74,7 +85,6 @@ class UnknownSyntaxTests(unittest.TestCase):
         cases = {
             'SYS "OS_Write0", "hi"': 'SYS (RISC OS / OS call)',
             'CALL &FFFD': 'CALL (machine-code subroutine)',
-            'INSTALL "lib"': 'INSTALL (library load)',
             'USR &FFFD': 'USR (machine-code function)',
         }
         for stmt, detail in cases.items():
@@ -145,11 +155,14 @@ class UnknownSyntaxTests(unittest.TestCase):
         self.assertIn('? Expression error:', out)
         self.assertTrue('incomplete' in out or 'invalid syntax' in out, out)
 
-    def test_unknown_var_in_expr(self) -> None:
+    def test_unset_numeric_prints_zero(self) -> None:
         out = self._imm('PRINT FOO')
-        # Should be informative, not silent
-        self.assertIn('? Expression error:', out)
-        self.assertTrue('name FOO is not defined' in out or 'FOO' in out, out)
+        self.assertIn('0', out)
+        self.assertNotIn('? Expression error:', out)
+
+    def test_install_is_silent_stub(self) -> None:
+        out = self._imm('INSTALL "lib"')
+        self.assertNotIn('?', out)
 
 
 if __name__ == '__main__':

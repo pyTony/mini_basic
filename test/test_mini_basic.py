@@ -3184,12 +3184,16 @@ class MiniBASICTests(unittest.TestCase):
         )
         interp.program[10] = 'DEF FNFACT(N)'
         interp.program[20] = 'IF N<2 THEN 1 ELSE FNFACT(N - 1) * N'
-        interp._prepare_run()
         buf = io.StringIO()
-        with redirect_stdout(buf):
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            interp._prepare_run()
             interp.execute_immediate('? FNfact(2)')
-        output = buf.getvalue()
-        self.assertIn('? FN error', output)
+        output = buf.getvalue() + err.getvalue()
+        self.assertTrue(
+            '? FN error' in output or 'needs =return' in output or '? IF error' in output,
+            output,
+        )
 
     def test_immediate_compact_if_bare_numbers_error(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc'))

@@ -6,7 +6,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import pytest
+
 from mini_basic.bbc_font import glyph_rows
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class BBCFontTests(unittest.TestCase):
