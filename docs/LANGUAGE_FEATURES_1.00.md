@@ -73,7 +73,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 | Feature | Notes |
 |---------|--------|
 | Float, integer `%`, string `$` | Optional bigint for `%` where enabled. |
-| Arrays `DIM` | Numeric/string; some PRINT-subscript expansion still a known gap. |
+| Arrays `DIM` | Numeric/string; `PRINT a(i)` / `PRINT A$()` subscripts work (`test_print_array_subscript`). |
 | Operators | `+ - * /`, `DIV`, `MOD`, `^`, shifts `<<` `>>`. |
 | Bitwise | `AND` `OR` `EOR`/`XOR` `NOT` (integer bitwise path; pure bitwise can compile). |
 | Relations / logic | `=` `<>` `<` `>` … ; BBC TRUE = **-1**. |

@@ -1,8 +1,16 @@
 # mini_basic HOWTO
 
-This guide covers setup for both **end users** and **developers**.
+Preferred install (interpreter from GitHub):
 
-See the main `README.md` (in this folder or inside the tree) for a quick overview and usage examples.
+```text
+python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+mini-basic --version
+python -m mini_basic -c "PRINT 6*7"
+```
+
+Clone the repo for examples and the HTML handbook (`docs/site/index.html`). See `docs/site/install.html` and `docs/PACKAGING.md`.
+
+The rest of this file is the longer archive / developer setup.
 
 ## Modular runtime (what you get)
 

@@ -13,12 +13,17 @@ Upstream (third-party sources):
   BBCSDL demos:  https://github.com/rtrussell/BBCSDL/tree/master/examples
                  https://www.bbcbasic.co.uk/bbcsdl/examples/index.html
 
-Run from project root (mini_basic):
+Handbook: ../docs/site/index.html
+Install interpreter: pip install "mini-basic @ git+https://github.com/pyTony/mini_basic.git"
+Examples themselves are in this git tree (not the pip wheel).
 
-  python mini_basic.py --dialect mits examples/mits/menu.bas
-  python mini_basic.py --dialect bbc  examples/bbc/menu.bas
-  python mini_basic.py examples/mini/hello_args.bas hello world
-  python mini_basic.py --quiet examples/mini/colors.bas
+Run from the clone root:
+
+  python -m mini_basic --dialect mits examples/mits/menu.bas
+  python -m mini_basic --dialect bbc  examples/bbc/menu.bas
+  python -m mini_basic examples/mini/hello_args.bas hello world
+  python -m mini_basic -q examples/mini/colors.bas
+  python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
 
 Dialect folders
 ---------------
@@ -42,9 +47,11 @@ examples/mini/   Full superset (default dialect)
   bbc_graphics_demo.bas  BBC MODE/PLOT/DRAW shapes (needs --pygame)
   sprites_demo.bas       SPRITEDEF/SPRITE demo (needs --pygame)
 
-Graphics demos (pygame window; --pygame also keeps the window open after END):
-  python mini_basic.py --pygame examples/mini/bbc_graphics_demo.bas
-  python mini_basic.py --pygame examples/mini/sprites_demo.bas
+examples/m6502-cport/  Microsoft BASIC M6502 C-port tutorials (01–48 automated)
+
+Graphics demos (optional pygame extra; --pygame keeps the window open after END):
+  python -m mini_basic --pygame examples/mini/bbc_graphics_demo.bas
+  python -m mini_basic --pygame examples/mini/sprites_demo.bas
 
 Museum anchors (now in examples/museum/)
 --------------------------------------------
@@ -52,8 +59,7 @@ Museum anchors (now in examples/museum/)
   ELIZA.BAS   mits anchor — numbered GOTO, unchanged Weizenbaum logic
   BETH.BAS    bbc anchor  — structured rewrite of ELIZA
 
-  python mini_basic.py --dialect mits examples/museum/ELIZA.BAS
-  python mini_basic.py --dialect bbc  examples/museum/BETH.BAS
-  python experiments/eliza_beth.py eliza
+  python -m mini_basic --dialect mits examples/museum/ELIZA.BAS
+  python -m mini_basic --dialect bbc  examples/museum/BETH.BAS
 
 REPL quick reference: H.=HELP  L.=LIST  LO.=LOAD  MA.=MATRIX
