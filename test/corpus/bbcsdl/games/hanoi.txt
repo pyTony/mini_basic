@@ -7,8 +7,8 @@
       FOR DISC=1 TO 13
         DISC$(DISC)=STRING$(DISC," ")+STR$DISC+STRING$(DISC," ")
         IF DISC>=10 DISC$(DISC)=MID$(DISC$(DISC),2)
-        REM Disc 8+ use flash colours so 7 (white) and 8 are distinct
-        DISC$(DISC)=CHR$17+CHR$(128+DISC+(DISC>7))+DISC$(DISC)+CHR$17+CHR$128
+        REM BBC TRUE=-1: 128+DISC-(DISC>7) → disc 7 = 135 white, disc 8 = 137 red (SDL)
+        DISC$(DISC)=CHR$17+CHR$(128+DISC-(DISC>7))+DISC$(DISC)+CHR$17+CHR$128
       NEXT DISC
       :
       MODE 3

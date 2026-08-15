@@ -81,6 +81,20 @@ class HanoiVduPrintWrapTests(unittest.TestCase):
         self.assertEqual(min(coloured), 54)
         self.assertEqual(max(coloured), 76)
 
+    def test_disc7_and_disc8_colour_codes_differ(self) -> None:
+        """Official SDL: 128+DISC-(DISC>7). TRUE is -1 so + would collide."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect="bbc", display="none", display_locked=True)
+        )
+        seven = int(interp._eval_numeric("128+7-(7>7)"))
+        eight = int(interp._eval_numeric("128+8-(8>7)"))
+        self.assertEqual(seven, 135)
+        self.assertEqual(eight, 137)
+        from mini_basic.bbc_modes import map_mode_text_colour
+
+        self.assertEqual(map_mode_text_colour(seven - 128, 3), 7)
+        self.assertEqual(map_mode_text_colour(eight - 128, 3), 1)
+
 
 if __name__ == "__main__":
     unittest.main()
