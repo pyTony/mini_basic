@@ -1078,7 +1078,7 @@ class RuntimeExprMixin:
                 return 'str'
             if suffix == '%':
                 return 'int'
-            known = self.user_functions.get(self._normalize_identifier(fn_match.group(1)))
+            known = self._lookup_user_function(fn_match.group(1))
             if known is not None:
                 return known.return_kind
             arg_text = expr[fn_match.end() - 1:]
@@ -1554,7 +1554,7 @@ class RuntimeExprMixin:
             match, _, paren_end, arg = innermost
             name = self._normalize_identifier(match.group(1))
             self._ensure_definitions_current()
-            fn = self.user_functions.get(name)
+            fn = self._lookup_user_function(name)
             if fn is None:
                 args_list = self._split_args(arg) if arg.strip() else []
                 builtin = self._eval_builtin_library_fn(name, args_list)
