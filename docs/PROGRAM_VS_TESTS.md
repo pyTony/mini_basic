@@ -16,13 +16,13 @@ Sources: corpus `.txt` listings (tokenized `.bbc` files are binary).
 | **piechart** | `Colour&() OR=`, compact IF, `PLOT 85` sectors, `OSCLI GSAVE` | Loads corpus + glue/GSAVE tests | Label/sky look |
 | **Clock** | `GCOL 3` XOR hands, digital `PRINT` on plot | Loads `Clock.bas`; XOR erase | Live clock face |
 | **welcome** | `ENVELOPE`/`SOUND` stubs, `VDU 23` glyphs, glued `AND`/`DIV`, `REPEATUNTIL TIME` | Snippets (`test_welcome_*`) | Full zap / letter animation |
-| **saucer** | Float nested `FOR` disc + `GCOL` hidden-line `PLOT` | Control-flow + `NOTX` load smoke | Shape / draw time |
+| **saucer** | Float nested `FOR` disc + `GCOL` hidden-line `PLOT` | Control-flow + `NOTX` load smoke | Shape OK (2026-08-15); draw still slow |
 | **jclock** | `WHEN` colon, `SINRADT`, live `MOUSE`/`TIME$` | WHEN / `SINRAD` snippets | Hands follow the mouse |
 | **flier** | 400+ lines, `_BOX`/`_LINE`, `DRAW`/`OSCLI` ship | Leading-underscore names only | Rotating ship |
 | **filters** | FIR / array slice waveforms, `ORIGIN` | `Original` vs `ORIGIN` glue | Waveform look |
-| **hanoi** | `GET`/`INPUT` play, `VDU 17` disc colours | Wrap/colour math only | Playable puzzle |
+| **hanoi** | `GET`/`INPUT` play, `VDU 17` disc colours | Wrap + disc 7≠8 (`128+DISC-(DISC>7)`) | Play OK (2026-08-15) |
 | **animal** | Interactive tree, `OPENIN`/`OPENOUT` `animal.dat`, `FNquery` loop | Short STRIP/ART/QUERY/INPUT snippets | Play + save the tree |
-| **fern** | Long `DRAW` chaos; `UNTIL FALSE` | Parked `graphics_confirm` only | Green fern picture |
+| **fern** | Long `DRAW` chaos; `UNTIL FALSE` | Parked `graphics_confirm` only | Draws OK (2026-08-15) |
 
 ## Rule
 
