@@ -213,6 +213,36 @@ def test_asc_glued_string_literal():
     assert 'B' in out.getvalue()
 
 
+def test_for_j0_one_to_m8_spaced_after_to():
+    """welcome PROCSWOOSH: detokenize ``FOR J0%=1TO M8`` must not ON ERROR."""
+    interp = BASICInterpreter(
+        InterpreterConfig(dialect='bbc', display='none', display_locked=True),
+    )
+    errs: list[str] = []
+    orig = interp._runtime_error
+
+    def track(msg, *a, **k):
+        errs.append(str(msg))
+        return orig(msg, *a, **k)
+
+    interp._runtime_error = track  # type: ignore[method-assign]
+    out = StringIO()
+    with redirect_stdout(out), redirect_stderr(StringIO()), patch('time.sleep'):
+        for n, s in [
+            (10, 'M8=5'),
+            (20, 'N%=0'),
+            (30, 'FOR J0%=1TO M8'),
+            (40, 'N%=N%+1'),
+            (50, 'NEXT'),
+            (60, 'PRINT N%'),
+            (70, 'END'),
+        ]:
+            interp.program[n] = s
+        interp.run()
+    assert not errs, errs
+    assert '5' in out.getvalue().replace(' ', '')
+
+
 def test_div_glued_to_identifier_after_paren():
     """welcome PROCSWOOSH: U1%=(I%+32-XL%)DIVM8 after XL%→0."""
     interp = BASICInterpreter(
