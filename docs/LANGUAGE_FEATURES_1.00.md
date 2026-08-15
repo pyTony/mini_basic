@@ -196,7 +196,7 @@ Corpus snippets accepted the same way: `SOUND 1,1,255,255`, `SOUND &11,0,1,1` (w
 
 Approved programs (non-exhaustive): **welcome**, **squares**, **saucer**, **flier**, **soccerball**, **wheel**, **jclock**, **filters**, **hanoi**, **animal**.
 
-These exercise MODE/VDU, PLOT/GCOL, CIRCLE, COLOUR RGB, MOUSE/TIME, text-on-graphics, nested FORs, PROC/FN, ON ERROR, and real BBCSDL `.bbc` loads.
+Pytest covers **fragments** those programs need (glue, kernels, XOR, file stubs). It does not run the playable program. What only you can confirm — look, play, mouse, timing — stays **user confirmation**. See [PROGRAM_VS_TESTS.md](PROGRAM_VS_TESTS.md).
 
 ### 5.3 Plan checklist (from PLAN_1.00)
 
