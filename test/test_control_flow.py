@@ -743,6 +743,55 @@ class TestForSameLineBody(unittest.TestCase):
         lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
         self.assertEqual(lines, ["1|1", "1|2", "2|1", "2|2"])
 
+    def test_next_double_comma_closes_three_loops(self):
+        """BBC NEXT ,, is NEXT:NEXT:NEXT (unnamed)."""
+        out = self._run([
+            'FOR I%=1 TO 2:FOR J%=1 TO 2:FOR K%=1 TO 2:'
+            'PRINT I%;J%;K%:NEXT ,,',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+        self.assertEqual(
+            lines,
+            ['111', '112', '121', '122', '211', '212', '221', '222'],
+        )
+
+    def test_next_named_list_closes_inner_then_outer(self):
+        out = self._run([
+            'FOR I=1 TO 2:FOR J=1 TO 2:PRINT I;J:NEXT J,I',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+        self.assertEqual(lines, ['11', '12', '21', '22'])
+
+    def test_next_named_list_for_order(self):
+        """NEXT I%,J%,K% (FOR order) is the same as NEXT K%,J%,I%."""
+        expected = [
+            '111', '112', '121', '122', '211', '212', '221', '222',
+        ]
+        for next_list in ('K%,J%,I%', 'I%,J%,K%'):
+            out = self._run([
+                'FOR I%=1 TO 2:FOR J%=1 TO 2:FOR K%=1 TO 2:'
+                f'PRINT I%;J%;K%:NEXT {next_list}',
+                'END',
+            ])
+            self.assertNotIn('?', out, next_list)
+            lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+            self.assertEqual(lines, expected, next_list)
+        out = self._run([
+            'FOR I%=1 TO 2',
+            'FOR J%=1 TO 2',
+            'FOR K%=1 TO 2',
+            'PRINT I%;J%;K%',
+            'NEXT I%,J%,K%',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+        self.assertEqual(lines, expected)
+
 
 class TestIfColonTail(unittest.TestCase):
     """BBC single-line IF: rest of line (including colon-split stmts) is conditional.

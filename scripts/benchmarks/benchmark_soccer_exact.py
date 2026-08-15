@@ -94,7 +94,7 @@ def soccerball_frame_exact(display: PygameDisplay, xyz, b_mat, c_angle: float) -
 def verify_against_interpreter() -> None:
     from mini_basic import BASICInterpreter, InterpreterConfig
 
-    soccer = os.path.join(_ROOT, '..', 'examples', 'games', 'soccerball.bas')
+    soccer = os.path.join(_ROOT, 'examples', 'games', 'soccerball.bas')
     interp = BASICInterpreter(
         InterpreterConfig(dialect='bbc', display='none', optimization_level=0),
     )

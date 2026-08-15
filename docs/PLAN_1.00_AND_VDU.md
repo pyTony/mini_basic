@@ -137,8 +137,8 @@
 - [x] VDU 7,8–11,13 work or documented  
 - [x] Unknown VDU 23,* does not crash  
 - [x] VDU 24 / 28 store (+ text cursor clamp); full pixel clip optional later  
-- [ ] Corpus FAIL empty or explicit deferred  
-- [ ] Release notes list VDU coverage + non-goals  
+- [x] Corpus FAIL empty or explicit deferred  
+- [x] Release notes list VDU coverage + non-goals (`docs/RELEASE_1.00.md`)  
 
 ---
 

@@ -83,7 +83,7 @@ from ..type_system import (
     UserProcedure,
     VarKind,
 )
-from typing import Callable, Dict, List, Optional, Set, TextIO, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, TextIO, Tuple
 
 _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
@@ -129,7 +129,14 @@ class RuntimeExecutionMixin:
         return 0 <= stmt_index < len(stmt_parts)
 
     def _line_index(self, line_num: int, line_nums: List[int]) -> int:
-        if self._run_line_index and line_num in self._run_line_index:
+        # _run_line_index is only valid for _run_line_nums. After DEF FN
+        # bodies are stripped from the run list, using the cache on the full
+        # program list made DEF PROC4 match the wrong ENDPROC (world.bbc).
+        if (
+            line_nums is self._run_line_nums
+            and self._run_line_index
+            and line_num in self._run_line_index
+        ):
             return self._run_line_index[line_num]
         return line_nums.index(line_num)
 
@@ -685,6 +692,8 @@ class RuntimeExecutionMixin:
                 if not cmd and not crest:
                     continue
                 if cmd == 'NEXT':
+                    if ',' in crest:
+                        return None
                     nvar = ''
                     if crest.strip():
                         nvar, _ = self._parse_var_token(crest.strip())
@@ -1212,29 +1221,32 @@ class RuntimeExecutionMixin:
         return None
 
     def _find_matching_endproc(self, def_line: int, line_nums: List[int]) -> Optional[int]:
+        """Match the ENDPROC for this DEF PROC.
+
+        FOR/IF/REPEAT must not hide ENDPROC. A single unclosed IF THEN
+        used to bump depth and skip every later ENDPROC, so later
+        DEF PROC4 was swallowed (world.bbc).
+        """
         start_idx = self._line_index(def_line, line_nums)
-        depth = 0
+        nest = 0
         for line_num in line_nums[start_idx + 1:]:
             stmt_parts = self._run_stmts.get(line_num)
             if stmt_parts is None:
                 stmt_parts = self._parse_line_statements(self.program[line_num])
             for _, text in stmt_parts:
                 cmd, rest = self._parse_command(text)
-                if depth == 0 and self._is_def_fn_or_proc_header(cmd, rest):
+                if nest == 0 and self._is_def_fn_or_proc_header(cmd, rest):
                     cur_idx = self._line_index(line_num, line_nums)
                     if cur_idx > start_idx + 1:
                         return line_nums[cur_idx - 1]
                     return None
-                if cmd == 'ENDPROC':
-                    if depth == 0:
-                        return line_num
+                if cmd == 'DEF' and self._RE_DEF_PROC.match((rest or '').strip()):
+                    nest += 1
                     continue
-                if cmd in ('FOR', 'WHILE', 'REPEAT'):
-                    depth += 1
-                elif cmd == 'IF' and self._is_structured_if(rest):
-                    depth += 1
-                elif cmd in ('NEXT', 'WEND', 'UNTIL', 'ENDIF'):
-                    depth = max(0, depth - 1)
+                if cmd == 'ENDPROC':
+                    if nest == 0:
+                        return line_num
+                    nest -= 1
         return None
 
     def _run_procedure_body(self, proc: UserProcedure) -> None:
@@ -1321,11 +1333,33 @@ class RuntimeExecutionMixin:
         self._emit_error(f'? EXIT {kind.strip().upper()} outside loop')
         return None
 
+    def _run_fn_header_preamble(self, fn: UserFunction, line_nums: List[int]) -> None:
+        """Run colon-statements after DEF FNname(...) (e.g. ON ERROR LOCAL = …)."""
+        header_line = int(getattr(fn, 'header_line', 0) or 0)
+        if header_line <= 0 or header_line not in self.program:
+            return
+        parts = self._stmt_parts_for_line(header_line)
+        tail: List[Tuple[Optional[str], str]] = []
+        seen_def = False
+        for _, text in parts:
+            cmd, _rest = self._parse_command(text)
+            if not seen_def and cmd == 'DEF':
+                seen_def = True
+                continue
+            if seen_def and text.strip():
+                tail.append((None, text))
+        if tail:
+            self._execute_statement_parts(header_line, tail, line_nums)
+
     def _run_user_function_body(self, fn: UserFunction) -> object:
         saved_in_fn_body = self._in_fn_body
         saved_active_fn = self._active_fn
+        saved_fn_err = self._fn_local_error_return
+        saved_error_trap_line = self.error_trap_line
+        saved_error_trap_gosub = self.error_trap_gosub
         self._in_fn_body = True
         self._active_fn = fn
+        self._fn_local_error_return = None
         full_line_nums = sorted(self.program)
         body_line_nums = [
             line_num for line_num in full_line_nums
@@ -1340,6 +1374,10 @@ class RuntimeExecutionMixin:
         self._local_save_stack = []
         idx = 0
         try:
+            try:
+                self._run_fn_header_preamble(fn, full_line_nums)
+            except FnReturn as ret:
+                return self._coerce_fn_return(fn, ret.value)
             while idx < len(body_line_nums):
                 line_num = body_line_nums[idx]
                 try:
@@ -1353,6 +1391,14 @@ class RuntimeExecutionMixin:
                 if target == -1:
                     break
                 if target is not None:
+                    if (
+                        self._fn_local_error_return
+                        and target == self.error_trap_line
+                    ):
+                        return self._coerce_fn_return(
+                            fn,
+                            self._eval_numeric(self._fn_local_error_return),
+                        )
                     if target not in body_line_index:
                         raise ValueError('DEF FN jump outside body')
                     idx = body_line_index[target]
@@ -1366,6 +1412,9 @@ class RuntimeExecutionMixin:
             self.if_stack = saved_if_stack
             self._in_fn_body = saved_in_fn_body
             self._active_fn = saved_active_fn
+            self._fn_local_error_return = saved_fn_err
+            self.error_trap_line = saved_error_trap_line
+            self.error_trap_gosub = saved_error_trap_gosub
 
     def _next_data_item(self) -> DataItem:
         if self.data_pointer >= len(self.data_items):
@@ -1490,32 +1539,93 @@ class RuntimeExecutionMixin:
             return self._run_stmts[line_num]
         return self._parse_line_statements(self.program.get(line_num, ''))
 
+    def _parse_next_vars(self, rest: str) -> List[str]:
+        """NEXT I,J / NEXT ,, → one name per slot (empty = innermost unnamed)."""
+        text = rest.strip()
+        if not text:
+            return ['']
+        names: List[str] = []
+        for part in text.split(','):
+            part = part.strip()
+            if not part:
+                names.append('')
+            else:
+                names.append(self._parse_var_token(part)[0])
+        return names or ['']
+
+    def _align_next_vars(self, names: List[str], open_fors: Sequence[str]) -> List[str]:
+        """NEXT I,J,K in FOR order is the same as inner-first NEXT K,J,I.
+
+        BBC lists are usually inner-first. Programs also write the FOR
+        variables in declaration order; treat that as a full reverse.
+        """
+        if len(names) < 2 or any(not n for n in names):
+            return names
+        n = len(names)
+        if len(open_fors) < n:
+            return names
+        top = list(open_fors[-n:])
+        if all(self._loop_var_matches(names[i], top[-1 - i]) for i in range(n)):
+            return names
+        if all(self._loop_var_matches(names[i], top[i]) for i in range(n)):
+            return list(reversed(names))
+        return names
+
+    def _prepare_next_vars(
+        self,
+        names: List[str],
+        open_fors: Sequence[str],
+        *,
+        match_stack: bool = False,
+    ) -> List[str]:
+        """Align NEXT names; when matching one FOR, ignore outer names not on its stack."""
+        if match_stack and open_fors:
+            scoped: List[str] = []
+            for name in names:
+                if not name or any(self._loop_var_matches(name, opened) for opened in open_fors):
+                    scoped.append(name)
+            names = scoped
+        return self._align_next_vars(names, open_fors)
+
     def _find_matching_next_stmt_index(
         self,
         loop_var: str,
         stmt_parts: List[Tuple[Optional[str], str]],
         start_idx: int,
     ) -> int:
-        depth = 0
+        opened: List[str] = [loop_var]
+        extra_depth = 0
         for idx in range(start_idx, len(stmt_parts)):
             _, text = stmt_parts[idx]
             cmd, rest = self._parse_command(text)
             if cmd == 'FOR':
-                depth += 1
+                match = self._match_for_clause(rest)
+                if match:
+                    v = match.group(1) + (match.group(2) or '')
+                    opened.append(self._parse_var_token(v)[0])
+                else:
+                    extra_depth += 1
             elif cmd in ('WHILE', 'REPEAT'):
-                depth += 1
+                extra_depth += 1
             elif cmd in ('WEND', 'UNTIL'):
-                if depth > 0:
-                    depth -= 1
+                if extra_depth > 0:
+                    extra_depth -= 1
             elif cmd == 'NEXT':
-                if depth > 0:
-                    depth -= 1
-                    continue
-                next_var = ''
-                if rest.strip():
-                    next_var, _ = self._parse_var_token(rest.strip())
-                if not next_var or self._loop_var_matches(next_var, loop_var):
-                    return idx
+                names = self._prepare_next_vars(
+                    self._parse_next_vars(rest), opened, match_stack=True,
+                )
+                for next_var in names:
+                    if extra_depth > 0:
+                        extra_depth -= 1
+                        continue
+                    if not opened:
+                        return -1
+                    top = opened[-1]
+                    if next_var and not self._loop_var_matches(next_var, top):
+                        return -1
+                    popped = opened.pop()
+                    if self._loop_var_matches(popped, loop_var):
+                        return idx
         return -1
 
     def _find_matching_next(self, loop_var: str, for_line: int, line_nums: List[int]) -> int:
@@ -1530,13 +1640,14 @@ class RuntimeExecutionMixin:
                     v, _ = self._parse_var_token(v)
                     stack.append(v)
             elif cmd == 'NEXT':
-                next_var = ''
-                if rest.strip():
-                    next_var, _ = self._parse_var_token(rest.strip())
-                if not stack:
-                    return -1
-                top = stack[-1]
-                if not next_var or self._loop_var_matches(next_var, top):
+                for next_var in self._prepare_next_vars(
+                    self._parse_next_vars(rest), stack, match_stack=True,
+                ):
+                    if not stack:
+                        return -1
+                    top = stack[-1]
+                    if next_var and not self._loop_var_matches(next_var, top):
+                        return -1
                     popped = stack.pop()
                     if self._loop_var_matches(popped, loop_var):
                         return line_num
@@ -2321,7 +2432,9 @@ class RuntimeExecutionMixin:
                                 if d < best_d:
                                     best_d, best = d, ci
                             gfx.pixels[py][px] = best
-                            if hasattr(gfx, 'rgb_pixels'):
+                            if hasattr(gfx, '_ensure_rgb_pixels'):
+                                gfx._ensure_rgb_pixels()[py][px] = (r, g, b)
+                            elif getattr(gfx, 'rgb_pixels', None) is not None:
                                 gfx.rgb_pixels[py][px] = (r, g, b)
                                 if hasattr(gfx, 'rgb_dirty'):
                                     gfx.rgb_dirty.add((px, py))
@@ -2592,6 +2705,32 @@ class RuntimeExecutionMixin:
             else:
                 self.on_close_action = 'HANDLER'
                 self._on_close_handler = rest
+            return None
+
+        on_error_local = re.match(
+            r'^ON\s+ERROR\s+LOCAL\b(.*)$',
+            line,
+            re.IGNORECASE,
+        )
+        if on_error_local:
+            # BBC: handler is local to this FN/PROC; previous ON ERROR restored on exit.
+            tail = on_error_local.group(1).strip()
+            self.error_trap_line = line_num
+            self.error_trap_gosub = False
+            if tail.startswith('='):
+                self._fn_local_error_return = tail[1:].strip()
+                self._inline_error_handlers.pop(line_num, None)
+            else:
+                handler_parts: List[Tuple[Optional[str], str]] = []
+                if tail:
+                    handler_parts.extend(self._parse_line_statements(tail))
+                if stmt_parts is not None:
+                    handler_parts.extend(stmt_parts[stmt_index + 1 :])
+                if handler_parts:
+                    self._inline_error_handlers[line_num] = handler_parts
+                else:
+                    self._inline_error_handlers.pop(line_num, None)
+                self._on_error_skip_rest_of_line = line_num
             return None
 
         on_error_inline = re.match(
@@ -2895,6 +3034,24 @@ class RuntimeExecutionMixin:
                 self.print_column = 0
             elif self._program_stdout is None:
                 self._flush_program_output()
+            return None
+
+        if cmd == 'BPUT#':
+            channel_num, content = self._parse_channel_rest(rest)
+            if channel_num is None or not str(content).strip():
+                self._runtime_error('? BPUT# error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
+            file_channel = self._get_file_channel(channel_num)
+            if file_channel is None or file_channel.mode not in ('w', 'a', 'R'):
+                self._runtime_error('? BPUT# channel', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
+            try:
+                self._write_file_byte(file_channel, self._eval_numeric(content))
+            except BasicRuntimeError:
+                raise
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? BPUT# error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         if cmd == 'PRINT#':
@@ -3223,10 +3380,8 @@ class RuntimeExecutionMixin:
                 return None
 
         if cmd == 'NEXT':
-            next_var = ''
-            if rest.strip():
-                next_var, _ = self._parse_var_token(rest.strip())
-
+          open_fors = [f.loop_var for f in self.stack if f.kind == 'for']
+          for next_var in self._align_next_vars(self._parse_next_vars(rest), open_fors):
             # Search the stack for matching FOR (support jumping to outer NEXT, popping abandoned inners)
             frame_index = None
             for idx in range(len(self.stack) - 1, -1, -1):
@@ -3351,7 +3506,7 @@ class RuntimeExecutionMixin:
                 return frame.body_line
 
             self.stack.pop()
-            return None
+          return None
 
         if cmd == 'WEND':
             if not self.stack or self.stack[-1].kind != 'while':
@@ -4428,6 +4583,20 @@ class RuntimeExecutionMixin:
             stmt_index += 1
         return None
 
+    def _fold_immediate_statement_keyword(self, stmt: str) -> str:
+        """REPL: allow ``for``/``print``/``next`` even when program keywords are uppercase."""
+        match = re.match(r'^([A-Za-z]+)\b', stmt)
+        if not match:
+            return stmt
+        word = match.group(1)
+        upper = word.upper()
+        if upper not in self._STMT_KEYWORDS:
+            return stmt
+        rest = stmt[match.end():]
+        if rest[:1] in '=$!#&%' or (rest[:1].isalnum()):
+            return stmt
+        return upper + rest
+
     def execute_immediate(self, text: str) -> None:
         self._maybe_auto_enable_pygame_from_text(text, announce=True)
         # Entry canonicalize per colon segment (same as set_program_line / Phase 1).
@@ -4436,6 +4605,7 @@ class RuntimeExecutionMixin:
             label, stmt = self._extract_label_prefix(part)
             if stmt:
                 stmt = self.canonicalize_program_line(stmt)
+                stmt = self._fold_immediate_statement_keyword(stmt)
             parts.append((label, stmt))
         line_nums = sorted(self.program.keys()) or [0]
         self._active_line_num = 0

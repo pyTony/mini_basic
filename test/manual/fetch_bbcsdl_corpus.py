@@ -23,6 +23,12 @@ _SKIP_PATH_PREFIXES = (
 # Individual demos that need SYS/network/OpenGL, not general pygame BASIC.
 _SKIP_NAMES = frozenset({
     'opengl.txt',
+    'world.txt',
+    'teapot.txt',
+    'lighting.txt',
+    'pyramid.txt',
+    'bbcowl.txt',
+    'rubik.txt',
     'client.txt',
     'server.txt',
     'server_multi.txt',

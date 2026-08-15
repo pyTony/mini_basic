@@ -13,7 +13,8 @@ Removed (not in-tree; re-fetch skips these paths):
   tools/     TouchIDE, SDLIDE, compiler, mmap, …
   physics/   Box2D FN_b2* demos
   sounds/    multi-channel music / polly-class audio
-  plus individual network/OpenGL demos (server, client, opengl, …)
+  plus individual network/OpenGL demos (world, teapot, lighting, pyramid,
+  bbcowl, Rubik, server, client, opengl, …)
 
 Portable demos like **wheel** stay — they are ordinary BBC graphics, not
 BBCSDL-only tooling.

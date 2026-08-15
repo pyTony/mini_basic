@@ -104,10 +104,33 @@ class EntryCanonicalizeTests(unittest.TestCase):
         self.assertTrue(i._line_may_need_bbc_dialect_normalize('FORI%=1TO10'))
         self.assertTrue(i._line_may_need_bbc_dialect_normalize('MODE5'))
         self.assertTrue(i._line_may_need_bbc_dialect_normalize('DEFPROC4'))
+        # Digit inside an identifier is not FOR glue (a0to+1 ≠ a0 TO +1).
+        self.assertFalse(i._line_may_need_bbc_dialect_normalize('a0to=a0to+1'))
         # Safety net: _parse_command still unglues residual PRINTTAB.
         cmd, rest = i._parse_command('PRINTTAB(5);"hi"')
         self.assertEqual(cmd, 'PRINT')
         self.assertTrue(rest.upper().startswith('TAB'))
+
+    def test_ident_digit_to_not_split(self):
+        """Hypothesis vars like a0to must increment; 1TO10 still unglues."""
+        i = self._bbc()
+        self.assertEqual(i.canonicalize_program_line('a0to=a0to+1'), 'a0to=a0to+1')
+        self.assertIn(' TO ', i.canonicalize_program_line('FOR I=1TO10'))
+        self.assertIn(' TO ', i.canonicalize_program_line('FOR I%=0TO20'))
+
+    def test_phase2c_operator_normalize_fast_reject(self):
+        """Pure arithmetic skips AND/MOD rewrite; glued/word ops still translate."""
+        i = self._bbc()
+        self.assertFalse(i._expr_may_need_operator_normalize('ZX*ZX+ZY*ZY<4'))
+        self.assertFalse(i._expr_may_need_operator_normalize('I%+1'))
+        self.assertFalse(i._expr_may_need_operator_normalize('(1+2)*3'))
+        self.assertTrue(i._expr_may_need_operator_normalize('A%AND1'))
+        self.assertTrue(i._expr_may_need_operator_normalize('10MOD3'))
+        self.assertTrue(i._expr_may_need_operator_normalize('CONT AND 1'))
+        self.assertTrue(i._expr_may_need_operator_normalize('X^2'))
+        self.assertEqual(int(i._eval_numeric('10MOD3')), 1)
+        self.assertEqual(int(i._eval_numeric('5AND1')), 1)
+        self.assertEqual(int(i._eval_numeric('2^3')), 8)
 
 
 if __name__ == '__main__':

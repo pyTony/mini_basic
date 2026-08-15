@@ -20,6 +20,8 @@ def test_glue_proc_fn_names():
     assert glue_bbc_proc_fn_names('PROC SWOOSH(M0)') == 'PROCSWOOSH(M0)'
     assert glue_bbc_proc_fn_names('DEF PROC LETTER') == 'DEFPROCLETTER'
     assert glue_bbc_proc_fn_names('PROC PLOT: END PROC') == 'PROCPLOT: ENDPROC'
+    assert glue_bbc_proc_fn_names('DEF PROC 4(F%, A%)') == 'DEFPROC4(F%, A%)'
+    assert glue_bbc_proc_fn_names('PROC 4(F%, A%)') == 'PROC4(F%, A%)'
     assert 'PROC SWOOSH' not in glue_bbc_proc_fn_names('FOR I%=1: PROC SWOOSH(M0): NEXT')
 
 

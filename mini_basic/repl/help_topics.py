@@ -182,6 +182,9 @@ def _print_help_strings() -> None:
         'LEFT$(s$, n)  RIGHT$(s$, n)',
         'UCASE$(s$)  LCASE$(s$)',
         'STR$(n)              number formatted as string',
+        'STR$~(n)             BBC hex string (uppercase, no 0x)',
+        'HEX$(n [, w])        MS/QB64 hex string; optional zero-pad width',
+        'BIN$(n [, w])        Locomotive/QB64 binary string; optional pad',
         'STRING$(n [, char])  repeat char n times',
         'SPACE$(n)            n spaces',
         'INKEY$ / INKEY$(n)   key as string; n=0 poll ("" if none); n>0 wait n cs',
@@ -206,6 +209,7 @@ def _print_help_operators() -> None:
         '=  <>  <  >  <=  >=',
         'AND  OR  NOT          TRUE=-1  FALSE=0  (MBASIC style)',
         '? expr                PRINT shorthand',
+        'PRINT ~n              BBC hex (same digits as STR$~n)',
     ])
 
 
@@ -242,6 +246,7 @@ def _print_help_files() -> None:
     _section('=== File I/O ===', [
         'OPENIN(path$)  OPENOUT(path$)   sequential via channel number',
         'PRINT#ch, ...   INPUT#ch, vars   WRITE#ch, ...   CLOSE#ch',
+        'BPUT#ch, byte   write low 8 bits (BBC); BGET#ch is the read function',
         'LINE INPUT#ch, var$',
         '',
         'OPEN "R", #n, "file" [,reclen]   random access',

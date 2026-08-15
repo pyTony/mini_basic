@@ -21,7 +21,7 @@ from ..expr.patterns import PROC_FN_NAME_PATTERN, VAR_BASE_PATTERN
 RE_VAR_BASE_FULL = re.compile(rf'^{VAR_BASE_PATTERN}$')
 
 _STMT_KEYWORDS = (
-    'PRINT#', 'INPUT#', 'WRITE#', 'CLOSE#',
+    'PRINT#', 'INPUT#', 'WRITE#', 'CLOSE#', 'BPUT#', 'BGET#',
     'PRINT', 'INPUT', 'WRITE',
     'FOR', 'NEXT', 'WHILE', 'WEND', 'REPEAT', 'UNTIL',
     'BREAK', 'CONTINUE', 'EXIT', 'PROC', 'ENDPROC',
@@ -37,7 +37,7 @@ _STMT_KEYWORDS = (
 )
 
 _STRING_BUILTINS = (
-    'CHR$', 'STR$', 'STRING$', 'SPACE$', 'INKEY$', 'MKI$', 'MKS$', 'MKD$',
+    'CHR$', 'STR$', 'HEX$', 'BIN$', 'STRING$', 'SPACE$', 'INKEY$', 'MKI$', 'MKS$', 'MKD$',
     'ASC', 'LEFT$', 'RIGHT$', 'MID$', 'UCASE$', 'LCASE$', 'ANSI$', 'FG$', 'BG$',
     'RGB$', 'BGRGB$', 'RESET$', 'ARG$', 'OPENIN', 'OPENOUT',
 )
@@ -245,10 +245,21 @@ def _format_expression(expr: str, fold: Fold) -> str:
     parts: List[str] = []
     for is_string, chunk in _split_string_literal_regions(expr):
         if is_string:
+            if parts:
+                prev = parts[-1]
+                # Chunks are stripped, so ``<> "N"`` lost the space before the quote.
+                if prev and not prev[-1].isspace() and (
+                    prev.endswith(('<>', '<=', '>=')) or prev[-1] in '=<>'
+                ):
+                    parts.append(' ')
             parts.append(chunk)
-        else:
-            spaced = space_expr_segment(chunk, fold)
-            parts.append(_fold_code_segment(spaced, fold))
+            continue
+        spaced = space_expr_segment(chunk, fold)
+        folded = _fold_code_segment(spaced, fold)
+        # Same strip ate the gap after the quote: ``"N" 15`` became ``"N"15``.
+        if parts and parts[-1].endswith('"') and folded[:1].isdigit():
+            parts.append(' ')
+        parts.append(folded)
     return ''.join(parts).strip()
 
 
@@ -314,25 +325,25 @@ def glue_bbc_proc_fn_names(text: str) -> str:
     text = re.sub(r'\bEND\s+PROC\b', 'ENDPROC', text, flags=re.IGNORECASE)
     text = re.sub(r'\bEND\s+FN\b', 'ENDFN', text, flags=re.IGNORECASE)
     text = re.sub(
-        r'\bDEF\s+PROC\s+([A-Za-z_@])',
+        r'\bDEF\s+PROC\s+([A-Za-z_@0-9])',
         r'DEFPROC\1',
         text,
         flags=re.IGNORECASE,
     )
     text = re.sub(
-        r'\bDEF\s+FN\s+([A-Za-z_@])',
+        r'\bDEF\s+FN\s+([A-Za-z_@0-9])',
         r'DEFFN\1',
         text,
         flags=re.IGNORECASE,
     )
     text = re.sub(
-        r'\bPROC\s+([A-Za-z_@])',
+        r'\bPROC\s+([A-Za-z_@0-9])',
         r'PROC\1',
         text,
         flags=re.IGNORECASE,
     )
     text = re.sub(
-        r'\bFN\s+([A-Za-z_@%])',
+        r'\bFN\s+([A-Za-z_@0-9%])',
         r'FN\1',
         text,
         flags=re.IGNORECASE,

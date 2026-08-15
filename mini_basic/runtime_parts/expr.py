@@ -552,6 +552,16 @@ class RuntimeExprMixin:
         if func == 'GET$':
             code = self._read_get_char()
             return chr(code & 0xFF) if code else ''
+        if func == 'HEX$':
+            text = self._bbc_hex_string(self._eval_numeric(args[0]))
+            if len(args) > 1:
+                text = self._pad_base_digits(text, self._eval_numeric(args[1]))
+            return text
+        if func == 'BIN$':
+            text = self._bbc_bin_string(self._eval_numeric(args[0]))
+            if len(args) > 1:
+                text = self._pad_base_digits(text, self._eval_numeric(args[1]))
+            return text
         raise ValueError(f'unknown string function {func}')
 
     def _expand_builtin_calls(self, expr: str) -> str:
@@ -632,7 +642,7 @@ class RuntimeExprMixin:
         # Convert to CHR$(65) form so the parenthesized call logic below can
         # expand it. Only do this when the "arg" does not look like the start of
         # another call (to avoid breaking CHR$ASC( without outer parens).
-        for f in ('CHR$', 'STR$', 'LEFT$', 'RIGHT$', 'MID$'):
+        for f in ('CHR$', 'STR$', 'HEX$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$'):
             pat = re.compile(
                 rf'(?<![A-Za-z0-9_]){re.escape(f)}\s*(?!\()',
                 re.IGNORECASE,
@@ -1052,7 +1062,7 @@ class RuntimeExprMixin:
             return 'float'
         upper = expr.lstrip().upper()
         for func in (
-            'CHR$', 'STR$', 'STRING$', 'LEFT$', 'RIGHT$', 'MID$', 'LOWER$',
+            'CHR$', 'STR$', 'STR$~', 'HEX$', 'BIN$', 'STRING$', 'LEFT$', 'RIGHT$', 'MID$', 'LOWER$',
             'UPPER$', 'LCASE$', 'UCASE$', 'SPACE$', 'REVERSE$', 'REPT$',
             'VAL$', 'GUID$', 'MODE$', 'INKEY$', 'GET$', 'TIME$', 'REPORT$',
             'ARG$', '@DIR$', '@LIB$', '@USR$',
@@ -1544,8 +1554,16 @@ class RuntimeExprMixin:
             self._ensure_definitions_current()
             fn = self.user_functions.get(name)
             if fn is None:
-                lname = name.lower()
                 args_list = self._split_args(arg) if arg.strip() else []
+                builtin = self._eval_builtin_library_fn(name, args_list)
+                if builtin is not None:
+                    if isinstance(builtin, int):
+                        repl = str(builtin)
+                    else:
+                        repl = self._format_number(float(builtin))
+                    expr = expr[: match.start()] + repl + expr[paren_end + 1:]
+                    continue
+                lname = name.lower()
                 if lname.startswith('gfx') or lname == 'sortinit':
                     return self._handle_gfx_fn_stub(name, args_list)
                 raise ValueError(f'unknown function FN{name}')
@@ -2308,6 +2326,23 @@ class RuntimeExprMixin:
             expr = pattern.sub(_replace_shift, expr, count=1)
         return expr
 
+    def _embed_subst_number(self, value: object) -> str:
+        """Embed a substituted number so ``x^2`` with x=-1 is ``(-1)**2``, not ``-1**2``."""
+        if isinstance(value, bool):
+            value = -1 if value else 0
+        if isinstance(value, int):
+            s = str(value)
+        elif isinstance(value, float):
+            if math.isfinite(value) and abs(value) < 1e15 and value == int(value):
+                s = str(int(value))
+            else:
+                s = repr(value)
+        else:
+            s = str(value)
+        if s.startswith('-'):
+            return f'({s})'
+        return s
+
     def _substitute_variables(self, expr: str) -> str:
         if '&' in expr or '%' in expr:
             expr = self._substitute_bbc_hex_literals(expr)
@@ -2350,7 +2385,10 @@ class RuntimeExprMixin:
         if not self._RE_HAS_LETTER.search(expr):
             return expr
         for pattern, var in self._var_subst_int_entries:
-            expr = pattern.sub(str(self.int_variables.get(var, 0)), expr)
+            expr = pattern.sub(
+                self._embed_subst_number(self.int_variables.get(var, 0)),
+                expr,
+            )
         for pattern, var in self._var_subst_float_entries:
             v = self.variables.get(var, 0.0)
             # Only collapse float→int text inside the exact binary mantissa
@@ -2361,11 +2399,13 @@ class RuntimeExprMixin:
                 and abs(v) < 1e15
                 and v == int(v)
             ):
-                s = str(int(v))
+                s = self._embed_subst_number(int(v))
             elif isinstance(v, int) and not isinstance(v, bool):
-                s = str(v)
+                s = self._embed_subst_number(v)
             else:
-                s = repr(float(v)) if isinstance(v, float) else str(v)
+                s = self._embed_subst_number(
+                    float(v) if isinstance(v, float) else v
+                )
             expr = pattern.sub(s, expr)
         if '%' in expr:
             # BBCSDL: NAME%% is a distinct 64-bit int from NAME%. Substitute
@@ -2374,7 +2414,7 @@ class RuntimeExprMixin:
             id_flags = self._identifier_re_flags()
             expr = re.sub(
                 rf'(?<![A-Za-z0-9_.])({self._VAR_BASE_PATTERN})\s*%%(?!\d)(?!\()',
-                lambda m: str(
+                lambda m: self._embed_subst_number(
                     self.int_variables.get(
                         self._normalize_identifier(m.group(1)) + '%%', 0
                     )
@@ -2385,7 +2425,7 @@ class RuntimeExprMixin:
             # `NAME%` integer suffix — (?!%) so we do not eat the first % of %%.
             expr = re.sub(
                 rf'(?<![A-Za-z0-9_.])({self._VAR_BASE_PATTERN})\s*%(?!%)(?!\d)(?!\()',
-                lambda m: str(
+                lambda m: self._embed_subst_number(
                     self.int_variables.get(self._normalize_identifier(m.group(1)), 0)
                 ),
                 expr,
@@ -2400,13 +2440,7 @@ class RuntimeExprMixin:
             def _float_suf_repl(m: re.Match) -> str:
                 name = self._normalize_identifier(m.group(1))
                 v = self.variables.get(name, 0.0)
-                if isinstance(v, int) and not isinstance(v, bool):
-                    return str(v)
-                fv = float(v)
-                if math.isfinite(fv) and abs(fv) < 1e15 and fv == int(fv):
-                    return str(int(fv))
-                # Use repr so Python eval keeps a float literal, not a huge int.
-                return repr(fv)
+                return self._embed_subst_number(v)
 
             expr = re.sub(
                 rf'(?<![A-Za-z0-9_.])({self._VAR_BASE_PATTERN})\s*[#!](?!\()',
@@ -2959,6 +2993,18 @@ class RuntimeExprMixin:
             if kind != 'str':
                 continue
             self.str_variables[base] = value
+
+    def _eval_builtin_library_fn(self, name: str, args: List[str]) -> Optional[object]:
+        """Small BBCSDL lib helpers used without INSTALL (FN_f4 float→int bits)."""
+        key = name.lower().lstrip('_')
+        if key == 'f4':
+            if len(args) != 1:
+                raise ValueError('FN_f4 expects 1 argument')
+            return struct.unpack(
+                '<i',
+                struct.pack('<f', float(self._eval_numeric(args[0]))),
+            )[0]
+        return None
 
     def _eval_file_function(self, func: str, args: List[str]) -> float:
         func = func.upper()

@@ -89,6 +89,63 @@ class AutoEnableGuiGateTests(unittest.TestCase):
                 interp._maybe_auto_enable_pygame_display(parsed, announce=False)
         self.assertEqual(interp.config.display, 'pygame')
 
+    def test_refresh_off_program_starts_without_auto_present(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
+        )
+        interp.program[10] = 'MODE 9'
+        interp.program[20] = '*REFRESH OFF'
+        interp.program[30] = 'CIRCLE FILL 0,0,10'
+        interp.program[40] = '*REFRESH'
+        self.assertTrue(interp._program_uses_refresh_off())
+        interp._refresh_enabled = True
+        interp._apply_program_refresh_off_at_start()
+        self.assertFalse(interp._refresh_enabled)
+
+    def test_load_updates_caption_from_basename(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
+        )
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        bbc = os.path.join(root, 'examples', 'graphics', 'soccerball.bbc')
+        bas = os.path.join(root, 'examples', 'graphics', 'soccerball.bas')
+        if not (os.path.isfile(bbc) and os.path.isfile(bas)):
+            self.skipTest('soccerball examples missing')
+        with redirect_stdout(StringIO()):
+            self.assertTrue(interp.load(bbc, announce=False))
+        self.assertEqual(interp.config.display_caption, 'soccerball.bbc')
+        with redirect_stdout(StringIO()):
+            self.assertTrue(interp.load(bas, announce=False))
+        self.assertEqual(interp.config.display_caption, 'soccerball.bas')
+
+    def test_ensure_display_replaces_terminal_after_auto_pygame(self):
+        """REPL already has TerminalDisplay; RUN must swap to pygame (not paint console)."""
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from mini_basic.display import TerminalDisplay, PygameDisplay
+
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='terminal',
+                optimization_level=2,
+                hold_display_open=False,
+            )
+        )
+        interp._display = TerminalDisplay(text_cols=40, text_rows=25)
+        interp._display.begin_run()
+        interp._display_live = True
+        parsed = [(10, 'MODE 9', 0), (20, 'COLOUR 130', 0)]
+        with patch('mini_basic.util.session.session_supports_gui', return_value=True):
+            interp._maybe_auto_enable_pygame_display(parsed, announce=False)
+        self.assertEqual(interp.config.display, 'pygame')
+        interp._ensure_display()
+        self.assertIsInstance(interp._display, PygameDisplay)
+        interp._shutdown_display(hold=False)
+
     def test_display_locked_terminal_never_upgrades(self):
         interp = BASICInterpreter(
             InterpreterConfig(

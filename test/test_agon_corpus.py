@@ -104,12 +104,59 @@ class AgonFeatureTests(unittest.TestCase):
         ])
         self.assertIn('25', out)
 
+    def test_negative_base_power_then_sqr(self):
+        """x^2 with x=-1 must be (-1)**2, not Python -1**2 (world.bbc SQR)."""
+        out = self.run_lines([
+            (10, 'X=-1: Y=0'),
+            (20, 'PRINT SQR(X^2+Y^2)'),
+            (30, 'END'),
+        ])
+        self.assertNotIn('nonnegative', out)
+        self.assertIn('1', out.strip().split()[0])
+
     def test_str_dollar(self):
         out = self.run_lines([
             (10, 'PRINT STR$(42)'),
             (20, 'END'),
         ])
         self.assertIn('42', out)
+
+    def test_hex_and_bin_strings(self):
+        """STR$~ (BBC) / HEX$ (MS/QB64) / BIN$ (Locomotive/QB64)."""
+        out = self.run_lines([
+            (10, 'PRINT HEX$(255);" ";BIN$(255)'),
+            (20, 'PRINT HEX$(255, 4);" ";BIN$(7, 8)'),
+            (30, 'END'),
+        ])
+        self.assertIn('FF', out)
+        self.assertIn('11111111', out)
+        self.assertIn('00FF', out)
+        self.assertIn('00000111', out)
+        bare = self.run_lines([
+            (10, 'PRINT HEX$255;" ";BIN$15'),
+            (20, 'END'),
+        ])
+        self.assertIn('FF', bare)
+        self.assertIn('1111', bare)
+
+    def test_print_tilde_hex(self):
+        """BBC PRINT ~n prints hex; later numeric items stay hex."""
+        out = self.run_lines([
+            (10, 'PRINT ~255'),
+            (20, 'PRINT ~10, 11'),
+            (30, 'END'),
+        ])
+        lines = [ln.strip() for ln in out.replace('\r', '').split('\n') if ln.strip()]
+        self.assertTrue(any(ln == 'FF' or ln.endswith('FF') for ln in lines), out)
+        self.assertIn('A', out)
+        self.assertIn('B', out)
+        bbc = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
+        bbc.set_program_line(10, 'PRINT STR$~(255);" ";HEX$(255)')
+        bbc.set_program_line(20, 'END')
+        buf = io.StringIO()
+        bbc._program_stdout = buf
+        bbc.run()
+        self.assertEqual(buf.getvalue().strip().split(), ['FF', 'FF'])
 
     def test_compact_if_vdu(self):
         out = self.run_lines([

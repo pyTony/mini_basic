@@ -90,6 +90,7 @@ class UserFunction:
     multiline: bool = False
     body_start: int = 0
     body_end: int = 0
+    header_line: int = 0
 
 
 @dataclass
@@ -99,6 +100,7 @@ class UserProcedure:
     name: str
     params: Tuple[Tuple[str, VarKind], ...]
     array_params: Tuple[str, ...] = ()
+    return_params: Tuple[str, ...] = ()
     body_start: int = 0
     body_end: int = 0
     # Same-line body after DEF PROCname(...): e.g. "IF A=0 ENDPROC" (Towers of Hanoi).

@@ -101,9 +101,9 @@ class BBCGraphics:
         self.gcol_bg: GColState = (0, 0)
         self._np = _try_numpy()
         self.pixels = self._alloc_pixels(width, height, fill=0)
-        self.rgb_pixels: List[List[Optional[RGB]]] = [
-            [None for _ in range(width)] for _ in range(height)
-        ]
+        # Allocate only when truecolour/DISPLAY writes; soccerball MODE/CLS
+        # used to build 640×512 Nones every RUN (~seconds).
+        self.rgb_pixels: Optional[List[List[Optional[RGB]]]] = None
         self.rgb_dirty: set[Tuple[int, int]] = set()  # (sx, sy) with non-None rgb_pixels entry
         self._truecolour_rgb: Optional[RGB] = None
         # Optional screen-space ellipse clip (scx, scy, srx, sry) from last CIRCLE FILL.
@@ -174,6 +174,13 @@ class BBCGraphics:
         sy = self.height - 1 - int(abs_y) // max(1, self.y_scale)
         return sx, sy
 
+    def _ensure_rgb_pixels(self) -> List[List[Optional[RGB]]]:
+        if self.rgb_pixels is None:
+            self.rgb_pixels = [
+                [None for _ in range(self.width)] for _ in range(self.height)
+            ]
+        return self.rgb_pixels
+
     def clear_graphics(self, bg_colour: int | None = None) -> None:
         """CLG / VDU 16 — fill graphics window (or full screen) with GCOL background.
 
@@ -186,17 +193,11 @@ class BBCGraphics:
         if self._viewport_os is None:
             if self.pixels_is_numpy:
                 self.pixels.fill(bg_b)
-                # rgb overrides: cheap full clear
-                for y in range(self.height):
-                    rgb_row = self.rgb_pixels[y]
-                    for x in range(self.width):
-                        rgb_row[x] = None
             else:
+                fill = [bg_b] * self.width
                 for y, row in enumerate(self.pixels):
-                    rgb_row = self.rgb_pixels[y]
-                    for x in range(self.width):
-                        row[x] = bg_b
-                        rgb_row[x] = None
+                    row[:] = fill
+            self.rgb_pixels = None
             self.rgb_dirty.clear()
             self.mark_full_dirty()
             self.plot_count = 0
@@ -223,10 +224,11 @@ class BBCGraphics:
         else:
             for sy in range(sy0, sy1 + 1):
                 row = self.pixels[sy]
-                rgb_row = self.rgb_pixels[sy]
+                rgb_row = self.rgb_pixels[sy] if self.rgb_pixels is not None else None
                 for sx in range(sx0, sx1 + 1):
                     row[sx] = bg_b
-                    rgb_row[sx] = None
+                    if rgb_row is not None:
+                        rgb_row[sx] = None
         # Drop rgb_dirty points inside the cleared rect
         if self.rgb_dirty:
             self.rgb_dirty = {
@@ -372,6 +374,61 @@ class BBCGraphics:
             return (self.gcol_bg, True)
         return (self.gcol_fg, False)
 
+    def _disc_x_span(self, sy: int) -> Optional[Tuple[int, int]]:
+        """Inclusive x-range of ``_clip_disc`` on scanline ``sy``, or None if no clip.
+
+        Outside the disc returns (1, 0) so callers see an empty span.
+        """
+        clip = self._clip_disc
+        if clip is None:
+            return None
+        scx, scy, srx, sry = clip
+        if sry <= 0 or abs(sy - scy) > sry:
+            return (1, 0)
+        half_x = int(
+            math.sqrt(max(0.0, float(srx * srx * (1.0 - ((sy - scy) / float(sry)) ** 2))))
+        )
+        return scx - half_x, scx + half_x
+
+    def _fill_hspan_screen(self, x0: int, x1: int, sy: int, gcol: GColState) -> None:
+        """Fill inclusive [x0, x1] on screen row sy (GCOL replace uses a slice)."""
+        if not (0 <= sy < self.height) or x0 > x1:
+            return
+        x0 = max(0, x0)
+        x1 = min(self.width - 1, x1)
+        if x0 > x1:
+            return
+        mode, colour = gcol
+        row = self.pixels[sy]
+        trgb = self._truecolour_rgb
+        n = x1 - x0 + 1
+        if mode == 0:
+            if self.pixels_is_numpy:
+                row[x0 : x1 + 1] = colour
+            else:
+                row[x0 : x1 + 1] = [colour] * n
+            if trgb is not None and colour != 0:
+                rgb_row = self._ensure_rgb_pixels()[sy]
+                for sx in range(x0, x1 + 1):
+                    rgb_row[sx] = trgb
+                    self.rgb_dirty.add((sx, sy))
+            elif colour == 0 and self.rgb_pixels is not None:
+                rgb_row = self.rgb_pixels[sy]
+                for sx in range(x0, x1 + 1):
+                    if rgb_row[sx] is not None:
+                        rgb_row[sx] = None
+                        self.rgb_dirty.discard((sx, sy))
+        else:
+            rgb_row = self._ensure_rgb_pixels()[sy] if trgb is not None else None
+            for sx in range(x0, x1 + 1):
+                row[sx] = apply_gcol(int(row[sx]), colour, mode)
+                if rgb_row is not None and int(row[sx]) != 0:
+                    rgb_row[sx] = trgb
+                    self.rgb_dirty.add((sx, sy))
+        self._mark_pixel_dirty(x0, sy)
+        self._mark_pixel_dirty(x1, sy)
+        self.plot_count += n
+
     def _put_screen_pixel(self, sx: int, sy: int, gcol: GColState) -> None:
         if not (0 <= sx < self.width and 0 <= sy < self.height):
             return
@@ -390,11 +447,9 @@ class BBCGraphics:
         self._mark_pixel_dirty(sx, sy)
         self.plot_count += 1
         if self._truecolour_rgb is not None and new != 0:
-            self.rgb_pixels[sy][sx] = self._truecolour_rgb
+            self._ensure_rgb_pixels()[sy][sx] = self._truecolour_rgb
             self.rgb_dirty.add((sx, sy))
-        else:
-            # Drop DISPLAY/truecolour overrides so palette GCOL (incl. XOR mode 3
-            # VDU 5 labels on piechart) is what present() shows.
+        elif self.rgb_pixels is not None:
             self.rgb_pixels[sy][sx] = None
             self.rgb_dirty.discard((sx, sy))
 
@@ -413,7 +468,7 @@ class BBCGraphics:
             if not pixel_inside_disc_ellipse(sx, sy, scx, scy, srx, sry):
                 return
         self.pixels[sy][sx] = int(colour) & 0xFF
-        self.rgb_pixels[sy][sx] = (
+        self._ensure_rgb_pixels()[sy][sx] = (
             int(rgb[0]) & 0xFF,
             int(rgb[1]) & 0xFF,
             int(rgb[2]) & 0xFF,
@@ -520,6 +575,38 @@ class BBCGraphics:
             for x in range(left, right + 1):
                 self._put_pixel(x, y, gcol)
 
+    def _fill_disc_numpy(
+        self, scx: int, scy: int, srx: int, sry: int, colour: int,
+    ) -> bool:
+        """Palette replace-fill of a screen ellipse; caches the boolean mask."""
+        np = self._np
+        if np is None or not self.pixels_is_numpy:
+            return False
+        cache = getattr(BBCGraphics, '_disc_mask_cache', None)
+        if cache is None:
+            BBCGraphics._disc_mask_cache = {}
+            cache = BBCGraphics._disc_mask_cache
+        key = (self.width, self.height, scx, scy, srx, sry)
+        mask = cache.get(key)
+        if mask is None:
+            yy = np.arange(self.height, dtype=np.float64)[:, None]
+            xx = np.arange(self.width, dtype=np.float64)[None, :]
+            rx = float(max(1, srx))
+            ry = float(max(1, sry))
+            mask = ((xx - scx) / rx) ** 2 + ((yy - scy) / ry) ** 2 <= 1.0001
+            if len(cache) >= 6:
+                cache.clear()
+            cache[key] = mask
+        self.pixels[mask] = int(colour) & 0xFF
+        x0 = max(0, scx - srx)
+        y0 = max(0, scy - sry)
+        x1 = min(self.width - 1, scx + srx)
+        y1 = min(self.height - 1, scy + sry)
+        self._mark_pixel_dirty(x0, y0)
+        self._mark_pixel_dirty(x1, y1)
+        self.plot_count += int(mask.sum())
+        return True
+
     def _circle(self, code: int, x1: int, y1: int, *, filled: bool) -> None:
         if len(self.stack) < 1:
             return
@@ -528,43 +615,24 @@ class BBCGraphics:
         gcol, _ = self._plot_subcolour(code & 7)
         mode, colour = gcol
         if filled:
-            # Scanline fill in screen coordinates — avoids per-pixel _to_screen calls.
             scx, scy = self._to_screen(cx, cy)
             srx, sry = disc_screen_radii(radius, self.x_scale, self.y_scale)
-            h, w = self.height, self.width
-            for spy in range(max(0, scy - sry), min(h, scy + sry + 1)):
-                dy = spy - scy
-                if abs(dy) > sry:
-                    continue
-                half_x = int(
-                    math.sqrt(max(0.0, float(srx * srx * (1.0 - (dy / sry) ** 2))))
-                )
-                x0 = max(0, scx - half_x)
-                x1s = min(w, scx + half_x + 1)
-                row = self.pixels[spy]
-                rgb_row = self.rgb_pixels[spy]
-                trgb = self._truecolour_rgb
-                if mode == 0:
-                    for sx in range(x0, x1s):
-                        row[sx] = colour
-                        if trgb is not None and colour != 0:
-                            rgb_row[sx] = trgb
-                            self.rgb_dirty.add((sx, spy))
-                        elif colour == 0:
-                            rgb_row[sx] = None
-                            self.rgb_dirty.discard((sx, spy))
-                else:
-                    for sx in range(x0, x1s):
-                        row[sx] = apply_gcol(int(row[sx]), colour, mode)
-                        if trgb is not None and int(row[sx]) != 0:
-                            rgb_row[sx] = trgb
-                            self.rgb_dirty.add((sx, spy))
-                if x1s > x0:
-                    self._mark_pixel_dirty(x0, spy)
-                    self._mark_pixel_dirty(x1s - 1, spy)
-                    self.plot_count += x1s - x0
-
-            # Clip later PLOT fills to the disc silhouette (pixel mask, not vertex pull-in).
+            if mode == 0 and self.pixels_is_numpy and self._fill_disc_numpy(
+                scx, scy, srx, sry, colour,
+            ):
+                pass
+            else:
+                h, w = self.height, self.width
+                for spy in range(max(0, scy - sry), min(h, scy + sry + 1)):
+                    dy = spy - scy
+                    if abs(dy) > sry:
+                        continue
+                    half_x = int(
+                        math.sqrt(max(0.0, float(srx * srx * (1.0 - (dy / sry) ** 2))))
+                    )
+                    x0 = max(0, scx - half_x)
+                    x1s = min(w, scx + half_x + 1)
+                    self._fill_hspan_screen(x0, x1s - 1, spy, gcol)
             self._clip_disc = (scx, scy, srx, sry)
         else:
             if radius <= 0:
@@ -764,7 +832,11 @@ class BBCGraphics:
             uy = float((h - 1 - sy) * ys - oy - cy)
             uy2 = uy * uy
             row = self.pixels[sy]
-            rgb_row = self.rgb_pixels[sy]
+            rgb_row = (
+                self._ensure_rgb_pixels()[sy]
+                if true_rgb is not None or self.rgb_pixels is not None
+                else None
+            )
             for sx in range(x_lo, x_hi + 1):
                 ux = float(sx * xs - ox - cx)
                 if ux * ux + uy2 > r2:
@@ -780,10 +852,10 @@ class BBCGraphics:
                         continue
                 if use_replace:
                     row[sx] = colour_b
-                    if true_rgb is not None:
+                    if true_rgb is not None and rgb_row is not None:
                         rgb_row[sx] = true_rgb
                         self.rgb_dirty.add((sx, sy))
-                    else:
+                    elif rgb_row is not None:
                         rgb_row[sx] = None
                         self.rgb_dirty.discard((sx, sy))
                     painted += 1
@@ -835,12 +907,13 @@ class BBCGraphics:
         patch[mask] = colour_b
         n = int(mask.sum())
         if true_rgb is not None:
+            layer = self._ensure_rgb_pixels()
             ys_i, xs_i = np.nonzero(mask)
             for j, i in zip(ys_i.tolist(), xs_i.tolist()):
                 py, px = y_lo + j, x_lo + i
-                self.rgb_pixels[py][px] = true_rgb
+                layer[py][px] = true_rgb
                 self.rgb_dirty.add((px, py))
-        elif self.rgb_dirty:
+        elif self.rgb_dirty and self.rgb_pixels is not None:
             # Only scrub overrides if any exist (piechart uses palette only).
             ys_i, xs_i = np.nonzero(mask)
             for j, i in zip(ys_i.tolist(), xs_i.tolist()):
@@ -884,5 +957,10 @@ class BBCGraphics:
                 continue
             x_left = int(math.floor(min(xs)))
             x_right = int(math.ceil(max(xs)))
-            for x in range(x_left, x_right + 1):
-                self._put_screen_pixel(x, y, gcol)
+            clip_span = self._disc_x_span(y)
+            if clip_span is not None:
+                x_left = max(x_left, clip_span[0])
+                x_right = min(x_right, clip_span[1])
+            if x_left > x_right:
+                continue
+            self._fill_hspan_screen(x_left, x_right, y, gcol)
