@@ -6,8 +6,7 @@ import sys
 from pathlib import Path
 from typing import List, Optional
 
-# PEP 440 (PyPI). Keep in sync with root pyproject.toml.
-# 1.0.0.dev0 = pre-1.0 packaging line; set to 1.0.0 when tagging a release.
+# PEP 440. Keep in sync with root pyproject.toml.
 __version__ = '1.0.0.dev0'
 
 # Short implementation snapshot (keep in sync with FEATURES_DONE / plan).
@@ -46,15 +45,34 @@ def _env_minibasic_dir(scope: Optional[str] = None) -> Optional[str]:
         return None
 
 
+# Stated project root (directory junction). Do not print the backing path.
+_STATED_ROOT = Path(r'C:\Users\Tony\mini_basic')
+
+
+def _display_path(path: Path | str) -> str:
+    """Show the stated root when *path* is that tree (do not expand junctions)."""
+    p = Path(path)
+    try:
+        if _STATED_ROOT.exists() and p.resolve() == _STATED_ROOT.resolve():
+            return str(_STATED_ROOT)
+        if _STATED_ROOT.exists() and _STATED_ROOT.resolve() in p.resolve().parents:
+            rel = p.resolve().relative_to(_STATED_ROOT.resolve())
+            return str(_STATED_ROOT / rel)
+    except (OSError, ValueError):
+        pass
+    return str(p)
+
+
 def _path_status(path: Optional[str]) -> str:
     if not path:
         return '(not set)'
+    shown = _display_path(path)
     p = Path(path)
     if p.is_dir():
-        return f'{path}  [exists]'
+        return f'{shown}  [exists]'
     if p.exists():
-        return f'{path}  [exists, not a directory]'
-    return f'{path}  [missing]'
+        return f'{shown}  [exists, not a directory]'
+    return f'{shown}  [missing]'
 
 
 def format_version_report() -> str:
@@ -66,8 +84,8 @@ def format_version_report() -> str:
     lines: List[str] = [
         f'mini_basic {__version__}',
         f'Python {sys.version.split()[0]} ({sys.platform})',
-        f'Package: {package_root}',
-        f'Project tree: {project_root}',
+        f'Package: {_display_path(package_root)}',
+        f'Project tree: {_display_path(project_root)}',
         '',
         'Implementation status:',
         f'  {_IMPLEMENTATION_STATUS}',

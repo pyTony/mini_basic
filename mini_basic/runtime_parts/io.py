@@ -1247,6 +1247,7 @@ class RuntimeIoMixin:
             has_string_item = any(
                 self._is_string_print_item(item) for item, _ in items
             )
+            hex_mode = False
             for index, (item, sep) in enumerate(items):
                 prev_sep = items[index - 1][1] if index > 0 else ''
                 if index > 0 and prev_sep == ',':
@@ -1264,16 +1265,26 @@ class RuntimeIoMixin:
                         self.print_column = 0
                     continue
 
+                item_strip = item.strip()
+                # BBC PRINT ~n — hex for this and following numeric items.
+                if item_strip.startswith('~'):
+                    hex_mode = True
+                    item_strip = item_strip.lstrip('~').strip()
+                    item = item_strip
+                    if not item:
+                        continue
+
                 special = self._try_render_print_special(item)
                 if special is not None:
                     text = special
                 else:
-                    item_strip = item.strip()
                     if self._is_string_print_item(item_strip):
                         try:
                             text = self._eval_string_expr(item_strip)
                         except Exception:
                             text = self.eval_print_value(item)
+                    elif hex_mode:
+                        text = self._bbc_hex_string(self._eval_numeric(item_strip))
                     else:
                         text = self.eval_print_value(item)
 
@@ -1456,6 +1467,21 @@ class RuntimeIoMixin:
 
     def _split_channel_prefix(self, rest: str) -> Tuple[Optional[str], str]:
         return self._split_first_at_depth(rest, ',')
+
+    def _write_file_byte(self, channel: FileChannel, value: object) -> None:
+        """BBC BPUT#: write the low 8 bits as one raw byte."""
+        byte = int(self._coerce_int_storage(value)) & 0xFF
+        handle = channel.handle
+        raw = getattr(handle, 'buffer', None)
+        if raw is not None:
+            handle.flush()
+            raw.write(bytes([byte]))
+            return
+        mode = getattr(handle, 'mode', '') or ''
+        if 'b' in mode:
+            handle.write(bytes([byte]))
+            return
+        handle.write(chr(byte))
 
     def _write_file_text(self, channel: FileChannel, text: str, newline: bool) -> None:
         channel.handle.write(text)
@@ -1892,7 +1918,22 @@ class RuntimeIoMixin:
         self._program_source_numbered = source_was_numbered
         for line_num, statement, indent in parsed_lines:
             self.set_program_line(line_num, statement, indent)
-        self.loaded_filename = path
+        # SAVE without a name reuses this string. Keep a relative LOAD
+        # argument (hello.bas) so working_dir still applies; only store the
+        # resolved path when the user passed an absolute path.
+        try:
+            requested = _parse_path_arg(filename)
+        except ValueError:
+            requested = filename
+        if requested and not os.path.isabs(requested):
+            _root, ext = os.path.splitext(requested)
+            if not ext:
+                _p, resolved_ext = os.path.splitext(path)
+                if resolved_ext:
+                    requested = requested + resolved_ext
+            self.loaded_filename = requested
+        else:
+            self.loaded_filename = path
         self._sync_display_caption(os.path.basename(path))
         if announce:
             print(f'Loaded: {path}', file=self._get_error_stream())

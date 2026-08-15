@@ -227,18 +227,28 @@ class RuntimeDefsMixin:
         name = self._normalize_identifier(match.group(1))
         params: List[Tuple[str, VarKind]] = []
         array_params: List[str] = []
+        return_params: List[str] = []
         params_text = (match.group(2) or '').strip()
         if params_text:
             for token in self._split_args(params_text):
-                param_name, param_kind, is_array = self._parse_param_token(token)
+                raw = token.strip()
+                is_return = False
+                ret_m = re.match(r'^RETURN\s+(.+)$', raw, re.IGNORECASE)
+                if ret_m:
+                    is_return = True
+                    raw = ret_m.group(1).strip()
+                param_name, param_kind, is_array = self._parse_param_token(raw)
                 params.append((param_name, param_kind))
                 if is_array:
                     array_params.append(param_name)
+                if is_return:
+                    return_params.append(param_name)
         header_stmt = (match.group(3) or '').strip()
         return UserProcedure(
             name=name,
             params=tuple(params),
             array_params=tuple(array_params),
+            return_params=tuple(return_params),
             header_stmt=header_stmt,
         )
 
@@ -248,6 +258,8 @@ class RuntimeDefsMixin:
         bindings: List[Tuple[str, VarKind, object]] = []
         array_aliases: Dict[Tuple[str, VarKind], Tuple[str, VarKind]] = {}
         array_param_set = set(proc.array_params)
+        return_param_set = set(getattr(proc, 'return_params', ()) or ())
+        return_targets: List[Tuple[str, VarKind, str]] = []
         for (param_name, param_kind), arg_expr in zip(proc.params, args):
             if param_name in array_param_set:
                 actual_base, actual_kind = self._parse_array_ref(arg_expr.strip())
@@ -265,6 +277,8 @@ class RuntimeDefsMixin:
                 ))
             else:
                 bindings.append((param_name, param_kind, self._eval_numeric(arg_expr)))
+            if param_name in return_param_set:
+                return_targets.append((param_name, param_kind, arg_expr.strip()))
         saved = self._apply_fn_param_bindings(bindings)
         saved_array_aliases = dict(self._array_aliases)
         self._array_aliases.update(array_aliases)
@@ -306,9 +320,27 @@ class RuntimeDefsMixin:
             # outside the PROC). Do not turn it into a generic PROC error.
             raise
         finally:
+            outgoing: List[Tuple[str, VarKind, object]] = []
+            for param_name, param_kind, dest_expr in return_targets:
+                if param_kind == 'str':
+                    value = self.str_variables.get(param_name, '')
+                elif param_kind == 'int':
+                    value = self.int_variables.get(param_name, 0)
+                else:
+                    value = self.variables.get(param_name, 0.0)
+                outgoing.append((dest_expr, param_kind, value))
             saved_outer = self.proc_stack.pop()
             self._restore_fn_param_bindings(saved_outer)
             self._array_aliases = saved_array_aliases
+            for dest_expr, param_kind, value in outgoing:
+                try:
+                    self._assign_input_value(
+                        dest_expr,
+                        value if param_kind == 'str' else str(value),
+                    )
+                except Exception:
+                    loc = self._read_lvalue(dest_expr)
+                    self._write_lvalue(loc, value)
 
     def _collect_def_layout(
         self,

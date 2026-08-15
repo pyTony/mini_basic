@@ -41,6 +41,16 @@ class SaveCaseFormatTests(unittest.TestCase):
         line = format_program_line('PRINT "MiXeD"; n', 'upper')
         self.assertEqual(line, 'PRINT "MiXeD"; N')
 
+    def test_if_line_number_keeps_space_after_string(self):
+        self.assertEqual(
+            format_program_line('IF Y$ <> "N" 15', 'none'),
+            'IF Y$ <> "N" 15',
+        )
+        self.assertEqual(
+            format_program_line('IF Y$ <>"N"15', 'none'),
+            'IF Y$ <> "N" 15',
+        )
+
 
 class SaveCaseIntegrationTests(unittest.TestCase):
     def test_save_upper_in_bbc_dialect(self):

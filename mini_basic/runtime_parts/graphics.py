@@ -209,8 +209,8 @@ class RuntimeGraphicsMixin:
             except Exception:
                 pass
         self._display_live = False
-        from mini_basic.display import ensure_no_pygame_leftovers
-        ensure_no_pygame_leftovers()
+        # Do not pygame.quit() here. Full SDL teardown resets get_ticks() and
+        # made the next RUN sleep on Clock.tick after the first flip.
 
     def _display_enabled(self) -> bool:
         return (
@@ -690,10 +690,9 @@ class RuntimeGraphicsMixin:
         return int(value) & 0xFFFFFFFF
 
     def _bbc_hex_string(self, value: object) -> str:
-        """Return uppercase hex digits (no 0x) for STR$~ (and PRINT ~ shorthand if added later).
+        """Return uppercase hex digits (no 0x) for STR$~ / HEX$ / PRINT ~.
 
-        - Non-negative (incl. bigints from e.g. FNfact(100)): full hex representation.
-        - Negative: 32-bit two's complement (classic BBC 32-bit integer behaviour).
+        Non-negative (incl. bigints): full hex. Negative: 32-bit two's complement.
         """
         try:
             ival = int(value)
@@ -704,6 +703,29 @@ class RuntimeGraphicsMixin:
         else:
             uval = self._bbc_to_uint32(float(ival))
             return f'{uval:X}'
+
+    def _bbc_bin_string(self, value: object) -> str:
+        """Uppercase-free binary digits (no & or prefix) for BIN$.
+
+        Non-negative (incl. bigints): full bits. Negative: 32-bit two's complement.
+        """
+        try:
+            ival = int(value)
+        except (TypeError, ValueError):
+            ival = int(float(value))
+        if ival >= 0:
+            return format(ival, 'b')
+        return format(self._bbc_to_uint32(float(ival)), 'b')
+
+    def _pad_base_digits(self, digits: str, width: object) -> str:
+        """HEX$(n, w) / BIN$(n, w): left-pad with 0; never truncate."""
+        try:
+            w = int(width)
+        except (TypeError, ValueError):
+            w = int(float(width))
+        if w <= 0 or len(digits) >= w:
+            return digits
+        return digits.zfill(w)
 
     def _bbc_from_uint32(self, bits: int) -> float:
         if bits >= 0x80000000:

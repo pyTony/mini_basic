@@ -53,7 +53,7 @@ RE_ARRAY_HEAD = re.compile(
 
 # String builtin calls with parentheses.
 RE_FUNC_CALL = re.compile(
-    r'(CHR\$|STR\$|STR\$~|STRING\$|SPACE\$|INKEY\$|GET\$|MKI\$|MKS\$|MKD\$|ASC|LEFT\$|RIGHT\$|'
+    r'(CHR\$|STR\$|STR\$~|HEX\$|BIN\$|STRING\$|SPACE\$|INKEY\$|GET\$|MKI\$|MKS\$|MKD\$|ASC|LEFT\$|RIGHT\$|'
     r'MID\$|UCASE\$|LCASE\$|ANSI\$|FG\$|BG\$|RGB\$|BGRGB\$|RESET\$|ARG\$)\s*\(',
     re.IGNORECASE,
 )

@@ -2199,6 +2199,29 @@ class MiniBASICTests(unittest.TestCase):
             out = self.run_program_lines(interp, lines)
             self.assertEqual(out, '1         2         3         hi')
 
+    def test_bput_writes_low_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'out.bin')
+            interp = self.make_interp()
+            interp.working_dir = tmp
+            for n, s in [
+                (10, 'CH = OPENOUT("out.bin")'),
+                (20, 'A% = &01020304'),
+                (30, 'BPUT#CH, A%'),
+                (40, 'BPUT #CH, A%>>8'),
+                (50, 'BPUT#CH,A%>>16'),
+                (60, 'BPUT#CH,A%>>24'),
+                (70, 'CLOSE#CH'),
+                (80, 'END'),
+            ]:
+                interp.set_program_line(n, s)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                interp.run()
+            self.assertEqual(interp.error_line_num, 0, buf.getvalue())
+            data = open(path, 'rb').read()
+            self.assertEqual(data, bytes([0x04, 0x03, 0x02, 0x01]))
+
     def run_program_lines(self, interp, lines):
         for line_num, statement in lines:
             interp.program[line_num] = statement
@@ -3449,14 +3472,15 @@ class MiniBASICTests(unittest.TestCase):
             self.assertNotIn('Program cleared.', out)
             self.assertNotIn('Note:', out)
 
-    def test_cli_list_mode_requires_bas_file(self):
+    def test_cli_pretty_without_file_enters_repl(self):
         import mini_basic
 
         buf = io.StringIO()
         with redirect_stdout(buf):
-            status = mini_basic.main(['--pretty', '--quiet'])
-        self.assertEqual(status, 2)
-        self.assertIn('listing mode requires', buf.getvalue())
+            with self._patch_noninteractive_repl(['EXIT']):
+                status = mini_basic.main(['--pretty', '--quiet'])
+        self.assertEqual(status, 0)
+        self.assertNotIn('listing mode requires', buf.getvalue())
 
     def test_cli_pretty_list_then_repl(self):
         import os

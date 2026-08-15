@@ -264,13 +264,13 @@ class RuntimeProgramMixin:
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
             statement = re.sub(
-                r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])',
+                r'(?<=(?<![A-Za-z_])[0-9]|[%)])TO(?=[0-9A-Za-z_(+-])',
                 ' TO ',
                 statement,
                 flags=re.IGNORECASE,
             )
             statement = re.sub(
-                r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])',
+                r'(?<=(?<![A-Za-z_])[0-9]|[%)])STEP(?=[0-9A-Za-z_(+-])',
                 ' STEP ',
                 statement,
                 flags=re.IGNORECASE,
@@ -819,8 +819,11 @@ class RuntimeProgramMixin:
             return
         if not self._program_statements_use_graphics(self._current_program_parsed_lines()):
             return
-        name = os.path.basename(self.loaded_filename or '') or 'program'
         backend = self._display_backend_name()
+        # Tests / --display none: MODE/VDU must not leak a banner into stdout.
+        if backend in ('none', 'null'):
+            return
+        name = os.path.basename(self.loaded_filename or '') or 'program'
         print(f'Graphics: {name} ({backend})')
 
     def _scan_statement_dialect_violations(self, statement: str) -> List[str]:
@@ -873,8 +876,7 @@ class RuntimeProgramMixin:
         r'END\s+(?:IF|WHILE|PROC|CASE|FN|DEF)\b|'
         r'REPEATUNTIL|'
         r'CIRCLEFILL|'
-        r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])|'
-        r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])|'
+        r'(?<=(?<![A-Za-z_])[0-9]|[%)])(?:TO|STEP)(?=[0-9A-Za-z_(+-])|'
         r'\b(?:ORIGIN|SOUND|ENVELOPE|CLG|CLS|RESTORE|UNTIL|COLOUR|COLOR)(?=[0-9(])|'
         r'\b(?:MODE|GCOL|VDU|PLOT|MOVE|DRAW|FOR|NEXT|PRINT|INPUT)(?=[0-9A-Za-z$%(])|'
         r'\bPROC(?=[A-Za-z0-9])|'
@@ -930,9 +932,19 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bREPEAT\s+UNTIL\b', 'REPEAT UNTIL', line, flags=re.IGNORECASE)
         # UNTILTIME>… / UNTIL TIME
         line = re.sub(r'\bUNTIL(?=[A-Za-z_])', 'UNTIL ', line, flags=re.IGNORECASE)
-        # 0TO20 / 0STEP2 — only after digit/%/) so TOTAL is not split
-        line = re.sub(r'(?<=[0-9%)])TO(?=[0-9A-Za-z_(+-])', ' TO ', line, flags=re.IGNORECASE)
-        line = re.sub(r'(?<=[0-9%)])STEP(?=[0-9A-Za-z_(+-])', ' STEP ', line, flags=re.IGNORECASE)
+        # 0TO20 / I%TO / )TO — not mid-name (a0to+1 must stay one identifier).
+        line = re.sub(
+            r'(?<=(?<![A-Za-z_])[0-9]|[%)])TO(?=[0-9A-Za-z_(+-])',
+            ' TO ',
+            line,
+            flags=re.IGNORECASE,
+        )
+        line = re.sub(
+            r'(?<=(?<![A-Za-z_])[0-9]|[%)])STEP(?=[0-9A-Za-z_(+-])',
+            ' STEP ',
+            line,
+            flags=re.IGNORECASE,
+        )
         # Crunched keywords — only outside string literals (filters: "Original"
         # must not become ORIGIN al).
         def _glue_outside_strings(text: str) -> str:
@@ -1159,14 +1171,21 @@ class RuntimeProgramMixin:
 
         if case_sensitive:
             # Keywords only in uppercase; leave lowercase identifiers (to, to0, step3).
-            tail = re.sub(r'(?<=[0-9)])(TO|STEP)', r' \1 ', tail)
+            tail = re.sub(
+                r'(?<=(?<![A-Za-z_])[0-9]|[)])(TO|STEP)', r' \1 ', tail,
+            )
             tail = re.sub(r'(?<![A-Za-z0-9_])(TO|STEP)(?=[0-9(])', r' \1 ', tail)
             tail = re.sub(r'(?<![A-Za-z0-9_])(TO|STEP)(?![A-Za-z0-9_])', r' \1 ', tail)
             tail = re.sub(r'(?<=[0-9])\s*(TO|STEP)\s*(?=-?[0-9])', r' \1 ', tail)
         else:
             # Fold mode: never rewrite variable head; only unglue in the range tail.
             flags = re.IGNORECASE
-            tail = re.sub(r'(?<=[0-9)])(TO|STEP)', r' \1 ', tail, flags=flags)
+            tail = re.sub(
+                r'(?<=(?<![A-Za-z_])[0-9]|[)])(TO|STEP)',
+                r' \1 ',
+                tail,
+                flags=flags,
+            )
             # ``TO10`` / ``TO(`` after space or operator — not mid-name like ``total``.
             tail = re.sub(
                 r'(?<=[\s=+\-*/,(])(TO|STEP)(?=[0-9(])',
@@ -1350,6 +1369,7 @@ class RuntimeProgramMixin:
                     break
                 try:
                     fn = self._parse_def_fn_header(rest)
+                    fn.header_line = line_num
                 except Exception as exc:
                     self._emit_error(
                         self._error_message(
@@ -1577,11 +1597,32 @@ class RuntimeProgramMixin:
                 ranges.append((index, index))
         return ranges
 
+    # Residual BBC operator glue / words that _normalize_operators must rewrite.
+    # Tight loops (ZX*ZX+ZY*ZY<4) have none of these after var substitution.
+    _OP_NORM_CANDIDATE = re.compile(
+        r'\^|<<|>>|\\|'
+        r'INKEY\d|'
+        r'(?<![A-Za-z0-9_])(?:AND|OR|XOR|EOR|NOT|MOD|DIV)(?![A-Za-z_])|'
+        r'(?<=[0-9%)])(?:AND|OR|XOR|EOR|MOD|DIV)|'
+        r'%(?=(?:AND|OR|EOR|XOR|DIV|MOD))|'
+        r'\b(?:AND|OR|EOR|XOR|DIV|MOD)(?=\d)|'
+        r'\bNOT(?=[A-Za-z_(])',
+        re.IGNORECASE,
+    )
+
+    def _expr_may_need_operator_normalize(self, expr: str) -> bool:
+        """True if AND/MOD/DIV glue or keywords still need Python rewrite."""
+        if not expr:
+            return False
+        return self._OP_NORM_CANDIDATE.search(expr) is not None
+
     def _normalize_operators(self, expr: str) -> str:
         if self._RE_BAD_PERCENT_MOD.search(expr):
             raise ValueError(
                 "'%' is reserved for integer variable suffixes (A%) and binary literals (%1010); use MOD for modulo"
             )
+        if not self._expr_may_need_operator_normalize(expr):
+            return expr
         # Glued BBC operators after a number/paren or integer suffix:
         #   10MOD3, 18MOD 12 (Clock HOUR24%MOD after sub), (1+2)DIV5
         #   0AND1 / 0DIV2 after A%→0 substitution (welcome K%=68+(A%AND1))

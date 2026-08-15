@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import sys
+import time
 from abc import ABC, abstractmethod
 
 os.environ.setdefault('SDL_WINDOWS_DPI_AWARENESS', 'permonitorv2')
@@ -363,9 +364,12 @@ class TerminalDisplay(DisplayBackend):
 
     def end_run(self) -> None:
         self.present(force=True)
+        # Only on a real TTY — redirect_stdout / pipes must not see CSI reset.
         try:
-            sys.stdout.write('\x1b[0m')
-            sys.stdout.flush()
+            out = sys.stdout
+            if getattr(out, 'isatty', lambda: False)():
+                out.write('\x1b[0m')
+                out.flush()
         except Exception:
             pass
         self._open = False
@@ -626,6 +630,7 @@ class PygameDisplay(DisplayBackend):
         self._canvas = None
         self._font = None
         self._clock = None
+        self._last_present_ms = None
         self._open = False
         self._dirty = True
         # True when text/sprites/mode need a full compose (not just a pixel patch).
@@ -926,11 +931,20 @@ class PygameDisplay(DisplayBackend):
         return self._window_client_size()
 
     def pump_events(self) -> None:
-        """Keep the SDL queue alive without consuming keyboard/text events."""
+        """Keep the SDL queue alive without consuming keyboard/text events.
+
+        Peek QUIT so clicking X during a long *REFRESH / Clock wait is noticed
+        (Windows otherwise shows Not responding while tick() blocks).
+        """
         pygame = self._pygame
         if not self._open or not pygame.get_init():
             return
         pygame.event.pump()
+        try:
+            if pygame.event.peek(pygame.QUIT):
+                self._open = False
+        except Exception:
+            pass
 
     def _open_window(self, *, center: bool = False) -> None:
         pygame = self._pygame
@@ -972,6 +986,7 @@ class PygameDisplay(DisplayBackend):
             self._refresh_font()
         if self._clock is None:
             self._clock = pygame.time.Clock()
+        self._last_present_ms = None
 
     def _refresh_window_caption(self) -> None:
         """Apply ``self.caption`` plus MODE/scale to the OS window title."""
@@ -1033,8 +1048,13 @@ class PygameDisplay(DisplayBackend):
     def is_open(self) -> bool:
         return bool(self._open and self._screen is not None)
 
-    def mark_closed(self) -> None:
-        """User closed the window (X / Escape): free surfaces for a later reopen."""
+    def _close_video(self) -> None:
+        """Drop the window; keep pygame initialized so the next RUN is cheap.
+
+        ``pygame.quit()`` resets SDL's tick counter. Reusing the old Clock
+        then makes the first ``tick(fps)`` after flip sleep for however long
+        the previous RUN ran — soccerball: ball appears, then 12s Not responding.
+        """
         if self._screen is not None:
             try:
                 self._pygame.display.quit()
@@ -1042,12 +1062,13 @@ class PygameDisplay(DisplayBackend):
                 pass
         self._screen = None
         self._canvas = None
+        self._clock = None
+        self._last_present_ms = None
         self._open = False
-        try:
-            if self._pygame.get_init():
-                self._pygame.quit()
-        except Exception:
-            pass
+
+    def mark_closed(self) -> None:
+        """User closed the window (X / Escape): free surfaces for a later reopen."""
+        self._close_video()
 
     def begin_run(self) -> None:
         if self._screen is None:
@@ -1064,21 +1085,7 @@ class PygameDisplay(DisplayBackend):
             self.present()
 
     def end_run(self) -> None:
-        if self._open or self._screen is not None:
-            pygame = self._pygame
-            if self._screen is not None:
-                try:
-                    pygame.display.quit()
-                except Exception:
-                    pass
-            self._screen = None
-            self._canvas = None
-            try:
-                if pygame.get_init():
-                    pygame.quit()
-            except Exception:
-                pass
-        self._open = False
+        self._close_video()
 
     def clear(self) -> None:
         assert self._canvas is not None
@@ -1885,14 +1892,53 @@ class PygameDisplay(DisplayBackend):
             self._pygame.display.flip()
             self._dirty = False
             self._compose_full = False
-        if self._clock is not None:
-            # fps_limit 0: measure interval only (no cap); >0: cap frame rate.
-            # During pure plot patches, skip tick when fps_limit would only add wait —
-            # still tick if a limit is set so we do not free-run the GPU path.
-            if self.fps_limit > 0:
-                self._clock.tick(self.fps_limit)
-            else:
+        self._cap_present_fps()
+
+    def _cap_present_fps(self) -> None:
+        """Cap flip rate without ``Clock.tick()`` sleeping with the queue frozen.
+
+        After ``pygame.quit()``, SDL ticks reset to 0. A leftover Clock still
+        holds the previous RUN's last_tick, so ``tick(60)`` can ``SDL_Delay``
+        for many seconds (Windows Not responding if the user hits X).
+        """
+        pygame = self._pygame
+        if self.fps_limit <= 0:
+            if self._clock is not None:
                 self._clock.tick(0)
+            return
+        now = 0
+        try:
+            if pygame.get_init():
+                now = int(pygame.time.get_ticks())
+        except Exception:
+            now = 0
+        last = self._last_present_ms
+        min_ms = 1000.0 / max(1, int(self.fps_limit))
+        remaining_ms = 0.0
+        if last is not None:
+            remaining_ms = min_ms - float(now - last)
+            # Stale last_tick after SDL re-init, or a huge pause: do not sleep.
+            if remaining_ms > 250.0 or remaining_ms < 0.0:
+                remaining_ms = 0.0
+        if remaining_ms > 0.0:
+            deadline = time.perf_counter() + remaining_ms / 1000.0
+            while time.perf_counter() < deadline:
+                self.pump_events()
+                if not self._open:
+                    break
+                left = deadline - time.perf_counter()
+                if left <= 0.0:
+                    break
+                time.sleep(min(0.01, left))
+        try:
+            if pygame.get_init():
+                self._last_present_ms = int(pygame.time.get_ticks())
+            else:
+                self._last_present_ms = now
+        except Exception:
+            self._last_present_ms = now
+        if self._clock is not None:
+            self._clock.tick(0)
 
     def _update_mouse_state(self) -> None:
         if not self._open or self._gfx is None:

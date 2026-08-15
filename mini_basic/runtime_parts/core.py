@@ -241,6 +241,7 @@ class RuntimeCoreMixin:
         self.program_args: List[str] = []
         self._fn_skip_lines: Set[int] = set()
         self._in_fn_body = False
+        self._fn_local_error_return: Optional[str] = None
         self._active_fn: Optional[UserFunction] = None
         self._fn_direct_eval = False
         self._array_aliases: Dict[Tuple[str, VarKind], Tuple[str, VarKind]] = {}
@@ -1331,12 +1332,44 @@ class RuntimeCoreMixin:
             best = (condition, statement)
         if best is not None:
             return best
+        # MS/BBC: IF Y$<>"N"15  (line number glued to the closing quote)
+        glued = self._split_glued_string_linenum(then_part)
+        if glued is not None:
+            return glued
         # welcome: ``IF(I%AND1)=0:PLOT …`` — colon splits IF from body; condition
         # alone must still parse (body runs via trailing colon stmts).
         stripped = then_part.strip()
         if stripped and self._looks_like_if_condition_only(stripped):
             return stripped, ''
         raise ValueError('invalid IF syntax')
+
+    def _split_glued_string_linenum(self, text: str) -> Optional[Tuple[str, str]]:
+        """Split ``Y$<>\"N\"15`` into (``Y$<>\"N\"``, ``15``). Not ``IF A=15``."""
+        if not self._dialect_allows('if_then_line'):
+            return None
+        in_string = False
+        last_close = -1
+        i = 0
+        while i < len(text):
+            if text[i] != '"':
+                i += 1
+                continue
+            if in_string and i + 1 < len(text) and text[i + 1] == '"':
+                i += 2
+                continue
+            in_string = not in_string
+            if not in_string:
+                last_close = i
+            i += 1
+        if in_string or last_close < 0:
+            return None
+        tail = text[last_close + 1 :].strip()
+        if not re.fullmatch(r'\d+', tail):
+            return None
+        cond = text[: last_close + 1].strip()
+        if not cond:
+            return None
+        return cond, tail
 
     def _looks_like_if_condition_only(self, text: str) -> bool:
         """True when text is a bare IF condition (no THEN, no trailing statement)."""
@@ -1988,27 +2021,39 @@ class RuntimeCoreMixin:
         start_idx: int,
     ) -> Optional[str]:
         """Return the NEXT variable name when it does not match ``loop_var``."""
-        depth = 0
+        opened: List[str] = [loop_var]
+        extra_depth = 0
         for idx in range(start_idx, len(stmt_parts)):
             _, text = stmt_parts[idx]
             cmd, rest = self._parse_command(text)
             if cmd == 'FOR':
-                depth += 1
+                match = self._match_for_clause(rest)
+                if match:
+                    v = match.group(1) + (match.group(2) or '')
+                    opened.append(self._parse_var_token(v)[0])
+                else:
+                    extra_depth += 1
             elif cmd in ('WHILE', 'REPEAT'):
-                depth += 1
+                extra_depth += 1
             elif cmd in ('WEND', 'UNTIL'):
-                if depth > 0:
-                    depth -= 1
+                if extra_depth > 0:
+                    extra_depth -= 1
             elif cmd == 'NEXT':
-                names = self._parse_next_vars(rest)
-                n = len(names)
-                if depth >= n:
-                    depth -= n
-                    continue
-                our = names[depth]
-                if our and not self._loop_var_matches(our, loop_var):
-                    return our
-                return None
+                names = self._prepare_next_vars(
+                    self._parse_next_vars(rest), opened, match_stack=True,
+                )
+                for next_var in names:
+                    if extra_depth > 0:
+                        extra_depth -= 1
+                        continue
+                    if not opened:
+                        return next_var or '?'
+                    top = opened[-1]
+                    if next_var and not self._loop_var_matches(next_var, top):
+                        return next_var
+                    popped = opened.pop()
+                    if self._loop_var_matches(popped, loop_var):
+                        return None
         return None
 
     def _swap_lvalues(self, left_token: str, right_token: str) -> None:

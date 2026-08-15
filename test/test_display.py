@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 import unittest
 
 import pytest
@@ -112,6 +113,32 @@ class DisplayTests(unittest.TestCase):
         self.assertIsNotNone(display._screen)
         display.write('ok')
         display.present()
+        display.end_run()
+
+    def test_pygame_end_run_does_not_quit_sdl(self):
+        """Second RUN must not inherit a Clock last_tick across pygame.quit()."""
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        display = PygameDisplay(text_cols=10, text_rows=5, scale=1, fps_limit=60)
+        display.begin_run()
+        self.assertTrue(pygame.get_init())
+        display.present(force=True)
+        display.end_run()
+        self.assertIsNone(display._clock)
+        # Video closed; pygame itself stays up so get_ticks() is not reset.
+        self.assertTrue(pygame.get_init())
+        display.begin_run()
+        # Poisoned last_tick (old bug: Clock survived pygame.quit() + tick reset).
+        display._last_present_ms = pygame.time.get_ticks() + 20_000
+        t0 = time.perf_counter()
+        display.present(force=True)
+        elapsed = time.perf_counter() - t0
+        self.assertLess(elapsed, 2.0)
         display.end_run()
 
     def test_interpreter_reopens_pygame_after_close(self):
