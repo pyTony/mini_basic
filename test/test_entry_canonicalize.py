@@ -119,6 +119,9 @@ class EntryCanonicalizeTests(unittest.TestCase):
         self.assertEqual(i.canonicalize_program_line('i00to=i00to+1'), 'i00to=i00to+1')
         self.assertIn(' TO ', i.canonicalize_program_line('FOR I=1TO10'))
         self.assertIn(' TO ', i.canonicalize_program_line('FOR I%=0TO20'))
+        # welcome.bbc detokenize: FOR J0%=1TO M8
+        self.assertIn(' TO ', i.canonicalize_program_line('FOR J0%=1TO M8'))
+        self.assertIsNotNone(i._match_for_clause('J0%=1TO M8'))
 
     def test_phase2c_operator_normalize_fast_reject(self):
         """Pure arithmetic skips AND/MOD rewrite; glued/word ops still translate."""

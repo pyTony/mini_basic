@@ -866,20 +866,22 @@ class RuntimeProgramMixin:
         flags = re.IGNORECASE if ignore_case else 0
         # Separate TO then STEP so ``1TO10STEP2`` spaces both in one pass
         # (a single (TO|STEP) match would consume ``1TO`` and leave ``10STEP2``).
+        # Also ``1TO M8`` (detokenize: digit + TO keyword + space + name).
+        glued = r'[0-9A-Za-z_(+-]|\s|$'
         text = re.sub(
-            r'(?<![A-Za-z0-9_])([0-9]+)TO(?=[0-9A-Za-z_(+-])',
+            rf'(?<![A-Za-z0-9_])([0-9]+)TO(?={glued})',
             r'\1 TO ',
             text,
             flags=flags,
         )
         text = re.sub(
-            r'(?<![A-Za-z0-9_])([0-9]+)STEP(?=[0-9A-Za-z_(+-])',
+            rf'(?<![A-Za-z0-9_])([0-9]+)STEP(?={glued})',
             r'\1 STEP ',
             text,
             flags=flags,
         )
         text = re.sub(
-            r'(?<=[%!)])(TO|STEP)(?=[0-9A-Za-z_(+-])',
+            rf'(?<=[%!)])(TO|STEP)(?={glued})',
             r' \1 ',
             text,
             flags=flags,
@@ -895,8 +897,8 @@ class RuntimeProgramMixin:
         r'END\s+(?:IF|WHILE|PROC|CASE|FN|DEF)\b|'
         r'REPEATUNTIL|'
         r'CIRCLEFILL|'
-        r'(?<![A-Za-z0-9_])[0-9]+(?:TO|STEP)(?=[0-9A-Za-z_(+-])|'
-        r'(?<=[%!)])(?:TO|STEP)(?=[0-9A-Za-z_(+-])|'
+        r'(?<![A-Za-z0-9_])[0-9]+(?:TO|STEP)(?=[0-9A-Za-z_(+-]|\s|$)|'
+        r'(?<=[%!)])(?:TO|STEP)(?=\s|$|[0-9A-Za-z_(+-])|'
         r'\b(?:ORIGIN|SOUND|ENVELOPE|CLG|CLS|RESTORE|UNTIL|COLOUR|COLOR)(?=[0-9(])|'
         r'\b(?:MODE|GCOL|VDU|PLOT|MOVE|DRAW|FOR|NEXT|PRINT|INPUT)(?=[0-9A-Za-z$%(])|'
         r'\bPROC(?=[A-Za-z0-9])|'
