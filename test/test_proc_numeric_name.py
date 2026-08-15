@@ -175,6 +175,19 @@ class ProcNumericNameTests(unittest.TestCase):
             i.run()
         self.assertEqual(buf.getvalue().strip(), '6')
 
+    def test_fn_lookup_folds_stored_lowercase(self):
+        """DEF FNstrip is stored as strip; FNSTRIP / STRIP still resolve."""
+        i = self._bbc()
+        i.set_program_line(10, 'PRINT FNSTRIP("x")')
+        i.set_program_line(20, 'END')
+        i.set_program_line(100, 'DEF FNstrip(A$)="ok-"+A$')
+        i._prepare_run()
+        self.assertIsNotNone(i._lookup_user_function('STRIP'))
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            i.run()
+        self.assertEqual(buf.getvalue().strip(), 'ok-x')
+
     def test_defproc4_glued_header(self):
         i = self._bbc()
         lines = [

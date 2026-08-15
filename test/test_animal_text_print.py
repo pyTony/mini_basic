@@ -65,7 +65,12 @@ class AnimalTextPrintTests(unittest.TestCase):
         self.assertIn('Play', ''.join(ch for _, ch in play_letters))
         gaps = [b - a for a, b in zip(animal_cols, animal_cols[1:])]
         self.assertTrue(all(gap == 1 for gap in gaps))
-        self.assertLessEqual(display._font.size('M')[0], display._effective_cell_width() + 1)
+        # MOS 8×8 path leaves pygame SysFont unused (_font is None).
+        cell_w = display._effective_cell_width()
+        if display._font is not None:
+            self.assertLessEqual(display._font.size('M')[0], cell_w + 1)
+        else:
+            self.assertLessEqual(8, cell_w + 1)
 
     def test_input_syncs_print_column_before_following_print(self) -> None:
         """Stale print_column after INPUT must not wrap the next PRINT mid-word."""
@@ -91,9 +96,20 @@ class AnimalTextPrintTests(unittest.TestCase):
         )
         if not os.path.isfile(path):
             self.skipTest('animal.txt corpus file missing')
-        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='terminal'))
+        # Lock text/none so LOAD does not auto-enable pygame (prompt stays on stdout).
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='none',
+                display_locked=True,
+            )
+        )
         interp.load(path)
         interp._prepare_run()
+        input_line = next(
+            n for n, stmt in interp.program.items()
+            if 'What animal were you thinking of' in stmt
+        )
         stream = io.StringIO()
         visible: list[str] = []
 
@@ -104,8 +120,9 @@ class AnimalTextPrintTests(unittest.TestCase):
         with mock.patch.object(interp, '_get_program_stdout', return_value=stream), mock.patch.object(
             interp, '_read_program_input', side_effect=read_input,
         ):
-            interp.execute_line(370, interp.program[370], sorted(interp.program))
+            interp.execute_line(input_line, interp.program[input_line], sorted(interp.program))
 
+        self.assertTrue(visible, 'INPUT never called _read_program_input')
         self.assertIn('What animal were you thinking of?', visible[0])
 
     def test_fnstrip_preserves_albatross(self) -> None:
@@ -122,7 +139,8 @@ class AnimalTextPrintTests(unittest.TestCase):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.load(path)
         interp._prepare_run()
-        fn = interp.user_functions['STRIP']
+        fn = interp._lookup_user_function('STRIP')
+        self.assertIsNotNone(fn)
         got = interp._eval_user_function(fn, ['"albatross"'])
         self.assertEqual(got, 'albatross')
 
@@ -140,7 +158,8 @@ class AnimalTextPrintTests(unittest.TestCase):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.load(path)
         interp._prepare_run()
-        fn = interp.user_functions['STRIP']
+        fn = interp._lookup_user_function('STRIP')
+        self.assertIsNotNone(fn)
         self.assertEqual(interp._eval_user_function(fn, ['"a sparrow"']), 'sparrow')
         self.assertEqual(interp._eval_user_function(fn, ['"an elephant"']), 'elephant')
 

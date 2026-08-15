@@ -188,6 +188,22 @@ class RuntimeDefsMixin:
         fn = self._parse_def_fn_rest(rest)
         self.user_functions[fn.name] = fn
 
+    def _lookup_user_function(self, name: str):
+        """Find DEF FN by stored name; fold case if the exact key is missing.
+
+        BBC listings keep ``DEF FNstrip`` under ``strip`` when identifiers are
+        case-sensitive. Calls and tests may still write ``FNSTRIP`` / ``STRIP``.
+        """
+        key = self._normalize_identifier(name)
+        fn = self.user_functions.get(key)
+        if fn is not None:
+            return fn
+        folded = key.lower()
+        for stored, candidate in self.user_functions.items():
+            if stored.lower() == folded:
+                return candidate
+        return None
+
     def _is_def_fn_or_proc_header(self, cmd: str, rest: str) -> bool:
         if cmd != 'DEF':
             return False

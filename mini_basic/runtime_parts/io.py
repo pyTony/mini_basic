@@ -567,7 +567,7 @@ class RuntimeIoMixin:
             if newline:
                 self._display.newline()
                 self._print_finish_line()
-            if self._refresh_enabled:
+            if self._refresh_enabled and hasattr(self._display, 'mark_dirty'):
                 self._display.mark_dirty()
             if not self._display.poll():
                 self._invoke_on_close_and_exit()
