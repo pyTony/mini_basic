@@ -73,7 +73,7 @@
 <table><tr><th>Gate</th><th>Result</th></tr><tr><td>Corpus <code>ALL</code> runnable</td><td><strong>22 OK</strong></td></tr><tr><td>Explicit DEFER only</td><td><strong>poem</strong> (interactive MODE7); music/tools/physics not in corpus</td></tr><tr><td>Phase 0 / 1 pytest</td><td>Large green regression (phase0 + phase1 markers)</td></tr><tr><td>Focused graphics tests</td><td>piechart sectors/labels, welcome chars/envelope, VDU A–C, squares speed, soccerball, etc.</td></tr></table>
 <h4>5.2 User visual approval (graphics language exercised)</h4>
 <p>Approved programs (non-exhaustive): <strong>welcome</strong>, <strong>squares</strong>, <strong>saucer</strong>, <strong>flier</strong>, <strong>soccerball</strong>, <strong>wheel</strong>, <strong>jclock</strong>, <strong>filters</strong>, <strong>hanoi</strong>, <strong>animal</strong>.</p>
-<p>These exercise MODE/VDU, PLOT/GCOL, CIRCLE, COLOUR RGB, MOUSE/TIME, text-on-graphics, nested FORs, PROC/FN, ON ERROR, and real BBCSDL <code>.bbc</code> loads.</p>
+<p>Pytest covers <strong>fragments</strong> those programs need (glue, kernels, XOR, file stubs). It does not run the playable program. What only you can confirm — look, play, mouse, timing — stays <strong>user confirmation</strong>. See <a href="PROGRAM_VS_TESTS.html">PROGRAM_VS_TESTS.md</a>.</p>
 <h4>5.3 Plan checklist (from PLAN_1.00)</h4>
 <table><tr><th>Item</th><th>1.00</th></tr><tr><td>VDU A–C</td><td>Done</td></tr><tr><td>Corpus FAIL empty <strong>or</strong> explicit DEFER</td><td>Done</td></tr><tr><td>Version report</td><td>Done (<code>--version</code>)</td></tr><tr><td>Language + graphics baseline written</td><td><strong>This document</strong></td></tr><tr><td>Full sound / WIMP / SYS</td><td>Out of scope</td></tr></table>
 <hr>

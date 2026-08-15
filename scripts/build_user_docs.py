@@ -16,6 +16,7 @@ SITE = DOCS / 'site'
 
 PAGES = [
     ('LANGUAGE_FEATURES_1.00.md', 'Language features (1.00)'),
+    ('PROGRAM_VS_TESTS.md', 'Programs vs tests'),
     ('RELEASE_1.00.md', 'Release 1.00'),
     ('MITS_IMPLEMENTATION.md', 'MITS implementation'),
     ('PACKAGING.md', 'Packaging'),
