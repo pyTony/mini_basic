@@ -18,7 +18,7 @@ if _ROOT not in sys.path:
 from mini_basic import BASICInterpreter, InterpreterConfig
 from test.animal_snippets import FNSTRIP_LINES, bbc_none, load_lines
 
-pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 def _letters_on_row(display, row: int) -> list[tuple[int, str]]:
@@ -39,6 +39,7 @@ class AnimalTextPrintTests(unittest.TestCase):
         text, _, _ = interp._render_print_content(content, ';', 0)
         self.assertEqual(text, 'Creative Computing')
 
+    @pytest.mark.graphics
     def test_animal_header_columns_are_consecutive(self) -> None:
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='pygame'))
         lines = {

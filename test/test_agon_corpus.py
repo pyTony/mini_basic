@@ -11,7 +11,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import pytest
+
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 _CORPUS_DIR = os.path.join(_ROOT, 'test', 'corpus', 'agon')
 
@@ -28,7 +32,7 @@ def _load_numbered_program(path: str):
 
 
 def _run_bas_file(path: str, *, working_dir: str | None = None) -> str:
-    interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+    interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
     if working_dir:
         interp.working_dir = working_dir
     interp.program = _load_numbered_program(path)
@@ -62,7 +66,7 @@ class AgonCorpusTests(unittest.TestCase):
         self.assertTrue(os.path.isfile(path))
         program = _load_numbered_program(path)
         program[490] = 'END'
-        interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+        interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
         interp.program = program
         buf = io.StringIO()
         interp._program_stdout = buf
@@ -75,8 +79,8 @@ class AgonCorpusTests(unittest.TestCase):
     def test_life_runs_three_generations(self):
         path = os.path.join(_CORPUS_DIR, 'life.bas')
         program = _load_numbered_program(path)
-        program[140] = 'END'
-        interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+        program[490] = 'IF G%>=3 THEN END ELSE GOTO 250'
+        interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
         interp.program = program
         buf = io.StringIO()
         interp._program_stdout = buf
@@ -89,7 +93,7 @@ class AgonCorpusTests(unittest.TestCase):
 
 class AgonFeatureTests(unittest.TestCase):
     def run_lines(self, lines):
-        interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+        interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
         for line_num, statement in lines:
             interp.program[line_num] = statement
         buf = io.StringIO()
@@ -192,7 +196,7 @@ class AgonFeatureTests(unittest.TestCase):
             target = os.path.join(tmp, 'file.txt')
             with open(target, 'w', encoding='utf-8') as handle:
                 handle.write('x')
-            interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+            interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
             interp.working_dir = tmp
             interp.program = {10: 'OSCLI("ERASE file.txt")', 20: 'END'}
             buf = io.StringIO()
@@ -238,7 +242,7 @@ class AgonFeatureTests(unittest.TestCase):
         program = _load_numbered_program(path)
         program[140] = 'END'
         program = {k: v for k, v in program.items() if k <= 140}
-        interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+        interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
         interp.program = program
         buf = io.StringIO()
         interp._program_stdout = buf
@@ -287,7 +291,7 @@ class AgonFeatureTests(unittest.TestCase):
 
     def test_bbc_file_variable_syntax(self):
         with tempfile.TemporaryDirectory() as tmp:
-            interp = BASICInterpreter(InterpreterConfig(dialect='mini'))
+            interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none', display_locked=True))
             interp.working_dir = tmp
             interp.program = {
                 10: 'f=OPENOUT "data.txt"',

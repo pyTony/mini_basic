@@ -17,7 +17,7 @@ os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
 
 from mini_basic import BASICInterpreter, InterpreterConfig
 
-pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
+pytestmark = [pytest.mark.phase0, pytest.mark.graphics]
 
 
 def _count_colour(pixels, colour: int) -> int:

@@ -13,6 +13,8 @@ _SCRIPTS = os.path.join(_ROOT, 'scripts')
 if _SCRIPTS not in sys.path:
     sys.path.insert(0, _SCRIPTS)
 
+import pytest
+
 from benchmark_soccer_shared import (
     DEFAULT_RPM,
     FAST_RPM,
@@ -22,6 +24,8 @@ from benchmark_soccer_shared import (
     C_STEP_ORIGINAL_DEG,
     REFERENCE_REFRESH_HZ,
 )
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 def _degrees_per_second_from_rpm_loop(

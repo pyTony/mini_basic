@@ -8,12 +8,16 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import pytest
+
 from mini_basic.bbcsdl_scan import (
     format_scan_report,
     scan_bbcsdl_file,
     scan_bbcsdl_source,
     scan_bbcsdl_tree,
 )
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 _SAMPLES = Path(_ROOT) / 'test' / 'corpus' / 'bbcsdl' / 'samples'
 _CORPUS = Path(_ROOT) / 'test' / 'corpus' / 'bbcsdl'

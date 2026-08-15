@@ -11,7 +11,11 @@ import sys
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+import pytest
+
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+pytestmark = [pytest.mark.phase0]
 
 
 class SquaresSpeedTests(unittest.TestCase):

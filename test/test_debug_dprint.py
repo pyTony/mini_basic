@@ -9,7 +9,11 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from unittest.mock import patch
 
+import pytest
+
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 from mini_basic.util.debug import (
     announce_debug,
     clear_active_debug_config,
