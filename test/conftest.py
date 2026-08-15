@@ -14,6 +14,14 @@ import pytest
 
 from mini_basic.runtime_parts.core import RuntimeCoreMixin
 
+# Agent-only modules (utils.agent_resource, utils.user_approval) are gitignored.
+# Their tests stay on disk locally but must not break collection on a clone.
+collect_ignore = [
+    'test_agent_resource.py',
+    'test_user_approval.py',
+    'verify_user_approval.py',
+]
+
 # CLI helpers without an Interpreter also dual-write when this is set.
 os.environ.setdefault('MINI_BASIC_ERRORS_DUAL_STDOUT', '1')
 # Dummy SDL driver: pygame can still auto-enable for tests without a real window.

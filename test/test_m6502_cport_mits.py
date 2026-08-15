@@ -41,9 +41,11 @@ _PASS_01_48 = (
     '01_hello',
     '02_arithmetic',
     '03_numeric_variables',
+    '04_integer_variables',
     '05_string_variables',
     '06_comparisons',
     '07_if_then',
+    '08_goto_counter',
     '09_for_loop',
     '10_step_loop',
     '11_nested_loops',
@@ -56,6 +58,8 @@ _PASS_01_48 = (
     '18_data_numbers',
     '19_data_strings',
     '20_restore',
+    '21_def_fn_square',
+    '22_def_fn_conversion',
     '23_math_functions',
     '24_trigonometry',
     '25_random_numbers',
@@ -84,10 +88,6 @@ _PASS_01_48 = (
 
 # Known gaps (still useful as xfail regression locks)
 _XFAIL_01_48 = {
-    '04_integer_variables': 'int % multiply/assign path (C%=A%*B%)',
-    '08_goto_counter': 'implicit N=0 for N=N+1',
-    '21_def_fn_square': 'DEF FN S(X)=… spaced form',
-    '22_def_fn_conversion': 'DEF FN C(F)=… spaced form',
     '29_peek_and_poke': 'POKE not implemented',
     '30_wait': 'POKE/WAIT memory not implemented',
 }
@@ -127,8 +127,8 @@ class M6502CportMitsPassTests(unittest.TestCase):
     """Examples that must keep working under mits."""
 
     def test_pass_count_documented(self):
-        self.assertEqual(len(_PASS_01_48), 42)
-        self.assertEqual(len(_XFAIL_01_48), 6)
+        self.assertEqual(len(_PASS_01_48), 46)
+        self.assertEqual(len(_XFAIL_01_48), 2)
         self.assertEqual(len(_PASS_01_48) + len(_XFAIL_01_48), 48)
 
     def test_hello(self):

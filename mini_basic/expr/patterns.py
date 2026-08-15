@@ -68,9 +68,9 @@ RE_NUMERIC_FUNC_CALL = re.compile(
     re.IGNORECASE,
 )
 
-# User-defined functions FNname( ... ).
+# User-defined functions FNname( ... ) and MS-spaced FN name( ... ).
 RE_FN_CALL = re.compile(
-    rf'(?<![A-Za-z0-9_])FN_?{PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
+    rf'(?<![A-Za-z0-9_])FN_?\s*{PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
     re.IGNORECASE,
 )
 
@@ -78,7 +78,7 @@ RE_FN_CALL = re.compile(
 RE_DYNAMIC_CALL_REMAINS = re.compile(
     rf'(?<![A-Za-z0-9_])(?:CHR\$|STR\$|ASC|LEFT\$|RIGHT\$|MID\$|UCASE\$|LCASE\$|'
     rf'ANSI\$|FG\$|BG\$|RGB\$|BGRGB\$|RESET\$|ARG\$|{NUMERIC_BUILTIN_FUNC_RE}|'
-    rf'FN_?{PROC_FN_NAME_PATTERN}[%$]?)',
+    rf'FN_?\s*{PROC_FN_NAME_PATTERN}[%$]?)',
     re.IGNORECASE,
 )
 

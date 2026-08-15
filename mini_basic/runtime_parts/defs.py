@@ -107,7 +107,7 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_header(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN_?{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*$',
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*$',
             rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -138,7 +138,7 @@ class RuntimeDefsMixin:
 
     def _def_fn_header_return_suffix(self, header_rest: str) -> Optional[str]:
         match = re.match(
-            rf'^FN_?{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
             header_rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -164,7 +164,7 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_rest(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN_?{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',
             rest.strip(),
             flags=re.IGNORECASE,
         )

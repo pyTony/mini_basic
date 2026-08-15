@@ -238,6 +238,8 @@ class RuntimeExprMixin:
 
         def repl(match: re.Match) -> str:
             name = match.group(1)
+            if name.startswith('__ib_') or name == '__basic_time__':
+                return match.group(0)
             if name.upper() in _EXPR_RESERVED_WORDS:
                 return match.group(0)
             return self._normalize_identifier(name)
@@ -1762,10 +1764,10 @@ class RuntimeExprMixin:
                     base,
                     kind,
                     indices,
-                    self._coerce_int_storage(float(item.value)),
+                    self._coerce_int_storage(self._data_item_as_number(item)),
                 )
                 return
-            self._array_set(base, kind, indices, float(item.value))
+            self._array_set(base, kind, indices, self._data_item_as_number(item))
             return
 
         base, kind = self._parse_var_token(var_token)
@@ -1777,10 +1779,24 @@ class RuntimeExprMixin:
             return
         if kind == 'int':
             self._register_numeric_var(base, 'int')
-            self.int_variables[base] = self._coerce_int_storage(float(item.value))
+            self.int_variables[base] = self._coerce_int_storage(
+                self._data_item_as_number(item)
+            )
             return
         self._register_numeric_var(base, 'float')
-        self.variables[base] = float(item.value)
+        self.variables[base] = self._data_item_as_number(item)
+
+    def _data_item_as_number(self, item: DataItem) -> float:
+        """Numeric READ: numbers stay numbers; leftover words eval (unset → 0)."""
+        if item.kind != 'str':
+            return float(item.value)
+        text = str(item.value).strip()
+        if not text:
+            return 0.0
+        try:
+            return float(self._eval_numeric(text))
+        except Exception:
+            return 0.0
 
     def _assign_array_element(self, var: str, expr: str) -> None:
         parsed = self._parse_array_lvalue(var)

@@ -25,12 +25,12 @@ Run under `--dialect mits`, `display=none`, case fold.
 | **Control** | 09–14 | **Pass** — FOR/NEXT/STEP, nested FOR, GOSUB/RETURN, ON GOTO/GOSUB |
 | **Arrays & DATA** | 15–20 | **Pass** — 1D/2D numeric, string arrays, DATA/READ/RESTORE |
 | **Math & strings** | 23–28, 31–48 | **Pass** — SIN/…, LEFT$/MID$, VAL/STR$, TAB/SPC, AND/OR/NOT, algorithms |
-| **Integer `%`** | 04 | **Fail** — `C%=A%*B%` (compiled int path) |
-| **Implicit zero** | 08 | **Fail** — `N=N+1` before `N` is defined (MS allows 0) |
-| **DEF FN spaced** | 21–22 | **Fail** — `DEF FN S(X)=…` (space after FN); mini wants glued `DEF FNS` |
+| **Integer `%`** | 04 | **Pass** — `C%=A%*B%` (int slots survive mits 2-letter fold) |
+| **Implicit zero** | 08 | **Pass** — unset numeric is 0 (`N=N+1`) |
+| **DEF FN spaced** | 21–22 | **Pass** — `DEF FN S(X)=…` and `FN S(I)` |
 | **PEEK/POKE/WAIT** | 29–30 | **Fail** — `POKE` / memory WAIT not implemented |
 
-**Score (non-interactive ladder):** **42 / 48 pass** under current mits.
+**Score (non-interactive ladder):** **46 / 48 pass** under current mits.
 
 ### Not in the automated pass set
 
@@ -70,13 +70,10 @@ python -m pytest -q -m "mits and not slow" --timeout=45
 python -m mini_basic -q --dialect mits examples\m6502-cport\01_hello.bas
 ```
 
-## Gaps to close (priority if chasing C-port parity)
+## Gaps left (not regular 1.00)
 
-1. Implicit numeric 0 on first use (`N=N+1`) — high value for MS listings  
-2. `DEF FN name` with space after `FN`  
-3. Integer `%` multiply/assign path (`A%*B%`)  
-4. Optional: `POKE`/`PEEK`/`WAIT` host memory stubs  
-5. C-port `OPEN ch,path,mode` alias for file examples 51–60  
+1. `POKE` / `PEEK` / memory `WAIT` — host-memory stubs only if demanded  
+2. C-port `OPEN ch,path,mode` alias for file examples 51–60 (out of regular 1.00)
 
 ## Related code
 

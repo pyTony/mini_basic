@@ -38,9 +38,20 @@ Case-on (default mini/bbc): **keywords uppercase**; names case-sensitive. `CASE 
 
 ## How to run
 
-From a source checkout (normal way):
+Interpreter only (pip from GitHub):
 
 ```text
+python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+mini-basic --version
+python -m mini_basic -c "PRINT 6*7"
+```
+
+From a source checkout (examples + HTML docs at `docs/site/index.html`):
+
+```text
+git clone https://github.com/pyTony/mini_basic.git
+cd mini_basic
+python -m pip install -e ".[repl]"
 python -m mini_basic file.bas
 python -m mini_basic --dialect bbc piechart…
 python -m mini_basic --dialect mits examples\m6502-cport\01_hello.bas

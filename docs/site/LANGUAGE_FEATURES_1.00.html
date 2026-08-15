@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Language features (1.00) — mini_basic</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="install.html">Install</a>
+      <a href="tree.html">Public tree</a>
+      <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>Language features (1.00)</h1>
+    <p class="tag">Generated from the Markdown source in docs/.</p>
+  </header>
+  <main>
+    <article>
+<h2>mini_basic 1.00 — Language features &amp; ship qualification</h2>
+<p><strong>Status:</strong> Ready to ship as <strong>1.00</strong> under the scope locked below <strong>Version line:</strong> <code>1.0.0.dev0</code> (PEP 440 / PyPI) → tag <strong>`1.0.0`</strong> when this document is accepted <strong>Date:</strong> 2026-08-03 <strong>Related:</strong> <a href="PLAN_1.00_AND_VDU.html">`PLAN_1.00_AND_VDU.md`</a> · <a href="RELEASE_1.00.html">`RELEASE_1.00.md`</a> · <a href="LLM.html">`LLM.md`</a></p>
+<p>This is the <strong>language and graphics baseline</strong> for 1.00. It states what is in, what is out, and <strong>why the product qualifies</strong> without claiming full BBCSDL / RISC OS parity.</p>
+<hr>
+<h3>1. Why 1.00 is justified</h3>
+<p>1.00 is not “every BBC BASIC feature ever.” It is a <strong>complete, honest interpreter release</strong> that:</p>
+<table><tr><th>Criterion</th><th>Evidence</th></tr><tr><td><strong>Multi-dialect core language works</strong></td><td>Dialects <code>mini</code>, <code>mits</code>, <code>commodore</code>, <code>tiny</code>, <code>bbc</code> — control flow, expressions, files, I/O (see §2–3).</td></tr><tr><td><strong>BBC graphics tier A is usable</strong></td><td>MODE, GCOL, MOVE/DRAW/PLOT, CIRCLE, COLOUR, ORIGIN, *REFRESH, VDU phases A–C (see §4).</td></tr><tr><td><strong>BBCSDL corpus is green or explicitly deferred</strong></td><td>Portable demos only (<code>CORPUS_AUDIT</code>: <strong>21 OK</strong>, <strong>1 DEFER</strong> poem MODE7). tools/physics/sounds trees not shipped.</td></tr><tr><td><strong>Major demos match user expectation</strong></td><td>User-approved: welcome, squares, saucer, flier, soccerball, wheel, jclock, filters, hanoi, animal, …</td></tr><tr><td><strong>Ship hygiene</strong></td><td><code>--version</code> / <code>-V</code>, Russell <code>.bbc</code> detokenize, text-only sessions skip auto-pygame, phase0+phase1 regression suite.</td></tr><tr><td><strong>Non-goals are written down</strong></td><td>Sound synthesis, WIMP, SYS FFI, Box2D, full SAA5050 — see §6 and <code>features/deferred.py</code>.</td></tr></table>
+<p><strong>Qualification rule:</strong> If a feature is required for a <strong>user-approved</strong> or <strong>audit OK</strong> program, it is either implemented or the program is documented DEFER. There is no “mystery FAIL.”</p>
+<p><strong>What 1.00 is not:</strong> a compiler, a RISC OS desktop, full SOUND/ENVELOPE hardware, or pixel-perfect SAA5050 teletext.</p>
+<hr>
+<h3>2. Dialects</h3>
+<table><tr><th>Dialect</th><th>Role</th><th>Language posture</th></tr><tr><td><strong>mini</strong></td><td>Default / superset</td><td>Unnumbered + numbered; modern BBC control flow; mini extensions (BREAK/CONTINUE, ANSI helpers).</td></tr><tr><td><strong>bbc</strong></td><td>BBCSDL / BB4W-oriented</td><td>PROC/FN, CASE, WHILE, REPEAT, MODE/VDU/graphics; glued keywords; tokenized <code>.bbc</code> load.</td></tr><tr><td><strong>mits</strong></td><td>Classic Dartmouth-style</td><td>Numbered lines, GOTO/GOSUB, ON ERROR, strict classic control.</td></tr><tr><td><strong>commodore</strong></td><td>C64-flavoured</td><td>Numbered lines, classic flow, dialect keyword set.</td></tr><tr><td><strong>tiny</strong></td><td>Minimal 1975-style</td><td>Smallest statement set for teaching / tiny programs.</td></tr></table>
+<p>Dialect selection: CLI / config / <code>MINI_BASIC_DIALECT</code> · <code>MINIBASIC_DIALECT</code>.</p>
+<hr>
+<h3>3. Core language (all ship dialects, with dialect gates)</h3>
+<h4>3.1 Program structure</h4>
+<ul><li>Numbered and/or unnumbered lines (dialect-dependent).</li><li>Colon multi-statement lines; <code>REM</code> / <code>&#x27;</code> comments.</li><li><code>LOAD</code> / <code>SAVE</code> / <code>CHAIN</code> / <code>RUN</code> / <code>LIST</code> / <code>NEW</code> / <code>END</code> / <code>STOP</code>.</li><li>Tokenized BBCSDL/Beeb <strong>`.bbc` detokenize</strong> on load (Russell formats).</li></ul>
+<h4>3.2 Control flow</h4>
+<table><tr><th>Feature</th><th>Notes</th></tr><tr><td><code>GOTO</code> / <code>GOSUB</code> / <code>RETURN</code></td><td>Classic.</td></tr><tr><td><code>IF</code> … <code>THEN</code> / bare <code>IF</code> colon body</td><td>BBC bare <code>IF cond: stmt</code> supported.</td></tr><tr><td><code>IF</code> / <code>ELSE</code> / <code>ELSEIF</code> / <code>ENDIF</code></td><td>Structured.</td></tr><tr><td><code>ON</code> … <code>GOTO</code> / <code>GOSUB</code></td><td></td></tr><tr><td><code>ON ERROR</code> / <code>RESUME</code></td><td>ERR/ERL available in handlers.</td></tr><tr><td><code>FOR</code> / <code>NEXT</code> (int and float)</td><td>Nested; pure-delay and nested-int fast paths where safe.</td></tr><tr><td><code>WHILE</code> / <code>WEND</code> (or <code>ENDWHILE</code>)</td><td></td></tr><tr><td><code>REPEAT</code> / <code>UNTIL</code></td><td></td></tr><tr><td><code>EXIT FOR</code> / <code>WHILE</code> / <code>REPEAT</code></td><td></td></tr><tr><td><code>CASE</code> / <code>WHEN</code> / <code>OTHERWISE</code> / <code>ENDCASE</code></td><td>BBC family.</td></tr><tr><td><code>DEF PROC</code> / <code>ENDPROC</code>, <code>DEF FN</code> / <code>END DEF</code></td><td>Glued <code>PROCname</code> / <code>FNname</code> (BBC rule).</td></tr><tr><td><code>BREAK</code> / <code>CONTINUE</code></td><td><strong>mini</strong> extension.</td></tr></table>
+<h4>3.3 Variables &amp; expressions</h4>
+<table><tr><th>Feature</th><th>Notes</th></tr><tr><td>Float, integer <code>%</code>, string <code>$</code></td><td>Optional bigint for <code>%</code> where enabled.</td></tr><tr><td>Arrays <code>DIM</code></td><td>Numeric/string; some PRINT-subscript expansion still a known gap.</td></tr><tr><td>Operators</td><td><code>+ - * /</code>, <code>DIV</code>, <code>MOD</code>, <code>^</code>, shifts <code>&lt;&lt;</code> <code>&gt;&gt;</code>.</td></tr><tr><td>Bitwise</td><td><code>AND</code> <code>OR</code> <code>EOR</code>/<code>XOR</code> <code>NOT</code> (integer bitwise path; pure bitwise can compile).</td></tr><tr><td>Relations / logic</td><td><code>=</code> <code>&lt;&gt;</code> <code>&lt;</code> <code>&gt;</code> … ; BBC TRUE = <strong>-1</strong>.</td></tr><tr><td>Hex / binary forms</td><td>BBC-style literals where implemented.</td></tr><tr><td>Built-ins</td><td><code>SIN</code> <code>COS</code> <code>TAN</code> <code>ASN</code> <code>ACS</code> <code>ATN</code> <code>SQR</code> <code>ABS</code> <code>INT</code> <code>SGN</code> <code>RND</code> <code>LOG</code> <code>EXP</code> <code>RAD</code> <code>DEG</code> …</td></tr><tr><td>Strings</td><td><code>LEFT$</code> <code>RIGHT$</code> <code>MID$</code> <code>STR$</code> <code>VAL</code> <code>ASC</code> <code>CHR$</code> <code>LEN</code> <code>INSTR</code> <code>STRING$</code> …</td></tr><tr><td>Time</td><td><code>TIME</code>, <code>TIME$</code> (where provided).</td></tr><tr><td>System stubs</td><td><code>@%</code>, <code>@vdu%!n</code>, <code>@lib$</code> / <code>@dir$</code> partial, <code>@ispal%</code> stub, etc.</td></tr></table>
+<h4>3.4 I/O</h4>
+<table><tr><th>Feature</th><th>Notes</th></tr><tr><td><code>PRINT</code> / <code>?</code></td><td>TAB, SPC, commas/semicolons; VDU embedded sequences.</td></tr><tr><td><code>INPUT</code> / <code>LINE INPUT</code></td><td></td></tr><tr><td><code>GET</code> / <code>GET$</code> / <code>INKEY</code> / <code>INKEY$</code></td><td>Positive timeout present for graphics; glued <code>INKEY1</code>.</td></tr><tr><td>Files</td><td><code>OPENIN</code> / <code>OPENOUT</code> / <code>OPENUP</code>, <code>PRINT#</code> / <code>INPUT#</code> / <code>BGET#</code> / <code>BPUT#</code>, <code>EOF#</code>, <code>CLOSE#</code>.</td></tr><tr><td><code>OSCLI</code> / <code>*</code> commands</td><td>Subset (e.g. display/path helpers); not full RISC OS SYS.</td></tr><tr><td><code>MOUSE</code></td><td>Desktop backends.</td></tr><tr><td><code>ON CLOSE</code></td><td>Window close trap (pygame).</td></tr></table>
+<h4>3.5 Data</h4>
+<ul><li><code>DATA</code> / <code>READ</code> / <code>RESTORE</code> (classic and multi-statement forms as tested).</li></ul>
+<hr>
+<h3>4. BBC graphics language (bbc / mini graphics path)</h3>
+<h4>4.1 Statements</h4>
+<table><tr><th>Statement</th><th>1.00 status</th></tr><tr><td><code>MODE</code> n</td><td>Modes 0–7 + BB4W/SDL extended (e.g. 8+); MODE 7 teletext <strong>partial</strong>.</td></tr><tr><td><code>GCOL</code> action, colour</td><td>Modes 0–7 including XOR/invert.</td></tr><tr><td><code>COLOUR</code> / <code>COLOR</code></td><td>Text fg/bg; multi-arg RGB palette; <code>COLOR n+128</code> bg index kept (piechart sky).</td></tr><tr><td><code>MOVE</code> / <code>DRAW</code> / <code>PLOT</code></td><td>PLOT codes subset + BB4W extras; absolute/relative.</td></tr><tr><td><code>CIRCLE</code> / <code>CIRCLE FILL</code></td><td>Outline and disc; disc clip vs false pie bulge fixed.</td></tr><tr><td><code>RECTANGLE</code> / <code>RECTANGLE FILL</code></td><td></td></tr><tr><td><code>CLG</code> / <code>CLS</code></td><td>CLG respects graphics viewport where set.</td></tr><tr><td><code>ORIGIN</code> / <code>VDU 29</code></td><td>Bottom-left OS origin model.</td></tr><tr><td><code>OFF</code> / cursor</td><td>VDU 23,1</td></tr><tr><td><code>*REFRESH</code> / present</td><td>Rate-limited present; dirty-rect path.</td></tr><tr><td><code>WAIT</code></td><td></td></tr><tr><td>VDU 5 text at graphics cursor</td><td>Top-left cell; palette colour 7 = white.</td></tr></table>
+<h4>4.2 VDU (1.00 phases A–C)</h4>
+<table><tr><th>Codes</th><th>Role</th></tr><tr><td><strong>4 / 5</strong></td><td>Text vs graphics print</td></tr><tr><td><strong>7</strong></td><td>Bell (soft)</td></tr><tr><td><strong>8–11, 13</strong></td><td>Cursor motion / CR</td></tr><tr><td><strong>12 / 16</strong></td><td>CLS / CLG</td></tr><tr><td><strong>17</strong></td><td>Text colour (= COLOUR)</td></tr><tr><td><strong>18</strong></td><td>GCOL</td></tr><tr><td><strong>20</strong></td><td>Reset colours</td></tr><tr><td><strong>24</strong></td><td>Graphics viewport (store; soft clip)</td></tr><tr><td><strong>25</strong></td><td>PLOT</td></tr><tr><td><strong>26</strong></td><td>Reset viewports</td></tr><tr><td><strong>28</strong></td><td>Text viewport (store + cursor clamp)</td></tr><tr><td><strong>29</strong></td><td>ORIGIN</td></tr><tr><td><strong>30 / 31</strong></td><td>Cursor home / TAB(x,y)</td></tr><tr><td><strong>23,1</strong></td><td>Cursor visible</td></tr><tr><td><strong>23,22</strong></td><td>User mode: width;height;charx,chary,ncols,charset</td></tr><tr><td><strong>23,n redefine char</strong></td><td>8×8 user glyphs (welcome solid block)</td></tr><tr><td><strong>23,</strong>* other</td><td>Consume operands, <strong>no error</strong> (Phase C)</td></tr></table>
+<h4>4.3 Performance note (language-visible)</h4>
+<ul><li>Nested <strong>integer</strong> <code>FOR</code> bodies of simple plot/colour form can use a native fast path (e.g. <strong>squares.bbc</strong> munching pattern).</li><li>Float geometry loops (<strong>saucer.bbc</strong>) remain interpreter-paced; shape is user-approved; speed is not a 1.00 blocker.</li></ul>
+<h4>4.4 Sound (<code>SOUND</code> / <code>ENVELOPE</code>) — what “limited” means</h4>
+<p>There is <strong>no audio engine</strong>: nothing is heard on speakers. Statements are accepted so BBCSDL demos (e.g. <strong>welcome.bbc</strong>) do not crash via <code>ON ERROR</code>.</p>
+<table><tr><th>Statement</th><th>Works as</th><th>Does not do</th></tr><tr><td><strong>`ENVELOPE …`</strong></td><td>Parse args (side effects such as <code>RND()</code> run); <strong>silent no-op</strong></td><td>Pitch/ADSR envelopes; no effect on later <code>SOUND</code></td></tr><tr><td><strong>`SOUND ch, amp, pitch, dur`</strong></td><td>Requires <strong>4</strong> numeric args; with a <strong>non-terminal</strong> display (typically pygame), <strong>sleeps</strong> using <code>dur</code> for pacing</td><td>No tone; channel / amplitude / pitch ignored for audio</td></tr><tr><td><strong>`SOUND OFF`</strong>, multi-channel mix, ROS 5-arg <code>SOUND</code>, <code>*VOICE</code> / <code>*TEMPO</code> / <code>*STEREO</code></td><td>Not real audio control</td><td>—</td></tr><tr><td><strong>`ADVAL` sound queues</strong></td><td>Not a real queue</td><td>—</td></tr></table>
+<p><strong>Timing details for `SOUND` (when sleep applies):</strong></p>
+<ul><li>BBC-style duration units ≈ <strong>1/20 s</strong> → wait ≈ <code>dur * 0.05</code> seconds.</li><li>Wait is <strong>capped at 1.0 s</strong> so values like <code>dur=255</code> do not stall ~12 s of silence.</li><li>Sleep + event pump only when a graphical display is live and backend is <strong>not</strong> pure <code>terminal</code>. With <code>--display none</code> / <code>terminal</code>, <code>SOUND</code> still parses but typically <strong>does not sleep</strong>.</li></ul>
+<p><strong>Examples that run cleanly:</strong></p>
+<pre><code>10 ENVELOPE 1,1,-10,-10,-10,255,255,255,127,0,0,-127,127,0
+20 PRINT &quot;envelope ok&quot;   : REM no error; no sound
+30 MODE 8
+40 SOUND 1,-15,100,4     : REM ~0.2 s silent pause under pygame
+50 PRINT &quot;after sound&quot;
+60 END</code></pre>
+<p>Corpus snippets accepted the same way: <code>SOUND 1,1,255,255</code>, <code>SOUND &amp;11,0,1,1</code> (welcome), <code>SOUND 1,-15,50,2</code> (click-style pacing).</p>
+<p><strong>Not available for 1.00:</strong> real music / beeps / <strong>polly</strong>-class synthesis. Full sound remains <strong>deferred</strong>.</p>
+<hr>
+<h3>5. Validation evidence (why not “0.9”)</h3>
+<h4>5.1 Automated / audit</h4>
+<table><tr><th>Gate</th><th>Result</th></tr><tr><td>Corpus <code>ALL</code> runnable</td><td><strong>22 OK</strong></td></tr><tr><td>Explicit DEFER only</td><td><strong>poem</strong> (interactive MODE7); music/tools/physics not in corpus</td></tr><tr><td>Phase 0 / 1 pytest</td><td>Large green regression (phase0 + phase1 markers)</td></tr><tr><td>Focused graphics tests</td><td>piechart sectors/labels, welcome chars/envelope, VDU A–C, squares speed, soccerball, etc.</td></tr></table>
+<h4>5.2 User visual approval (graphics language exercised)</h4>
+<p>Approved programs (non-exhaustive): <strong>welcome</strong>, <strong>squares</strong>, <strong>saucer</strong>, <strong>flier</strong>, <strong>soccerball</strong>, <strong>wheel</strong>, <strong>jclock</strong>, <strong>filters</strong>, <strong>hanoi</strong>, <strong>animal</strong>.</p>
+<p>These exercise MODE/VDU, PLOT/GCOL, CIRCLE, COLOUR RGB, MOUSE/TIME, text-on-graphics, nested FORs, PROC/FN, ON ERROR, and real BBCSDL <code>.bbc</code> loads.</p>
+<h4>5.3 Plan checklist (from PLAN_1.00)</h4>
+<table><tr><th>Item</th><th>1.00</th></tr><tr><td>VDU A–C</td><td>Done</td></tr><tr><td>Corpus FAIL empty <strong>or</strong> explicit DEFER</td><td>Done</td></tr><tr><td>Version report</td><td>Done (<code>--version</code>)</td></tr><tr><td>Language + graphics baseline written</td><td><strong>This document</strong></td></tr><tr><td>Full sound / WIMP / SYS</td><td>Out of scope</td></tr></table>
+<hr>
+<h3>6. Explicit non-goals (do not block 1.00)</h3>
+<p>From <code>mini_basic/features/deferred.py</code> and project policy:</p>
+<table><tr><th>Area</th><th>Examples</th></tr><tr><td>Sound</td><td>Real audio synthesis (<strong>polly</strong> deferred). Stub behaviour: §4.4 (<code>ENVELOPE</code> no-op; <code>SOUND</code> silent + optional short wait)</td></tr><tr><td>Desktop</td><td>RISC OS WIMP, MENU, WINDOW, rich <code>ON MOUSE</code> UI</td></tr><tr><td>OS FFI</td><td><code>SYS</code> Windows API, <code>INSTALL</code> token libraries</td></tr><tr><td>Low-level</td><td>Inline assembler, <code>CALL</code>/<code>USR</code> machine code</td></tr><tr><td>Structures</td><td>Full <code>DIM struct{}</code> / TYPE as in BB4W</td></tr><tr><td>Teletext remainder</td><td>Double-height, conceal, boxed, full SAA5050</td></tr><tr><td>Physics / net</td><td>Box2D bindings, Ceefax HTTP fetch</td></tr><tr><td>Compiler</td><td>Crunch / compile-to-native</td></tr></table>
+<p><strong>Also not blocking:</strong> saucer draw time; piechart optional visual re-confirm if desired (audit already OK).</p>
+<hr>
+<h3>7. Environment &amp; CLI (ship surface)</h3>
+<table><tr><th>Item</th><th>Purpose</th></tr><tr><td><code>python -m mini_basic …</code></td><td>Run programs</td></tr><tr><td><code>--dialect</code></td><td>mini / mits / commodore / tiny / bbc</td></tr><tr><td><code>--display</code></td><td>pygame / terminal / none</td></tr><tr><td><code>--version</code> / <code>-V</code></td><td>Version + implementation snapshot + <code>MINIBASIC_DIR</code></td></tr><tr><td><code>--slow [ms]</code></td><td>Per-line pause + present (debug)</td></tr><tr><td><code>MINIBASIC_DIR</code></td><td>Install / launcher tree</td></tr><tr><td><code>MINIBASIC_NO_GRAPHICS</code> / <code>MINIBASIC_DISPLAY</code></td><td>Headless / backend control</td></tr><tr><td><code>SDL_VIDEODRIVER=dummy</code></td><td>CI / agents</td></tr></table>
+<hr>
+<h3>8. Ship decision statement</h3>
+<p><strong>mini_basic qualifies for 1.00</strong> because:</p>
+<ol><li>The <strong>language product</strong> is multi-dialect, structured-BASIC complete for teaching and classic programs, and BBC-family complete for control flow + files + expressions needed by the corpus.  </li><li>The <strong>BBC graphics language</strong> (MODE/VDU/PLOT/GCOL/COLOUR/CIRCLE/ORIGIN) is implemented through the VDU A–C plan and validated by user-approved demos.  </li><li><strong>Quality gates</strong> are closed: corpus audit OK-or-DEFER, regression phases green, version/reportability in place.  </li><li><strong>Scope is honest:</strong> deferred rows are listed; 1.00 does not pretend to be BBCSDL-with-sound or RISC OS.</li></ol>
+<p><strong>To tag 1.00:</strong> accept this document, set <code>__version__ = &#x27;1.00&#x27;</code>, add a one-page <code>RELEASE_1.00.md</code> changelog pointer to this file if desired, and keep polly/poem on the post-1.00 backlog.</p>
+<hr>
+<h3>9. Post-1.00 backlog (ordered lightly)</h3>
+<ol><li>~~polly / sounds tree~~ (removed from corpus — not general BASIC+pygame)</li><li>poem — interactive MODE7 audit path  </li><li>Saucer float-loop performance (optional)  </li><li>~~PRINT array subscript expansion~~ (done — <code>test_print_array_subscript</code>)</li><li>Teletext remainder / structures / SYS as demand appears  </li></ol>
+<hr>
+<p><em>End of 1.00 language features baseline.</em></p>
+    </article>
+  </main>
+  <footer>
+    <a href="index.html">Home</a>
+  </footer>
+</body>
+</html>

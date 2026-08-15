@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BASIC variants — mini_basic</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="install.html">Install</a>
+      <a href="tree.html">Public tree</a>
+      <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>BASIC variants</h1>
+    <p class="tag">Generated from the Markdown source in docs/.</p>
+  </header>
+  <main>
+    <article>
+<h2>BASIC variants and mini_basic</h2>
+<p>This document maps historical and modern BASIC dialects to <strong>mini_basic</strong>, and shows how that mapping is recorded in the project <strong>feature grids</strong>.</p>
+<table><tr><th></th><th></th></tr><tr><td><strong>Canonical grids (generated)</strong></td><td><a href="../documentation/feature_matrices/">`documentation/feature_matrices/`</a></td></tr><tr><td><strong>Combined dump</strong></td><td><a href="../documentation/feature_matrices/ALL_MATRICES.txt">`ALL_MATRICES.txt`</a></td></tr><tr><td><strong>Python source of truth</strong></td><td><a href="../mini_basic/features/">`mini_basic/features/`</a></td></tr><tr><td><strong>Ship language baseline</strong></td><td><a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a></td></tr><tr><td><strong>REPL</strong></td><td><code>MATRIX</code> / <code>HELP DIALECTS</code> (structure grid) · <code>HELP PROGRAM</code> (LOAD/SAVE)</td></tr></table>
+<p>Regenerate text matrices from the package:</p>
+<pre><code>python -m mini_basic.features
+# or: python -m mini_basic.feature_matrices</code></pre>
+<p>Legend used in grids: <strong>`+`</strong> supported · <strong>`-`</strong> absent / rejected in strict mode · <strong>`~`</strong> partial or different semantics.</p>
+<hr>
+<h3>1. Two axes of comparison</h3>
+<p>mini_basic needs <strong>two</strong> grids, not one:</p>
+<table><tr><th>Axis</th><th>Columns</th><th>File</th><th>Question it answers</th></tr><tr><td><strong>A. Interpreter dialects</strong></td><td><code>mits</code> · <code>commodore</code> · <code>tiny</code> · <code>bbc</code> · <code>mini</code></td><td><a href="../documentation/feature_matrices/01_dialect_structure.txt">`01_dialect_structure.txt`</a></td><td>What does <em>this</em> dialect mode allow or reject?</td></tr><tr><td><strong>B. BBC family products</strong></td><td>Beeb · ROS · BB4W · SDL · mini(bbc)</td><td><a href="../documentation/feature_matrices/01b_bbc_family.txt">`01b_bbc_family.txt`</a></td><td>How does mini’s <strong>bbc</strong> mode relate to real BBC BASICs?</td></tr></table>
+<p>Topic grids (trig, graphics, arrays, DATA, implementation status, deferred) sit under the same folder and measure <strong>bb</strong> / mini capability depth against BB4W/SDL-style specs—not MITS vs C64.</p>
+<pre><code>                    historical BASIC family
+                              │
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+    Dartmouth/MITS        8-bit home           Acorn BBC line
+    (numbered, GOTO)     (C64 MS BASIC)      Beeb → ROS V/VI
+         │                    │              → BB4W → BBCSDL
+         ▼                    ▼                    ▼
+      dialect mits       dialect commodore     dialect bbc
+         │                    │                    │
+         └────────────────────┴──────────┬─────────┘
+                                         │
+                              dialect mini (superset default)</code></pre>
+<hr>
+<h3>2. mini_basic dialects (axis A)</h3>
+<p>Selected with <code>--dialect …</code>, env <code>MINI_BASIC_DIALECT</code> / <code>MINIBASIC_DIALECT</code>, file hint (<code>#!bbc</code> or <code>1 REM dialect: bbc</code>), or REPL <code>DIALECT</code>.</p>
+<table><tr><th>Dialect</th><th>Intent</th><th>Typical programs</th><th>Line form (strict)</th></tr><tr><td><strong>mini</strong></td><td>Default superset</td><td>Modern + museum mixed</td><td>Numbered <strong>and</strong> unnumbered</td></tr><tr><td><strong>bbc</strong></td><td>BBCSDL / BB4W oriented</td><td><code>examples/</code>, corpus <code>.bbc</code></td><td>Unnumbered preferred; numbered OK</td></tr><tr><td><strong>mits</strong></td><td>Dartmouth / early micro style</td><td>ELIZA, classic numbered</td><td>Numbered only</td></tr><tr><td><strong>commodore</strong></td><td>C64 / MS BASIC V2 flavour</td><td>Numbered IF/GOTO style</td><td>Numbered only</td></tr><tr><td><strong>tiny</strong></td><td>Minimal 1975 Tiny BASIC</td><td>Teaching / tiny listings</td><td>Numbered only</td></tr></table>
+<h4>Structure grid (excerpt)</h4>
+<p>Source of truth: <code>dialect_structure_rows()</code> → <code>01_dialect_structure.txt</code> · REPL <strong>`MATRIX`</strong>.</p>
+<table><tr><th>Feature</th><th>mits</th><th>com</th><th>tiny</th><th>bbc</th><th>mini</th></tr><tr><td>Numbered lines</td><td>+</td><td>+</td><td>+</td><td>−*</td><td>+</td></tr><tr><td>Unnumbered lines</td><td>−</td><td>−</td><td>−</td><td>+</td><td>+</td></tr><tr><td>GOTO / GOSUB / RETURN</td><td>+</td><td>+</td><td>+</td><td>+</td><td>+</td></tr><tr><td>IF … GOTO <em>nn</em></td><td>+</td><td>+</td><td>−</td><td>−</td><td>+</td></tr><tr><td>IF … THEN <em>nn</em></td><td>+</td><td>+</td><td>−</td><td>+</td><td>+</td></tr><tr><td>IF/ENDIF / ELSEIF</td><td>−</td><td>−</td><td>−</td><td>+</td><td>+</td></tr><tr><td>WHILE / WEND</td><td>−</td><td>−</td><td>−</td><td>+</td><td>+</td></tr><tr><td>REPEAT / UNTIL</td><td>−</td><td>−</td><td>−</td><td>+</td><td>+</td></tr><tr><td>PROC / DEF PROC</td><td>−</td><td>−</td><td>−</td><td>+</td><td>+</td></tr><tr><td>BREAK / CONTINUE</td><td>−</td><td>−</td><td>−</td><td>−</td><td>+</td></tr><tr><td>ARG / CLI args</td><td>−</td><td>−</td><td>−</td><td>−</td><td>+</td></tr><tr><td>FG$ / BG$ ANSI</td><td>−</td><td>−</td><td>−</td><td>−</td><td>+</td></tr></table>
+<p>\<em>In the structure matrix, </em><em>bbc</em><em> marks “numbered lines” as rejected in the </em><em>strict unnumbered</em><em> sense used for that column’s classic BETH-style posture; in practice mini’s </em><em>bbc</em><em> mode still </em><em>loads and runs</em>* numbered files (GOTO targets, renumber, etc.). Prefer the matrix + <code>HELP DIALECTS</code> for the strict gate list.</p>
+<p><strong>Relation summary</strong></p>
+<ul><li><strong>mits / commodore / tiny</strong> ≈ classic <strong>line-number + GOTO</strong> teaching/museum dialects.  </li><li><strong>bbc</strong> ≈ structured BBC family language (PROC, CASE, WHILE, …) without mini-only extras.  </li><li><strong>mini</strong> = <strong>bbc-like core + numbered programs + mini extensions</strong> (BREAK/CONTINUE, ARG, ANSI helpers).</li><li><strong>Case mode (all dialects):</strong> when case-sensitive (default for mini/bbc; <code>CASE ON</code></li></ul>
+<p>elsewhere), <strong>statement keywords are uppercase only</strong> (<code>PRINT</code>, <code>COLOUR</code>, <code>FOR</code>). Mixed-case <code>Colour&amp;</code> / <code>print</code> are not commands. Fold mode (<code>CASE OFF</code>) restores freedom of case for keywords (<code>print</code>/<code>PRINT</code>). Which commands exist is still dialect-gated.</p>
+<hr>
+<h3>3. BBC product family (axis B)</h3>
+<p>These are <strong>external systems</strong>; mini’s column is <strong>`bbc` dialect mode</strong>, not a claim of full product parity.</p>
+<table><tr><th>Product</th><th>Era / platform</th><th>Relation to mini_basic</th></tr><tr><td><strong>Beeb</strong> (BBC Micro / Master, MOS BASIC II/IV)</td><td>1980s 6502</td><td>Tokenized <strong>Wilson</strong> load; smaller language (no CASE/WHILE as on ROS); MODE 0–7 + teletext 7</td></tr><tr><td><strong>ROS</strong> (RISC OS BASIC <strong>V / VI</strong>)</td><td>Archimedes / RPi</td><td>Structured BBC; in-memory programs still <strong>line-numbered</strong>; Edit/TEXTLOAD assign numbers to text; SYS/WIMP largely <strong>deferred</strong> in mini</td></tr><tr><td><strong>BB4W</strong> (BBC BASIC for Windows)</td><td>Desktop (Russell)</td><td>Language + MODE 8+ / CIRCLE-style graphics target for many matrices</td></tr><tr><td><strong>SDL</strong> (BBC BASIC for SDL 2.0)</td><td>Cross-platform (Russell)</td><td>Primary <strong>corpus</strong> target (<code>test/corpus</code>, many <code>examples/*.bbc</code>); tokenized <strong>Russell</strong> load</td></tr><tr><td><strong>mini (bbc)</strong></td><td>This interpreter</td><td>Detokenize Beeb/SDL files → text → run; graphics tier A; sound/SYS/WIMP not full</td></tr></table>
+<h4>Family grid (excerpt)</h4>
+<p>Source: <code>bbc_family_rows()</code> → <code>01b_bbc_family.txt</code>.</p>
+<table><tr><th>Feature</th><th>Beeb</th><th>ROS</th><th>BB4W</th><th>SDL</th><th>mini</th><th>Notes</th></tr><tr><td>PROC/FN glued to name</td><td>+</td><td>+</td><td>+</td><td>+</td><td>+</td><td><code>PROCfoo</code> not <code>PROC foo</code></td></tr><tr><td>CASE / WHEN</td><td>−</td><td>+</td><td>+</td><td>+</td><td>+</td><td>Not classic Beeb MOS</td></tr><tr><td>WHILE / ENDWHILE</td><td>−</td><td>+</td><td>+</td><td>+</td><td>+</td><td>Beeb: REPEAT mainly</td></tr><tr><td>MODE 0–7</td><td>+</td><td>~</td><td>+</td><td>+</td><td>+</td><td>ROS MODE 7 ≠ Beeb teletext</td></tr><tr><td>MODE 8+ PC/SDL</td><td>−</td><td>−</td><td>+</td><td>+</td><td>+</td><td>mini default gfx ~ MODE 8</td></tr><tr><td>CIRCLE / ELLIPSE keywords</td><td>−</td><td>~</td><td>+</td><td>+</td><td>+</td><td>Beeb: PLOT codes</td></tr><tr><td>Tokenized program files</td><td>+</td><td>+</td><td>+</td><td>+</td><td>+</td><td>Formats differ; mini <strong>detokenizes</strong> only</td></tr><tr><td>Line numbers required</td><td>+</td><td>−</td><td>−</td><td>−</td><td>~</td><td>Beeb classic; ROS/BB4W text unnumbered OK</td></tr><tr><td>SOUND / ENVELOPE</td><td>+</td><td>~</td><td>+</td><td>+</td><td>~</td><td>mini: stubs (silent / wait)</td></tr><tr><td>SYS / rich OS</td><td>~</td><td>+</td><td>+</td><td>+</td><td>~</td><td>mini: OSCLI subset, not full FFI</td></tr><tr><td>INSTALL libraries</td><td>−</td><td>~</td><td>+</td><td>+</td><td>~</td><td>Deferred depth</td></tr></table>
+<p>Full table and notes: always prefer the generated file over this excerpt.</p>
+<h4>Program form (same spirit as BASIC V/VI)</h4>
+<table><tr><th>Form</th><th>On disk</th><th>In mini_basic after LOAD</th></tr><tr><td>Numbered text</td><td><code>10 PRINT</code></td><td>Stored as line 10…</td></tr><tr><td>Unnumbered / PRETTY text</td><td>structured indent</td><td><strong>Auto-numbered</strong> (10, 20, 30…)</td></tr><tr><td>Tokenized <code>.bbc</code></td><td>Wilson or Russell binary</td><td>Detokenize → then same as text</td></tr><tr><td>After LOAD</td><td>—</td><td>Always a <strong>numbered</strong> program map</td></tr></table>
+<p>Unnumbered is a <strong>file / editor</strong> convenience (like RISC OS Edit / TEXTLOAD renumbering), not a second in-memory program model.</p>
+<p><strong>Round-trip:</strong> <code>LOAD</code> unnumbered → edit with <code>EDIT n</code> → bare <code>SAVE</code> defaults to <strong>PRETTY</strong> (keeps the file unnumbered). <code>SAVE NUMBERED</code> forces classic line numbers. Numbered loads still bare-<code>SAVE</code> as numbered. Details: <code>HELP PROGRAM</code>.</p>
+<hr>
+<h3>4. Other BASIC names (outside the grids)</h3>
+<table><tr><th>Name</th><th>Relation</th></tr><tr><td><strong>Dartmouth BASIC</strong></td><td>Ancestor of numbered interactive BASIC; closest dialect: <strong>mits</strong></td></tr><tr><td><strong>Microsoft 6502 / GW-BASIC / QBasic</strong></td><td>Not a first-class dialect; <strong>commodore</strong> only approximates MS-BASIC V2 <em>flavour</em></td></tr><tr><td><strong>Tiny BASIC (1975)</strong></td><td>Closest dialect: <strong>tiny</strong> (minimal statement set)</td></tr><tr><td><strong>BBCSDL physics / Box2D</strong></td><td>Corpus tier; bindings listed under <strong>deferred</strong></td></tr><tr><td><strong>Compilers / Crunch</strong></td><td>Out of scope (interpreter only)</td></tr></table>
+<p>Tokenization support is <strong>BBC-family only</strong> (Wilson + Russell). No MITS/Commodore/GW binary tokens.</p>
+<hr>
+<h3>5. Topic grids (how deep bbc/mini go)</h3>
+<p>These compare <strong>BB4W/SDL-style specs</strong> to mini implementation status. Paths under <code>documentation/feature_matrices/</code>:</p>
+<table><tr><th>File</th><th>Topic</th></tr><tr><td><a href="../documentation/feature_matrices/02_trigonometry.txt">`02_trigonometry.txt`</a></td><td>Degrees vs radians, DEG/RAD, SINRAD…</td></tr><tr><td><a href="../documentation/feature_matrices/03_graphics.txt">`03_graphics.txt`</a></td><td>CIRCLE, RECTANGLE, GCOL, MODE scaling…</td></tr><tr><td><a href="../documentation/feature_matrices/04_arrays_matrix.txt">`04_arrays_matrix.txt`</a></td><td>Array fill, multiply, SUM, slices…</td></tr><tr><td><a href="../documentation/feature_matrices/05_data_read.txt">`05_data_read.txt`</a></td><td>DATA / READ / RESTORE</td></tr><tr><td><a href="../documentation/feature_matrices/06_implementation_status.txt">`06_implementation_status.txt`</a></td><td>User-verify implementation checklist</td></tr><tr><td><a href="../documentation/feature_matrices/07_deferred.txt">`07_deferred.txt`</a></td><td>WIMP, ASM, SYS FFI, real sound, INSTALL, structs…</td></tr></table>
+<p>Deferred rows are intentional non-goals until core language + corpus stay stable—not silent gaps.</p>
+<hr>
+<h3>6. Practical mapping for users</h3>
+<table><tr><th>You have…</th><th>Do this in mini_basic</th></tr><tr><td>BBCSDL / BB4W listing or tokenized <code>.bbc</code></td><td><code>--dialect bbc</code> (or file hint); <code>LOAD</code> (auto <code>.bas</code>/<code>.bbc</code>)</td></tr><tr><td>Classic numbered museum (ELIZA-style)</td><td><code>--dialect mits</code> or <strong>mini</strong></td></tr><tr><td>C64-style numbered IF GOTO</td><td><code>--dialect commodore</code></td></tr><tr><td>Want every extension</td><td><code>--dialect mini</code> (default)</td></tr><tr><td>Unnumbered structured source from editor</td><td><code>LOAD</code> → auto numbers; <code>SAVE PRETTY</code> to write unnumbered back</td></tr><tr><td>Paste into RISC OS BASIC</td><td><code>LIST</code> with <code>--dialect bbc</code> so <strong>PROC names stay glued</strong></td></tr><tr><td>Feature question</td><td><code>MATRIX</code> + open the matching <code>0x_*.txt</code> grid</td></tr></table>
+<hr>
+<h3>7. Tokenize once vs unglue at eval</h3>
+<p>Real BBC BASIC <strong>tokenizes at line entry</strong>; mini_basic stores <strong>text</strong> and often <strong>re-derives</strong> keyword boundaries at run/LIST time. Glue rules (GOTO100, SINa, case-sensitive <code>tana</code> vs <code>SINa</code>) and a possible <strong>entry-time canonicalize</strong> roadmap are written up in <a href="BBC_TOKENIZE_VS_UNGLUE.html">`BBC_TOKENIZE_VS_UNGLUE.md`</a>.</p>
+<hr>
+<h3>8. Maintaining the grids</h3>
+<ol><li>Edit rows in <code>mini_basic/features/*.py</code> (e.g. <code>dialect_structure.py</code>, <code>bbc_family.py</code>).  </li><li>Run <code>python -m mini_basic.features</code> to refresh <code>documentation/feature_matrices/</code>.  </li><li>Keep this overview in sync only when <strong>dialect roles</strong> or <strong>axis definitions</strong> change—not for every <code>+</code>/<code>-</code> flip (those belong in the generated files).</li></ol>
+<p>Ship-facing language promises: <a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a>. User-facing matrix notes: <a href="../documentation/FEATURE_TESTS_FOR_USER.txt">`documentation/FEATURE_TESTS_FOR_USER.txt`</a>.</p>
+    </article>
+  </main>
+  <footer>
+    <a href="index.html">Home</a>
+  </footer>
+</body>
+</html>

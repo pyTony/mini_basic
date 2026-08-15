@@ -76,6 +76,9 @@ scripts/ps1/start_web_localhost_run.ps1
 scripts/ps1/start_web_tunnel.ps1
 test/progress_runner.py
 test/test_progress_runner.py
+test/test_agent_resource.py
+test/test_user_approval.py
+test/verify_user_approval.py
 utils/agent_resource.py
 utils/debug_step.py
 utils/program_run_guide.py

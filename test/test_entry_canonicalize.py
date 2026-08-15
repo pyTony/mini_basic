@@ -106,6 +106,7 @@ class EntryCanonicalizeTests(unittest.TestCase):
         self.assertTrue(i._line_may_need_bbc_dialect_normalize('DEFPROC4'))
         # Digit inside an identifier is not FOR glue (a0to+1 ≠ a0 TO +1).
         self.assertFalse(i._line_may_need_bbc_dialect_normalize('a0to=a0to+1'))
+        self.assertFalse(i._line_may_need_bbc_dialect_normalize('i00to=i00to+1'))
         # Safety net: _parse_command still unglues residual PRINTTAB.
         cmd, rest = i._parse_command('PRINTTAB(5);"hi"')
         self.assertEqual(cmd, 'PRINT')
@@ -115,6 +116,7 @@ class EntryCanonicalizeTests(unittest.TestCase):
         """Hypothesis vars like a0to must increment; 1TO10 still unglues."""
         i = self._bbc()
         self.assertEqual(i.canonicalize_program_line('a0to=a0to+1'), 'a0to=a0to+1')
+        self.assertEqual(i.canonicalize_program_line('i00to=i00to+1'), 'i00to=i00to+1')
         self.assertIn(' TO ', i.canonicalize_program_line('FOR I=1TO10'))
         self.assertIn(' TO ', i.canonicalize_program_line('FOR I%=0TO20'))
 

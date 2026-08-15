@@ -57,7 +57,7 @@ all = [
 
 [project.urls]
 Homepage = "https://github.com/pyTony/mini_basic"
-Documentation = "https://github.com/pyTony/mini_basic/blob/main/docs/LANGUAGE_FEATURES_1.00.md"
+Documentation = "https://github.com/pyTony/mini_basic/blob/main/docs/site/index.html"
 Examples = "https://github.com/pyTony/mini_basic/tree/main/examples"
 Source = "https://github.com/pyTony/mini_basic"
 

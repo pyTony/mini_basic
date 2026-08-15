@@ -85,10 +85,10 @@ class CompiledExpr:
         if self.needs_time:
             namespace['__basic_time__'] = interp._get_time()
         for name in self.float_vars:
-            if name in interp.variables:
-                namespace[name] = interp.variables[name]
-            else:
-                namespace.pop(name, None)
+            if name in SAFE_EVAL_GLOBALS:
+                continue
+            # Classic BASIC: an unset numeric is 0 (N=N+1, PRINT X, …).
+            namespace[name] = interp.variables.get(name, 0.0)
         for name in self.int_vars:
             namespace[int_slot(name)] = interp.int_variables.get(name, 0)
         for name in self.system_vars:

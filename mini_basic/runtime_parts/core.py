@@ -725,6 +725,10 @@ class RuntimeCoreMixin:
                 continue
             if name.upper() in _EXPR_RESERVED_WORDS:
                 continue
+            # Compiled exprs wrap values in Python int(); do not treat that
+            # name as a BASIC float (implicit 0 would shadow the builtin).
+            if name in _SAFE_EVAL_GLOBALS or name == 'int':
+                continue
             if name not in float_vars:
                 float_vars.append(name)
         return tuple(float_vars)
@@ -2039,8 +2043,10 @@ class RuntimeCoreMixin:
                 if extra_depth > 0:
                     extra_depth -= 1
             elif cmd == 'NEXT':
+                # Do not drop names that fail match_stack — that hides
+                # ``NEXT I`` vs ``FOR i`` (case-sensitive mismatch).
                 names = self._prepare_next_vars(
-                    self._parse_next_vars(rest), opened, match_stack=True,
+                    self._parse_next_vars(rest), opened, match_stack=False,
                 )
                 for next_var in names:
                     if extra_depth > 0:

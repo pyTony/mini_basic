@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mini_basic — user docs</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="install.html">Install</a>
+      <a href="tree.html">Public tree</a>
+      <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="RELEASE_1.00.html">1.00 notes</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>mini_basic</h1>
+    <p class="tag">Multi-dialect BASIC interpreter. Regular 1.00 is text and console. Version <code>1.0.0.dev0</code> until tagged.</p>
+  </header>
+  <main>
+    <article>
+      <p>This is the browsable handbook for the <strong>public</strong> project: what you get from GitHub, how to install it with pip, and what each folder is for. Local agent/status files are not part of this product and are not documented here.</p>
+      <p>Start with <a href="install.html">Install</a> if you want to run programs. Use <a href="tree.html">Public tree</a> to see every user-facing path.</p>
+    </article>
+
+    <h2>Run</h2>
+    <pre><code>pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+mini-basic --version
+python -m mini_basic</code></pre>
+    <p>Examples and this handbook live in the git checkout, not in the pip wheel. Clone the repo (or use an editable install) to run <span class="path">examples/</span>.</p>
+
+    <h2>Dialects</h2>
+    <table>
+      <tr><th>Name</th><th>Role</th></tr>
+      <tr><td><code>mini</code></td><td>Default superset (numbered + unnumbered)</td></tr>
+      <tr><td><code>bbc</code></td><td>BBCSDL / BB4W-oriented language</td></tr>
+      <tr><td><code>mits</code></td><td>Classic numbered / GOTO (ELIZA, M6502 tutorials)</td></tr>
+      <tr><td><code>commodore</code> / <code>tiny</code></td><td>Teaching / museum subsets</td></tr>
+    </table>
+
+    <h2>Handbook pages</h2>
+    <ul>
+      <li><a href="install.html">Install from GitHub (pip and clone)</a></li>
+      <li><a href="tree.html">Public tree map</a></li>
+      <li><a href="LANGUAGE_FEATURES_1.00.html">Language features (1.00)</a></li>
+      <li><a href="RELEASE_1.00.html">Release notes and tag checklist</a></li>
+      <li><a href="MITS_IMPLEMENTATION.html">MITS / M6502 coverage</a></li>
+      <li><a href="PACKAGING.html">What the wheel contains</a></li>
+      <li><a href="LLM.html">Notes for people and LLMs</a></li>
+      <li><a href="markdown-index.html">Markdown source index</a></li>
+      <li><a href="../../documentation/MINIBASIC_BBC_BASIC_Manual.html">mini_basic BBC-oriented HTML manual</a></li>
+    </ul>
+    <p>At the <code>&gt;</code> prompt: <code>HELP</code>, <code>HELP PROGRAM</code>, <code>HELP CLI</code>, <code>MATRIX</code>.</p>
+  </main>
+  <footer>
+    Source: <a href="https://github.com/pyTony/mini_basic">github.com/pyTony/mini_basic</a>
+  </footer>
+</body>
+</html>

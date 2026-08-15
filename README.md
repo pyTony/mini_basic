@@ -8,12 +8,20 @@ REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
 
 Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).
 
-**Docs:** [`docs/RELEASE_1.00.md`](docs/RELEASE_1.00.md) · [`docs/INDEX.md`](docs/INDEX.md) · [`docs/LLM.md`](docs/LLM.md)
+**Docs (HTML):** open [`docs/site/index.html`](docs/site/index.html) after a clone — [install](docs/site/install.html) · [public tree](docs/site/tree.html) · [language](docs/site/LANGUAGE_FEATURES_1.00.html)
 
-**Project root:** `C:\Users\Tony\mini_basic`
+**Install the interpreter from GitHub:**
 
-**Git (examples + developer tree):** [github.com/pyTony/mini_basic](https://github.com/pyTony/mini_basic)  
-`git clone https://github.com/pyTony/mini_basic.git`
+```bash
+python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+mini-basic --version
+```
+
+Examples and the HTML handbook are in the git tree, not the pip wheel. Clone for those:
+
+```bash
+git clone https://github.com/pyTony/mini_basic.git
+```
 
 | On GitHub | What |
 |-----------|------|
@@ -65,9 +73,8 @@ Product conventions that trip people up:
 | `test/` | Unit tests + BBCSDL corpus + audit probe |
 | `documentation/feature_matrices/` | Capability matrices (generated) |
 | `docs/BASIC_VARIANTS.md` | BASIC dialects / BBC family vs mini_basic (integrates matrices) |
+| `docs/site/` | Browsable HTML handbook |
 | `scripts/` | Dev tools (not collected as tests) |
-| `utils/` | Status / progress helpers (`status.html`) |
-| `backup/` | Archived monolith / old runtimes |
 
 ## Tests (pytest preferred)
 

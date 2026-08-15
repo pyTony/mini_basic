@@ -30,21 +30,34 @@ Only the **importable interpreter package** under `mini_basic/`:
 | `mini_basic/diffcheck.py` | Removed — was a broken one-off (lived under `tools/` if kept) |
 | Old text-archive installers | Separate distribution path (`tools/install.ps1` + parts) |
 
-## Build & verify (local)
+## Install from GitHub (supported)
 
 ```powershell
-cd C:\Users\Tony\mini_basic
+python -m pip install "mini-basic @ git+https://github.com/pyTony/mini_basic.git"
+python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+mini-basic --version
+python -m mini_basic -c "PRINT 6*7"
+```
+
+That installs the interpreter only. For examples and `docs/site/`:
+
+```powershell
+git clone https://github.com/pyTony/mini_basic.git
+cd mini_basic
+python -m pip install -e ".[repl]"
+```
+
+## Build a wheel (local checkout)
+
+```powershell
 python -m pip install -U build
 python -m build
-# Clean env smoke (example):
 python -m venv .venv-pack
 .\.venv-pack\Scripts\pip install dist\mini_basic-*.whl
 .\.venv-pack\Scripts\mini-basic --version
-.\.venv-pack\Scripts\python -m mini_basic -c "unused"  # if -c unsupported, use a temp .bas
+.\.venv-pack\Scripts\python -m mini_basic -c "PRINT 6*7"
 ```
 
 Version is **PEP 440** (`1.0.0.dev0` while developing; tag `1.0.0` for release). Keep `mini_basic/version.py` in sync with root `pyproject.toml`.
 
-## Not yet: upload
-
-No `twine upload` until you choose a public project name and remote. This repo is local-first.
+Public source: [github.com/pyTony/mini_basic](https://github.com/pyTony/mini_basic). No PyPI upload until you choose to publish.

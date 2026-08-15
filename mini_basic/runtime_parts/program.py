@@ -263,18 +263,7 @@ class RuntimeProgramMixin:
             statement = self._normalize_two_word_closers(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
-            statement = re.sub(
-                r'(?<=(?<![A-Za-z_])[0-9]|[%)])TO(?=[0-9A-Za-z_(+-])',
-                ' TO ',
-                statement,
-                flags=re.IGNORECASE,
-            )
-            statement = re.sub(
-                r'(?<=(?<![A-Za-z_])[0-9]|[%)])STEP(?=[0-9A-Za-z_(+-])',
-                ' STEP ',
-                statement,
-                flags=re.IGNORECASE,
-            )
+            statement = self._space_glued_to_step(statement)
         statement = self._expand_question_print(statement)
         # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):
@@ -867,6 +856,36 @@ class RuntimeProgramMixin:
         """BBC file I/O: PRINT #ch  INPUT #ch  CLOSE #ch  ->  PRINT#ch etc."""
         return cls._RE_HASH_FILE_CMD.sub(r'\1#', line.strip())
 
+    @staticmethod
+    def _space_glued_to_step(text: str, *, ignore_case: bool = True) -> str:
+        """Space TO/STEP after a numeric literal or %) — not mid-identifier.
+
+        ``1TO10``, ``10TO20``, ``I%TO``, ``)TO`` unglue. ``a0to+1`` and
+        ``i00to+1`` stay one name (the digits belong to the identifier).
+        """
+        flags = re.IGNORECASE if ignore_case else 0
+        # Separate TO then STEP so ``1TO10STEP2`` spaces both in one pass
+        # (a single (TO|STEP) match would consume ``1TO`` and leave ``10STEP2``).
+        text = re.sub(
+            r'(?<![A-Za-z0-9_])([0-9]+)TO(?=[0-9A-Za-z_(+-])',
+            r'\1 TO ',
+            text,
+            flags=flags,
+        )
+        text = re.sub(
+            r'(?<![A-Za-z0-9_])([0-9]+)STEP(?=[0-9A-Za-z_(+-])',
+            r'\1 STEP ',
+            text,
+            flags=flags,
+        )
+        text = re.sub(
+            r'(?<=[%!)])(TO|STEP)(?=[0-9A-Za-z_(+-])',
+            r' \1 ',
+            text,
+            flags=flags,
+        )
+        return text
+
     # Residual BBC line glue that entry canonicalize may already have fixed.
     # When absent, _parse_command skips _normalize_bbc_dialect_line (Phase 2b).
     _BBC_DIALECT_NORMALIZE_CANDIDATE = re.compile(
@@ -876,7 +895,8 @@ class RuntimeProgramMixin:
         r'END\s+(?:IF|WHILE|PROC|CASE|FN|DEF)\b|'
         r'REPEATUNTIL|'
         r'CIRCLEFILL|'
-        r'(?<=(?<![A-Za-z_])[0-9]|[%)])(?:TO|STEP)(?=[0-9A-Za-z_(+-])|'
+        r'(?<![A-Za-z0-9_])[0-9]+(?:TO|STEP)(?=[0-9A-Za-z_(+-])|'
+        r'(?<=[%!)])(?:TO|STEP)(?=[0-9A-Za-z_(+-])|'
         r'\b(?:ORIGIN|SOUND|ENVELOPE|CLG|CLS|RESTORE|UNTIL|COLOUR|COLOR)(?=[0-9(])|'
         r'\b(?:MODE|GCOL|VDU|PLOT|MOVE|DRAW|FOR|NEXT|PRINT|INPUT)(?=[0-9A-Za-z$%(])|'
         r'\bPROC(?=[A-Za-z0-9])|'
@@ -932,19 +952,8 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bREPEAT\s+UNTIL\b', 'REPEAT UNTIL', line, flags=re.IGNORECASE)
         # UNTILTIME>… / UNTIL TIME
         line = re.sub(r'\bUNTIL(?=[A-Za-z_])', 'UNTIL ', line, flags=re.IGNORECASE)
-        # 0TO20 / I%TO / )TO — not mid-name (a0to+1 must stay one identifier).
-        line = re.sub(
-            r'(?<=(?<![A-Za-z_])[0-9]|[%)])TO(?=[0-9A-Za-z_(+-])',
-            ' TO ',
-            line,
-            flags=re.IGNORECASE,
-        )
-        line = re.sub(
-            r'(?<=(?<![A-Za-z_])[0-9]|[%)])STEP(?=[0-9A-Za-z_(+-])',
-            ' STEP ',
-            line,
-            flags=re.IGNORECASE,
-        )
+        # 0TO20 / I%TO / )TO — not mid-name (a0to+1 / i00to+1 stay one identifier).
+        line = RuntimeProgramMixin._space_glued_to_step(line)
         # Crunched keywords — only outside string literals (filters: "Original"
         # must not become ORIGIN al).
         def _glue_outside_strings(text: str) -> str:
@@ -1171,21 +1180,14 @@ class RuntimeProgramMixin:
 
         if case_sensitive:
             # Keywords only in uppercase; leave lowercase identifiers (to, to0, step3).
-            tail = re.sub(
-                r'(?<=(?<![A-Za-z_])[0-9]|[)])(TO|STEP)', r' \1 ', tail,
-            )
+            tail = self._space_glued_to_step(tail, ignore_case=False)
             tail = re.sub(r'(?<![A-Za-z0-9_])(TO|STEP)(?=[0-9(])', r' \1 ', tail)
             tail = re.sub(r'(?<![A-Za-z0-9_])(TO|STEP)(?![A-Za-z0-9_])', r' \1 ', tail)
             tail = re.sub(r'(?<=[0-9])\s*(TO|STEP)\s*(?=-?[0-9])', r' \1 ', tail)
         else:
             # Fold mode: never rewrite variable head; only unglue in the range tail.
             flags = re.IGNORECASE
-            tail = re.sub(
-                r'(?<=(?<![A-Za-z_])[0-9]|[)])(TO|STEP)',
-                r' \1 ',
-                tail,
-                flags=flags,
-            )
+            tail = self._space_glued_to_step(tail, ignore_case=True)
             # ``TO10`` / ``TO(`` after space or operator — not mid-name like ``total``.
             tail = re.sub(
                 r'(?<=[\s=+\-*/,(])(TO|STEP)(?=[0-9(])',

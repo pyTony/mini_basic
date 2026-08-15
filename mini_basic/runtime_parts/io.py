@@ -801,10 +801,24 @@ class RuntimeIoMixin:
             # Evaluating '' as a number yields 0 and corrupts string READs.
             if not text.strip():
                 return item
+            stripped = text.strip()
             try:
-                return DataItem('float', self._eval_numeric(text))
+                value = self._eval_numeric(stripped)
             except Exception:
                 return item
+            # Implicit 0 makes unknown names succeed. Keep unset words as
+            # strings (DATA hello / ELIZA) but still eval defined vars
+            # (DATA P after P=3) and real expressions (p * 3).
+            bare = re.fullmatch(r'[_A-Za-z][A-Za-z0-9_]*[%$!#]?', stripped)
+            if bare:
+                key = self._normalize_identifier(stripped.rstrip('%$!#'))
+                if (
+                    key not in self.variables
+                    and key not in self.int_variables
+                    and key not in self.str_variables
+                ):
+                    return item
+            return DataItem('float', value)
         return item
 
     def _restore_data_pointer(

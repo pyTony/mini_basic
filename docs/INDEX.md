@@ -1,26 +1,8 @@
 # mini_basic documentation index
 
-One place to find project docs (mostly Markdown under `docs/` and the repo root).  
-Source stays `.md` — not a permanent HTML tree.
+Browsable HTML (no extra tools): open [`site/index.html`](site/index.html) in a browser after cloning the repo.
 
-## Browse in the browser (Windows)
-
-Uses your existing helper (needs `npm install -g marked`):
-
-```powershell
-# From the mini_basic project root
-Open-MdRendered.ps1 .\docs\INDEX.md
-
-# Or open any page directly
-Open-MdRendered.ps1 .\docs\PACKAGING.md
-Open-MdRendered.ps1 .\docs\LANGUAGE_FEATURES_1.00.md
-Open-MdRendered.ps1 .\README.md
-```
-
-`Open-MdRendered.ps1` lives in your user `bin` (e.g. `C:\Users\Tony\bin\`).  
-It converts one file to a temp `.html` and opens the default browser.
-
-**Note:** Links between pages work best in an editor Markdown preview (VS Code, Cursor) or by opening each file with `Open-MdRendered.ps1`. A temp HTML copy does not ship sibling `.md` files, so in-browser clicks on other docs may not resolve.
+Markdown sources stay in this folder; `python scripts/build_user_docs.py` refreshes the generated pages under `site/`.
 
 Already-HTML manuals open without `marked`:
 
@@ -129,4 +111,4 @@ MATRIX
 
 ---
 
-*Open this file:* `Open-MdRendered.ps1 .\docs\INDEX.md`
+*HTML home:* [`site/index.html`](site/index.html)

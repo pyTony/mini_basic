@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MITS implementation — mini_basic</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="install.html">Install</a>
+      <a href="tree.html">Public tree</a>
+      <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>MITS implementation</h1>
+    <p class="tag">Generated from the Markdown source in docs/.</p>
+  </header>
+  <main>
+    <article>
+<h2>MITS dialect implementation (from M6502 C-port tests)</h2>
+<p><strong>Date:</strong> 2026-08-09 <strong>Source suite:</strong> <code>examples/m6502-cport/</code> (<a href="https://github.com/garyexplains/BASIC-M6502-CPORT">garyexplains/BASIC-M6502-CPORT</a>) <strong>Runner:</strong> <code>test/test_m6502_cport_mits.py</code> <strong>Filters:</strong> <code>pytest -q -m &quot;mits and not slow&quot;</code> or <code>-m m6502_cport</code></p>
+<h3>What <code>mits</code> is</h3>
+<table><tr><th></th><th></th></tr><tr><td><strong>Target</strong></td><td>Classic numbered-line / GOTO-era Microsoft-style BASIC (MITS 8K / MS lineage)</td></tr><tr><td><strong>Examples</strong></td><td>ELIZA.BAS, M6502 C-port tutorials 01–48</td></tr><tr><td><strong>Not</strong></td><td>BBC PROC/CASE/WHILE, mini extensions, BB4W byte arrays</td></tr></table>
+<p><strong>Default posture:</strong> identifier <strong>fold</strong> (case-insensitive names); 2-letter significance for classic MS-style names when folded. Statement keywords: uppercase-only when <code>CASE ON</code>, any case when folded (mits default is fold).</p>
+<h3>Coverage vs M6502 tutorials (01–48)</h3>
+<p>Run under <code>--dialect mits</code>, <code>display=none</code>, case fold.</p>
+<table><tr><th>Band</th><th>Programs</th><th>mini_basic mits</th></tr><tr><td><strong>Core I/O &amp; vars</strong></td><td>01–03, 05–07</td><td><strong>Pass</strong> — PRINT, arithmetic, float/string vars, comparisons, IF/THEN</td></tr><tr><td><strong>Control</strong></td><td>09–14</td><td><strong>Pass</strong> — FOR/NEXT/STEP, nested FOR, GOSUB/RETURN, ON GOTO/GOSUB</td></tr><tr><td><strong>Arrays &amp; DATA</strong></td><td>15–20</td><td><strong>Pass</strong> — 1D/2D numeric, string arrays, DATA/READ/RESTORE</td></tr><tr><td><strong>Math &amp; strings</strong></td><td>23–28, 31–48</td><td><strong>Pass</strong> — SIN/…, LEFT$/MID$, VAL/STR$, TAB/SPC, AND/OR/NOT, algorithms</td></tr><tr><td><strong>Integer `%`</strong></td><td>04</td><td><strong>Pass</strong> — <code>C%=A%*B%</code> (int slots survive mits 2-letter fold)</td></tr><tr><td><strong>Implicit zero</strong></td><td>08</td><td><strong>Pass</strong> — unset numeric is 0 (<code>N=N+1</code>)</td></tr><tr><td><strong>DEF FN spaced</strong></td><td>21–22</td><td><strong>Pass</strong> — <code>DEF FN S(X)=…</code> and <code>FN S(I)</code></td></tr><tr><td><strong>PEEK/POKE/WAIT</strong></td><td>29–30</td><td><strong>Fail</strong> — <code>POKE</code> / memory WAIT not implemented</td></tr></table>
+<p><strong>Score (non-interactive ladder):</strong> <strong>46 / 48 pass</strong> under current mits.</p>
+<h4>Not in the automated pass set</h4>
+<table><tr><th>Band</th><th>Notes</th></tr><tr><td><strong>49–50</strong></td><td>Interactive INPUT/GET</td></tr><tr><td><strong>51–60</strong></td><td>Host file I/O: C-port <code>OPEN ch,&quot;file&quot;,&quot;OUTPUT&quot;</code>; mini has <code>PRINT#</code> + <code>OPEN &quot;O&quot;,#n</code> / <code>OPENOUT</code></td></tr><tr><td><strong>apps/</strong>, <strong>adv/</strong></td><td>Interactive / multi-file; manual</td></tr></table>
+<h3>Built-in dialect gates (mits)</h3>
+<p>Forbidden when dialect is mits (and other numbered-goto dialects) under strict/feature checks:</p>
+<ul><li>Structured: <code>WHILE</code>/<code>WEND</code>, <code>REPEAT</code>/<code>UNTIL</code>, multi-line <code>IF</code>/<code>ENDIF</code>, <code>ELSEIF</code></li><li>Procedures: <code>PROC</code>/<code>ENDPROC</code>, <code>EXIT</code> (BBC-style)</li><li>mini-only: <code>BREAK</code>/<code>CONTINUE</code>, mini ANSI/<code>ARG</code> helpers</li></ul>
+<p>Allowed and exercised by C-port tests: numbered programs, <code>GOTO</code>/<code>GOSUB</code>, classic <code>FOR</code>/<code>NEXT</code>, <code>ON … GOTO/GOSUB</code>, <code>DATA</code>/<code>READ</code>, scalar <code>DEF FN</code> (glued form), DIM arrays, PRINT zones.</p>
+<h3>Case mode</h3>
+<table><tr><th>Mode</th><th>Keywords</th><th>Variables (mits default)</th></tr><tr><td>Fold (mits default)</td><td><code>print</code> / <code>PRINT</code></td><td>Folded (<code>A</code> ≡ <code>a</code>)</td></tr><tr><td>Case on (<code>CASE ON</code>)</td><td>Uppercase only</td><td>Significant case + full length</td></tr></table>
+<h3>How to re-run</h3>
+<pre><code># M6502 C-port regression only
+python -m pytest -q -m &quot;m6502_cport&quot; --timeout=30
+
+# All mits-tagged tests
+python -m pytest -q -m &quot;mits and not slow&quot; --timeout=45
+
+# Manual single example
+python -m mini_basic -q --dialect mits examples\m6502-cport\01_hello.bas</code></pre>
+<h3>Gaps left (not regular 1.00)</h3>
+<ol><li><code>POKE</code> / <code>PEEK</code> / memory <code>WAIT</code> — host-memory stubs only if demanded  </li><li>C-port <code>OPEN ch,path,mode</code> alias for file examples 51–60 (out of regular 1.00)</li></ol>
+<h3>Related code</h3>
+<ul><li>Dialect gates: <code>mini_basic/runtime_parts/dialect.py</code>, <code>constants.MITS_FORBIDDEN_CMDS</code>  </li><li>Compatibility matrix: REPL <code>MATRIX</code> / <code>HELP DIALECTS</code>  </li><li>Examples + notes: <code>examples/m6502-cport/README.md</code>  </li></ul>
+    </article>
+  </main>
+  <footer>
+    <a href="index.html">Home</a>
+  </footer>
+</body>
+</html>

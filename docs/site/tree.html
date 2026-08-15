@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Public tree — mini_basic</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="install.html">Install</a>
+      <a href="tree.html">Public tree</a>
+      <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>Public tree</h1>
+    <p class="tag">Paths that ship on GitHub. This is not a map of local developer extras.</p>
+  </header>
+  <main>
+    <article>
+      <p>After <code>git clone https://github.com/pyTony/mini_basic.git</code> you have the layout below. A plain <code>pip install</code> from GitHub only puts the <span class="path">mini_basic/</span> package on <code>sys.path</code>.</p>
+    </article>
+
+    <h2>Root</h2>
+    <table>
+      <tr><th>Path</th><th>What it is</th></tr>
+      <tr><td class="path">README.md</td><td>Short overview and quick start</td></tr>
+      <tr><td class="path">LICENSE</td><td>MIT</td></tr>
+      <tr><td class="path">pyproject.toml</td><td>pip / PyPI metadata (package name <code>mini-basic</code>)</td></tr>
+      <tr><td class="path">MANIFEST.in</td><td>sdist include/exclude (interpreter only)</td></tr>
+      <tr><td class="path">pytest.ini</td><td>Test markers and collection rules</td></tr>
+      <tr><td class="path">HOWTO.md</td><td>Longer setup notes (archives, extras)</td></tr>
+      <tr><td class="path">GIT_QUICKSTART.md</td><td>Developer git checklist</td></tr>
+      <tr><td class="path">DEVELOPMENT_GIT_USAGE.md</td><td>Branch / commit conventions</td></tr>
+      <tr><td class="path">requirements-repl.txt</td><td>Windows REPL extra (<code>pyreadline3</code>)</td></tr>
+      <tr><td class="path">requirements-display.txt</td><td>Optional pygame extra</td></tr>
+      <tr><td class="path">mini_basic.py</td><td>Entry shim (same as <code>python -m mini_basic</code>)</td></tr>
+      <tr><td class="path">mb.py</td><td>Short alias shim</td></tr>
+      <tr><td class="path">minibasic</td><td>Unix-style launcher name in the tree</td></tr>
+    </table>
+
+    <h2>Product code</h2>
+    <table>
+      <tr><th>Path</th><th>What it is</th></tr>
+      <tr><td class="path">mini_basic/</td><td>The installable interpreter package</td></tr>
+      <tr><td class="path">mini_basic/runtime.py</td><td>Facade, CLI, <code>main</code></td></tr>
+      <tr><td class="path">mini_basic/runtime_parts/</td><td>Mixins: parse, eval, I/O, graphics, dialects</td></tr>
+      <tr><td class="path">mini_basic/repl/</td><td>HELP, line editing helpers</td></tr>
+      <tr><td class="path">mini_basic/format/</td><td>LIST / SAVE / USING</td></tr>
+      <tr><td class="path">mini_basic/expr/</td><td>Compiled expressions and patterns</td></tr>
+      <tr><td class="path">mini_basic/features/</td><td>Capability matrices</td></tr>
+    </table>
+
+    <h2>Programs you can run</h2>
+    <table>
+      <tr><th>Path</th><th>What it is</th></tr>
+      <tr><td class="path">examples/</td><td>Curated demos (see <span class="path">examples/README.txt</span>)</td></tr>
+      <tr><td class="path">examples/mini/</td><td>Default-dialect samples (args, colors, …)</td></tr>
+      <tr><td class="path">examples/bbc/</td><td>Structured BBC-style samples</td></tr>
+      <tr><td class="path">examples/mits/</td><td>Numbered GOTO-era samples</td></tr>
+      <tr><td class="path">examples/museum/</td><td>ELIZA (mits) and BETH (bbc)</td></tr>
+      <tr><td class="path">examples/m6502-cport/</td><td>Microsoft BASIC M6502 C-port tutorials</td></tr>
+      <tr><td class="path">examples/games/</td><td>Games (many need pygame)</td></tr>
+      <tr><td class="path">examples/graphics/</td><td>MODE / PLOT demos (optional display extra)</td></tr>
+      <tr><td class="path">examples/general/</td><td>Larger BBCSDL-port programs</td></tr>
+      <tr><td class="path">examples/vdu/</td><td>VDU phase samples</td></tr>
+      <tr><td class="path">examples/teletext/</td><td>MODE 7 test screen</td></tr>
+      <tr><td class="path">basics/</td><td>Small standalone <code>.bas</code> files</td></tr>
+    </table>
+
+    <h2>Docs and manuals</h2>
+    <table>
+      <tr><th>Path</th><th>What it is</th></tr>
+      <tr><td class="path">docs/site/</td><td>This HTML handbook (open <span class="path">index.html</span>)</td></tr>
+      <tr><td class="path">docs/*.md</td><td>Markdown sources (language, release, packaging, MITS)</td></tr>
+      <tr><td class="path">documentation/MINIBASIC_BBC_BASIC_Manual.html</td><td>Built mini_basic-oriented manual</td></tr>
+      <tr><td class="path">documentation/BBC_BASIC_Manual.html</td><td>BBC reference HTML</td></tr>
+      <tr><td class="path">documentation/feature_matrices/</td><td>Generated capability grids</td></tr>
+    </table>
+
+    <h2>Tests and tools (public, not in the wheel)</h2>
+    <table>
+      <tr><th>Path</th><th>What it is</th></tr>
+      <tr><td class="path">test/</td><td>pytest suite; run from the clone root</td></tr>
+      <tr><td class="path">scripts/</td><td>Dev helpers (benchmarks, corpus menu)</td></tr>
+      <tr><td class="path">tools/</td><td>Install / archive / mixin-split scripts</td></tr>
+      <tr><td class="path">utils/</td><td>Tiny public package stub only — no agent pipeline</td></tr>
+    </table>
+
+    <h2>Not in this tree</h2>
+    <p>Agent status files, work logs, approval lists, resource probes, and local <span class="path">utils/*.py</span> helpers stay on the developer machine. They are gitignored on purpose so a GitHub clone stays a product repo.</p>
+  </main>
+  <footer>
+    <a href="index.html">Home</a> · <a href="install.html">Install</a>
+  </footer>
+</body>
+</html>
