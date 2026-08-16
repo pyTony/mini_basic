@@ -40,7 +40,7 @@
   LIST spacing PROC name        +    +    +    +    +    Export must re-glue; mini LIST now glues for ROS paste
   CASE / WHEN / OF              -    +    +    +    +    Not on classic Beeb MOS
   WHILE / ENDWHILE              -    +    +    +    +    Beeb: REPEAT only
-  SYS / OSCLI *                 ~    +    +    +    ~    Beeb *FX; ROS SYS; BB4W/SDL rich SYS
+  SYS / OSCLI *                 ~    +    +    +    ~    mini: OSCLI REFRESH/GSAVE/DISPLAY; SYS unimplemented
   @lib$ @dir$ path vars         -    -    +    +    ~    BB4W/SDL; mini stubs some
   INSTALL / LIBRARY             -    ~    +    +    ~    BB4W/SDL library path
   MODE 0–7 Beeb                 +    ~    +    +    +    ROS modes differ; MODE 7 teletext ROS ≠ Beeb
@@ -123,7 +123,7 @@
   ---------------------------- ---------------------- ----   ------  -----
   soccerball.txt               graphics corpus        runs 0 errors   yes     rotation tmp vs xyz
   wheel.txt                    graphics corpus        runs 0 errors   yes     spoke coords verified
-  PRINT array subscript        PRINT a(i)             expanded       yes     PRINT A(0); A$(i); A%(i,j)
+  PRINT array subscript        PRINT a(i)             expanded   yes     PRINT A(0); A$(i); A%(i,j)
   Corpus ALL runnable 24       audit list             auditing   partial  corpus_audit_probe
 
 === Deferred feature sets (intentionally not in scope yet) ===

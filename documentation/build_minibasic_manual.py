@@ -160,6 +160,7 @@ def build() -> str:
         "Strings and data",
         "Input and output",
         "Files",
+        "OSCLI, star commands, and SYS",
         "Procedures and functions",
         "Graphics and MODE",
         "VDU control",
@@ -353,8 +354,44 @@ def build() -> str:
                     "Paths relative to working directory / MINIBASIC_DIR conventions.",
                 ]
             )
+        )
+    )
+
+    parts.append(
+        section(
+            "OSCLI, star commands, and SYS",
+            p(
+                "OSCLI expression evaluates a string and runs the same handler as a * line "
+                "(*REFRESH ON). This is not a host shell and it is not SYS.",
+            )
+            + table(
+                ["Command", "Behaviour"],
+                [
+                    ["REFRESH / ON / OFF", "Present the back buffer, or set auto-refresh."],
+                    ['GSAVE "file" x,y,w,h', "Save an OS-unit rectangle as a 24-bit BMP (piechart)."],
+                    ['DISPLAY "file" x,y,w,h', "Blit or scale a BMP into that rectangle (pygame when a window is up)."],
+                    ["FX, TV, KEY", "Accepted no-ops (welcome / MOS noise)."],
+                    ["ERASE / DELETE", "Delete a file in the working directory."],
+                ],
+            )
             + p(
-                "OSCLI / * commands: a useful subset (paths, display helpers). Not a full RISC OS SYS surface.",
+                "Anything else (LOAD, MDISPLAY, FONT, SPOOL, CAT, …) is ignored with no error. "
+                "Russell clock.bbc needs DIM … EXT# plus OSCLI LOAD / MDISPLAY into a heap; "
+                "that program is not a regular example. Use basics/Clock.bas or jclock.",
+            )
+            + p(
+                'SYS "…", SYS `name`, and SYS used as a function report '
+                "? Unimplemented: SYS (RISC OS / OS call). "
+                "Same class as CALL, USR, and INSTALL. "
+                "ON SYS is kept only so the colon tail is not split; the event is not delivered.",
+            )
+            + pre(
+                'OSCLI "REFRESH OFF"\n'
+                'OSCLI "GSAVE ""shot.bmp"" 0,0,200,200"\n'
+                'OSCLI "DISPLAY ""shot.bmp"" 0,0,200,100"\n'
+                '*REFRESH\n'
+                "\n"
+                'SYS "SDL_SetWindowTitle", @hwnd%, "Demo"   : REM ? Unimplemented\n'
             ),
         )
     )

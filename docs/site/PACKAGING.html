@@ -20,15 +20,15 @@
   </header>
   <main>
     <article>
-<h2>Packaging (PyPI / pip) — what ships and what does not</h2>
-<h3>Included in the wheel (<code>pip install mini-basic</code>)</h3>
+<h2 id="packaging-pypi-pip-what-ships-and-what-does-not">Packaging (PyPI / pip) — what ships and what does not</h2>
+<h3 id="included-in-the-wheel-pip-install-mini-basic">Included in the wheel (<code>pip install mini-basic</code>)</h3>
 <p>Only the <strong>importable interpreter package</strong> under <code>mini_basic/</code>:</p>
 <table><tr><th>Area</th><th>Modules (examples)</th></tr><tr><td>Entry</td><td><code>__init__</code>, <code>__main__</code>, <code>runtime</code>, <code>version</code>, <code>config</code></td></tr><tr><td>Language</td><td><code>runtime_parts/*</code>, <code>expr/*</code>, <code>type_system</code>, <code>constants</code>, <code>dialect_hint</code></td></tr><tr><td>BBC graphics</td><td><code>display</code>, <code>bbc_graphics</code>, <code>bbc_modes</code>, <code>bbc_font</code>, <code>bbc_detokenize</code></td></tr><tr><td>Optional helpers</td><td><code>features/*</code> (matrices text generation), <code>format/*</code>, <code>repl/*</code>, <code>util/*</code></td></tr><tr><td>CLI</td><td>console scripts <code>mini-basic</code>, <code>minibasic</code>, <code>mini_basic</code> → <code>mini_basic:main</code></td></tr></table>
 <p><strong>Optional extras</strong> (not hard dependencies):</p>
 <ul><li><code>pip install &quot;mini-basic[display]&quot;</code> → <code>pygame-ce</code> (MODE/PLOT windows)</li><li><code>pip install &quot;mini-basic[repl]&quot;</code> → <code>pyreadline3</code> on Windows</li><li><code>pip install &quot;mini-basic[all]&quot;</code> → both</li></ul>
-<h3>Explicitly excluded from the wheel</h3>
+<h3 id="explicitly-excluded-from-the-wheel">Explicitly excluded from the wheel</h3>
 <table><tr><th>Path</th><th>Why</th></tr><tr><td><code>test/</code>, <code>tools/</code>, <code>utils/</code>, <code>scripts/</code></td><td>Dev/agent tooling</td></tr><tr><td><code>examples/</code>, <code>basics/</code>, <code>test/corpus/</code></td><td>Demos and BBCSDL corpus — get from <a href="https://github.com/pyTony/mini_basic/tree/main/examples">git</a>, not the wheel</td></tr><tr><td><code>documentation/*.pdf</code>, large media</td><td>Not required to run the interpreter</td></tr><tr><td><code>tools/python-embed/</code></td><td>Bundled Python tree for offline installers</td></tr><tr><td>Agent status files, probes, <code>__pycache__</code></td><td>Local noise</td></tr><tr><td><code>mini_basic/diffcheck.py</code></td><td>Removed — was a broken one-off (lived under <code>tools/</code> if kept)</td></tr><tr><td>Old text-archive installers</td><td>Separate distribution path (<code>tools/install.ps1</code> + parts)</td></tr></table>
-<h3>Install from GitHub (supported)</h3>
+<h3 id="install-from-github-supported">Install from GitHub (supported)</h3>
 <pre><code>python -m pip install &quot;mini-basic @ git+https://github.com/pyTony/mini_basic.git&quot;
 python -m pip install &quot;mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git&quot;
 mini-basic --version
@@ -37,7 +37,7 @@ python -m mini_basic -c &quot;PRINT 6*7&quot;</code></pre>
 <pre><code>git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e &quot;.[repl]&quot;</code></pre>
-<h3>Build a wheel (local checkout)</h3>
+<h3 id="build-a-wheel-local-checkout">Build a wheel (local checkout)</h3>
 <pre><code>python -m pip install -U build
 python -m build
 python -m venv .venv-pack

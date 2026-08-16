@@ -20,35 +20,35 @@
   </header>
   <main>
     <article>
-<h2>mini_basic documentation index</h2>
+<h2 id="mini-basic-documentation-index">mini_basic documentation index</h2>
 <p>Browsable HTML (no extra tools): open <a href="site/index.html">`site/index.html`</a> in a browser after cloning the repo.</p>
 <p>Markdown sources stay in this folder; <code>python scripts/build_user_docs.py</code> refreshes the generated pages under <code>site/</code>.</p>
 <p>Already-HTML manuals open without <code>marked</code>:</p>
 <pre><code>Start-Process .\documentation\MINIBASIC_BBC_BASIC_Manual.html
 Start-Process .\documentation\BBC_BASIC_Manual.html</code></pre>
 <hr>
-<h3>Start here</h3>
+<h3 id="start-here">Start here</h3>
 <table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="README.html">../README.md</a></td><td>Overview, quick start, pip install summary</td></tr><tr><td><a href="HOWTO.html">../HOWTO.md</a></td><td>Install archives, text parts, common tasks</td></tr><tr><td><a href="RELEASE_1.00.html">RELEASE_1.00.md</a></td><td>1.00 release notes + tag checklist (user gate)</td></tr><tr><td><a href="LANGUAGE_FEATURES_1.00.html">LANGUAGE_FEATURES_1.00.md</a></td><td>Language / graphics baseline for 1.00 ship</td></tr><tr><td><a href="PACKAGING.html">PACKAGING.md</a></td><td>Wheel contents, extras (<code>display</code> / <code>repl</code> / <code>all</code>), build</td></tr><tr><td><a href="BASIC_VARIANTS.html">BASIC_VARIANTS.md</a></td><td>Dialects and BBC family vs mini_basic</td></tr><tr><td><a href="LLM.html">LLM.md</a></td><td>Short notes for people and LLMs</td></tr></table>
-<h3>Language and implementation</h3>
-<table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="LANGUAGE_FEATURES_1.00.html">LANGUAGE_FEATURES_1.00.md</a></td><td>Supported language surface for 1.00</td></tr><tr><td><a href="PROGRAM_VS_TESTS.html">PROGRAM_VS_TESTS.md</a></td><td>Approved programs vs pytest (user confirm when tests miss the look)</td></tr><tr><td><a href="PLAN_1.00_AND_VDU.html">PLAN_1.00_AND_VDU.md</a></td><td>1.00 plan and VDU notes</td></tr><tr><td><a href="BASIC_VARIANTS.html">BASIC_VARIANTS.md</a></td><td>Dialect / BBC-family comparison (links matrices)</td></tr><tr><td><a href="BBC_TOKENIZE_VS_UNGLUE.html">BBC_TOKENIZE_VS_UNGLUE.md</a></td><td>Real BBC tokens vs mini eval-time unglue</td></tr><tr><td><a href="README.html">../mini_basic/README.md</a></td><td>Package layout (import map, modules)</td></tr></table>
-<h3>Packaging and install</h3>
+<h3 id="language-and-implementation">Language and implementation</h3>
+<table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="LANGUAGE_FEATURES_1.00.html#oscli-and-sys">LANGUAGE_FEATURES_1.00.md</a></td><td>Supported language surface for 1.00 (includes OSCLI / SYS)</td></tr><tr><td><a href="PROGRAM_VS_TESTS.html">PROGRAM_VS_TESTS.md</a></td><td>Approved programs vs pytest (user confirm when tests miss the look)</td></tr><tr><td><a href="PLAN_1.00_AND_VDU.html">PLAN_1.00_AND_VDU.md</a></td><td>1.00 plan and VDU notes</td></tr><tr><td><a href="BASIC_VARIANTS.html">BASIC_VARIANTS.md</a></td><td>Dialect / BBC-family comparison (links matrices)</td></tr><tr><td><a href="BBC_TOKENIZE_VS_UNGLUE.html">BBC_TOKENIZE_VS_UNGLUE.md</a></td><td>Real BBC tokens vs mini eval-time unglue</td></tr><tr><td><a href="README.html">../mini_basic/README.md</a></td><td>Package layout (import map, modules)</td></tr></table>
+<h3 id="packaging-and-install">Packaging and install</h3>
 <table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="PACKAGING.html">PACKAGING.md</a></td><td>pip / wheel / what is <strong>not</strong> in the package</td></tr><tr><td><a href="HOWTO.html">../HOWTO.md</a></td><td>Text-archive <code>install.ps1</code> / <code>dev_install.ps1</code></td></tr><tr><td><a href="../requirements-repl.txt">../requirements-repl.txt</a></td><td>Windows REPL: pyreadline3</td></tr><tr><td><a href="../requirements-display.txt">../requirements-display.txt</a></td><td>Graphics: pygame-ce</td></tr></table>
 <p>Editable install (dev tree):</p>
 <pre><code>python -m pip install -U -e &quot;.[all]&quot;
 # or embed Python:  .\tools\python-embed\python.exe -m pip install -U -e &quot;.[all]&quot;</code></pre>
-<h3>Git and development</h3>
+<h3 id="git-and-development">Git and development</h3>
 <table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="GIT_QUICKSTART.html">../GIT_QUICKSTART.md</a></td><td>Short git checklist</td></tr><tr><td><a href="DEVELOPMENT_GIT_USAGE.html">../DEVELOPMENT_GIT_USAGE.md</a></td><td>Fuller git / branch guide</td></tr><tr><td><a href="README.html">git/README.md</a></td><td><code>docs/git/</code> folder</td></tr><tr><td><a href="LLM.html">LLM.md</a></td><td>Language / test notes for LLMs</td></tr></table>
-<h3>Feature matrices and manuals (<code>documentation/</code>)</h3>
+<h3 id="feature-matrices-and-manuals-documentation">Feature matrices and manuals (<code>documentation/</code>)</h3>
 <p>Generated / reference material (mostly not Markdown):</p>
 <table><tr><th>Path</th><th>What it is</th></tr><tr><td><a href="../documentation/feature_matrices/">../documentation/feature_matrices/</a></td><td>Capability grids (<code>.txt</code>; open in editor)</td></tr><tr><td><a href="../documentation/feature_matrices/ALL_MATRICES.txt">../documentation/feature_matrices/ALL_MATRICES.txt</a></td><td>Combined dump</td></tr><tr><td><a href="../documentation/MINIBASIC_BBC_BASIC_Manual.html">../documentation/MINIBASIC_BBC_BASIC_Manual.html</a></td><td>Built mini_basic-oriented HTML manual</td></tr><tr><td><a href="../documentation/BBC_BASIC_Manual.html">../documentation/BBC_BASIC_Manual.html</a></td><td>BBC reference HTML</td></tr><tr><td><a href="../documentation/BBC%20BASIC%20Reference%20Manual.pdf">../documentation/BBC BASIC Reference Manual.pdf</a></td><td>BBC PDF (if present)</td></tr></table>
 <p>Regenerate matrices from the package:</p>
 <pre><code>python -m mini_basic.features</code></pre>
-<h3>Examples (READMEs)</h3>
+<h3 id="examples-readmes">Examples (READMEs)</h3>
 <p>Git tree (not in the pip wheel): <a href="https://github.com/pyTony/mini_basic">github.com/pyTony/mini_basic</a> · <a href="https://github.com/pyTony/mini_basic/tree/main/examples">examples/</a></p>
 <table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="../examples/README.txt">../examples/README.txt</a></td><td>Examples tree map</td></tr><tr><td><a href="README.html">../examples/vdu/README.md</a></td><td>VDU demos</td></tr><tr><td><a href="README.html">../examples/teletext/README.md</a></td><td>Teletext samples</td></tr><tr><td><a href="README.html">../examples/m6502-cport/README.md</a></td><td>M6502 C-port tutorials (<a href="https://github.com/garyexplains/BASIC-M6502-CPORT">upstream</a>)</td></tr></table>
-<h3>Runtime internals (package)</h3>
+<h3 id="runtime-internals-package">Runtime internals (package)</h3>
 <table><tr><th>Doc</th><th>What it is</th></tr><tr><td><a href="RUNTIME_MODULARIZATION_STATUS.html">../mini_basic/RUNTIME_MODULARIZATION_STATUS.md</a></td><td>Mixin split status</td></tr><tr><td><a href="RUNTIME_VERSION_HISTORY.html">../mini_basic/RUNTIME_VERSION_HISTORY.md</a></td><td>Runtime version notes</td></tr></table>
-<h3>In-REPL help (no Markdown)</h3>
+<h3 id="in-repl-help-no-markdown">In-REPL help (no Markdown)</h3>
 <p>At the <code>&gt;</code> prompt:</p>
 <pre><code>HELP
 HELP PROGRAM
