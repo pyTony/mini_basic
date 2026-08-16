@@ -691,9 +691,9 @@ def build() -> str:
                 "Programs confirmed to look right on mini_basic include welcome, squares, saucer, flier, "
                 "soccerball, wheel, jclock, filters, hanoi, and animal (when those files are in your tree).",
             )
-            + '<div class="note"><strong>Developers only:</strong> automated BBCSDL regression material is under '
-            "<code>test/corpus/bbcsdl/</code> (audit list in CORPUS_AUDIT.txt). That tree is not part of the "
-            "language reference for end users and is omitted from the PyPI package.</div>",
+            + '<div class="note">Automated BBCSDL listings used by tests live under '
+            "<code>test/corpus/bbcsdl/</code> in a source checkout. "
+            "That tree is not a language reference and is not in the pip wheel.</div>",
         )
     )
 

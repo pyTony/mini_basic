@@ -25,7 +25,3 @@ python -m pytest -q -m "phase1 and not slow" --timeout=45
 - Regular product is text-only. Graphics (`--pygame`) is an optional extra, not required.
 
 See [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) and [RELEASE_1.00.md](RELEASE_1.00.md).
-
-## What is not in this public tree
-
-Local agent/status files (`AGENT_POLICY.txt`, `CURRENT_TASK.txt`, `FEATURES_DONE.txt`, work logs, approval lists) stay on the developer machine. Do not recreate that pipeline here.

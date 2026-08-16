@@ -105,8 +105,7 @@ python -m unittest test.test_mini_basic -v
 ### BBCSDL corpus audit
 
 ```bash
-python test/corpus_audit_probe.py          # writes CORPUS_AUDIT.txt
-# list of programs: CORPUS_RUNNABLE.txt
+python test/corpus_audit_probe.py
 ```
 
 ## Development notes

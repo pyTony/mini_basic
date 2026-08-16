@@ -1,6 +1,6 @@
 # VDU status and mini_basic 1.00 finish plan
 
-**Goal:** Finish a honest **1.00** release without burning full-day agent tokens on unbounded parity.
+**Goal:** Finish an honest **1.00** release without unbounded parity work.
 
 **Rules:** One focus per session · fixed acceptance criteria · corpus-driven · no drive-by refactors.
 
@@ -64,7 +64,7 @@
 
 1. **Dialects** mini / mits / commodore / tiny / bbc — control flow, files, INPUT/PRINT, ON ERROR.
 2. **BBC graphics tier A** — MODE, GCOL, MOVE/DRAW/PLOT, CIRCLE, COLOUR, *REFRESH, ORIGIN + VDU Phase A–C below.
-3. **Corpus** — every FAIL is **OK** or **documented deferred** ([`CORPUS_AUDIT.txt`](../CORPUS_AUDIT.txt): welcome, piechart, polly, poem).
+3. **Corpus** — every FAIL is **OK** or **documented deferred** (welcome, piechart, poem).
 4. **Ship hygiene** — text-only no auto-pygame, terminal Ctrl+C/ESC, Russell detokenize CASE, version string, short release notes.
 5. **Non-goals** — full BBCSDL tools/physics/OpenGL/teletext fidelity.
 
