@@ -8,7 +8,7 @@ mini-basic --version
 python -m mini_basic -c "PRINT 6*7"
 ```
 
-Clone the repo for examples and the HTML handbook (`docs/site/index.html`). See `docs/site/install.html` and `docs/PACKAGING.md`.
+Clone the repo for examples and the HTML handbook. Open `index.html` at the clone root (pages live in `docs/site/`). See `docs/site/install.html` and `docs/PACKAGING.md`.
 
 The rest of this file is the longer archive / developer setup.
 

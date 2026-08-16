@@ -1,6 +1,6 @@
 # mini_basic documentation index
 
-Browsable HTML (no extra tools): open [`site/index.html`](site/index.html) in a browser after cloning the repo.
+Browsable HTML (no extra tools): open [`../index.html`](../index.html) at the clone root, or [`site/index.html`](site/index.html) in this folder.
 
 Markdown sources stay in this folder; `python scripts/build_user_docs.py` refreshes the generated pages under `site/`.
 

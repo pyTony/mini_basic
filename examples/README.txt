@@ -13,7 +13,7 @@ Upstream (third-party sources):
   BBCSDL demos:  https://github.com/rtrussell/BBCSDL/tree/master/examples
                  https://www.bbcbasic.co.uk/bbcsdl/examples/index.html
 
-Handbook: ../docs/site/index.html
+Handbook: ../index.html  (pages in ../docs/site/)
 Install interpreter: pip install "mini-basic @ git+https://github.com/pyTony/mini_basic.git"
 Examples themselves are in this git tree (not the pip wheel).
 
