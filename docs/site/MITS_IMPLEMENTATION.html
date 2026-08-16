@@ -46,6 +46,15 @@ python -m pytest -q -m &quot;mits and not slow&quot; --timeout=45
 
 # Manual single example
 python -m mini_basic -q --dialect mits examples\m6502-cport\01_hello.bas</code></pre>
+<h3 id="optional-mbasic-5-21-golden-ladder">Optional MBASIC 5.21 golden ladder</h3>
+<p>This is a <strong>mits coverage ladder</strong>, not a claim of MBASIC 5.21 compatibility.</p>
+<p>Listings come from <a href="https://github.com/avwohl/mbasic">avwohl/mbasic</a> <code>basic/dev/tests_with_results/</code> (real <code>mbasic.com</code> transcripts). They are <strong>fetched</strong>, not shipped in this tree.</p>
+<pre><code>python test/manual/fetch_mbasic_golden.py
+python -m pytest -q test/test_mbasic521_golden.py --timeout=45</code></pre>
+<p>Without the fetch, those tests skip. Owned snippets in <code>test/test_mits_ms_rules.py</code> always run.</p>
+<p><code>WHILE</code> cases run under dialect <code>mini</code>. Known 5.21 gaps stay <code>xfail</code> until a later implement cycle.</p>
+<p>Useful locks from the first fetch (owned snippets already cover <code>\</code>, <code>MOD</code>, <code>-2^2</code>):</p>
+<ul><li><code>EXPECTED = n</code> is parsed as <code>EXP(ECTED)</code> — reserved-prefix glue</li><li><code>ERASE</code> is not a statement</li><li><code>NAME$</code> is still accepted as a variable (5.21 reserves <code>NAME</code>)</li><li>Empty <code>FOR 10 TO 1</code> still runs once</li><li>PRINT often omits the 5.21 space before numbers (<code>=10</code> vs <code>= 10</code>)</li></ul>
 <h3 id="gaps-left-not-regular-1-00">Gaps left (not regular 1.00)</h3>
 <ol><li><code>POKE</code> / <code>PEEK</code> / memory <code>WAIT</code> — host-memory stubs only if demanded  </li><li>C-port <code>OPEN ch,path,mode</code> alias for file examples 51–60 (out of regular 1.00)</li></ol>
 <h3 id="related-code">Related code</h3>
