@@ -7,17 +7,12 @@
 
 ## 1. Layout
 
-**Project root:** `C:\Users\Tony\mini_basic`
-
-| Path | Role |
-|------|------|
-| `C:\Users\Tony\mini_basic` | **Git working tree** (use this) |
-| `C:\Users\Tony\Programming\mini_basic` | Optional **install / run** copy (often **not** a git repo) |
+**Project root:** the directory you cloned.
 
 **Do not** maintain two divergent git histories with manual `Copy-Item` as the primary workflow.
 
 ```powershell
-cd C:\Users\Tony\mini_basic
+cd path\to\mini_basic
 git rev-parse --show-toplevel
 ```
 
@@ -42,7 +37,7 @@ If `git status -u --short -- mini_basic/` shows many `??` package files, the his
 ## 3. Daily workflow
 
 ```powershell
-cd C:\Users\Tony\mini_basic
+cd path\to\mini_basic
 
 # Branch per focus
 git checkout main
@@ -68,8 +63,8 @@ Merge to `main` only after user approval of the focused work (same as before).
 
 | Variable | Meaning |
 |----------|---------|
-| `MINIBASIC_DIR` | Install/launcher tree (`C:\Users\Tony\mini_basic`) |
-| Git toplevel | `C:\Users\Tony\mini_basic` |
+| `MINIBASIC_DIR` | Install/launcher tree (usually the clone root) |
+| Git toplevel | The clone (`git rev-parse --show-toplevel`) |
 
 ```powershell
 python -m mini_basic --version   # package path + MINIBASIC_DIR
@@ -105,11 +100,10 @@ Naming: `fix/…`, `feat/…`, `docs/…`, `test/…`.
 
 ## 7. Checklist
 
-1. `cd C:\Users\Tony\mini_basic`; confirm `git rev-parse --show-toplevel`.
+1. `cd` to the clone; confirm `git rev-parse --show-toplevel`.
 2. Create/switch to a **branch** for the single focus.
 3. Prefer explicit `git add` paths; never commit probe dumps.
 4. Run `pytest -m "phase1 and not slow"` (includes phase0).
-5. **Do not** invent a second repo under `Programming/` unless the user asks.
 
 ---
 
@@ -137,7 +131,7 @@ git branch -vv
 If the package was never fully added after modularization:
 
 ```powershell
-cd C:\Users\Tony\mini_basic
+cd path\to\mini_basic
 git checkout -b chore/track-modular-package
 git add mini_basic/
 git add test/test_*.py test/conftest.py pytest.ini

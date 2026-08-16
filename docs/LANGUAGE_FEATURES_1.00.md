@@ -17,7 +17,7 @@ This is the **language and graphics baseline** for 1.00. It states what is in, w
 |-----------|----------|
 | **Multi-dialect core language works** | Dialects `mini`, `mits`, `commodore`, `tiny`, `bbc` — control flow, expressions, files, I/O (see §2–3). |
 | **BBC graphics tier A is usable** | MODE, GCOL, MOVE/DRAW/PLOT, CIRCLE, COLOUR, ORIGIN, *REFRESH, VDU phases A–C (see §4). |
-| **BBCSDL corpus is green or explicitly deferred** | Portable demos only (`CORPUS_AUDIT`: **21 OK**, **1 DEFER** poem MODE7). tools/physics/sounds trees not shipped. |
+| **BBCSDL corpus is green or explicitly deferred** | Portable demos only (**21 OK**, **1 DEFER** poem MODE7). tools/physics/sounds trees not shipped. |
 | **Major demos match user expectation** | User-approved: welcome, squares, saucer, flier, soccerball, wheel, jclock, filters, hanoi, animal, … |
 | **Ship hygiene** | `--version` / `-V`, Russell `.bbc` detokenize, text-only sessions skip auto-pygame, phase0+phase1 regression suite. |
 | **Non-goals are written down** | Sound synthesis, WIMP, SYS FFI, Box2D, full SAA5050 — see §6 and `features/deferred.py`. |
@@ -256,7 +256,7 @@ From `mini_basic/features/deferred.py` and project policy:
 | `--slow [ms]` | Per-line pause + present (debug) |
 | `MINIBASIC_DIR` | Install / launcher tree |
 | `MINIBASIC_NO_GRAPHICS` / `MINIBASIC_DISPLAY` | Headless / backend control |
-| `SDL_VIDEODRIVER=dummy` | CI / agents |
+| `SDL_VIDEODRIVER=dummy` | Headless / CI |
 
 ---
 

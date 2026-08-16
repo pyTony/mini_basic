@@ -30,7 +30,7 @@ Case-on (default mini/bbc): **keywords uppercase**; names case-sensitive. `CASE 
 
 ### Not in regular 1.00
 - pygame / `--pygame` / graphical MODE (optional extra only — see below)
-- `build/`, `dist/`, embed Python, agent status, corpus installer trees
+- `build/`, `dist/`, embed Python, corpus installer trees
 - SOUND/ENVELOPE (silent stubs), WIMP, SYS FFI, Box2D
 - C-port `OPEN ch,"file","OUTPUT"` spelling
 
