@@ -9,7 +9,7 @@
   LIST spacing PROC name        +    +    +    +    +    Export must re-glue; mini LIST now glues for ROS paste
   CASE / WHEN / OF              -    +    +    +    +    Not on classic Beeb MOS
   WHILE / ENDWHILE              -    +    +    +    +    Beeb: REPEAT only
-  SYS / OSCLI *                 ~    +    +    +    ~    Beeb *FX; ROS SYS; BB4W/SDL rich SYS
+  SYS / OSCLI *                 ~    +    +    +    ~    mini: OSCLI REFRESH/GSAVE/DISPLAY; SYS unimplemented
   @lib$ @dir$ path vars         -    -    +    +    ~    BB4W/SDL; mini stubs some
   INSTALL / LIBRARY             -    ~    +    +    ~    BB4W/SDL library path
   MODE 0–7 Beeb                 +    ~    +    +    +    ROS modes differ; MODE 7 teletext ROS ≠ Beeb

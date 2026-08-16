@@ -29,7 +29,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 
 | Doc | What it is |
 |-----|------------|
-| [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Supported language surface for 1.00 |
+| [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md#oscli-and-sys) | Supported language surface for 1.00 (includes OSCLI / SYS) |
 | [PROGRAM_VS_TESTS.md](PROGRAM_VS_TESTS.md) | Approved programs vs pytest (user confirm when tests miss the look) |
 | [PLAN_1.00_AND_VDU.md](PLAN_1.00_AND_VDU.md) | 1.00 plan and VDU notes |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialect / BBC-family comparison (links matrices) |

@@ -79,7 +79,10 @@ def convert_md(text: str) -> str:
         if heading:
             flush_para(para)
             level = len(heading.group(1)) + 1
-            chunks.append(f'<h{level}>{inline(heading.group(2))}</h{level}>')
+            title = heading.group(2)
+            slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
+            attr = f' id="{html.escape(slug)}"' if slug else ''
+            chunks.append(f'<h{level}{attr}>{inline(title)}</h{level}>')
             i += 1
             continue
         if re.match(r'^[-*] ', line):
@@ -125,8 +128,9 @@ def inline(text: str) -> str:
             parts.append('<code>' + html.escape(match.group(1)) + '</code>')
         elif match.group(2) is not None:
             label, href = match.group(2), match.group(3)
-            if href.endswith('.md'):
-                href = Path(href).name.replace('.md', '.html')
+            md_link = re.match(r'^(.*)\.md(#[\w.-]+)?$', href)
+            if md_link:
+                href = Path(md_link.group(1)).name + '.html' + (md_link.group(2) or '')
             parts.append(f'<a href="{html.escape(href)}">{html.escape(label)}</a>')
         elif match.group(4) is not None:
             parts.append('<strong>' + html.escape(match.group(4)) + '</strong>')

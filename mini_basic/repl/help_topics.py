@@ -268,7 +268,7 @@ def _print_help_graphics() -> None:
         'PLOT code,x,y        BBC/Agon plot codes (156=circle fill, ...)',
         'SPRITEDEF / SPRITE   hardware-style sprites (pygame)',
         'POINT(x,y)           read pixel colour',
-        'OSCLI "..."          host command (limited)',
+        'OSCLI / *            REFRESH, GSAVE, DISPLAY, ERASE; SYS not implemented',
         '',
         'CLI: --pygame  --display pygame|terminal|none',
         'Text-only (no DISPLAY / MINIBASIC_NO_GRAPHICS=1): no auto pygame window',

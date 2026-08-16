@@ -20,8 +20,9 @@ _SKIP_PATH_PREFIXES = (
     'physics/',
     'sounds/',
 )
-# Individual demos that need SYS/network/OpenGL, not general pygame BASIC.
+# Individual demos that need SYS/network/OpenGL/OSCLI bitmap heap, not general pygame BASIC.
 _SKIP_NAMES = frozenset({
+    'clock.txt',  # DIM EXT# + OSCLI LOAD/MDISPLAY BMP (not Clock.bas)
     'opengl.txt',
     'world.txt',
     'teapot.txt',

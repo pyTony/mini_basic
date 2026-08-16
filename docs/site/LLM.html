@@ -20,18 +20,18 @@
   </header>
   <main>
     <article>
-<h2>Notes for people and LLMs</h2>
+<h2 id="notes-for-people-and-llms">Notes for people and LLMs</h2>
 <p>mini_basic is a <strong>multi-dialect BASIC interpreter</strong> (console / text). It is not full BBCSDL, RISC OS, or a packaging toolkit.</p>
-<h3>Run</h3>
+<h3 id="run">Run</h3>
 <pre><code>python -m mini_basic file.bas
 python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
 python -m mini_basic --help</code></pre>
 <p>Tests from the project root:</p>
 <pre><code>python -m pytest -q -m &quot;phase1 and not slow&quot; --timeout=45</code></pre>
-<h3>Language (short)</h3>
+<h3 id="language-short">Language (short)</h3>
 <ul><li>Dialects: <code>mini</code> (default), <code>bbc</code>, <code>mits</code>, <code>commodore</code>, <code>tiny</code>.</li><li>Case-on (default mini/bbc): <strong>keywords uppercase</strong>; names are case-sensitive. <code>CASE OFF</code> folds keywords.</li><li>Use <code>MOD</code> for modulo. Bare <code>%</code> is an integer suffix, not modulo.</li><li><code>SIN</code> / <code>COS</code> / <code>TAN</code> use <strong>radians</strong> (<code>DEG</code> / <code>RAD</code> helpers exist).</li><li>Regular product is text-only. Graphics (<code>--pygame</code>) is an optional extra, not required.</li></ul>
 <p>See <a href="LANGUAGE_FEATURES_1.00.html">LANGUAGE_FEATURES_1.00.md</a> and <a href="RELEASE_1.00.html">RELEASE_1.00.md</a>.</p>
-<h3>What is not in this public tree</h3>
+<h3 id="what-is-not-in-this-public-tree">What is not in this public tree</h3>
 <p>Local agent/status files (<code>AGENT_POLICY.txt</code>, <code>CURRENT_TASK.txt</code>, <code>FEATURES_DONE.txt</code>, work logs, approval lists) stay on the developer machine. Do not recreate that pipeline here.</p>
     </article>
   </main>

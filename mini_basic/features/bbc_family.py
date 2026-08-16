@@ -73,7 +73,7 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             '+',
             '~',
-            'Beeb *FX; ROS SYS; BB4W/SDL rich SYS',
+            'mini: OSCLI REFRESH/GSAVE/DISPLAY; SYS unimplemented',
         ),
         (
             '@lib$ @dir$ path vars',

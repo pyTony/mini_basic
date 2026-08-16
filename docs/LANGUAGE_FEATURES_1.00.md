@@ -91,9 +91,25 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 | `INPUT` / `LINE INPUT` | |
 | `GET` / `GET$` / `INKEY` / `INKEY$` | Positive timeout present for graphics; glued `INKEY1`. |
 | Files | `OPENIN` / `OPENOUT` / `OPENUP`, `PRINT#` / `INPUT#` / `BGET#` / `BPUT#`, `EOF#`, `CLOSE#`. |
-| `OSCLI` / `*` commands | Subset (e.g. display/path helpers); not full RISC OS SYS. |
+| `OSCLI` / `*` commands | Small subset only — see [OSCLI and SYS](#oscli-and-sys). Not RISC OS / Windows / SDL `SYS`. |
 | `MOUSE` | Desktop backends. |
 | `ON CLOSE` | Window close trap (pygame). |
+
+### OSCLI and SYS
+
+`OSCLI expr` evaluates a string and runs the same handler as a `*` line (`*REFRESH ON`). This is **not** a shell, and it is **not** `SYS`.
+
+| Command | Behaviour |
+|---------|-----------|
+| `REFRESH` / `REFRESH ON` / `REFRESH OFF` | Present the back buffer, or set auto-refresh. |
+| `GSAVE "file" x,y,w,h` | Save an OS-unit rectangle as a 24-bit BMP (piechart). |
+| `DISPLAY "file" x,y,w,h` | Blit/scale a BMP into that rectangle. Needs pygame when a window is up. |
+| `FX`, `TV`, `KEY` | Accepted no-ops (welcome / MOS noise). |
+| `ERASE` / `DELETE` | Delete a file in the working directory. |
+
+Anything else (`LOAD`, `MDISPLAY`, `FONT`, `SPOOL`, `CAT`, `…`) is **ignored with no error**. Russell `clock.bbc` needs `DIM … EXT#` plus `OSCLI "LOAD …"` / `MDISPLAY` into a heap; that is why it is not a regular example. Use `basics/Clock.bas` or `jclock`.
+
+`SYS "SDL_…"`, `SYS "OS_…"`, and SYS used as a function all report `? Unimplemented: SYS (RISC OS / OS call)`. Same class as `CALL`, `USR`, and `INSTALL`. `ON SYS` is kept only so the colon tail is not split; the event is not delivered.
 
 ### 3.5 Data
 
