@@ -2,7 +2,9 @@
 import struct
 import sys
 
-path = sys.argv[1] if len(sys.argv) > 1 else r'C:\Users\Tony\Downloads\calcexe\CalcEXE'
+if len(sys.argv) < 2:
+    sys.exit('usage: probe_calcexe.py <wilson-format-bbc-file>')
+path = sys.argv[1]
 data = open(path, 'rb').read()
 i = 0
 while i < len(data):

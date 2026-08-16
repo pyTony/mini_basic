@@ -1,17 +1,14 @@
-# sync_dev_to_source.ps1
-# Periodic / manual sync of local dev tree development to the OneDrive source tree.
+# Copy selected files from one checkout to another on this machine.
+# Both directories must be passed in. Missing items are skipped.
 #
-# Purpose: Support independent operation in the local dev tree (Programming/mini_basic)
-# while keeping the full source tree (OneDrive) up to date for remote checks,
-# full corpus work, text archive generation, etc.
-#
-# Run manually or via scheduled task.
-# It copies key development artifacts, excluding generated/temporary files.
-# After copy, you can commit in the source tree if using git there.
+# Example:
+#   .\sync_dev_to_source.ps1 -SourceDir D:\work\mini_basic -TargetDir D:\mirror\mini_basic
 
 param(
-    [string]$SourceDir = "C:\Users\Tony\Programming\mini_basic",
-    [string]$TargetDir = "C:\Users\Tony\mini_basic",
+    [Parameter(Mandatory = $true)]
+    [string]$SourceDir,
+    [Parameter(Mandatory = $true)]
+    [string]$TargetDir,
     [switch]$DryRun
 )
 
@@ -92,8 +89,7 @@ foreach ($item in $itemsToSync) {
 }
 
 Write-Host "`nSync complete. Items processed: $copied"
-Write-Host "Review changes in source tree, then run git add/commit there if desired."
-Write-Host "For status.html remote check, the copy above includes it."
+Write-Host "Review changes in the target tree, then commit there if desired."
 
 if ($DryRun) {
     Write-Host "(Dry run - no files copied)"

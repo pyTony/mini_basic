@@ -4,16 +4,16 @@
 Usage:
   python wrap_bbcsdl_spool.py input.txt output_wrapped.bbc --spool C:/temp/out.txt
 
-Then:
-  "C:\Program Files (x86)\BBC BASIC for SDL 2.0\bbcsdl.exe" output_wrapped.bbc
+Then run the wrapped file with BBC BASIC for SDL 2.0 (set BBCSDL_EXE if it is not
+in the default Windows Program Files location).
 
 After run, inspect the spool file for the text that was PRINTed.
 This is the reliable way to get comparable output from the real interpreter.
 """
 from __future__ import annotations
 import argparse
+import os
 from pathlib import Path
-import textwrap
 
 def make_spool_open(path: str) -> str:
     # Use a form that works even if path has backslashes: build with CHR$
@@ -53,10 +53,14 @@ def main():
     outp.parent.mkdir(parents=True, exist_ok=True)
     outp.write_text(wrapped, encoding='ascii')
 
+    bbcsdl = os.environ.get(
+        'BBCSDL_EXE',
+        r'C:\Program Files (x86)\BBC BASIC for SDL 2.0\bbcsdl.exe',
+    )
     print(f'Wrote wrapped: {outp}')
     print(f'Spool target (when run under bbcsdl): {args.spool}')
     print('Run with:')
-    print(f'  "C:\\Program Files (x86)\\BBC BASIC for SDL 2.0\\bbcsdl.exe" "{outp}"')
+    print(f'  "{bbcsdl}" "{outp}"')
     print('Then compare the spool file content to what mini_basic --dialect bbc produced.')
 
 if __name__ == '__main__':

@@ -8,10 +8,8 @@ import sys
 import threading
 import time
 
-EMULATOR_DIR = os.environ.get(
-    'AGON_EMULATOR_DIR',
-    r'C:\Users\Tony\Downloads\fab-agon-emulator-v1.2.2-windows-x64',
-)
+# Set AGON_EMULATOR_DIR to the fab-agon-emulator folder on this machine.
+EMULATOR_DIR = os.environ.get('AGON_EMULATOR_DIR', '')
 CLI = os.path.join(EMULATOR_DIR, 'agon-cli-emulator.exe')
 SDCARD = os.path.join(EMULATOR_DIR, 'sdcard')
 LINE_DELAY = 1.05
@@ -136,6 +134,12 @@ def bench_bbc(
 
 
 def main() -> int:
+    if not EMULATOR_DIR:
+        print(
+            'Set AGON_EMULATOR_DIR to the fab-agon-emulator directory.',
+            file=sys.stderr,
+        )
+        return 2
     args = sys.argv[1:]
     unlimited = False
     targets: list[str] = []
