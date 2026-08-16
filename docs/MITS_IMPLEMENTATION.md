@@ -70,6 +70,29 @@ python -m pytest -q -m "mits and not slow" --timeout=45
 python -m mini_basic -q --dialect mits examples\m6502-cport\01_hello.bas
 ```
 
+## Optional MBASIC 5.21 golden ladder
+
+This is a **mits coverage ladder**, not a claim of MBASIC 5.21 compatibility.
+
+Listings come from [avwohl/mbasic](https://github.com/avwohl/mbasic) `basic/dev/tests_with_results/` (real `mbasic.com` transcripts). They are **fetched**, not shipped in this tree.
+
+```text
+python test/manual/fetch_mbasic_golden.py
+python -m pytest -q test/test_mbasic521_golden.py --timeout=45
+```
+
+Without the fetch, those tests skip. Owned snippets in `test/test_mits_ms_rules.py` always run.
+
+`WHILE` cases run under dialect `mini`. Known 5.21 gaps stay `xfail` until a later implement cycle.
+
+Useful locks from the first fetch (owned snippets already cover `\`, `MOD`, `-2^2`):
+
+- `EXPECTED = n` is parsed as `EXP(ECTED)` — reserved-prefix glue
+- `ERASE` is not a statement
+- `NAME$` is still accepted as a variable (5.21 reserves `NAME`)
+- Empty `FOR 10 TO 1` still runs once
+- PRINT often omits the 5.21 space before numbers (`=10` vs `= 10`)
+
 ## Gaps left (not regular 1.00)
 
 1. `POKE` / `PEEK` / memory `WAIT` — host-memory stubs only if demanded  
