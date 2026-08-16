@@ -3,9 +3,8 @@
 This does NOT replace user verification. Users run the real program with
 mini_basic.py (see run_program.py) and confirm behaviour with varied inputs.
 
-Usage (agent / CI):
+Usage:
   python verify_program.py animal.txt
-  python verify_program.py --update-agent-files
 
 User verification:
   python run_program.py animal.txt
@@ -50,7 +49,7 @@ def main() -> int:
     parser.add_argument(
         'program',
         nargs='?',
-        help='Program name e.g. animal.txt (default: CURRENT_TASK.txt)',
+        help='Program name e.g. animal.txt',
     )
     parser.add_argument(
         '--list',

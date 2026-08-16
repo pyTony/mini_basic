@@ -1,7 +1,7 @@
 """
 test_logging.py - Centralized, automatic logging for the mini_basic test suite.
 
-Drop this file into your C:\\Users\\Tony\\mini_basic\\test\\ directory.
+This module lives in the clone at test/test_logging.py.
 
 Usage (recommended - makes logging "automatic"):
 

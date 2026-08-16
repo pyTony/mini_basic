@@ -9,7 +9,7 @@ from typing import List, Optional
 # PEP 440. Keep in sync with root pyproject.toml.
 __version__ = '1.0.0.dev0'
 
-# Short implementation snapshot (keep in sync with FEATURES_DONE / plan).
+# Short implementation snapshot (keep in sync with docs/LANGUAGE_FEATURES_1.00.md).
 _IMPLEMENTATION_STATUS = (
     'multi-dialect interpreter (mini, mits, commodore, tiny, bbc); '
     'BBC control flow (CASE/WHILE/REPEAT/PROC/FN); files OPENIN/PRINT#; '
@@ -45,22 +45,9 @@ def _env_minibasic_dir(scope: Optional[str] = None) -> Optional[str]:
         return None
 
 
-# Stated project root (directory junction). Do not print the backing path.
-_STATED_ROOT = Path(r'C:\Users\Tony\mini_basic')
-
-
 def _display_path(path: Path | str) -> str:
-    """Show the stated root when *path* is that tree (do not expand junctions)."""
-    p = Path(path)
-    try:
-        if _STATED_ROOT.exists() and p.resolve() == _STATED_ROOT.resolve():
-            return str(_STATED_ROOT)
-        if _STATED_ROOT.exists() and _STATED_ROOT.resolve() in p.resolve().parents:
-            rel = p.resolve().relative_to(_STATED_ROOT.resolve())
-            return str(_STATED_ROOT / rel)
-    except (OSError, ValueError):
-        pass
-    return str(p)
+    """Absolute path without following Windows directory junctions."""
+    return os.path.normpath(os.path.abspath(str(path)))
 
 
 def _path_status(path: Optional[str]) -> str:
@@ -79,7 +66,7 @@ def format_version_report() -> str:
     """Multi-line text for ``--version`` / ``-V``."""
     import mini_basic
 
-    package_root = Path(mini_basic.__file__).resolve().parent
+    package_root = Path(os.path.abspath(mini_basic.__file__)).parent
     project_root = package_root.parent
     lines: List[str] = [
         f'mini_basic {__version__}',

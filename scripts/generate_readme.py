@@ -75,7 +75,7 @@ EXACT_ROLES: dict[str, str] = {
     'README.md': 'Project readme (intro manual; file inventory auto-generated below marker)',
     'progress_heartbeat.py': 'Background heartbeat writer for progress/status files',
     'serve_progress_web.py': 'Local web server for progress HTML/RSS feeds',
-    'force_sync_stamp.py': 'Touch SYNC_STAMP.txt for OneDrive/sync visibility',
+    'force_sync_stamp.py': 'Touch SYNC_STAMP.txt (optional local stamp file)',
     'requirements-display.txt': 'Optional deps for pygame display (pip install -r)',
     'requirements-repl.txt': 'Optional deps for readline tab completion',
     'test/test_mini_basic.py': 'Main unit/regression test suite',

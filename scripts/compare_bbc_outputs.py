@@ -24,7 +24,11 @@ from mini_basic import BASICInterpreter, InterpreterConfig  # type: ignore
 
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
-BBCSDL = r'C:\Program Files (x86)\BBC BASIC for SDL 2.0\bbcsdl.exe'
+# Optional: set BBCSDL_EXE to the real BBC BASIC for SDL 2.0 binary on this machine.
+BBCSDL = os.environ.get(
+    'BBCSDL_EXE',
+    r'C:\Program Files (x86)\BBC BASIC for SDL 2.0\bbcsdl.exe',
+)
 
 TEXT_CANDIDATES = [
     "test/corpus/bbcsdl/samples/tier_a_poem.txt",
