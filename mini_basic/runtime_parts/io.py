@@ -304,6 +304,7 @@ class RuntimeIoMixin:
                 self._print_program_text(prompt, newline=False)
                 self._flush_display(force=True)
             self._input_active = True
+            self._input_line_painted = False
             try:
                 read_line = getattr(self._display, 'read_line', None)
                 if self._terminal_tee_enabled():
@@ -311,9 +312,11 @@ class RuntimeIoMixin:
                         '(type in the game window or this terminal, press Enter)\n',
                     )
                     line = self._read_combined_tee_input_line()
+                    self._input_line_painted = True
                 elif callable(read_line):
                     try:
                         line = read_line()
+                        self._input_line_painted = True
                     except NotImplementedError:
                         # TerminalDisplay inherits base read_line that raises;
                         # fall back to stdin (tests / non-pygame backends).
@@ -464,13 +467,33 @@ class RuntimeIoMixin:
         self.text_col = 0
         self.print_column = 0
 
-    def _sync_print_column_after_input(self) -> None:
-        """INPUT echoes via the display without updating print_column; resync after Enter."""
-        if self._display_enabled() and hasattr(self._display, '_cursor_col'):
-            self.print_column = max(0, int(self._display._cursor_col))
+    def _sync_print_column_after_input(self, typed: str = '') -> None:
+        """After Enter, keep the typed text and move PRINT to the next line.
+
+        Stdin ``input()`` echoes on the host terminal but not into the display
+        grid. The next PRINT then ``present()``s the grid and wipes the echo
+        (bacarrat: NAME? Tony then HOW MANY PLAYERS overwrites Tony).
+        """
+        painted = getattr(self, '_input_line_painted', False)
+        self._input_line_painted = False
+        if self._display_enabled():
+            if not painted:
+                try:
+                    if typed:
+                        self._display.write(typed)
+                    self._display.newline()
+                    if hasattr(self._display, 'mark_dirty'):
+                        self._display.mark_dirty()
+                    self._flush_display(force=True)
+                except Exception:
+                    pass
+            self.print_column = 0
+            self.text_col = 0
             if hasattr(self._display, '_cursor_row'):
                 self.text_row = max(0, int(self._display._cursor_row))
-            self.text_col = self.print_column
+            if hasattr(self._display, '_cursor_col'):
+                self.print_column = max(0, int(self._display._cursor_col))
+                self.text_col = self.print_column
             return
         self.print_column = 0
         self.text_col = 0

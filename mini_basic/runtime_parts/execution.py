@@ -3033,7 +3033,7 @@ class RuntimeExecutionMixin:
                     raw_line = self._read_program_input(read_prompt)
                 except ProgramExit:
                     raise
-                self._sync_print_column_after_input()
+                self._sync_print_column_after_input(raw_line)
                 try:
                     self._assign_input_value(var_tokens[0], raw_line)
                     break
@@ -3301,7 +3301,7 @@ class RuntimeExecutionMixin:
                     line = self._read_program_input(read_prompt)
                 except ProgramExit:
                     raise
-                self._sync_print_column_after_input()
+                self._sync_print_column_after_input(line)
                 if len(var_tokens) == 1:
                     values = [line]
                 else:
