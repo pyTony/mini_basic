@@ -1008,6 +1008,13 @@ def _list_bas_file(
 def _run_bas_file(interp: BASICInterpreter, path: str) -> int:
     if _load_bas_file(interp, path) != 0:
         return 1
+    # Loaded: is printed on stderr. On Windows the console cursor can stay on
+    # that line, so the first PRINT TAB pads beside the path (bacarrat title).
+    try:
+        if sys.stdout.isatty():
+            print()
+    except Exception:
+        pass
     interp.run()
     # If a runtime error occurred (e.g. unknown statement from BBCSDL-specific code), return non-zero
     if getattr(interp, 'error_line_num', 0):
