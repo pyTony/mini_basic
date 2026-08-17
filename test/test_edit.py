@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import os
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -11,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mini_basic import BASICInterpreter, InterpreterConfig
-from mini_basic.repl.windows_input import LineEditCancelled
+from mini_basic.repl.windows_input import LineEditCancelled, windows_line_edit
 from mini_basic.runtime_parts.helpers import (
     _posix_editing_input,
     _prompt_editing_input,
@@ -21,6 +22,20 @@ pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class EditCommandTests(unittest.TestCase):
+    def test_line_edit_works_without_msvcrt(self) -> None:
+        """Linux EDIT n must not import msvcrt (that hid the prefilled text)."""
+        keys = list('\n')
+        with patch.dict(sys.modules, {'msvcrt': None}):
+            result = windows_line_edit(
+                '310 ',
+                default='    WEND',
+                getwch=lambda: keys.pop(0),
+                use_history=False,
+                use_completion=False,
+                escape_cancels=True,
+            )
+        self.assertEqual(result, '    WEND')
+
     def test_posix_escape_cancels_line_edit(self) -> None:
         keys = list('\x1b')
         with self.assertRaises(LineEditCancelled):

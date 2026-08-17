@@ -340,7 +340,8 @@ def _stdin_escape_pending(timeout: float = 0.06) -> bool:
 
 
 def _cancel_line_edit() -> None:
-    sys.stdout.write('\n')
+    # \\r\\n: POSIX setraw does not map \\n to CR+LF.
+    sys.stdout.write('\r\n')
     sys.stdout.flush()
     raise LineEditCancelled()
 
@@ -359,11 +360,21 @@ def windows_line_edit(
     escape_cancels: bool = False,
 ) -> str:
     """Shared Windows line editor for REPL and AUTO/EDIT prompts."""
-    import msvcrt
+    # Import msvcrt only on the Windows console path. Linux EDIT n reuses this
+    # editor with a termios getwch; ``import msvcrt`` there is ImportError,
+    # which used to fall back to bare input() and show only the line number.
+    msvcrt = None
+    if getwch is None or idle is not None:
+        if sys.platform == 'win32':
+            import msvcrt as msvcrt_mod
+
+            msvcrt = msvcrt_mod
 
     if getwch is None:
         if not sys.stdin.isatty():
             return input(prompt).rstrip()
+        if msvcrt is None:
+            raise ImportError('msvcrt is only available on Windows')
         getwch = msvcrt.getwch
 
     if history is None:
@@ -381,6 +392,7 @@ def windows_line_edit(
 
     def redraw() -> None:
         sys.stdout.write('\x1b[2K\r' + prompt + ''.join(buffer))
+        sys.stdout.flush()
         place_cursor()
 
     def load_history_entry(index: int) -> None:
@@ -401,7 +413,7 @@ def windows_line_edit(
         if idle is not None:
             if not idle():
                 raise ProgramExit()
-            if not msvcrt.kbhit():
+            if msvcrt is None or not msvcrt.kbhit():
                 time.sleep(0.005)
                 continue
         try:
@@ -416,7 +428,7 @@ def windows_line_edit(
             # Ignore lone LF after CR (Windows paste \r\n)
             if key == '\n' and not buffer and not default:
                 continue
-            sys.stdout.write('\n')
+            sys.stdout.write('\r\n')
             sys.stdout.flush()
             line = ''.join(buffer)
             if use_history:
