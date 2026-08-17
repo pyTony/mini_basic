@@ -81,6 +81,27 @@ class InputThenPrintTests(unittest.TestCase):
             call.kwargs.get('force') for call in present_spy.call_args_list
         ))
 
+    def test_streaming_input_does_not_reprint_reply(self) -> None:
+        """stdin already echoed the reply; do not print it again on the next line."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='mits', display='terminal', display_locked=True)
+        )
+        interp.set_program_line(10, 'PRINT "HOW MANY PLAYERS";')
+        interp.set_program_line(20, 'INPUT P')
+        interp.set_program_line(30, 'PRINT "NEXT"')
+        interp.set_program_line(40, 'END')
+        out = io.StringIO()
+        with redirect_stdout(out), patch('builtins.input', side_effect=['2']):
+            interp.run()
+        text = out.getvalue()
+        self.assertNotIn('\n2\n', text.replace('\r', ''))
+        self.assertNotRegex(text, r'\n2\s*\n')
+        self.assertIn('HOW MANY PLAYERS', text)
+        self.assertIn('NEXT', text)
+        disp = interp._display
+        rows = [''.join(cell[0] for cell in row) for row in disp._text]
+        self.assertIn('2', '\n'.join(rows))
+
 
 if __name__ == '__main__':
     unittest.main()

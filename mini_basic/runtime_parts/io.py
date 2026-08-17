@@ -470,24 +470,48 @@ class RuntimeIoMixin:
         self.text_col = 0
         self.print_column = 0
 
+    def _display_streams_to_stdout(self) -> bool:
+        """TerminalDisplay streaming mode writes each cell to stdout immediately."""
+        disp = self._display
+        return bool(disp is not None and not getattr(disp, '_positioned', True))
+
+    def _commit_typed_input_to_grid(self, typed: str) -> None:
+        """Record the INPUT reply in the text grid without echoing to stdout."""
+        disp = self._display
+        put = getattr(disp, '_grid_put', None)
+        newline = getattr(disp, '_grid_newline', None)
+        if not callable(put) or not callable(newline):
+            return
+        for ch in typed:
+            if ch == '\n':
+                newline()
+            else:
+                put(ch)
+        newline()
+
     def _sync_print_column_after_input(self, typed: str = '') -> None:
         """After Enter, keep the typed text and move PRINT to the next line.
 
         Stdin ``input()`` echoes on the host terminal but not into the display
-        grid. The next PRINT then ``present()``s the grid and wipes the echo
-        (bacarrat: NAME? Tony then HOW MANY PLAYERS overwrites Tony).
+        grid. In grid/pygame mode the next ``present()`` would wipe that echo,
+        so we paint the reply into the grid. In streaming terminal mode the
+        echo is already on stdout — writing again reprints the answer on the
+        next line (bacarrat: ``? y`` then a lone ``y``).
         """
         painted = getattr(self, '_input_line_painted', False)
         self._input_line_painted = False
         if self._display_enabled():
             if not painted:
                 try:
-                    if typed:
-                        self._display.write(typed)
-                    self._display.newline()
-                    if hasattr(self._display, 'mark_dirty'):
-                        self._display.mark_dirty()
-                    self._flush_display(force=True)
+                    if self._display_streams_to_stdout():
+                        self._commit_typed_input_to_grid(typed)
+                    else:
+                        if typed:
+                            self._display.write(typed)
+                        self._display.newline()
+                        if hasattr(self._display, 'mark_dirty'):
+                            self._display.mark_dirty()
+                        self._flush_display(force=True)
                 except Exception:
                     pass
             self.print_column = 0
