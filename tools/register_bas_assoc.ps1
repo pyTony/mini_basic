@@ -1,6 +1,6 @@
-# Register .bas as Mini-BASIC source (text). Default = Notepad.
-# Context menu "Start Mini-BASIC" runs python -m mini_basic (not ShellExecute Open,
-# which showed the publisher warning and did not start the interpreter).
+# Register .bas as Mini-BASIC source (text).
+# PerceivedType=text already adds Open=Notepad. Do not add a second Edit/Notepad verb.
+# Context menu: Open (Notepad) + Start Mini-BASIC.
 param(
     [string]$OpenCommand = ''
 )
@@ -38,17 +38,16 @@ New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram' -Force | Out-Null
 Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram' -Name '(default)' -Value 'Mini-BASIC source'
 
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Name '(default)' -Value 'edit'
+Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Name '(default)' -Value 'open'
+Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open' -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Recurse -Force -ErrorAction SilentlyContinue
 
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Name '(default)' -Value 'Open in Notepad'
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit\command' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit\command' -Name '(default)' -Value 'notepad.exe "%1"'
+New-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Name 'ProgrammaticAccessOnly' -Value '' -PropertyType String -Force | Out-Null
 
-Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open' -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run' -Force | Out-Null
 Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run' -Name '(default)' -Value 'Start Mini-BASIC'
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Force | Out-Null
 Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Name '(default)' -Value $OpenCommand
 
-Write-Host 'Registered .bas as source. Default=Notepad. Menu: Start Mini-BASIC.'
+Write-Host 'Registered .bas: Open=Notepad (single item), Start Mini-BASIC to run.'
