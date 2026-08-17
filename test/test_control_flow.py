@@ -187,7 +187,7 @@ class TestRepeatExit(unittest.TestCase):
     @given(prog=repeat_until_with_exit())
     @settings(max_examples=4, deadline=3000)
     def test_repeat_until_exit_data(self, prog: str):
-        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        interp = BASICInterpreter(InterpreterConfig(dialect="mini", display="none"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             for i, line in enumerate(prog.splitlines(), 10):
@@ -394,7 +394,7 @@ class TestControlExitCorners(unittest.TestCase):
     @given(prog=exit_in_while_and_repeat())
     @settings(max_examples=5, deadline=5000)
     def test_exit_while_repeat(self, prog: str):
-        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        interp = BASICInterpreter(InterpreterConfig(dialect="mini", display="none"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             for i, line in enumerate(prog.splitlines(), 10):
@@ -410,7 +410,7 @@ class TestControlExitCorners(unittest.TestCase):
 @st.composite
 def exit_for_from_deep_nesting(draw):
     """EXIT FOR from deep inside WHILE/REPEAT to test jumping outer FOR hierarchy."""
-    v = draw(safe_var)
+    v = draw(safe_var.filter(lambda n: n != 'i'))
     lines = [
         f"FOR i=1 TO 5",
         f"  {v}=0",
@@ -430,7 +430,7 @@ class TestControlExitHierarchy(unittest.TestCase):
     @given(prog=exit_for_from_deep_nesting())
     @settings(max_examples=4, deadline=None)
     def test_exit_for_deep(self, prog: str):
-        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        interp = BASICInterpreter(InterpreterConfig(dialect="mini", display="none"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             for i, line in enumerate(prog.splitlines(), 10):
@@ -1294,9 +1294,9 @@ class TestMiniContinueFor(unittest.TestCase):
 @st.composite
 def on_error_inside_nested_loops(draw):
     """ON ERROR inside FOR + WHILE, with RESUME, plus EXIT after error recovery.
-    Exercises error handler + control stack interaction. Bounded, bbc dialect.
+    Exercises error handler + control stack interaction. Bounded, mini (EXIT FOR).
     """
-    v = draw(safe_var)
+    v = draw(safe_var.filter(lambda n: n != 'i'))
     lines = [
         "ON ERROR PRINT \"E\"; : RESUME NEXT",
         f"{v}=0",
@@ -1317,7 +1317,7 @@ class TestOnErrorInControl(unittest.TestCase):
     @given(prog=on_error_inside_nested_loops())
     @settings(max_examples=3, deadline=5000, suppress_health_check=[HealthCheck.too_slow])
     def test_on_error_recovery_in_loops(self, prog: str):
-        interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
+        interp = BASICInterpreter(InterpreterConfig(dialect="mini", display="none"))
         buf = io.StringIO()
         with redirect_stdout(buf):
             for i, line in enumerate(prog.splitlines(), 10):

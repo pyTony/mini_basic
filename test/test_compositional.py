@@ -504,7 +504,7 @@ class TestDeeperDefFnComposition(unittest.TestCase):
             "NEXT",
             'PRINT "X=";i%',
             "END",
-        ])
+        ], dialect="mini")
         self.assertNotIn("?", out)
         self.assertIn("X=2", out)
 

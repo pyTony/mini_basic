@@ -140,22 +140,24 @@ class RuntimeExecutionMixin:
             return self._run_line_index[line_num]
         return line_nums.index(line_num)
 
-    def _match_if_goto(self, rest: str) -> Optional[re.Match[str]]:
-        rest_strip = rest.strip()
-        goto_match = re.match(
+    def _match_if_then_goto(self, rest: str) -> Optional[re.Match[str]]:
+        """BBC: IF cond THEN GOTO target."""
+        return re.match(
             r'^(.+?)\s+THEN\s+GOTO\s+(\S+)\s*$',
+            rest.strip(),
+            re.IGNORECASE,
+        )
+
+    def _match_if_goto(self, rest: str) -> Optional[re.Match[str]]:
+        """MS-style IF cond GOTO target (no THEN). Not traditional BBC."""
+        rest_strip = rest.strip()
+        if re.search(r'\bTHEN\b', rest_strip, re.IGNORECASE):
+            return None
+        return re.match(
+            r'^(.+?)\s+GOTO\s+(\S+)\s*$',
             rest_strip,
             re.IGNORECASE,
         )
-        if goto_match is None:
-            goto_match = re.match(
-                r'^(.+?)\s+GOTO\s+(\S+)\s*$',
-                rest_strip,
-                re.IGNORECASE,
-            )
-            if goto_match and re.search(r'\bTHEN\b', goto_match.group(1), re.IGNORECASE):
-                goto_match = None
-        return goto_match
 
     def _if_rest_uses_then_line_jump(self, rest: str) -> bool:
         if self._dialect_allows('if_then_line'):
@@ -3878,6 +3880,20 @@ class RuntimeExecutionMixin:
         if cmd == 'IF':
             rest_strip = rest.strip()
             self.dprint('[IF]', 'enter')
+
+            then_goto = self._match_if_then_goto(rest_strip)
+            if then_goto:
+                if not self._dialect_allows('if_then_line'):
+                    self._runtime_error('? IF error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                    return None
+                if self._eval_condition(then_goto.group(1).strip()):
+                    try:
+                        return self.resolve_jump_target(then_goto.group(2))
+                    except Exception as exc:
+                        self._runtime_error(
+                            self._error_message('? IF error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                        return None
+                return None
 
             goto_match = self._match_if_goto(rest_strip)
             if goto_match:

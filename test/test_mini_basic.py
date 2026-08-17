@@ -3278,8 +3278,25 @@ class MiniBASICTests(unittest.TestCase):
             self.assertIn(10, interp.program)
             self.assertIn('GOTO', interp.program[10].upper())
 
-    def test_if_goto_allowed_in_bbc(self):
-        """BBC dialect allows IF … GOTO (needed by corpus games like RACE)."""
+    def test_if_then_goto_allowed_in_bbc(self):
+        """BBC: IF cond THEN GOTO n (RACE.BBC). MS-style IF cond GOTO is not BBC."""
+        lines = [
+            (10, 'IF 1 THEN GOTO 30'),
+            (20, 'END'),
+            (30, 'PRINT "hit"'),
+            (40, 'END'),
+        ]
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        for line_num, stmt in lines:
+            interp.program[line_num] = stmt
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.run()
+        self.assertEqual(buf.getvalue().strip(), 'hit')
+
+    def test_if_goto_without_then_rejected_in_bbc(self):
         lines = [
             (10, 'IF 1 GOTO 30'),
             (20, 'END'),
@@ -3294,7 +3311,7 @@ class MiniBASICTests(unittest.TestCase):
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.run()
-        self.assertEqual(buf.getvalue().strip(), 'hit')
+        self.assertIn('? IF error', buf.getvalue())
 
     def test_if_goto_rejected_in_tiny(self):
         lines = [
