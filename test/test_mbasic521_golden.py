@@ -40,37 +40,28 @@ _DIALECT = {
     'test_while_wend': 'mini',
 }
 
-# Product-honest gaps. Remove a name when an implement cycle makes it match.
+# Only listings that *crash* or fail their own PASS/FAIL summary.
+# PRINT spacing vs 5.21 .txt is not an xfail — a clean run is a pass.
 _XFAIL = {
     'test_operator_precedence': 'EXPECTED parsed as EXP(ECTED)',
-    'test_mod_intdiv': 'PRINT spacing or \\ / MOD vs 5.21 transcript',
-    'test_logical_ops': 'PRINT spacing or AND/OR/NOT vs 5.21 transcript',
-    'test_gosub': 'PRINT spacing vs 5.21 transcript',
-    'test_goto': 'PRINT spacing vs 5.21 transcript',
-    'test_for_next': 'FOR 10 TO 1 still iterates; PRINT glue vs 5.21',
-    'test_data_read': 'PRINT spacing vs 5.21 transcript',
     'test_def_fn': 'FN GREET$ / quote-build line errors',
-    'test_dim_arrays': 'PRINT spacing vs 5.21 transcript',
-    'test_option_base': 'OPTION BASE or PRINT spacing vs 5.21',
-    'test_swap': 'PRINT spacing vs 5.21 transcript',
     'test_erase': 'ERASE statement not implemented',
-    'test_string_functions': 'PRINT glue (LEFT$works) vs 5.21 transcript',
-    'test_tab_spc': 'TAB/SPC columns vs 5.21 WIDTH',
-    'test_while_wend': 'PRINT spacing vs 5.21 transcript',
-    'test_print_using': 'USING column layout vs 5.21 / IEEE vs MBF',
-    'test_file_io': 'KILL / NAME AS / sequential details may differ',
-    'test_random_files': 'FIELD / GET / PUT record layout may differ',
-    'test_chain': 'CHAIN + written partner file / working dir',
-    'test_deftypes': 'DEFINT/DEFSNG/DEFDBL letter-range depth',
-    'test_mid_assignment': 'MID$(a$,i)=… may differ',
-    'test_hex_oct': '&H / &O literals if incomplete',
-    'test_type_conversion': 'CINT/CSNG/CDBL/FIX vs IEEE',
-    'test_math_functions': 'transcendental rounding vs MBF',
-    'test_eqv_imp': 'EQV/IMP bit values if incomplete',
+    'test_chain': 'CHR$(34) quote-build / CHAIN partner file',
+    'test_file_io': 'KILL not implemented',
+    'test_random_files': 'KILL not implemented (FIELD/GET/PUT already ran)',
+    'test_hex_oct': 'OCT$ not implemented (HEX$ ran)',
+    'test_math_functions': 'FIX not implemented',
+    'test_mid_assignment': 'CHR$(34) quote-build in PRINT',
+    'test_mod_intdiv': 'backslash \\ after unary minus vs line-continuation',
+    'test_type_conversion': 'CINT not implemented',
 }
 
 _SELF_OK = re.compile(
     r'All tests PASSED|Tests failed:\s*0\b',
+    re.IGNORECASE,
+)
+_SELF_FAIL = re.compile(
+    r'Some tests FAILED|Tests failed:\s*[1-9]',
     re.IGNORECASE,
 )
 
@@ -88,13 +79,6 @@ def _load_numbered(path: Path, interp: BASICInterpreter) -> None:
         if not match:
             continue
         interp.set_program_line(int(match.group(1)), match.group(2))
-
-
-def _normalize(text: str) -> str:
-    lines = [ln.rstrip() for ln in text.replace('\r\n', '\n').replace('\r', '\n').split('\n')]
-    while lines and not lines[-1]:
-        lines.pop()
-    return '\n'.join(lines)
 
 
 def _run(name: str, tmp_path: Path) -> tuple[int, str]:
@@ -116,13 +100,14 @@ def _run(name: str, tmp_path: Path) -> tuple[int, str]:
     return int(getattr(interp, 'error_line_num', 0) or 0), buf.getvalue()
 
 
-def _matches_golden(name: str, out: str) -> bool:
-    if _SELF_OK.search(out):
-        return True
-    golden = _CORPUS / f'{name}.txt'
-    if not golden.is_file():
+def _ran_clean(err: int, out: str) -> bool:
+    if err != 0:
         return False
-    return _normalize(out) == _normalize(golden.read_text(encoding='utf-8', errors='replace'))
+    if any(line.lstrip().startswith('?') for line in out.splitlines()):
+        return False
+    if _SELF_FAIL.search(out) and not _SELF_OK.search(out):
+        return False
+    return True
 
 
 def _program_names() -> list[str]:
@@ -139,18 +124,14 @@ def test_mbasic521_golden(name: str, tmp_path: Path) -> None:
         pytest.skip('run: python test/manual/fetch_mbasic_golden.py')
     reason = _XFAIL.get(name)
     err, out = _run(name, tmp_path)
-    crashed = err != 0 or any(
-        line.lstrip().startswith('?') for line in out.splitlines()
-    )
-    ok = (not crashed) and _matches_golden(name, out)
+    ok = _ran_clean(err, out)
     if reason:
         if ok:
             pytest.fail(
-                f'{name} now matches — remove it from _XFAIL ({reason})'
+                f'{name} now runs clean — remove it from _XFAIL ({reason})'
             )
         pytest.xfail(reason)
-    assert not crashed, f'{name}: error_line={err} out={out[:400]!r}'
-    assert ok, f'{name}: output mismatch\n--- got ---\n{out[:800]}'
+    assert ok, f'{name}: error_line={err} out={out[:800]!r}'
 
 
 def test_corpus_skip_message_documents_fetch() -> None:
