@@ -56,9 +56,8 @@ Graphics demos (optional pygame extra; --pygame keeps the window open after END)
   python -m mini_basic --pygame examples/graphics/soccerball.bas
 
   examples/graphics/ holds native PLOT/CIRCLE/VDU ports (and a few .bbc
-  that LIST as ordinary BBC). BBCSDL library demos (INSTALL gfxlib /
-  aagfxlib / shaderlib / imglib, PROC_gfx…) stay upstream — they need
-  Russell's SDL libraries, not mini_basic. Inspect a tokenized file with:
+  that LIST as ordinary BBC). BBCSDL library / texture / MDISPLAY demos
+  stay upstream. Inspect a tokenized file with:
     python -m mini_basic --list --dialect bbc --display none file.bbc
 
 Museum anchors (examples/museum/; copies in basics/ for archive installs)
