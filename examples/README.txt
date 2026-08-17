@@ -61,13 +61,15 @@ Graphics demos (optional pygame extra; --pygame keeps the window open after END)
   Russell's SDL libraries, not mini_basic. Inspect a tokenized file with:
     python -m mini_basic --list --dialect bbc --display none file.bbc
 
-Museum anchors (now in examples/museum/)
+Museum anchors (examples/museum/; copies in basics/ for archive installs)
 --------------------------------------------
 
-  ELIZA.BAS   mits anchor — numbered GOTO, unchanged Weizenbaum logic
-  BETH.BAS    bbc anchor  — structured rewrite of ELIZA
+  ELIZA.BAS   mits — Weizenbaum/Shrager/North numbered DOCTOR
+  BETH.BAS    bbc  — same therapy DATA, structured WHILE/IF (produced from ELIZA)
 
   python -m mini_basic --dialect mits examples/museum/ELIZA.BAS
   python -m mini_basic --dialect bbc  examples/museum/BETH.BAS
+  python -m mini_basic --dialect mits basics/ELIZA.BAS
+  python -m mini_basic --dialect bbc  basics/BETH.BAS
 
 REPL quick reference: H.=HELP  L.=LIST  LO.=LOAD  MA.=MATRIX

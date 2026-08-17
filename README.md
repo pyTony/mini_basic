@@ -38,6 +38,8 @@ Upstream (not this repo): [garyexplains/BASIC-M6502-CPORT](https://github.com/ga
 python -m mini_basic examples/mini/hello_args.bas
 python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
 python -m mini_basic basics/MB_COLOR.BAS
+python -m mini_basic --dialect mits basics/ELIZA.BAS
+python -m mini_basic --dialect bbc basics/BETH.BAS
 python -m mini_basic --pygame --dialect bbc basics/mand_mode9_and.bas
 python -m mini_basic --pygame --dialect bbc basics/jclock.bas
 python -m mini_basic

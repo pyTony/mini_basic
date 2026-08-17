@@ -91,6 +91,8 @@ Legacy names `mini_basic_text_part*.txt` are still accepted as a fallback (treat
    ```powershell
    mini_basic basics\fact.bas
    mini_basic basics\MB_COLOR.BAS
+   mini_basic --dialect mits basics\ELIZA.BAS
+   mini_basic --dialect bbc basics\BETH.BAS
    mini_basic --help
    mini_basic --display none examples\mini\hello_args.bas
    # graphics install (pygame): MODE 9 Mandelbrot lives in basics/, not examples/
