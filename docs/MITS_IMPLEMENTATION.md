@@ -83,15 +83,9 @@ python -m pytest -q test/test_mbasic521_golden.py --timeout=45
 
 Without the fetch, those tests skip. Owned snippets in `test/test_mits_ms_rules.py` always run.
 
-`WHILE` cases run under dialect `mini`. Known 5.21 gaps stay `xfail` until a later implement cycle.
+Judge: a **clean run** (no `?`, no self-check FAIL) is a pass. We do **not** require 5.21 PRINT column match. `x` means a real gap (KILL, FIX, CINT, OCT$, `EXPECTED`→`EXP`, `ERASE`, quote-build `CHR$(34)`).
 
-Useful locks from the first fetch (owned snippets already cover `\`, `MOD`, `-2^2`):
-
-- `EXPECTED = n` is parsed as `EXP(ECTED)` — reserved-prefix glue
-- `ERASE` is not a statement
-- `NAME$` is still accepted as a variable (5.21 reserves `NAME`)
-- Empty `FOR 10 TO 1` still runs once
-- PRINT often omits the 5.21 space before numbers (`=10` vs `= 10`)
+`WHILE` cases run under dialect `mini`.
 
 ## Gaps left (not regular 1.00)
 
