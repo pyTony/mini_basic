@@ -483,11 +483,12 @@ class RuntimeProgramMixin:
         statement = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', statement, flags=re.IGNORECASE)
         statement = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', statement, flags=re.IGNORECASE)
         if self.config.dialect == 'bbc':
-            statement = self._normalize_bbc_dialect_line(statement)
-        else:
-            statement = re.sub(
-                r'\bENDWHILE\b', 'WEND', statement, flags=re.IGNORECASE,
+            # Keep ENDWHILE as typed (SDL spelling). Fold to WEND only at
+            # execute time so EDIT/LIST/SAVE do not revert the user's text.
+            statement = self._normalize_bbc_dialect_line(
+                statement, fold_endwhile=False,
             )
+        else:
             statement = self._normalize_two_word_closers(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
@@ -1147,12 +1148,15 @@ class RuntimeProgramMixin:
         return self._BBC_DIALECT_NORMALIZE_CANDIDATE.search(line) is not None
 
     @staticmethod
-    def _normalize_bbc_dialect_line(line: str) -> str:
+    def _normalize_bbc_dialect_line(line: str, *, fold_endwhile: bool = True) -> str:
         """BBC BASIC for SDL 2.0 uses compound closers (ENDIF, ENDWHILE, …).
 
         Normalize SDL spellings to the internal forms mini_basic executes
         (WEND, EXIT FOR/WHILE/REPEAT). Do not map bare BREAK → EXIT FOR:
         that wrongly exits a FOR when the author meant to leave a WHILE.
+
+        ``fold_endwhile`` is True at execute/parse time. False when storing a
+        line (EDIT/LOAD) so ENDWHILE stays ENDWHILE in LIST and SAVE.
         """
         # Pasted split forms still run in mini_basic; SDL TouchIDE expects one word.
         line = re.sub(r'\bEND\s+IF\b', 'ENDIF', line, flags=re.IGNORECASE)
@@ -1162,7 +1166,8 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bEND\s+FN\b', 'END DEF', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+DEF\b', 'END DEF', line, flags=re.IGNORECASE)
         # Internal loop end is WEND; ENDWHILE is the SDL-facing spelling.
-        line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
+        if fold_endwhile:
+            line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
         # Crunched BBC: PRINTTAB(x) / PRINTSPC(n) → PRINT TAB(x) / PRINT SPC(n)
         # (hanoi PROCPUT uses PRINTTAB(...); glued form is not a valid keyword).
         line = re.sub(r'\bPRINTTAB\b', 'PRINT TAB', line, flags=re.IGNORECASE)

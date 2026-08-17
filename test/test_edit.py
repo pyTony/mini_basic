@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import io
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -35,6 +36,24 @@ class EditCommandTests(unittest.TestCase):
                 escape_cancels=True,
             )
         self.assertEqual(result, '    WEND')
+
+    def test_edit_keeps_endwhile_spelling(self) -> None:
+        """EDIT must not fold ENDWHILE back to WEND (LIST/SAVE showed WEND)."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.set_program_line(250, 'WHILE I% < MAXITER%', indent=4)
+        interp.set_program_line(310, 'WEND', indent=4)
+        interp.set_program_line(310, 'ENDWHILE', 4)
+        self.assertEqual(interp.program[310], 'ENDWHILE')
+        listed = io.StringIO()
+        with redirect_stdout(listed):
+            interp.list_program()
+        text = listed.getvalue()
+        self.assertIn('ENDWHILE', text)
+        self.assertIsNone(re.search(r'\bWEND\b', text))
+        cmd, _rest = interp._parse_command(interp.program[310])
+        self.assertEqual(cmd, 'WEND')
 
     def test_posix_left_arrow_does_not_cancel(self) -> None:
         """Left arrow is ESC [ D — must move the cursor, not abandon the edit."""
