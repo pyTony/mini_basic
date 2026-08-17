@@ -790,7 +790,8 @@ class RuntimeExprMixin:
                 else:
                     timeout_cs = float(self._eval_numeric(args[0]))
                     if timeout_cs < 0:
-                        # Negative: treat like numeric scan — immediate key or ""
+                        if not self._dialect_allows('inkey_scan'):
+                            raise ValueError('INKEY$(-n) is a mini (SDL) extension')
                         code = self._inkey_bbc_negative_scan(int(timeout_cs))
                         repl = json.dumps(chr(int(code) & 0xFF) if code >= 0 else '')
                     else:
@@ -1209,6 +1210,8 @@ class RuntimeExprMixin:
                 return self._inkey_code()
             timeout_cs = self._eval_numeric_builtin_arg(arg)
             if timeout_cs < 0:
+                if not self._dialect_allows('inkey_scan'):
+                    raise ValueError('INKEY(-n) is a mini (SDL) extension')
                 return self._inkey_bbc_negative_scan(int(timeout_cs))
             return self._inkey_code_wait(timeout_cs)
         if func == 'WIDTH':

@@ -2693,6 +2693,15 @@ class RuntimeExecutionMixin:
             re.IGNORECASE,
         )
         if on_close_full:
+            if not self._dialect_allows('on_close'):
+                self._runtime_error(
+                    '? ON CLOSE is a mini (SDL) extension',
+                    line_num,
+                    stmt_index,
+                    stmt_count=stmt_count,
+                    statement=line,
+                )
+                return None
             rest = (on_close_full.group(1) or '').strip()
             if not rest or rest.upper() == 'OFF':
                 self.on_close_action = None
@@ -3524,6 +3533,15 @@ class RuntimeExecutionMixin:
             return None
 
         if cmd == 'EXIT':
+            if not self._dialect_allows('EXIT'):
+                self._runtime_error(
+                    '? EXIT FOR/WHILE/REPEAT is a mini (SDL) extension',
+                    line_num,
+                    stmt_index,
+                    stmt_count=stmt_count,
+                    statement=line,
+                )
+                return None
             return self._handle_exit(rest)
 
         if cmd == 'BREAK':
@@ -4476,6 +4494,8 @@ class RuntimeExecutionMixin:
                         ):
                             apply_tc(index)
                 elif len(args) == 2:
+                    if not self._dialect_allows('colour_two_arg'):
+                        raise ValueError('COLOUR fg,bg is a mini (SDL) extension')
                     fg = self._bbc_text_colour_code(self._eval_numeric(args[0]))
                     bg = self._bbc_text_colour_code(self._eval_numeric(args[1]))
                     self.text_fg_colour = fg

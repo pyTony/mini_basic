@@ -822,6 +822,10 @@ class RuntimeProgramMixin:
             if not text:
                 continue
             stripped = text.strip()
+            if re.match(r'^ON\s+CLOSE\b', stripped, re.IGNORECASE):
+                if not self._dialect_allows('on_close'):
+                    violations.append('on_close')
+                continue
             if self._RE_ON_ERROR.match(stripped):
                 if not self._dialect_allows('on_error_goto'):
                     violations.append('on_error_goto')
@@ -845,6 +849,8 @@ class RuntimeProgramMixin:
                 elif self._if_rest_uses_then_line_jump(rest):
                     violations.append('if_then_line')
             upper = text.upper()
+            if re.search(r'\bINSTR\b', upper) and not self._dialect_allows('INSTR'):
+                violations.append('INSTR')
             for func in self._MINI_ONLY_FUNCS:
                 if re.search(rf'\b{re.escape(func)}\b', upper):
                     if not self._dialect_allows(func):

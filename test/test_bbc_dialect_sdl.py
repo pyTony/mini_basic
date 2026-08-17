@@ -1,4 +1,4 @@
-"""BBC BASIC for SDL 2.0 parity when --dialect bbc."""
+"""BBC dialect (traditional) plus mini SDL extras."""
 import io
 import os
 import sys
@@ -18,10 +18,10 @@ pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class BBCDialectSDLTests(unittest.TestCase):
-    def _run_bbc(self, lines, *, display='none'):
+    def _run_bbc(self, lines, *, display='none', dialect='bbc'):
         interp = BASICInterpreter(
             InterpreterConfig(
-                dialect='bbc',
+                dialect=dialect,
                 display=display,
                 display_locked=display == 'none',
                 optimization_level=0,
@@ -77,7 +77,7 @@ class BBCDialectSDLTests(unittest.TestCase):
         self.assertEqual(cmd, 'BREAK')
 
     def test_on_close_quit_statement(self):
-        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
+        interp = BASICInterpreter(InterpreterConfig(dialect='mini', display='none'))
         interp.program = {10: 'ON CLOSE QUIT', 20: 'END'}
         with redirect_stdout(io.StringIO()):
             interp.run()
@@ -86,7 +86,7 @@ class BBCDialectSDLTests(unittest.TestCase):
     def test_colour_two_arguments(self):
         os.environ['SDL_VIDEODRIVER'] = 'dummy'
         interp = BASICInterpreter(
-            InterpreterConfig(dialect='bbc', display='pygame', optimization_level=0),
+            InterpreterConfig(dialect='mini', display='pygame', optimization_level=0),
         )
         interp.program = {
             10: 'COLOUR 7,0',
@@ -114,10 +114,13 @@ class BBCDialectSDLTests(unittest.TestCase):
         self.assertEqual(interp._inkey_bbc_negative_scan(-256), -1.0)
 
     def test_inkey_negative_in_expression(self):
-        out, _ = self._run_bbc([
-            (10, 'PRINT INKEY(-256)'),
-            (20, 'END'),
-        ])
+        out, _ = self._run_bbc(
+            [
+                (10, 'PRINT INKEY(-256)'),
+                (20, 'END'),
+            ],
+            dialect='mini',
+        )
         self.assertEqual(out, '-1')
 
     def test_modulo_keyword_in_expressions(self):

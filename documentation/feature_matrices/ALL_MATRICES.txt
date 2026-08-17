@@ -11,9 +11,12 @@
   ON GOTO / ON GOSUB                +     +   +     +    +  
   ON ERROR GOTO/GOSUB / RESUME      +     +   +     +    +  
   IF/ENDIF / ELSEIF                 -     -   -     +    +  
-  WHILE / WEND                      -     -   -     +    +  
+  WHILE / ENDWHILE (BBC V)          -     -   -     +    +  
   REPEAT / UNTIL                    -     -   -     +    +  
-  EXIT FOR/WHILE/REPEAT             -     -   -     +    +  
+  EXIT FOR/WHILE/REPEAT (SDL)       -     -   -     -    +  
+  ON CLOSE (SDL)                    -     -   -     -    +  
+  COLOUR fg,bg two-arg (SDL)        -     -   -     -    +  
+  INKEY(-n) scan (SDL)              -     -   -     -    +  
   PROC / DEF PROC / ENDPROC         -     -   -     +    +  
   BREAK / CONTINUE (mini ext)       -     -   -     -    +  
   INSTR                             -     -   -     +    +  
@@ -24,7 +27,7 @@
   ARG / CLI args                    -     -   -     -    +  
   FG$ / BG$ / ANSI colors           -     -   -     -    +  
   TIME (centisecond clock)          +     +   +     +    +  
-  Case-sensitive names              -     -   -     -    +  
+  Case-sensitive names              -     -   -     +    +  
   LIST/SAVE detokenize              +     +   +     +    -  
 
   + = yes   - = rejected in strict dialect   ~ = extension
