@@ -804,7 +804,7 @@ class MiniBASICTests(unittest.TestCase):
             return next(line for line in lines if substring in line)
 
         self.assertEqual(leading_spaces(find_line('FOR I')), leading_spaces(find_line('NEXT I')))
-        self.assertEqual(leading_spaces(find_line('WHILE')), leading_spaces(find_line('WEND')))
+        self.assertEqual(leading_spaces(find_line('WHILE')), leading_spaces(find_line('ENDWHILE')))
         self.assertEqual(leading_spaces(find_line('IF I = 1')), leading_spaces(find_line('ENDIF')))
         self.assertEqual(leading_spaces(find_line('IF I = 1')), leading_spaces(find_line('ELSE')))
 

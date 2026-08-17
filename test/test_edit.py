@@ -44,6 +44,7 @@ class EditCommandTests(unittest.TestCase):
         )
         interp.set_program_line(250, 'WHILE I% < MAXITER%', indent=4)
         interp.set_program_line(310, 'WEND', indent=4)
+        self.assertEqual(interp.program[310], 'ENDWHILE')
         interp.set_program_line(310, 'ENDWHILE', 4)
         self.assertEqual(interp.program[310], 'ENDWHILE')
         listed = io.StringIO()
@@ -146,7 +147,7 @@ class EditCommandTests(unittest.TestCase):
             with redirect_stdout(buf):
                 interp.edit_line(310)
         self.assertNotIn('WEND', buf.getvalue())
-        self.assertEqual(interp.program[310], 'WEND')
+        self.assertEqual(interp.program[310], 'ENDWHILE')
 
     def test_choose_editor_prefers_env(self) -> None:
         interp = BASICInterpreter(

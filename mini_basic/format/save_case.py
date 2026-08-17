@@ -23,7 +23,7 @@ RE_VAR_BASE_FULL = re.compile(rf'^{VAR_BASE_PATTERN}$')
 _STMT_KEYWORDS = (
     'PRINT#', 'INPUT#', 'WRITE#', 'CLOSE#', 'BPUT#', 'BGET#',
     'PRINT', 'INPUT', 'WRITE',
-    'FOR', 'NEXT', 'WHILE', 'WEND', 'REPEAT', 'UNTIL',
+    'FOR', 'NEXT', 'WHILE', 'WEND', 'ENDWHILE', 'REPEAT', 'UNTIL',
     'BREAK', 'CONTINUE', 'EXIT', 'PROC', 'ENDPROC',
     'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF',
     'GOTO', 'GOSUB', 'RESUME', 'RETURN',

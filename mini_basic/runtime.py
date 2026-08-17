@@ -207,7 +207,8 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         re.DOTALL,
     )
     _STMT_KEYWORDS = (
-        'PRINT', 'INPUT', 'WRITE', 'FOR', 'NEXT', 'WHILE', 'WEND', 'REPEAT', 'UNTIL',
+        'PRINT', 'INPUT', 'WRITE', 'FOR', 'NEXT', 'WHILE', 'WEND', 'ENDWHILE',
+        'REPEAT', 'UNTIL',
         'BREAK', 'CONTINUE', 'EXIT', 'PROC', 'ENDPROC',
         'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
         'GOTO', 'GOSUB', 'RESUME', 'RETURN',
