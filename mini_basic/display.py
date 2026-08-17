@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 import sys
 import time
+import warnings
 from abc import ABC, abstractmethod
 
 os.environ.setdefault('SDL_WINDOWS_DPI_AWARENESS', 'permonitorv2')
@@ -592,7 +593,7 @@ class PygameDisplay(DisplayBackend):
         fps_limit: int = 60,
     ) -> None:
         try:
-            import pygame
+            pygame = import_pygame()
         except ImportError as exc:
             raise ImportError(pygame_install_hint()) from exc
         self._pygame = pygame
@@ -2115,7 +2116,7 @@ def fit_display_scale(
 ) -> int:
     """Pick the largest pixel scale that should fit on screen."""
     try:
-        import pygame
+        pygame = import_pygame()
 
         if not pygame.get_init():
             os.environ.setdefault('SDL_VIDEO_CENTERED', '1')
@@ -2151,10 +2152,22 @@ def auto_display_scale(
 
 
 
+def import_pygame():
+    """``import pygame`` without the frozen-importlib AVX2 blit warning."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            'ignore',
+            message=r'.*avx2 capable.*',
+            category=RuntimeWarning,
+        )
+        import pygame
+    return pygame
+
+
 def pygame_available() -> bool:
     """True if ``import pygame`` succeeds (pygame or pygame-ce)."""
     try:
-        import pygame  # noqa: F401
+        import_pygame()
         return True
     except ImportError:
         return False
@@ -2216,7 +2229,7 @@ def ensure_no_pygame_leftovers() -> None:
     the user has confirmed they are done.
     """
     try:
-        import pygame  # type: ignore
+        pygame = import_pygame()
         if pygame.get_init():
             try:
                 pygame.display.quit()

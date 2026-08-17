@@ -218,5 +218,21 @@ class TerminalInterruptTests(unittest.TestCase):
         self.assertTrue(interp._run_aborted or 'Goodbye' in buf.getvalue())
 
 
+class PygameImportWarningTests(unittest.TestCase):
+    def test_avx2_runtime_warning_is_filtered(self) -> None:
+        import warnings
+
+        from mini_basic.display import import_pygame
+
+        try:
+            import_pygame()
+        except ImportError:
+            self.skipTest('pygame not installed')
+        with warnings.catch_warnings(record=True) as rec:
+            warnings.simplefilter('always')
+            import_pygame()
+        self.assertFalse([w for w in rec if 'avx2 capable' in str(w.message)])
+
+
 if __name__ == '__main__':
     unittest.main()
