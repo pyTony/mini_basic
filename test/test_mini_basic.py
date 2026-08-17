@@ -3014,6 +3014,36 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), "    Hi\n    Hi\n     x")
 
+    def test_print_string_then_glued_tab(self):
+        """MBASIC: PRINT\"BANKER\"TAB(20)\"PLAYER\" (bacarrat.bas line 720)."""
+        lines = [
+            (10, 'PRINT"BANKER"TAB(20)"PLAYER"'),
+            (20, 'END'),
+        ]
+        out = self.run_program(lines)
+        self.assertIn('BANKER', out)
+        self.assertIn('PLAYER', out)
+        self.assertNotIn('subscript', out.lower())
+        banker = out.index('BANKER')
+        player = out.index('PLAYER')
+        self.assertGreater(player, banker)
+        # TAB(20) starts PLAYER at column 19 (1-based TAB n → column n-1).
+        line = out.splitlines()[0]
+        self.assertGreaterEqual(line.index('PLAYER'), 19)
+
+    def test_print_string_array_then_glued_tab(self):
+        lines = [
+            (10, 'DIM C$(4)'),
+            (20, 'C$(1)="ACE"'),
+            (30, 'C$(3)="KING"'),
+            (40, 'PRINT C$(3)TAB(20)C$(1)'),
+            (50, 'END'),
+        ]
+        out = self.run_program(lines)
+        self.assertIn('KING', out)
+        self.assertIn('ACE', out)
+        self.assertNotIn('subscript', out.lower())
+
     def test_print_comma_empty_field(self):
         lines = [
             (10, 'PRINT SPC(4),"Hi"'),

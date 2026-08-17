@@ -979,31 +979,57 @@ class RuntimeIoMixin:
         return str(value)
 
     def _split_implicit_print_items(self, item: str) -> List[str]:
-        """MBASIC-style implicit separators after SPC/TAB only: SPC(n)"Hi"."""
+        """MBASIC implicit PRINT items: TAB/SPC glued without ; or ,.
+
+        ``SPC(n)"Hi"``, ``TAB(6)"x"``, and ``"BANKER"TAB(20)"PLAYER"`` /
+        ``C$(3)TAB(20)C$(1)`` (bacarrat.bas) are one PRINT argument until split.
+        """
         stripped = item.strip()
         if not stripped:
             return []
-        # Nested parens: TAB(13+26*(PILE-1)-DISC,20-SIZE(PILE)) must not stop at first ')'.
-        head_m = re.match(r'^(SPC|TAB)\s*\(', stripped, re.IGNORECASE)
-        if not head_m:
+        if not re.search(
+            r'(?<![A-Za-z0-9_])(?:SPC|TAB)\s*\(',
+            stripped,
+            re.IGNORECASE,
+        ):
             return [stripped]
-        open_idx = head_m.end() - 1
-        close_idx = self._match_paren(stripped, open_idx)
-        if close_idx is None or close_idx < 0:
-            return [stripped]
-        head = stripped[: close_idx + 1]
-        tail = stripped[close_idx + 1 :].lstrip()
-        if not tail:
-            return [head]
-        if tail.startswith('"'):
-            end = 1
-            while end < len(tail):
-                if tail[end] == '"':
-                    end += 1
-                    break
-                end += 1
-            return [head, tail[:end]]
-        return [head, tail]
+        parts: List[str] = []
+        index = 0
+        start = 0
+        in_string = False
+        length = len(stripped)
+        while index < length:
+            ch = stripped[index]
+            if ch == '"':
+                in_string = not in_string
+                index += 1
+                continue
+            if not in_string:
+                match = re.match(
+                    r'(?:SPC|TAB)\s*\(',
+                    stripped[index:],
+                    re.IGNORECASE,
+                )
+                prev = stripped[index - 1] if index else ''
+                if match and (index == 0 or not (prev.isalnum() or prev == '_')):
+                    prior = stripped[start:index].strip()
+                    if prior:
+                        parts.append(prior)
+                    open_idx = index + match.end() - 1
+                    try:
+                        close_idx = self._match_paren(stripped, open_idx)
+                    except ValueError:
+                        parts.append(stripped[index:])
+                        return parts
+                    parts.append(stripped[index:close_idx + 1])
+                    index = close_idx + 1
+                    start = index
+                    continue
+            index += 1
+        tail = stripped[start:].strip()
+        if tail:
+            parts.append(tail)
+        return parts or [stripped]
 
     def _split_print_items(self, content: str) -> List[Tuple[str, str]]:
         items: List[Tuple[str, str]] = []
