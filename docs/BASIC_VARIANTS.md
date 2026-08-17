@@ -59,7 +59,7 @@ file hint (`#!bbc` or `1 REM dialect: bbc`), or REPL `DIALECT`.
 | Dialect | Intent | Typical programs | Line form (strict) |
 |---------|--------|------------------|--------------------|
 | **mini** | Default superset | Modern + museum mixed | Numbered **and** unnumbered |
-| **bbc** | BBCSDL / BB4W oriented | `examples/`, corpus `.bbc` | Unnumbered preferred; numbered OK |
+| **bbc** | Traditional BBC (Beeb + BASIC V) | numbered/unnumbered BBC listings | Numbered OK; unnumbered OK |
 | **mits** | Dartmouth / early micro style | ELIZA, classic numbered | Numbered only |
 | **commodore** | C64 / MS BASIC V2 flavour | Numbered IF/GOTO style | Numbered only |
 | **tiny** | Minimal 1975 Tiny BASIC | Teaching / tiny listings | Numbered only |
@@ -76,8 +76,10 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 | IF … GOTO *nn* | + | + | − | − | + |
 | IF … THEN *nn* | + | + | − | + | + |
 | IF/ENDIF / ELSEIF | − | − | − | + | + |
-| WHILE / WEND | − | − | − | + | + |
+| WHILE / ENDWHILE (BBC V) | − | − | − | + | + |
 | REPEAT / UNTIL | − | − | − | + | + |
+| EXIT FOR (SDL) | − | − | − | − | + |
+| ON CLOSE / INKEY(−n) (SDL) | − | − | − | − | + |
 | PROC / DEF PROC | − | − | − | + | + |
 | BREAK / CONTINUE | − | − | − | − | + |
 | ARG / CLI args | − | − | − | − | + |
@@ -88,8 +90,8 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 **Relation summary**
 
 - **mits / commodore / tiny** ≈ classic **line-number + GOTO** teaching/museum dialects.  
-- **bbc** ≈ structured BBC family language (PROC, CASE, WHILE, …) without mini-only extras.  
-- **mini** = **bbc-like core + numbered programs + mini extensions** (BREAK/CONTINUE, ARG, ANSI helpers).
+- **bbc** ≈ traditional BBC (Beeb + BASIC V: PROC, CASE, WHILE/ENDWHILE, INSTR).  
+- **mini** = **bbc + SDL/desktop extras** (EXIT FOR, ON CLOSE, INKEY(−n), COLOUR fg,bg, BREAK/CONTINUE, ARG, ANSI).
 - **Case mode (all dialects):** when case-sensitive (default for mini/bbc; `CASE ON`
   elsewhere), **statement keywords are uppercase only** (`PRINT`, `COLOUR`, `FOR`).
   Mixed-case `Colour&` / `print` are not commands. Fold mode (`CASE OFF`) restores

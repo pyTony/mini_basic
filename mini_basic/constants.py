@@ -44,8 +44,9 @@ NUMERIC_BUILTIN_FUNC_RE = '|'.join(
 MITS_FORBIDDEN_CMDS = frozenset({
     'WHILE', 'WEND', 'ENDIF', 'ELSEIF', 'ELIF', 'CONTINUE', 'BREAK',
     'REPEAT', 'UNTIL', 'PROC', 'ENDPROC', 'EXIT',
+    'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
 })
-MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE'})
+MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE', 'EXIT'})
 MINI_ONLY_FUNCS = frozenset({
-    'INSTR', 'ARG', 'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
+    'ARG', 'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
 })

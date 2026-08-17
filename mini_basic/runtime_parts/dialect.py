@@ -118,6 +118,15 @@ class RuntimeDialectMixin:
             return True
         if feature == 'unnumbered_program':
             return dialect not in self._NUMBERED_GOTO_DIALECTS
+        if feature in (
+            'on_close',
+            'inkey_scan',
+            'colour_two_arg',
+            'EXIT',
+        ):
+            return dialect == 'mini'
+        if feature == 'INSTR':
+            return dialect not in self._NUMBERED_GOTO_DIALECTS
         if feature in self._MINI_ONLY_FUNCS or feature == 'mini_only_func':
             return dialect == 'mini'
         if feature.upper() in self._MINI_ONLY_CMDS:

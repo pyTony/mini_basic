@@ -148,6 +148,7 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
     _MITS_FORBIDDEN_CMDS = frozenset({
         'WHILE', 'WEND', 'ENDIF', 'ELSEIF', 'ELIF', 'CONTINUE', 'BREAK',
         'REPEAT', 'UNTIL', 'PROC', 'ENDPROC', 'EXIT',
+        'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
     })
     _UNIMPLEMENTED_COMMANDS = {
         # Platform-bound / OS / machine language commands are not implemented in this interpreter.
@@ -171,12 +172,12 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'FLOOD': 'FLOOD (flood fill)',
         # Add others as identified (e.g. some advanced VDU, VOICE etc. if top-level)
     }
-    _MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE'})
+    _MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE', 'EXIT'})
     _MINI_ONLY_FUNCS = frozenset({
         'ARG', 'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
     })
     _NUMBERED_GOTO_DIALECTS = frozenset({'mits', 'commodore', 'tiny'})
-    _IF_GOTO_DIALECTS = frozenset({'mini', 'mits', 'bbc', 'commodore'})
+    _IF_GOTO_DIALECTS = frozenset({'mini', 'mits', 'commodore'})
     _IF_THEN_LINE_DIALECTS = frozenset({'mini', 'mits', 'bbc', 'commodore'})
     _GRAPHICS_CMDS = frozenset({
         'MODE', 'CLG', 'GCOL', 'MOVE', 'DRAW', 'ORIGIN', 'PLOT',
@@ -556,12 +557,12 @@ def _print_dialect_compatibility_matrix() -> None:
         ('ON GOTO / ON GOSUB', '+', '+', '+', '+', '+'),
         ('ON ERROR GOTO/GOSUB / RESUME', '+', '+', '+', '+', '+'),
         ('IF/ENDIF / ELSEIF', '-', '-', '-', '+', '+'),
-        ('WHILE / ENDWHILE (SDL)', '-', '-', '-', '+', '+'),
+        ('WHILE / ENDWHILE (BBC V)', '-', '-', '-', '+', '+'),
         ('REPEAT / UNTIL', '-', '-', '-', '+', '+'),
-        ('EXIT FOR/WHILE/REPEAT (SDL)', '-', '-', '-', '+', '+'),
-        ('ON CLOSE QUIT / OFF', '-', '-', '-', '+', '+'),
-        ('COLOUR fg,bg (two-arg)', '-', '-', '-', '+', '+'),
-        ('INKEY(-256) key scan', '-', '-', '-', '+', '+'),
+        ('EXIT FOR/WHILE/REPEAT (SDL)', '-', '-', '-', '-', '+'),
+        ('ON CLOSE (SDL)', '-', '-', '-', '-', '+'),
+        ('COLOUR fg,bg two-arg (SDL)', '-', '-', '-', '-', '+'),
+        ('INKEY(-n) key scan (SDL)', '-', '-', '-', '-', '+'),
         ('PROC / DEF PROC / ENDPROC', '-', '-', '-', '+', '+'),
         ('BREAK / CONTINUE (mini ext)', '-', '-', '-', '-', '+'),
         ('INSTR', '-', '-', '-', '+', '+'),
@@ -572,15 +573,15 @@ def _print_dialect_compatibility_matrix() -> None:
         ('ARG / _argc / CLI args', '-', '-', '-', '-', '+'),
         ('FG$ / BG$ / ANSI colors', '-', '-', '-', '-', '+'),
         ('TIME (centisecond clock)', '+', '+', '+', '+', '+'),
-        ('Case-sensitive names (a#A)', '-', '-', '-', '-', '+'),
+        ('Case-sensitive names (a#A)', '-', '-', '-', '+', '+'),
         ('LIST/SAVE detokenize (_save_case)', '+', '+', '+', '+', '-'),
     ]
     print('=== Dialect compatibility ===')
     print('  mits      = MITS 8K / MS era numbered GOTO (ELIZA.BAS)')
     print('  commodore = Commodore MS BASIC V2 (C64/VIC-20): numbered GOTO, IF GOTO')
     print('  tiny      = Tiny BASIC (1975): numbered, IF THEN stmt only (no line jumps)')
-    print('  bbc       = BBC BASIC for SDL 2.0 (EXIT/ENDWHILE); not Acorn RISC OS V')
-    print('  mini      = full superset, default (--dialect mini)')
+    print('  bbc       = traditional BBC (Beeb + BASIC V: PROC/WHILE/CASE); numbered OK')
+    print('  mini      = bbc + SDL/desktop extras (EXIT, ON CLOSE, INKEY scan, …)')
     print()
     print(f'  {"Feature":<28} mits  com tiny  bbc  mini')
     print(f'  {"-" * 28} ----  --- ----  ---  ----')
