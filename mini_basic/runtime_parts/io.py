@@ -302,7 +302,10 @@ class RuntimeIoMixin:
         if self._display_enabled():
             if prompt:
                 self._print_program_text(prompt, newline=False)
-                self._flush_display(force=True)
+            # Always present before blocking. Custom INPUT "prompt";var uses
+            # an empty read prompt — after TAB the terminal is in grid mode
+            # and the string never reached stdout (bacarrat: PRESS ENTER).
+            self._flush_display(force=True)
             self._input_active = True
             self._input_line_painted = False
             try:
@@ -1655,6 +1658,7 @@ class RuntimeIoMixin:
         )
         self._print_program_text(text, newline=False)
         self._flush_program_output()
+        self._flush_display(force=True)
 
     def _split_input_line_values(self, line: str) -> List[str]:
         return self._split_at_depth(line, ',')

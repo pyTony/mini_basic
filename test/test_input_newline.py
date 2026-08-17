@@ -52,6 +52,35 @@ class InputThenPrintTests(unittest.TestCase):
             self.assertIn('7', joined)
             self.assertIn('NEXT', joined)
 
+    def test_string_prompt_presents_before_input_after_tab(self) -> None:
+        """PRINT TAB then INPUT \"prompt\" must paint the prompt before blocking."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='mits', display='terminal', display_locked=True)
+        )
+        interp.set_program_line(10, 'PRINT TAB(26);"BACCARAT"')
+        interp.set_program_line(20, 'INPUT "PRESS ENTER TO CONTINUE";Z$')
+        interp.set_program_line(30, 'END')
+        force_presents_before_input: list[int] = []
+
+        def fake_input(_prompt: str = '') -> str:
+            disp = interp._display
+            self.assertIsNotNone(disp)
+            rows = [''.join(cell[0] for cell in row) for row in disp._text]
+            self.assertIn('PRESS ENTER TO CONTINUE', '\n'.join(rows))
+            force_presents_before_input.append(present_spy.call_count)
+            return ''
+
+        interp._ensure_display()
+        with patch.object(interp._display, 'present', wraps=interp._display.present) as present_spy:
+            out = io.StringIO()
+            with redirect_stdout(out), patch('builtins.input', side_effect=fake_input):
+                interp.run()
+        self.assertEqual(len(force_presents_before_input), 1)
+        self.assertGreater(force_presents_before_input[0], 0)
+        self.assertTrue(any(
+            call.kwargs.get('force') for call in present_spy.call_args_list
+        ))
+
 
 if __name__ == '__main__':
     unittest.main()
