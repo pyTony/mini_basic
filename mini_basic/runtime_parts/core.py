@@ -109,7 +109,10 @@ class RuntimeCoreMixin:
 
         Same as free ``from mini_basic.util.debug import dprint`` / package
         ``from mini_basic import dprint`` — uses this interpreter's config.
+        Off path: no import (statement/eval hot loops).
         """
+        if not getattr(self.config, 'DEBUG', False):
+            return
         from ..util.debug import dprint as _dprint
         from ..util.debug import set_active_debug_config
 

@@ -152,9 +152,13 @@ def dprint(*args: Any, config: Any = None, sep: str = ' ', end: str = '\n') -> N
     """
     cfg = config
     payload = args
+    if cfg is not None and not getattr(cfg, 'DEBUG', False):
+        return
     if cfg is None and args and _looks_like_config(args[0]):
         cfg = args[0]
         payload = args[1:]
+        if not getattr(cfg, 'DEBUG', False):
+            return
     cfg = resolve_debug_config(cfg)
     if cfg is None or not should_emit(cfg, *payload):
         return
