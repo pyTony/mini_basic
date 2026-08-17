@@ -13,11 +13,33 @@ from .windows_input import LineEditCancelled, windows_line_edit
 
 
 def posix_getwch() -> str:
-    """Read one character from stdin (caller holds cbreak)."""
-    ch = sys.stdin.read(1)
-    if ch == '':
+    """Read one Unicode character from a raw TTY (full UTF-8, not one byte)."""
+    buf = getattr(sys.stdin, 'buffer', None)
+    if buf is None:
+        ch = sys.stdin.read(1)
+        if ch == '':
+            raise EOFError
+        return ch
+    first = buf.read(1)
+    if not first:
         raise EOFError
-    return ch
+    lead = first[0]
+    if lead < 0x80:
+        return first.decode('ascii')
+    if 0xC2 <= lead <= 0xDF:
+        need = 1
+    elif 0xE0 <= lead <= 0xEF:
+        need = 2
+    elif 0xF0 <= lead <= 0xF7:
+        need = 3
+    else:
+        return first.decode('latin-1')
+    rest = buf.read(need)
+    raw = first + rest
+    try:
+        return raw.decode('utf-8')
+    except UnicodeDecodeError:
+        return raw.decode('latin-1', errors='replace')
 
 
 def posix_editing_input(

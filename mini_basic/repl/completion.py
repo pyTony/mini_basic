@@ -286,6 +286,26 @@ def advance_tab_completion(
     return normalized[next_index], TabCompletionCycle(normalized, next_index, prefix)
 
 
+def _ensure_utf8_ctype_locale() -> None:
+    """GNU readline follows LC_CTYPE. C/POSIX makes 8-bit letters Meta keys."""
+    import locale
+
+    try:
+        current = locale.setlocale(locale.LC_CTYPE, None) or ''
+    except Exception:
+        current = ''
+    if 'UTF8' in current.upper().replace('-', ''):
+        return
+    for name in ('', 'C.UTF-8', 'en_US.UTF-8'):
+        try:
+            locale.setlocale(locale.LC_CTYPE, name)
+            check = locale.setlocale(locale.LC_CTYPE, None) or ''
+            if 'UTF8' in check.upper().replace('-', ''):
+                return
+        except locale.Error:
+            continue
+
+
 def configure_readline(
     working_dir: Callable[[], str],
     expand_abbrev: Callable[[str], str],
@@ -296,10 +316,17 @@ def configure_readline(
     if readline is None:
         return False
 
+    _ensure_utf8_ctype_locale()
     readline.set_completer_delims(' \t\n;')
+    # convert-meta On turns UTF-8 ö (C3 B6) into ESC+C and ESC+6, so the
+    # line becomes PRINT "Ty and readline shows (arg: 6).
     for binding in (
         'tab: complete',
         'set show-all-if-ambiguous on',
+        'set convert-meta off',
+        'set input-meta on',
+        'set output-meta on',
+        'set enable-meta-key on',
     ):
         try:
             readline.parse_and_bind(binding)

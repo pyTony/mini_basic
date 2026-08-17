@@ -5245,6 +5245,10 @@ class MiniBASICTests(unittest.TestCase):
             self.assertTrue(ok)
             fake_readline.set_completer_delims.assert_called_once()
             fake_readline.set_completer.assert_called_once()
+            bound = [call.args[0] for call in fake_readline.parse_and_bind.call_args_list]
+            self.assertIn('set convert-meta off', bound)
+            self.assertIn('set input-meta on', bound)
+            self.assertIn('set output-meta on', bound)
             completer = fake_readline.set_completer.call_args[0][0]
             fake_readline.get_line_buffer.return_value = 'LOAD '
             fake_readline.get_endidx.return_value = 6

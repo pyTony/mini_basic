@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from mini_basic import BASICInterpreter, InterpreterConfig
+from mini_basic.repl.posix_input import posix_getwch
 from mini_basic.repl.windows_input import LineEditCancelled, windows_line_edit
 from mini_basic.runtime_parts.helpers import (
     _posix_editing_input,
@@ -23,6 +24,20 @@ pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 class EditCommandTests(unittest.TestCase):
+    def test_posix_getwch_reads_utf8_o_umlaut(self) -> None:
+        """ö is C3 B6; byte-at-a-time raw TTY must not split it."""
+        class _Buf:
+            def __init__(self, data: bytes) -> None:
+                self.data = data
+
+            def read(self, n: int) -> bytes:
+                out, self.data = self.data[:n], self.data[n:]
+                return out
+
+        fake = type('In', (), {'buffer': _Buf('ö'.encode('utf-8'))})()
+        with patch('mini_basic.repl.posix_input.sys.stdin', fake):
+            self.assertEqual(posix_getwch(), 'ö')
+
     def test_line_edit_works_without_msvcrt(self) -> None:
         """Linux EDIT n must not import msvcrt (that hid the prefilled text)."""
         keys = list('\n')
