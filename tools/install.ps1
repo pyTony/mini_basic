@@ -493,6 +493,8 @@ Write-Host "  - Try running the full script once:  & `"$binDir\mini_basic.ps1`" 
 Write-Host "  - Restart Windows Terminal / your terminal app completely, or sign out/in."
 Write-Host ""
 Write-Host "To uninstall later: .\install.ps1 -Uninstall"
+Write-Host "To register .bas as text (Notepad default; avoids Run security prompt):"
+Write-Host "  powershell -File .\tools\register_bas_assoc.ps1"
 Write-Host "To install CLI-only parts explicitly: .\install.ps1 -ArchiveKind cli"
 Write-Host "To move later: move the folder and update the MINIBASIC_DIR env var."
 Write-Host '  [Environment]::SetEnvironmentVariable("MINIBASIC_DIR", "C:\new\path", "User")'
