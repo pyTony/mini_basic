@@ -52,6 +52,8 @@ def cli_help_lines() -> List[str]:
         '  --slow [ms]         pause after each BASIC line (default 50 ms); shows graphics frames',
         '  --tee-terminal      mirror pygame PRINT/INPUT to the terminal',
         '                      (or set _tee_terminal = 1 in the program)',
+        '  --trace             TRACE ON: [line] numbers to stderr (not PRINT)',
+        '                      BBC also: TRACE n / PROC / STEP / TO file; LVAR',
         '  --debug             interpreter debug to stderr + mini_basic.log',
         '  --debug-filter TAG  only lines containing TAG (HELP DEBUG lists tags)',
         '',

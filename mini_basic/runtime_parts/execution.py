@@ -79,6 +79,7 @@ from ..type_system import (
     LoopFrame,
     ProcReturn,
     ProgramExit,
+    ProgramStop,
     UserFunction,
     UserProcedure,
     VarKind,
@@ -1291,6 +1292,8 @@ class RuntimeExecutionMixin:
                 except ProcReturn:
                     return
                 if target == -1:
+                    if getattr(self, 'stopped', False):
+                        raise ProgramStop()
                     raise ValueError('END inside PROC')
                 if target is not None:
                     if target not in body_line_index:
@@ -1391,6 +1394,8 @@ class RuntimeExecutionMixin:
                 except FnReturn as ret:
                     return self._coerce_fn_return(fn, ret.value)
                 if target == -1:
+                    if getattr(self, 'stopped', False):
+                        raise ProgramStop()
                     break
                 if target is not None:
                     if (
@@ -1873,7 +1878,10 @@ class RuntimeExecutionMixin:
             codes = self._parse_vdu_operands(rest)
         except Exception as exc:
             self._runtime_error(
-                self._error_message('? VDU error', exc), line_num, stmt_index)
+                self._error_message(f'? VDU error in {rest!r}', exc),
+                line_num,
+                stmt_index,
+            )
             return
         output: List[str] = []
         index = 0
@@ -2281,12 +2289,41 @@ class RuntimeExecutionMixin:
         top, bottom = min(sy0, sy1), max(sy0, sy1)
         return left, top, max(1, right - left + 1), max(1, bottom - top + 1)
 
+    def _handle_oscli_load_memory(self, rest: str) -> None:
+        """BBCSDL ``LOAD \"file\" hexaddr`` — fill a DIM EXT# heap block."""
+        filename, coords = self._parse_oscli_file_and_coords(rest)
+        if not coords:
+            raise ValueError('LOAD needs a memory address')
+        raw_addr = rest.strip()
+        # Address is the tail after the quoted name; STR$~ emits hex digits.
+        addr = coords[0]
+        tail = raw_addr
+        if '"' in tail:
+            # last token after closing quote
+            q = tail.rfind('"')
+            token = tail[q + 1 :].strip()
+            if token:
+                try:
+                    addr = int(token, 16)
+                except ValueError:
+                    addr = int(float(token))
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self.working_dir, path)
+        with open(os.path.normpath(path), 'rb') as handle:
+            data = handle.read()
+        self._bbc_mem_load(addr, data)
+
     def _handle_oscli_gsave(self, rest: str) -> None:
         """BBCSDL ``GSAVE \"file\" x,y,w,h`` — save graphics rectangle to BMP."""
         filename, coords = self._parse_oscli_file_and_coords(rest)
         if len(coords) < 4:
-            raise ValueError('GSAVE needs x,y,w,h')
-        x, y, w, h = coords[:4]
+            # BBCSDL GSAVE "file" with no rect — whole graphics viewport.
+            w = int(self.config.graphics_width or 640)
+            h = int(self.config.graphics_height or 512)
+            x, y = 0, 0
+        else:
+            x, y, w, h = coords[:4]
         path = filename
         if not os.path.isabs(path):
             path = os.path.join(self.working_dir, path)
@@ -2472,6 +2509,9 @@ class RuntimeExecutionMixin:
             return
         if cmd.startswith('GSAVE'):
             self._handle_oscli_gsave(raw[5:].strip())
+            return
+        if cmd.startswith('LOAD'):
+            self._handle_oscli_load_memory(raw[4:].strip())
             return
         if cmd.startswith('DISPLAY'):
             self._handle_oscli_display(raw[7:].strip())
@@ -3750,6 +3790,8 @@ class RuntimeExecutionMixin:
                 return None
             frame = self.stack[-1]
             condition = rest.strip() or frame.until_condition
+            if condition in ('.',):
+                condition = 'FALSE'
             try:
                 if self._eval_condition(condition):
                     self.stack.pop()
@@ -4059,7 +4101,13 @@ class RuntimeExecutionMixin:
                         )
                 return self._if_finish_branch(line_num, stmt_parts, stmt_index, None)
             if then_kind == 'invalid':
-                self._runtime_error('? IF error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                self._runtime_error(
+                    f'? IF error: not a statement or line number after the condition ({then_code!r})',
+                    line_num,
+                    stmt_index,
+                    stmt_count=stmt_count,
+                    statement=line,
+                )
                 return None
             if then_kind == 'goto':
                 if self._eval_condition(condition):
@@ -4214,10 +4262,13 @@ class RuntimeExecutionMixin:
                         statement=line,
                     )
                 except Exception as exc:
-                    import traceback
-                    traceback.print_exc()
                     self._runtime_error(
-                    self._error_message('? LET error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                        self._error_message('? LET error', exc),
+                        line_num,
+                        stmt_index,
+                        stmt_count=stmt_count,
+                        statement=line,
+                    )
             return None
 
         if cmd == 'DIM':
@@ -4459,6 +4510,49 @@ class RuntimeExecutionMixin:
             except Exception as exc:
                 self._runtime_error(
                     self._error_message('? DRAW error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'LINE':
+            # BBC BASIC V: LINE x1,y1,x2,y2  (MOVE then DRAW). Not LINE INPUT.
+            if re.match(r'^INPUT\b', rest, re.IGNORECASE):
+                self._runtime_error(
+                    '? LINE INPUT is not a BBC statement (use INPUT LINE)',
+                    line_num,
+                    stmt_index,
+                    stmt_count=stmt_count,
+                    statement=line,
+                )
+                return None
+            if not self._graphics_plot_enabled():
+                return None
+            try:
+                rest_strip = rest.strip()
+                to_m = re.match(r'^(.+?)\s+TO\s+(.+)$', rest_strip, re.IGNORECASE)
+                if to_m:
+                    args = self._split_args(to_m.group(1)) + self._split_args(to_m.group(2))
+                else:
+                    args = self._split_args(rest_strip)
+                if len(args) < 4:
+                    raise ValueError('LINE needs x1,y1,x2,y2')
+                x1 = int(self._eval_numeric(args[0]))
+                y1 = int(self._eval_numeric(args[1]))
+                x2 = int(self._eval_numeric(args[2]))
+                y2 = int(self._eval_numeric(args[3]))
+                self._ensure_display()
+                if self._display_enabled():
+                    self._display.move_absolute(x1, y1)
+                    self._display.draw_absolute(x2, y2)
+                    self._sync_graphics()
+            except ProgramExit:
+                raise
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? LINE error', exc),
+                    line_num,
+                    stmt_index,
+                    stmt_count=stmt_count,
+                    statement=line,
+                )
             return None
 
         if cmd == 'PLOT':
@@ -4713,6 +4807,8 @@ class RuntimeExecutionMixin:
                     break
                 if not (self.resume_at and self.resume_at[0] == 0):
                     break
+        except ProgramStop:
+            pass
         except BasicRuntimeError:
             # Error message already printed by _runtime_error. Continue REPL.
             pass
@@ -4727,10 +4823,11 @@ class RuntimeExecutionMixin:
             self._active_statement = ''
 
     def execute_line(self, line_num: int, statement: str, line_nums: List[int]) -> Optional[int]:
-        if self.trace_enabled:
-            out = self._get_program_stdout()
-            out.write(f'[{line_num}]')
-            out.flush()
+        if self._should_trace_line(line_num):
+            # Same channel as dprint / ? diagnostics — not PRINT/pygame.
+            self._emit_trace(f'[{line_num}]')
+            if self._trace_maybe_step(line_num):
+                return -1
         run_error_handler = self._run_error_handler_for_line == line_num
         if run_error_handler:
             self._run_error_handler_for_line = None
@@ -4769,6 +4866,8 @@ class RuntimeExecutionMixin:
                         stmt_label=stmt_label,
                         stmt_parts=stmt_parts,
                     )
+                except ProgramStop:
+                    return -1
                 except BasicRuntimeError:
                     if self._error_trap_enabled() and not self._in_error_handler:
                         self._run_error_handler_for_line = self.error_trap_line

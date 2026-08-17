@@ -218,14 +218,43 @@ def _h_trace(
     statement: str,
     line_nums: List[int],
 ) -> Optional[int]:
-    arg = rest.strip().upper()
-    if arg == 'ON':
-        interp.trace_enabled = True
-    elif arg == 'OFF':
-        interp.trace_enabled = False
-    else:
+    try:
+        interp._configure_trace(rest)
+    except Exception as exc:
         interp._runtime_error(
-            '? TRACE error',
+            interp._error_message('? TRACE error', exc),
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+    return None
+
+
+def _h_lvar(
+    interp: Any,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+    line_nums: List[int],
+) -> Optional[int]:
+    if rest.strip():
+        interp._runtime_error(
+            '? LVAR error',
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+        return None
+    try:
+        interp._list_variables()
+    except Exception as exc:
+        interp._runtime_error(
+            interp._error_message('? LVAR error', exc),
             line_num,
             stmt_index,
             stmt_count=stmt_count,
@@ -394,6 +423,7 @@ SIMPLE_STMT_HANDLERS: Dict[str, SimpleHandler] = {
     'SOUND': _h_sound,
     'ENVELOPE': _h_envelope,
     'TRACE': _h_trace,
+    'LVAR': _h_lvar,
     'WIDTH': _h_width,
     'MOUSE': _h_mouse,
     'KILL': _h_kill,

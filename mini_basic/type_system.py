@@ -30,6 +30,10 @@ class ProgramExit(BaseException):
     """Stop a running BASIC program (typed exit word or EOF/Ctrl+C at INPUT)."""
 
 
+class ProgramStop(BaseException):
+    """STOP / TRACE STEP Escape: unwind PROC/FN back to command mode."""
+
+
 class FnReturn(BaseException):
     """Return from a multi-line DEF FN body (= expression)."""
 

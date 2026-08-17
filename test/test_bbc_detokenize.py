@@ -17,6 +17,7 @@ from mini_basic.bbc_detokenize import (
     detokenize_line_body,
     parse_russell_program,
 )
+from mini_basic import InterpreterConfig
 from mini_basic.runtime import BASICInterpreter
 
 _WHEEL_BBC = os.path.join(_ROOT, 'examples', 'graphics', 'wheel.bbc')
@@ -105,6 +106,41 @@ class BBCTokenizedLoadTests(unittest.TestCase):
         interp.load(path, announce=False)
         self.assertIn(10, interp.program)
         self.assertIn('REM', interp.program[10].upper())
+
+    def test_until_dot_is_until_false(self):
+        """BBCSDL sine.bbc stores forever-loops as UNTIL. (period, not FALSE)."""
+        body = bytes([0xF5, 0x20, 0x0B, 0x20, 0x31, 0x20, 0x3A, 0x20, 0xFD, 0x2E])
+        self.assertEqual(detokenize_line_body(body, fmt='russell'), 'REPEAT WAIT 1 : UNTIL FALSE')
+
+    def test_load_sine_bbc_until_false(self):
+        path = os.path.join(_ROOT, 'examples', 'graphics', 'sine.bbc')
+        if not os.path.isfile(path):
+            self.skipTest('sine.bbc not present')
+        interp = BASICInterpreter()
+        interp.load(path, announce=False)
+        joined = '\n'.join(interp.program[n] for n in sorted(interp.program)).upper()
+        self.assertIn('UNTIL FALSE', joined)
+        self.assertNotIn('UNTIL.', joined.replace(' ', ''))
+
+    def test_until_dot_source_is_not_syntax_error(self):
+        """Typed ``UNTIL.`` (SDL listing) is a forever test, not ``invalid syntax``."""
+        import io
+        from contextlib import redirect_stdout, redirect_stderr
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.set_program_line(10, 'C=0')
+        interp.set_program_line(20, 'REPEAT')
+        interp.set_program_line(30, 'C=C+1: IF C>=3 THEN STOP')
+        interp.set_program_line(40, 'UNTIL.')
+        buf = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+            interp.run()
+        out = buf.getvalue()
+        self.assertNotIn('UNTIL error', out)
+        self.assertNotIn('<string>', out)
+        self.assertEqual(float(interp.variables.get('C', 0)), 3.0)
 
 
 if __name__ == '__main__':

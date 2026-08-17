@@ -22,6 +22,8 @@ def dialect_structure_rows() -> List[MatrixRow]:
         ('COLOUR fg,bg two-arg (SDL)', '-', '-', '-', '-', '+'),
         ('INKEY(-n) scan (SDL)', '-', '-', '-', '-', '+'),
         ('PROC / DEF PROC / ENDPROC', '-', '-', '-', '+', '+'),
+        ('TRACE ON/OFF/n/PROC/STEP/TO', '~', '+', '+', '+', '+'),
+        ('LVAR', '-', '~', '+', '+', '+'),
         ('BREAK / CONTINUE (mini ext)', '-', '-', '-', '-', '+'),
         ('INSTR', '-', '-', '-', '+', '+'),
         ('DEF FN one-line', '+', '+', '+', '+', '+'),

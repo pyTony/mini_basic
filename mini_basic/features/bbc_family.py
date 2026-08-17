@@ -221,6 +221,33 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             'Window close trap (SDL/BB4W)',
         ),
+        (
+            'TRACE ON/OFF/n',
+            '+',
+            '+',
+            '+',
+            '+',
+            '+',
+            'Line numbers on stderr; n = lines below n',
+        ),
+        (
+            'TRACE PROC / STEP / TO',
+            '-',
+            '~',
+            '+',
+            '+',
+            '+',
+            'Beeb MOS: ON/OFF/n only; later BBC adds these',
+        ),
+        (
+            'LVAR',
+            '-',
+            '~',
+            '+',
+            '+',
+            '+',
+            'List vars while stopped; *LVAR on some ROS',
+        ),
         # --- numbers ---
         (
             'Integer % vars',

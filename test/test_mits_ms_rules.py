@@ -106,6 +106,21 @@ def test_input_line_modifier():
         pytest.xfail('INPUT ... LINE var$ not parsed (MBASIC LINE modifier)')
 
 
+def test_implicit_array_dim_ten():
+    """MBASIC: READ A(I) without DIM is DIM A(10)."""
+    interp = _interp()
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        interp.set_program_line(10, 'FOR I=1 TO 3:READ W(I):NEXT')
+        interp.set_program_line(20, 'PRINT W(1);W(2);W(3)')
+        interp.set_program_line(30, 'DATA 7,8,9')
+        interp.set_program_line(40, 'END')
+        interp.run()
+    assert int(getattr(interp, 'error_line_num', 0) or 0) == 0
+    out = buf.getvalue()
+    assert '7' in out and '8' in out and '9' in out
+
+
 def test_oct_dollar():
     interp = _interp()
     assert interp._eval_string_expr('OCT$(8)') == '10'

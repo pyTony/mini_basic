@@ -201,9 +201,14 @@ class RuntimeDialectMixin:
                 default = self.program.get(line_num, '')
                 # Call via helpers module so tests can patch helpers._prompt_editing_input.
                 from . import helpers as _helpers
+                from ..repl.windows_input import LineEditCancelled
                 text = _helpers._prompt_editing_input(f'{line_num} ', default)
+            except LineEditCancelled:
+                print('Cancelled.')
+                break
             except (KeyboardInterrupt, EOFError):
                 print()
+                print('Cancelled.')
                 break
             if not text:
                 break

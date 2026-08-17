@@ -80,6 +80,7 @@ from ..type_system import (
     LoopFrame,
     ProcReturn,
     ProgramExit,
+    ProgramStop,
     UserFunction,
     UserProcedure,
     VarKind,
@@ -106,13 +107,15 @@ class RuntimeDefsMixin:
     """Mixin providing defs-related BASICInterpreter methods."""
 
     def _parse_def_fn_header(self, rest: str) -> UserFunction:
+        # BBC: DEF FNgetbmp  (no ()) and DEF FNfoo(x).
         match = re.match(
-            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*$',
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*(?:\((.*)\))?\s*$',
             rest.strip(),
             flags=re.IGNORECASE,
         )
         if not match:
-            raise ValueError('invalid DEF FN header')
+            got = rest.strip() or '(empty)'
+            raise ValueError(f'need FNname or FNname(args), got {got!r}')
         name = self._normalize_identifier(match.group(1))
         return_suffix = match.group(2)
         return_kind: VarKind = 'float'
@@ -122,7 +125,7 @@ class RuntimeDefsMixin:
             return_kind = 'int'
         params: List[Tuple[str, VarKind]] = []
         array_params: List[str] = []
-        params_text = match.group(3).strip()
+        params_text = (match.group(3) or '').strip()
         if params_text:
             for token in self._split_args(params_text):
                 param_name, param_kind, is_array = self._parse_param_token(token)
@@ -138,7 +141,7 @@ class RuntimeDefsMixin:
 
     def _def_fn_header_return_suffix(self, header_rest: str) -> Optional[str]:
         match = re.match(
-            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\(',
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*(?:\(|$)',
             header_rest.strip(),
             flags=re.IGNORECASE,
         )
@@ -164,14 +167,14 @@ class RuntimeDefsMixin:
 
     def _parse_def_fn_rest(self, rest: str) -> UserFunction:
         match = re.match(
-            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*\((.*)\)\s*=\s*(.+)$',
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*(?:\((.*)\))?\s*=\s*(.+)$',
             rest.strip(),
             flags=re.IGNORECASE,
         )
         if not match:
             raise ValueError('invalid DEF FN syntax')
         fn = self._parse_def_fn_header(
-            f"FN{match.group(1)}{match.group(2) or ''}({match.group(3)})"
+            f"FN{match.group(1)}{match.group(2) or ''}({match.group(3) or ''})"
         )
         body = match.group(4).strip()
         if not body:
@@ -179,7 +182,7 @@ class RuntimeDefsMixin:
         fn.body = body
         self._maybe_infer_fn_return_kind(
             fn,
-            f"FN{match.group(1)}{match.group(2) or ''}({match.group(3)})",
+            f"FN{match.group(1)}{match.group(2) or ''}({match.group(3) or ''})",
             body,
         )
         return fn
@@ -300,6 +303,8 @@ class RuntimeDefsMixin:
         self._array_aliases.update(array_aliases)
         self.proc_stack.append(saved)
         try:
+            if self._trace_call('PROC', proc.name):
+                raise ProgramStop()
             # Same-line prefix on DEF PROC line (e.g. IF A=0 ENDPROC) runs first.
             header = (getattr(proc, 'header_stmt', None) or '').strip()
             if header:

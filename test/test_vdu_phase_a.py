@@ -112,6 +112,30 @@ class VduPhaseATests(unittest.TestCase):
         self.assertEqual(interp.text_col, 0)
         self.assertEqual(interp.text_row, 0)
 
+    def test_bbc_heap_bang_and_query(self):
+        interp = self.make_interp()
+        addr = interp._bbc_alloc(40)
+        interp.int_variables['p%%'] = addr
+        interp._bbc_heap[addr][10:14] = (1234).to_bytes(4, 'little', signed=True)
+        interp._bbc_heap[addr][28] = 24
+        self.assertEqual(int(interp.eval_expr('p%%!10')), 1234)
+        self.assertEqual(int(interp.eval_expr('p%%?28')), 24)
+        self.assertEqual(int(interp.eval_expr('p%%?(20+8)')), 24)
+
+    def test_vdu_bar_terminator_and_expression(self):
+        """snowscene: VDU 23,23,1| and VDU 23,23,1.4^depth%|"""
+        interp = self.make_interp()
+        codes = interp._parse_vdu_operands('23,23,1|')
+        self.assertEqual(codes[:3], [23, 23, 1])
+        self.assertEqual(codes[3:12], [0] * 9)
+        codes = interp._parse_vdu_operands('23,23,1.4^2|')
+        self.assertEqual(codes[0], 23)
+        self.assertEqual(codes[1], 23)
+        self.assertEqual(codes[2], int(1.4 ** 2))
+        with self.assertRaises(ValueError) as ctx:
+            interp._parse_vdu_operands('23,notanumber')
+        self.assertIn('bad operand', str(ctx.exception))
+
 
 if __name__ == '__main__':
     unittest.main()

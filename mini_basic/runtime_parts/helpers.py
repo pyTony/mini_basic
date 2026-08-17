@@ -86,52 +86,59 @@ def _windows_editing_input(
     return _sanitize_basic_source(text)
 
 
+def _posix_editing_input(
+    prompt: str,
+    default: str = '',
+    getwch=None,
+) -> str:
+    """Termux / WSL / Linux: arrow-key editor with prefill (not GNU readline)."""
+    from mini_basic.repl.posix_input import posix_editing_input
+
+    text = posix_editing_input(
+        prompt,
+        default=_sanitize_basic_source(default),
+        getwch=getwch,
+    )
+    return _sanitize_basic_source(text)
+
+
 def _prompt_editing_input(prompt: str, default: str = '') -> str:
     """
     Prompt for editable BASIC source (EDIT, AUTO, bare line number).
 
-    When *default* is non-empty (EDIT n prefill), prefer the Windows msvcrt
-    editor: pyreadline3's startup-hook insert_text is unreliable and often
-    leaves an empty buffer. With no prefill, prefer readline when available.
+    On a TTY, use the native line editor so EDIT n is prefilled and arrow
+    keys work (Windows msvcrt, POSIX termios). GNU readline's insert_text
+    plus redisplay doubles the line on WSL.
     """
     default = _sanitize_basic_source(default)
 
-    # EDIT prefill path — Windows console editor always shows the old line.
-    if default and sys.platform == 'win32' and sys.stdin.isatty():
-        try:
-            return _windows_editing_input(prompt, default)
-        except (ImportError, OSError, ValueError):
-            pass
+    if sys.stdin.isatty():
+        if sys.platform == 'win32':
+            try:
+                return _windows_editing_input(prompt, default)
+            except (ImportError, OSError, ValueError):
+                pass
+        else:
+            try:
+                return _posix_editing_input(prompt, default)
+            except (ImportError, OSError, ValueError):
+                pass
 
-    # Never drive pyreadline/input under pytest capture (non-TTY) — that yields
-    # "pytest: reading from stdin while output is captured".
+    # Do not use GNU readline insert_text for a prefilled EDIT line.
+    # On WSL it paints prompt+buffer twice on one row: 310     WEND310     WEND.
     readline = _get_readline_module()
-    if readline is not None and sys.stdin.isatty():
+    if readline is not None and sys.stdin.isatty() and not default:
 
         def _prefill_hook() -> None:
-            # Keep hook until after insert (clearing first broke some pyreadline3).
-            if default:
-                readline.insert_text(default)
-                if hasattr(readline, 'redisplay'):
-                    try:
-                        readline.redisplay()
-                    except Exception:
-                        pass
+            return None
 
-        # Do not clear_history(): that wiped pastable history when editing lines.
         readline.set_startup_hook(_prefill_hook)
         try:
             return _sanitize_basic_source(input(prompt).rstrip())
         finally:
             readline.set_startup_hook(None)
 
-    if sys.platform == 'win32' and sys.stdin.isatty():
-        try:
-            return _windows_editing_input(prompt, default)
-        except (ImportError, OSError, ValueError):
-            pass
-
-    # Bare input() cannot prefill; edit_line already printed the old text above.
+    # Bare input() cannot prefill; edit_line prints the old text when needed.
     return _sanitize_basic_source(input(prompt).rstrip())
 
 

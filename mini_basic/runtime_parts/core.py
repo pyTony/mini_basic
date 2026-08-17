@@ -79,6 +79,7 @@ from ..type_system import (
     LoopFrame,
     ProcReturn,
     ProgramExit,
+    ProgramStop,
     UserFunction,
     UserProcedure,
     VarKind,
@@ -136,11 +137,19 @@ class RuntimeCoreMixin:
         self.variables: Dict[str, float] = {}
         self.int_variables: Dict[str, int] = {}
         self.str_variables: Dict[str, str] = {}
+        self._bbc_heap: Dict[int, bytearray] = {}
+        self._bbc_heap_next: int = 0x10000
         self.stack: List[LoopFrame] = []
         self.if_stack: List[IfFrame] = []
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
         self.trace_enabled = False
+        self.trace_max_line: Optional[int] = None
+        self.trace_proc = False
+        self.trace_step = False
+        self.trace_step_proc = False
+        self.trace_file: Optional[TextIO] = None
+        self._trace_dirty = False
         self._input_active = False
         self._last_present_time = 0.0
         self._present_min_interval = 1.0 / 20.0
@@ -1413,7 +1422,10 @@ class RuntimeCoreMixin:
         # Comparisons or parenthesized predicates, e.g. (I%AND1)=0
         if re.search(r'(<>|<=|>=|<|>|=)', text):
             return True
-        return bool(re.search(r'\b(AND|OR|NOT|EOR|XOR)\b', text, re.IGNORECASE))
+        if re.search(r'\b(AND|OR|NOT|EOR|XOR)\b', text, re.IGNORECASE):
+            return True
+        # BBCSDL: IF POS  (evaluate POS as the condition; no THEN / body)
+        return True
 
     def _if_error_detail(self, rest: str) -> str:
         """Extra hint for common compact-IF mistakes (esp. DEF FN returns)."""
@@ -1438,7 +1450,11 @@ class RuntimeCoreMixin:
                     'IF needs THEN before =return '
                     '(use: IF cond THEN =expr)'
                 )
-        return 'IF error'
+        preview = text if len(text) <= 48 else text[:45] + '...'
+        return (
+            'IF error: need THEN or a statement after the condition '
+            f'({preview!r})'
+        )
 
     def _init_time_clock(self) -> None:
         """Start or restart the BBC-style centisecond clock at zero."""
@@ -2101,6 +2117,8 @@ class RuntimeCoreMixin:
         self.int_variables.clear()
         self.str_variables.clear()
         self.array_storage.clear()
+        self._bbc_heap.clear()
+        self._bbc_heap_next = 0x10000
         self.data_pointer = 0
         self._rnd_last = 0.0
         self._refresh_enabled = True
@@ -2162,12 +2180,15 @@ class RuntimeCoreMixin:
         except KeyboardInterrupt:
             self._run_aborted = True
             print('\nGoodbye!')
+        except ProgramStop:
+            pass
         except BasicRuntimeError:
             # BASIC runtime error (including unknown statements) was already printed by _runtime_error.
             # Do not let the Python exception leak as a traceback to the user.
             pass
         finally:
             self._run_interrupt_watch = False
+            self._trace_finish_line()
             self._flush_program_output()
             if not self.stopped:
                 self._close_file_channels()
@@ -2208,11 +2229,14 @@ class RuntimeCoreMixin:
         except KeyboardInterrupt:
             self._run_aborted = True
             print('\nGoodbye!')
+        except ProgramStop:
+            pass
         except BasicRuntimeError:
             # Error already printed
             pass
         finally:
             self._run_interrupt_watch = False
+            self._trace_finish_line()
             self._flush_program_output()
             if not self.stopped:
                 self._close_file_channels()
@@ -2320,6 +2344,8 @@ class RuntimeCoreMixin:
         self.int_variables.clear()
         self.str_variables.clear()
         self.array_storage.clear()
+        self._bbc_heap.clear()
+        self._bbc_heap_next = 0x10000
         self.struct_defs.clear()
         self.struct_members.clear()
         self.data_items.clear()
@@ -2349,6 +2375,12 @@ class RuntimeCoreMixin:
         self.option_base = 0
         self.default_var_types.clear()
         self._close_file_channels()
+        self._close_trace_file()
+        self.trace_enabled = False
+        self.trace_max_line = None
+        self.trace_proc = False
+        self.trace_step = False
+        self.trace_step_proc = False
         self._clear_stop_state()
         if clear_loaded_filename:
             self.loaded_filename = None
@@ -2450,17 +2482,23 @@ class RuntimeCoreMixin:
         indent = self.line_indent.get(line_num, 0)
         indent_text = ' ' * indent
         number_field = self._format_line_number(line_num, True)
-        if current is not None:
-            print(f'{number_field}{indent_text}{current}')
-        else:
+        # Never LIST the line before the editor. A preview plus readline
+        # insert_text/redisplay triples it on WSL:
+        #   "   310     WEND" then "310     WEND310     WEND".
+        if current is None:
             print(f'{number_field}(new line)')
         try:
             default = f'{indent_text}{current}' if current else ''
             # Call via helpers module so tests can patch helpers._prompt_editing_input.
             from . import helpers as _helpers
+            from ..repl.windows_input import LineEditCancelled
             text = _helpers._prompt_editing_input(f'{line_num} ', default)
+        except LineEditCancelled:
+            print('Cancelled.')
+            return
         except (KeyboardInterrupt, EOFError):
             print()
+            print('Cancelled.')
             return
         if not text:
             # Empty Enter: cancel edit — leave existing line unchanged (do not delete).

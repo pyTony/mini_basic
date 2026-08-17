@@ -19,6 +19,10 @@ import time
 from typing import Callable, List, Optional, Tuple
 
 from ..type_system import ProgramExit
+
+
+class LineEditCancelled(Exception):
+    """Esc or Ctrl+C abandoned an EDIT/AUTO line; do not store the buffer."""
 from .completion import (
     TabCompletionCycle,
     accept_unique_completion,
@@ -80,7 +84,7 @@ def parse_special_key(getwch, prefix: str) -> Optional[str]:
 
     try:
         second = getwch()
-    except (EOFError, OSError):
+    except (EOFError, OSError, IndexError, StopIteration):
         return None
 
     # ESC O H / F = home/end (application mode)
@@ -104,7 +108,7 @@ def parse_special_key(getwch, prefix: str) -> Optional[str]:
     while True:
         try:
             ch = getwch()
-        except (EOFError, OSError):
+        except (EOFError, OSError, IndexError, StopIteration):
             return None
         # CSI params are digits (and ';'); final byte is a letter or '~'.
         # Do not treat ';' as a terminator — it separates multi-param sequences
@@ -304,6 +308,43 @@ def _is_editable_char(ch: str) -> bool:
     return True
 
 
+def _live_tty_getwch(getwch) -> bool:
+    """True when *getwch* reads the real console (not a test stub)."""
+    if getwch is None:
+        return True
+    name = getattr(getwch, '__name__', '')
+    return name in ('getwch', 'getch', 'posix_getwch')
+
+
+def _stdin_escape_pending(timeout: float = 0.06) -> bool:
+    """True if more bytes follow ESC (arrow / CSI), else a lone Esc key."""
+    if sys.platform == 'win32':
+        try:
+            import msvcrt
+
+            deadline = time.perf_counter() + timeout
+            while time.perf_counter() < deadline:
+                if msvcrt.kbhit():
+                    return True
+                time.sleep(0.005)
+            return False
+        except Exception:
+            return False
+    try:
+        import select
+
+        ready, _, _ = select.select([sys.stdin], [], [], timeout)
+        return bool(ready)
+    except Exception:
+        return False
+
+
+def _cancel_line_edit() -> None:
+    sys.stdout.write('\n')
+    sys.stdout.flush()
+    raise LineEditCancelled()
+
+
 def windows_line_edit(
     prompt: str,
     *,
@@ -315,6 +356,7 @@ def windows_line_edit(
     expand_abbrev: Optional[Callable[[str], str]] = None,
     use_history: bool = True,
     use_completion: bool = False,
+    escape_cancels: bool = False,
 ) -> str:
     """Shared Windows line editor for REPL and AUTO/EDIT prompts."""
     import msvcrt
@@ -362,7 +404,12 @@ def windows_line_edit(
             if not msvcrt.kbhit():
                 time.sleep(0.005)
                 continue
-        key = getwch()
+        try:
+            key = getwch()
+        except KeyboardInterrupt:
+            if escape_cancels:
+                _cancel_line_edit()
+            raise
 
         # Enter
         if key in ('\r', '\n'):
@@ -377,6 +424,8 @@ def windows_line_edit(
             return line.rstrip()
 
         if key == '\x03':
+            if escape_cancels:
+                _cancel_line_edit()
             raise KeyboardInterrupt
 
         # Ctrl+A / Ctrl+E
@@ -429,8 +478,18 @@ def windows_line_edit(
             continue
 
         if key in ('\x00', '\xe0', '\x1b'):
-            action = parse_special_key(getwch, key)
+            if key == '\x1b' and escape_cancels:
+                if _live_tty_getwch(getwch) and not _stdin_escape_pending():
+                    _cancel_line_edit()
+            try:
+                action = parse_special_key(getwch, key)
+            except KeyboardInterrupt:
+                if escape_cancels:
+                    _cancel_line_edit()
+                raise
             if action is None:
+                if escape_cancels and key == '\x1b':
+                    _cancel_line_edit()
                 continue
             if action == 'up' and use_history and history:
                 if hist_index == -1:
@@ -510,10 +569,12 @@ def windows_editing_input(
         getwch=getwch,
         use_history=False,
         use_completion=False,
+        escape_cancels=True,
     )
 
 
 __all__ = [
+    'LineEditCancelled',
     'windows_repl_input',
     'windows_editing_input',
     'windows_line_edit',

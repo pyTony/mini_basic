@@ -116,11 +116,11 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
     _RE_COND_NE = _RE_COND_NE
     _RE_COND_EQ = _RE_COND_EQ
     _RE_PARSE_CMD = re.compile(
-        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|OFF|ON|MOVE|DRAW|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE)\s*(.*)$',
+        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE)\s*(.*)$',
         re.IGNORECASE,
     )
     _RE_PARSE_CMD_BBC = re.compile(
-        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|OFF|ON|MOVE|DRAW|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE)\s*(.*)$',
+        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE)\s*(.*)$',
     )
     _RE_PROC_CALL = _RE_PROC_CALL
     _RE_DEF_PROC = _RE_DEF_PROC
@@ -215,7 +215,7 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE', 'CIRCLE', 'MOUSE',
         'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW',
         'ORIGIN', 'PLOT', 'SPRITEDEF', 'SPRITE', 'STOP', 'OSCLI', 'CHAIN', 'RUN', 'WAIT',
-        'KILL', 'ERASE',
+        'KILL', 'ERASE', 'LINE', 'TRACE', 'LVAR',
     )
     _GLUABLE_AFTER_KEYWORDS = frozenset([
         'FOR', 'LET', 'DIM', 'READ', 'INPUT', 'LOCAL', 'DEF', 'PROC', 'FN',
@@ -565,6 +565,8 @@ def _print_dialect_compatibility_matrix() -> None:
         ('COLOUR fg,bg two-arg (SDL)', '-', '-', '-', '-', '+'),
         ('INKEY(-n) key scan (SDL)', '-', '-', '-', '-', '+'),
         ('PROC / DEF PROC / ENDPROC', '-', '-', '-', '+', '+'),
+        ('TRACE ON/OFF/n/PROC/STEP/TO', '~', '+', '+', '+', '+'),
+        ('LVAR', '-', '~', '+', '+', '+'),
         ('BREAK / CONTINUE (mini ext)', '-', '-', '-', '-', '+'),
         ('INSTR', '-', '-', '-', '+', '+'),
         ('DEF FN one-line', '+', '+', '+', '+', '+'),
@@ -699,12 +701,17 @@ def _execute_repl_line(interp: BASICInterpreter, text: str) -> bool:
     elif u.startswith('EDIT'):
         target = _parse_edit_command(text)
         if target is None:
-            print('? EDIT line   (or bare EDIT for usage)')
+            print('? EDIT line   (or bare EDIT for the system editor)')
         elif target == -1:
-            # No full-screen BBC editor: usage + LIST (see edit_program).
-            interp.edit_program()
+            try:
+                interp.edit_program()
+            except KeyboardInterrupt:
+                print('\nCancelled.')
         else:
-            interp.edit_line(target)
+            try:
+                interp.edit_line(target)
+            except KeyboardInterrupt:
+                print('\nCancelled.')
     elif re.match(r'^DIALECT\b', text, re.IGNORECASE):
         try:
             parsed = _parse_dialect_repl_command(text)

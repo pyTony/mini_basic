@@ -821,6 +821,16 @@ class TestIfColonTail(unittest.TestCase):
         self.assertNotIn("?", out)
         self.assertEqual(out.strip().splitlines()[-1].strip(), "0|0")
 
+    def test_if_pos_bare_condition_is_not_if_error(self):
+        """BBCSDL snowscene: IF POS : REM  (POS is the condition)."""
+        out = self._run([
+            'IF POS : REM SDL thread sync',
+            'PRINT "ok"',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        self.assertIn('ok', out)
+
     def test_compact_if_true_runs_colon_tail(self):
         out = self._run([
             "M=0:N=0",

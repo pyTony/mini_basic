@@ -133,11 +133,226 @@ class RuntimeProgramMixin:
         err = getattr(self, '_program_stderr', None)
         return err if err is not None else sys.stderr
 
+    def _trace_stream(self) -> TextIO:
+        """TRACE destination: TRACE TO file, else stderr (not PRINT)."""
+        handle = getattr(self, 'trace_file', None)
+        if handle is not None:
+            return handle
+        return self._get_error_stream()
+
+    def _emit_trace(self, text: str) -> None:
+        try:
+            stream = self._trace_stream()
+            stream.write(text)
+            stream.flush()
+            self._trace_dirty = True
+        except Exception:
+            pass
+
+    def _trace_finish_line(self) -> None:
+        if not getattr(self, '_trace_dirty', False):
+            return
+        try:
+            self._trace_stream().write('\n')
+            self._trace_stream().flush()
+        except Exception:
+            pass
+        self._trace_dirty = False
+
+    def _close_trace_file(self) -> None:
+        self._trace_finish_line()
+        handle = getattr(self, 'trace_file', None)
+        self.trace_file = None
+        if handle is None:
+            return
+        try:
+            handle.close()
+        except Exception:
+            pass
+
+    def _should_trace_line(self, line_num: int) -> bool:
+        if not getattr(self, 'trace_enabled', False):
+            return False
+        if line_num <= 0:
+            return False
+        limit = getattr(self, 'trace_max_line', None)
+        if limit is not None and line_num >= limit:
+            return False
+        return True
+
+    def _trace_step_pause(self) -> str:
+        """Wait for a key after a traced line. Returns ``stop`` on Escape."""
+        hook = getattr(self, '_trace_step_hook', None)
+        if hook is not None:
+            result = hook()
+            return 'stop' if result == 'stop' else 'ok'
+        self._flush_program_output()
+        try:
+            if self._display_enabled():
+                code = self._read_get_char()
+                return 'stop' if code == 27 else 'ok'
+        except Exception:
+            pass
+        try:
+            if not sys.stdin.isatty():
+                return 'ok'
+        except Exception:
+            return 'ok'
+        try:
+            code = self._read_get_char()
+            return 'stop' if code == 27 else 'ok'
+        except Exception:
+            return 'ok'
+
+    def _trace_maybe_step(self, line_num: int, *, proc_entry: bool = False) -> bool:
+        """Pause if TRACE STEP applies. True when the run should break."""
+        if not getattr(self, 'trace_step', False):
+            return False
+        if self.trace_step_proc and not proc_entry:
+            return False
+        if not proc_entry and not self._should_trace_line(line_num):
+            return False
+        if self._trace_step_pause() != 'stop':
+            return False
+        line_nums = sorted(self.program.keys()) or [0]
+        self._save_stop_position(line_num, 0, 1, line_nums)
+        print(f'Break in {line_num}')
+        return True
+
+    def _trace_call(self, kind: str, name: str) -> bool:
+        """TRACE PROC: emit PROCname / FNname. True if STEP should break."""
+        if not getattr(self, 'trace_proc', False):
+            return False
+        token = 'PROC' if kind.upper() == 'PROC' else 'FN'
+        self._emit_trace(f'{token}{name}')
+        line_num = getattr(self, '_active_line_num', 0) or 0
+        return self._trace_maybe_step(line_num, proc_entry=True)
+
+    def _open_trace_file(self, spec: str) -> None:
+        spec = spec.strip()
+        if not spec:
+            raise ValueError('missing filename')
+        if spec[:1] in '"\'' or '$' in spec:
+            path = self._eval_string_expr(spec)
+        else:
+            path = _parse_path_arg(spec)
+        if not path:
+            raise ValueError('missing filename')
+        if not os.path.isabs(path):
+            path = os.path.normpath(os.path.join(self.working_dir, path))
+        else:
+            path = os.path.normpath(path)
+        self._close_trace_file()
+        self.trace_file = open(path, 'w', encoding='utf-8', newline='\n')
+
+    def _configure_trace(self, rest: str) -> None:
+        arg = rest.strip()
+        if not arg:
+            raise ValueError('ON, OFF, n, PROC, STEP, or TO file')
+        upper = arg.upper()
+        if upper == 'ON':
+            self.trace_enabled = True
+            self.trace_max_line = None
+            return
+        if upper == 'OFF':
+            self.trace_enabled = False
+            self.trace_max_line = None
+            self.trace_proc = False
+            self.trace_step = False
+            self.trace_step_proc = False
+            self._close_trace_file()
+            return
+        if upper == 'CLOSE':
+            self._close_trace_file()
+            return
+        if upper == 'PROC':
+            self.trace_proc = True
+            return
+        if upper == 'STEP' or upper.startswith('STEP '):
+            step_arg = arg[4:].strip()
+            self.trace_step = True
+            if not step_arg:
+                self.trace_enabled = True
+                self.trace_step_proc = False
+                return
+            if step_arg.upper() == 'PROC':
+                self.trace_proc = True
+                self.trace_step_proc = True
+                return
+            self.trace_enabled = True
+            self.trace_step_proc = False
+            self.trace_max_line = int(self._eval_numeric(step_arg))
+            return
+        if upper == 'TO' or upper.startswith('TO '):
+            self._open_trace_file(arg[2:].strip())
+            self.trace_enabled = True
+            return
+        self.trace_enabled = True
+        self.trace_max_line = int(self._eval_numeric(arg))
+
+    def _lvar_kind_suffix(self, kind: str) -> str:
+        if kind == 'int':
+            return '%'
+        if kind == 'str':
+            return '$'
+        return ''
+
+    def _lvar_lines(self) -> List[str]:
+        """BBC-style LVAR listing: scalars with values, arrays, FN/PROC names."""
+        self._ensure_definitions_current()
+        lines: List[str] = []
+        scalars: List[Tuple[str, str]] = []
+        for name, value in self.int_variables.items():
+            shown = name if name.endswith(('%', '&')) or '%%' in name else f'{name}%'
+            try:
+                text = self._format_stored_int(value)
+            except Exception:
+                text = str(value)
+            scalars.append((shown, text))
+        for name, value in self.variables.items():
+            try:
+                text = self._format_number(value)
+            except Exception:
+                text = str(value)
+            scalars.append((name, text))
+        for name, value in self.str_variables.items():
+            shown = name if name.endswith('$') else f'{name}$'
+            escaped = str(value).replace('"', '""')
+            scalars.append((shown, f'"{escaped}"'))
+        for shown, text in sorted(scalars, key=lambda item: item[0].upper()):
+            lines.append(f'{shown} = {text}')
+        arrays: List[str] = []
+        for (base, kind), storage in self.array_storage.items():
+            bounds, _lower, _data = storage
+            dims = ','.join(str(b) for b in bounds)
+            arrays.append(f'{base}{self._lvar_kind_suffix(kind)}({dims})')
+        for item in sorted(arrays, key=str.upper):
+            lines.append(item)
+        names: List[str] = []
+        for name in self.user_functions:
+            names.append(f'FN{name}')
+        for name in self.user_procedures:
+            names.append(f'PROC{name}')
+        for item in sorted(names, key=str.upper):
+            lines.append(item)
+        return lines
+
+    def _list_variables(self) -> None:
+        text = '\n'.join(self._lvar_lines())
+        if text:
+            self._print_program_text(text, newline=True)
+        else:
+            self._print_program_text('', newline=True)
+
     @staticmethod
     def _format_exc_detail(exc: Optional[BaseException]) -> str:
         if exc is None:
             return ''
         detail = str(exc).strip()
+        # compile() tags the snippet ``(<string>, line 1)``. On a narrow
+        # pygame window that wraps through the title (sine.bbc) and looks
+        # like the file name was split. Not a BASIC name.
+        detail = re.sub(r'\s*\(<string>, line \d+\)', '', detail).strip()
         return detail if detail else type(exc).__name__
 
     def _error_message(self, prefix: str, exc: Optional[BaseException] = None) -> str:
@@ -177,21 +392,34 @@ class RuntimeProgramMixin:
             part = part.strip()
             if not part:
                 continue
-            if ';' in part:
-                for word in part.split(';'):
-                    word = word.strip()
-                    if not word:
-                        continue
-                    number = int(self._eval_numeric(word))
-                    values.append(number & 0xFF)
-                    values.append((number >> 8) & 0xFF)
-            else:
-                number = int(self._eval_numeric(part))
-                if number > 255:
-                    values.append(number & 0xFF)
-                    values.append((number >> 8) & 0xFF)
+            # BBC `|` in VDU: nine CHR$(0) (pads/ends a VDU 23 sequence).
+            # snowscene: VDU 23,23,1|  and  VDU 23,23,1.4^depth%|
+            pad_zeros = part.endswith('|')
+            if pad_zeros:
+                part = part[:-1].rstrip()
+            if not part and pad_zeros:
+                values.extend([0] * 9)
+                continue
+            try:
+                if ';' in part:
+                    for word in part.split(';'):
+                        word = word.strip()
+                        if not word:
+                            continue
+                        number = int(self._eval_numeric(word))
+                        values.append(number & 0xFF)
+                        values.append((number >> 8) & 0xFF)
                 else:
-                    values.append(number & 0xFF)
+                    number = int(self._eval_numeric(part))
+                    if number > 255:
+                        values.append(number & 0xFF)
+                        values.append((number >> 8) & 0xFF)
+                    else:
+                        values.append(number & 0xFF)
+            except Exception as exc:
+                raise ValueError(f'bad operand {part!r}') from exc
+            if pad_zeros:
+                values.extend([0] * 9)
         return values
 
     def _indent_width(self, text: str) -> int:
@@ -2046,7 +2274,7 @@ class RuntimeProgramMixin:
             if not self._identifiers_case_sensitive():
                 bit_flags |= re.IGNORECASE
             bit_m = re.match(
-                r'^(OR|AND|EOR|XOR)\s*=\s*(.+)$',
+                r'^(OR|AND|EOR|XOR|DIV|MOD)\s*=\s*(.+)$',
                 rest,
                 flags=bit_flags,
             )
@@ -2326,28 +2554,220 @@ class RuntimeProgramMixin:
             return int(numbered.group(1)), numbered.group(2)
         return default_num, raw
 
-    def edit_program(self):
-        """Bare EDIT (no line number).
+    def _choose_external_editor(self) -> Optional[List[str]]:
+        """VISUAL / EDITOR, then notepad (Windows) or nano/vim/vi."""
+        import shutil
 
-        mini_basic does not implement BBC BASIC's full-screen program editor.
-        EDIT without a line is therefore not a multi-line "EDIT>" mode — that
-        duplicated typing numbered lines at the main prompt and was confusing.
+        configured = (os.environ.get('VISUAL') or os.environ.get('EDITOR') or '').strip()
+        if configured:
+            import shlex
 
-        Useful forms:
-          EDIT n     prefilled single-line edit (cursor/word keys on Windows)
-          AUTO [n]   sequential new lines with automatic numbers
-          10 PRINT…  store/replace a line at the normal > prompt
-          10         delete line 10 at the > prompt
-          LIST       show the program
-        """
-        print('EDIT needs a line number (BBC full-screen EDIT is not available).')
-        print('  EDIT n     edit one line (prefilled; empty Enter cancels)')
-        print('  AUTO [n]   enter new lines with automatic numbers')
-        print('  10 PRINT…  type numbered lines at the > prompt to store')
-        print('  10         bare line number at > deletes that line')
-        print('  LIST       show the program')
-        print('  HELP PROGRAM   LOAD / SAVE / LIST / AUTO details')
-        if self.program:
+            posix = os.name != 'nt'
+            try:
+                cmd = shlex.split(configured, posix=posix)
+            except ValueError:
+                cmd = [configured]
+            if cmd:
+                resolved = shutil.which(cmd[0])
+                if resolved:
+                    return [resolved, *cmd[1:]]
+                if os.path.isfile(cmd[0]):
+                    return cmd
+                return None
+
+        if sys.platform == 'win32':
+            notepad = shutil.which('notepad') or shutil.which('notepad.exe')
+            if notepad:
+                return [notepad]
+            return None
+
+        for name in ('nano', 'vim', 'vi', 'sensible-editor', 'editor'):
+            found = shutil.which(name)
+            if found:
+                return [found]
+        return None
+
+    def _launch_external_editor(self, path: str) -> bool:
+        """Open *path* in the system editor and wait. False if it could not start."""
+        import subprocess
+
+        cmd = self._choose_external_editor()
+        if not cmd:
+            print('? no editor (set EDITOR or VISUAL)')
+            print('  EDIT n     edit one line (prefilled; arrows move in the text)')
+            return False
+        try:
+            status = subprocess.call([*cmd, path])
+        except OSError as exc:
+            print(f'? cannot start editor: {exc}')
+            return False
+        return status == 0 or os.path.isfile(path)
+
+    def _write_program_for_edit(self, path: str) -> str:
+        """Dump current memory for an external editor (does not change SAVE name)."""
+        case_fold = self._detokenize_fold()
+        if self._program_source_numbered is False:
+            lines = self._program_display_lines(
+                'pretty',
+                include_line_numbers=False,
+                case_fold=case_fold,
+            )
+        else:
+            lines = []
+            for num in sorted(self.program):
+                indent = ' ' * self.line_indent.get(num, 0)
+                lines.append(
+                    f'{self._format_line_number(num, True)}'
+                    f'{indent}{self.format_list_line(self.program[num])}'
+                )
+        text = ''.join(f'{line}\n' for line in lines)
+        with open(path, 'w', encoding='utf-8', newline='\n') as handle:
+            handle.write(text)
+        return text
+
+    def _program_edit_snapshot(self) -> Tuple[Tuple[int, int, str], ...]:
+        return tuple(
+            (num, self.line_indent.get(num, 0), self.program[num])
+            for num in sorted(self.program)
+        )
+
+    @staticmethod
+    def _normalize_edit_text(text: str) -> str:
+        return text.replace('\r\n', '\n').replace('\r', '\n')
+
+    @staticmethod
+    def _decode_edit_file_bytes(data: bytes) -> str:
+        """Notepad may rewrite the temp file as UTF-8 BOM or UTF-16."""
+        if data.startswith(b'\xff\xfe') or data.startswith(b'\xfe\xff'):
+            return data.decode('utf-16')
+        if data.startswith(b'\xef\xbb\xbf'):
+            return data[3:].decode('utf-8')
+        try:
+            return data.decode('utf-8')
+        except UnicodeDecodeError:
+            return data.decode('utf-16')
+
+    def _read_edit_file_text(self, path: str) -> Optional[str]:
+        try:
+            with open(path, 'rb') as handle:
+                data = handle.read()
+        except OSError as exc:
+            self._emit_error(f'? EDIT: cannot read editor file ({exc})')
+            return None
+        try:
+            return self._decode_edit_file_bytes(data)
+        except UnicodeDecodeError as exc:
+            self._emit_error(f'? EDIT: editor file is not readable text ({exc})')
+            return None
+
+    def _apply_edited_source(self, text: str) -> bool:
+        """Replace memory from editor text. False leaves the previous program."""
+        from ..dialect_hint import split_dialect_hints
+
+        saved_name = self.loaded_filename
+        if not text.strip():
+            self.new(announce=False, clear_loaded_filename=False)
+            self.loaded_filename = saved_name
+            print('Program cleared.')
+            return True
+
+        raw_lines = text.splitlines(keepends=True)
+        raw_lines, hint = split_dialect_hints(raw_lines)
+        if hint is not None:
+            self._apply_dialect_hint(hint, announce=False)
+        parsed = self._parse_program_file(raw_lines)
+        if parsed is None:
+            self._emit_error('? EDIT: could not parse editor text (program unchanged)')
+            return False
+        parsed_lines, source_was_numbered = parsed
+        if not parsed_lines:
+            self.new(announce=False, clear_loaded_filename=False)
+            self.loaded_filename = saved_name
+            print('Program cleared.')
+            return True
+        if not self._validate_program_dialect(
+            parsed_lines, source_was_numbered, announce=False,
+        ):
+            self._emit_error('? EDIT: dialect check failed (program unchanged)')
+            return False
+
+        self.new(announce=False, clear_loaded_filename=False)
+        self._program_source_numbered = source_was_numbered
+        for line_num, statement, indent in parsed_lines:
+            self.set_program_line(line_num, statement, indent)
+        self.loaded_filename = saved_name
+        count = len(self.program)
+        noun = 'line' if count == 1 else 'lines'
+        print(f'Reloaded {count} {noun} from editor.')
+        if saved_name:
+            self._sync_display_caption(os.path.basename(saved_name))
+        return True
+
+    def _real_program_file(self) -> Optional[str]:
+        """LOAD/SAVE path, or None when the session only exists in memory/tmp."""
+        name = (self.loaded_filename or '').strip()
+        if not name:
+            return None
+        base = os.path.basename(name)
+        if base.startswith('mb_edit_') and base.lower().endswith('.bas'):
+            return None
+        return name
+
+    def _prompt_save_after_edit(self) -> None:
+        """Ask before writing the real file; EDIT itself only touched a temp."""
+        real = self._real_program_file()
+        try:
+            if real:
+                answer = input(f'Save changes to {real}? (Y/N) ').strip()
+            else:
+                answer = input(
+                    'Save as (filename, or Enter to keep in memory only): '
+                ).strip()
+        except (KeyboardInterrupt, EOFError):
             print()
-            self.list_program()
+            print('Kept in memory only. SAVE writes the file later.')
+            return
+        if real:
+            if answer.lower() in ('y', 'yes'):
+                self.save(real)
+            else:
+                print('Kept in memory only. SAVE writes the file later.')
+            return
+        if answer:
+            self.save(answer)
+        else:
+            print('Kept in memory only.')
+
+    def edit_program(self):
+        """Bare EDIT: open the current program in the system text editor, then reload.
+
+        Writes a temp ``.bas``, waits for the editor, then replaces memory from
+        that file. If the program came from a real LOAD/SAVE name, ask before
+        writing that file. If there is no real file, offer Save as.
+        """
+        import tempfile
+
+        fd, path = tempfile.mkstemp(prefix='mb_edit_', suffix='.bas')
+        os.close(fd)
+        try:
+            written = self._write_program_for_edit(path)
+            if not self._launch_external_editor(path):
+                return
+            if not os.path.isfile(path):
+                self._emit_error('? EDIT: editor file disappeared (program unchanged)')
+                return
+            text = self._read_edit_file_text(path)
+            if text is None:
+                return
+            if self._normalize_edit_text(text) == self._normalize_edit_text(written):
+                print('No changes.')
+                return
+            if not self._apply_edited_source(text):
+                return
+            self._prompt_save_after_edit()
+        finally:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
 

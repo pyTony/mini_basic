@@ -193,6 +193,9 @@ def detokenize_line_body(body: bytes, *, fmt: str = 'wilson') -> str:
         index += 1
 
     result = ''.join(out).rstrip()
+    # BBCSDL lists forever-loops as ``UNTIL.`` (period in the token stream, not
+    # the FALSE keyword). Same meaning as ``UNTIL FALSE``.
+    result = re.sub(r'\bUNTIL\s*\.\s*$', 'UNTIL FALSE', result, flags=re.IGNORECASE)
     # Normalize compound assignments (combined LET / op=) to clean form like "a -= "
     result = re.sub(r'([A-Za-z0-9_])\s*-\s*=\s*', r'\1 -= ', result)
     result = re.sub(r'([A-Za-z0-9_])\s*\+\s*=\s*', r'\1 += ', result)

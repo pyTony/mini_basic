@@ -63,6 +63,30 @@ class UnknownSyntaxTests(unittest.TestCase):
         self.assertIn('? Unknown statement: FOO', out)
         self.assertIn('at line 10', out.lower())
 
+    def test_trace_writes_stderr_not_stdout(self) -> None:
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.trace_enabled = True
+        interp.set_program_line(10, 'PRINT "ok"')
+        interp.set_program_line(20, 'END')
+        out = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            interp.run()
+        self.assertIn('ok', out.getvalue())
+        self.assertNotIn('[10]', out.getvalue())
+        self.assertIn('[10]', err.getvalue())
+
+    def test_compile_error_omits_python_string_locus(self) -> None:
+        """``(<string>, line 1)`` must not appear — it wraps through the window title."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        detail = interp._format_exc_detail(SyntaxError('invalid syntax (<string>, line 1)'))
+        self.assertNotIn('<string>', detail)
+        self.assertIn('invalid syntax', detail)
+
     def test_on_error_traps_unknown(self) -> None:
         out = self._run(
             [

@@ -34,6 +34,7 @@ from ..expr.patterns import (
     RE_DYNAMIC_CALL_REMAINS as _RE_DYNAMIC_CALL_REMAINS,
     RE_FILE_FUNC as _RE_FILE_FUNC,
     RE_FILE_FUNC_BBC as _RE_FILE_FUNC_BBC,
+    PROC_FN_NAME_PATTERN as _PROC_FN_NAME_PATTERN,
     RE_FN_CALL as _RE_FN_CALL,
     RE_FUNC_CALL as _RE_FUNC_CALL,
     RE_HAS_LETTER as _RE_HAS_LETTER,
@@ -79,6 +80,7 @@ from ..type_system import (
     LoopFrame,
     ProcReturn,
     ProgramExit,
+    ProgramStop,
     UserFunction,
     UserProcedure,
     VarKind,
@@ -864,6 +866,15 @@ class RuntimeExprMixin:
     def _resolve_array_key(self, base: str, kind: VarKind) -> Tuple[str, VarKind]:
         return self._array_aliases.get((base, kind), (base, kind))
 
+    def _ensure_implicit_array(self, base: str, kind: VarKind, rank: int) -> None:
+        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis)."""
+        if rank < 1:
+            raise ValueError('unknown array')
+        key = self._resolve_array_key(base, kind)
+        if key in self.array_storage:
+            return
+        self._store_array(base, kind, [10] * rank)
+
     def _get_array_storage_entry(self, base: str, kind: VarKind) -> ArrayStorage:
         key = self._resolve_array_key(base, kind)
         if key not in self.array_storage:
@@ -921,6 +932,7 @@ class RuntimeExprMixin:
             raise ValueError("Out of memory") from exc
         
     def _array_get(self, base: str, kind: VarKind, indices: List[int]) -> object:
+        self._ensure_implicit_array(base, kind, len(indices))
         key = self._resolve_array_key(base, kind)
         if key not in self.array_storage:
             raise ValueError('unknown array')
@@ -937,6 +949,7 @@ class RuntimeExprMixin:
         return obj
 
     def _array_set(self, base: str, kind: VarKind, indices: List[int], value: object) -> None:
+        self._ensure_implicit_array(base, kind, len(indices))
         key = self._resolve_array_key(base, kind)
         if key not in self.array_storage:
             raise ValueError('unknown array')
@@ -1521,6 +1534,8 @@ class RuntimeExprMixin:
         saved_array_aliases = dict(self._array_aliases)
         self._array_aliases.update(array_aliases)
         try:
+            if self._trace_call('FN', fn.name):
+                raise ProgramStop()
             if fn.multiline:
                 return self._run_user_function_body(fn)
             if self._fn_direct_eval:
@@ -1548,6 +1563,14 @@ class RuntimeExprMixin:
             self._array_aliases = saved_array_aliases
 
     def _expand_fn_calls(self, expr: str) -> str:
+        # BBC: FNgetbmp  (no ()) for a no-arg FN. Do not touch FNfoo(.
+        expr = re.sub(
+            rf'(?<![A-Za-z0-9_])(FN_?\s*{_PROC_FN_NAME_PATTERN}(?:%|\$)?)'
+            rf'(?![A-Za-z0-9_%$])(?!\s*\()',
+            r'\1()',
+            expr,
+            flags=re.IGNORECASE,
+        )
         fn_re = self._RE_FN_CALL
         while fn_re.search(expr):
             innermost = None
@@ -2278,10 +2301,120 @@ class RuntimeExprMixin:
             raise ValueError('invalid DIM syntax')
         for decl in decls:
             d = decl.strip()
+            if self._dim_heap_ext(d):
+                continue
             if '{' in d:
                 self._dim_structure(d)
             else:
                 self._dim_single_array(decl)
+
+    def _bbc_alloc(self, size: int) -> int:
+        n = max(1, int(size))
+        addr = int(self._bbc_heap_next)
+        self._bbc_heap[addr] = bytearray(n)
+        self._bbc_heap_next = addr + n + 16
+        return addr
+
+    def _bbc_ptr_key(self, base: str, suffix: str) -> str:
+        name = self._normalize_identifier(base)
+        return name + '%%' if suffix == '%%' else name
+
+    def _bbc_ptr_value(self, base: str, suffix: str) -> int:
+        return int(self.int_variables.get(self._bbc_ptr_key(base, suffix), 0))
+
+    def _bbc_mem_block(self, addr: int) -> Optional[bytearray]:
+        if addr in self._bbc_heap:
+            return self._bbc_heap[addr]
+        for start, block in self._bbc_heap.items():
+            if start <= addr < start + len(block):
+                return block
+        return None
+
+    def _bbc_mem_i(self, addr: int, offset: int, width: int) -> int:
+        block = self._bbc_mem_block(addr)
+        if block is None:
+            raise ValueError(f'bad pointer {addr}')
+        # Offset is from the block base (BBC p%%!10 means byte 10 of the block).
+        base = addr if addr in self._bbc_heap else next(
+            s for s in self._bbc_heap if s <= addr < s + len(self._bbc_heap[s])
+        )
+        pos = (addr - base) + int(offset)
+        if pos < 0 or pos + width > len(block):
+            raise ValueError('pointer out of range')
+        if width == 1:
+            return block[pos]
+        return int.from_bytes(block[pos : pos + width], 'little', signed=True)
+
+    def _bbc_mem_load(self, addr: int, data: bytes) -> None:
+        block = self._bbc_heap.get(addr)
+        if block is None:
+            raise ValueError(f'bad pointer {addr}')
+        n = min(len(block), len(data))
+        block[:n] = data[:n]
+
+    def _dim_heap_ext(self, decl: str) -> bool:
+        """DIM p%% EXT#ch — allocate a heap block the size of an open file."""
+        match = re.match(
+            rf'^({self._VAR_BASE_PATTERN})(%%|%)\s+(EXT\s*#\s*.+)$',
+            decl.strip(),
+            flags=re.IGNORECASE,
+        )
+        if not match:
+            return False
+        size_expr = self._expand_file_channel_hash_funcs(match.group(3).strip())
+        size = int(self._eval_numeric(size_expr))
+        addr = self._bbc_alloc(size)
+        self.int_variables[self._bbc_ptr_key(match.group(1), match.group(2))] = addr
+        return True
+
+    def _expand_bbc_indirection(self, expr: str) -> str:
+        """p%%!10 / p%%?28 / p%%?(expr) before %% is substituted to 0."""
+        if '!' not in expr and '?' not in expr:
+            return expr
+        flags = self._identifier_re_flags()
+        qparen = re.compile(
+            rf'({self._VAR_BASE_PATTERN})(%%|%)\s*\?\s*\(',
+            flags,
+        )
+        while True:
+            match = qparen.search(expr)
+            if match is None:
+                break
+            paren_end = self._match_paren(expr, match.end() - 1)
+            if paren_end is None or paren_end < 0:
+                break
+            offset = int(self._eval_numeric(expr[match.end() : paren_end]))
+            addr = self._bbc_ptr_value(match.group(1), match.group(2))
+            expr = (
+                expr[: match.start()]
+                + str(self._bbc_mem_i(addr, offset, 1))
+                + expr[paren_end + 1 :]
+            )
+        expr = re.sub(
+            rf'({self._VAR_BASE_PATTERN})(%%|%)\s*!\s*(-?\d+)',
+            lambda m: str(
+                self._bbc_mem_i(
+                    self._bbc_ptr_value(m.group(1), m.group(2)),
+                    int(m.group(3)),
+                    4,
+                )
+            ),
+            expr,
+            flags=flags,
+        )
+        expr = re.sub(
+            rf'({self._VAR_BASE_PATTERN})(%%|%)\s*\?\s*(-?\d+)',
+            lambda m: str(
+                self._bbc_mem_i(
+                    self._bbc_ptr_value(m.group(1), m.group(2)),
+                    int(m.group(3)),
+                    1,
+                )
+            ),
+            expr,
+            flags=flags,
+        )
+        return expr
 
     def _dim_structure(self, decl: str) -> None:
         """Support BBCSDL record structure variables: DIM name{member1, member2%, sub{...}, arr(3)}"""
@@ -2771,6 +2904,7 @@ class RuntimeExprMixin:
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
+        expr = self._expand_bbc_indirection(expr)
         expr = self._substitute_boolean_literals(expr)
         expr = self._unglue_monadic_expr(expr)
         if self._expr_has_boolean_syntax(expr):
@@ -2925,7 +3059,11 @@ class RuntimeExprMixin:
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
+        expr = self._expand_bbc_indirection(expr)
         expr = self._unglue_monadic_expr(expr)
+        # Compiled eval does not subst NAME%%; FNgetbmp's ``= p%%`` became 0.
+        if '%%' in expr:
+            return self._eval_numeric_slow(expr)
         if self.config.use_compiled_exprs:
             cached = self._compiled_expr_cache.get((expr, False))
             if cached is not None and cached.code is not None and not cached.use_fallback:
@@ -3285,6 +3423,16 @@ class RuntimeExprMixin:
             value = current * delta
         elif op == '/=':
             value = current / delta
+        elif op == 'DIV=':
+            rhs = int(delta)
+            if rhs == 0:
+                raise ValueError('division by zero')
+            value = int(current) // rhs
+        elif op == 'MOD=':
+            rhs = int(delta)
+            if rhs == 0:
+                raise ValueError('division by zero')
+            value = int(current) % rhs
         elif op in ('OR=', 'AND=', 'EOR=', 'XOR='):
             cur = int(self._coerce_int_storage(current))
             rhs = int(self._coerce_int_storage(delta))

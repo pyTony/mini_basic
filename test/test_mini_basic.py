@@ -1537,26 +1537,18 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(buf.getvalue(), '')
 
     def test_prompt_editing_input_prefills_program_line(self):
-        """Linux/readline path: startup hook inserts default (non-Windows)."""
+        """Linux TTY: POSIX editor gets the prefill (not GNU readline)."""
         from mini_basic.runtime_parts.helpers import _prompt_editing_input as helpers_prompt
 
-        fake_readline = MagicMock()
-        fake_readline.get_current_history_length.return_value = 1
-        fake_readline.get_history_item.return_value = 'RUN'
         with patch('mini_basic.runtime_parts.helpers.sys.platform', 'linux'):
             with patch('mini_basic.runtime_parts.helpers.sys.stdin.isatty', return_value=True):
                 with patch(
-                    'mini_basic.runtime_parts.helpers._get_readline_module',
-                    return_value=fake_readline,
-                ):
-                    with patch('builtins.input', return_value='PRINT "new"'):
-                        result = helpers_prompt('50 ', 'PRINT "old"')
+                    'mini_basic.runtime_parts.helpers._posix_editing_input',
+                    return_value='PRINT "new"',
+                ) as posix_edit:
+                    result = helpers_prompt('50 ', 'PRINT "old"')
         self.assertEqual(result, 'PRINT "new"')
-        # Must not wipe history when prefilling EDIT/AUTO (paste + ↑ still work).
-        fake_readline.clear_history.assert_not_called()
-        prefill_hook = fake_readline.set_startup_hook.call_args_list[0][0][0]
-        prefill_hook()
-        fake_readline.insert_text.assert_called_with('PRINT "old"')
+        posix_edit.assert_called_once_with('50 ', 'PRINT "old"')
 
     def test_edit_line_uses_program_line_as_default(self):
         interp = self.make_interp()
@@ -1680,18 +1672,25 @@ class MiniBASICTests(unittest.TestCase):
         win_edit.assert_called_once_with('10 ', 'PRINT 0')
 
     def test_edit_program_bare_lists_usage_and_program(self):
+        """Bare EDIT writes the program to a temp file and reloads after the editor."""
         interp = self.make_interp()
         interp.program[10] = 'PRINT 1'
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            interp.edit_program()
-        out = buf.getvalue()
-        self.assertIn('EDIT needs a line number', out)
-        self.assertIn('EDIT n', out)
-        self.assertIn('PRINT 1', out)
-        # Bare EDIT no longer enters a multi-line EDIT> store loop.
-        self.assertEqual(interp.program[10], 'PRINT 1')
-        self.assertNotIn(20, interp.program)
+        interp.loaded_filename = 'game.bas'
+
+        def fake_edit(path):
+            with open(path, encoding='utf-8') as handle:
+                self.assertIn('PRINT 1', handle.read())
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write('20 PRINT 2\n')
+            return True
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            with patch.object(interp, '_launch_external_editor', side_effect=fake_edit):
+                with patch('builtins.input', return_value='n'):
+                    interp.edit_program()
+        self.assertEqual(interp.program.get(20), 'PRINT 2')
+        self.assertNotIn(10, interp.program)
+        self.assertEqual(interp.loaded_filename, 'game.bas')
 
     def test_gosub_return(self):
         lines = [
@@ -2930,6 +2929,16 @@ class MiniBASICTests(unittest.TestCase):
             (30, "END"),
         ]
         self.assertEqual(self.run_program(lines), "42")
+
+    def test_def_fn_no_parens_header_and_call(self):
+        """BBCSDL snowscene: DEF FNgetbmp / bmp%% = FNgetbmp (no ())."""
+        lines = [
+            (10, "PRINT FNpi"),
+            (20, "END"),
+            (30, "DEF FNpi"),
+            (40, "= 3"),
+        ]
+        self.assertEqual(self.run_program(lines), "3")
 
     def test_def_fn_two_params(self):
         lines = [
