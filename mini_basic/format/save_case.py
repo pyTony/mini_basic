@@ -188,9 +188,9 @@ def space_expr_segment(segment: str, fold: Fold = 'none') -> str:
     segment = re.sub(r'=\s*(["\'])', r'= \1', segment)
     # Keep compound assign glued. Pre-fix SAVE emitted ``I% + = 1``.
     segment = re.sub(r'([+\-*/])\s+=', r'\1=', segment)
-    # * / only — % is type suffix / binary, not spaced as operator here
+    # * / only — % $ ! # are type suffixes (PX%*2), not spaced as operators.
     segment = re.sub(r'([\w)])([*/])', r'\1 \2', segment)
-    segment = re.sub(r'([*/])([\w(])', r'\1 \2', segment)
+    segment = re.sub(r'(?<![%$!#])([*/])([\w(])', r'\1 \2', segment)
     segment = re.sub(r'([\w)])([+\-])(?=[\w(])', r'\1 \2 ', segment)
     segment = re.sub(r'(?<![=<>!+\-*/])\s*=\s*(?!=)', ' = ', segment)
     segment = re.sub(r'\s+', ' ', segment)

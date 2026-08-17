@@ -51,6 +51,20 @@ class SaveCaseFormatTests(unittest.TestCase):
             'IF Y$ <> "N" 15',
         )
 
+    def test_type_suffix_multiply_stays_glued(self) -> None:
+        """LIST must not turn ``PX%*2`` into ``PX%* 2`` (space only after *)."""
+        from mini_basic.format.save_case import space_expr_segment
+
+        self.assertEqual(space_expr_segment('PX%*2'), 'PX%*2')
+        self.assertEqual(space_expr_segment('PY%*2'), 'PY%*2')
+        self.assertEqual(space_expr_segment('n%/2'), 'n%/2')
+        self.assertEqual(space_expr_segment('n%*m%'), 'n%*m%')
+        self.assertEqual(space_expr_segment('PX% * 2'), 'PX% * 2')
+        self.assertEqual(
+            format_program_line('RECTANGLE FILL PX%*2, PY%*2, BW%, BH%', 'none'),
+            'RECTANGLE FILL PX%*2, PY%*2, BW%, BH%',
+        )
+
 
 class SaveCaseIntegrationTests(unittest.TestCase):
     def test_save_upper_in_bbc_dialect(self):
