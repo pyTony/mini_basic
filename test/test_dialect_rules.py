@@ -180,6 +180,16 @@ def test_if_goto_rejected_on_bbc_and_tiny() -> None:
     assert ok_mini
 
 
+def test_if_then_goto_allowed_on_bbc() -> None:
+    """Traditional BBC: IF cond THEN GOTO n (RACE.BBC)."""
+    src = '10 IF 1 THEN GOTO 30\n20 PRINT 0\n30 PRINT 1\n40 END\n'
+    ok, out, _ = _load_text('bbc', src, strict=True)
+    assert ok, out
+    printed, interp = _run_lines('bbc', [(10, 'IF 1 THEN GOTO 30'), (20, 'PRINT 0'), (30, 'PRINT 1'), (40, 'END')])
+    assert '1' in printed
+    assert '0' not in printed.splitlines()[0] if printed else True
+
+
 def test_if_then_line_rejected_only_on_tiny() -> None:
     src = '10 IF 1 THEN 30\n20 PRINT 0\n30 END\n'
     ok_tiny, out_tiny, _ = _load_text('tiny', src, strict=True)
