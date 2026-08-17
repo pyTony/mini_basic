@@ -95,6 +95,7 @@ Legacy names `mini_basic_text_part*.txt` are still accepted as a fallback (treat
    mini_basic --display none examples\mini\hello_args.bas
    # graphics install (pygame): MODE 9 Mandelbrot lives in basics/, not examples/
    mini_basic --pygame --dialect bbc basics\mand_mode9_and.bas
+   mini_basic --pygame --dialect bbc basics\jclock.bas
    ```
 
 ### Uninstall
