@@ -14,6 +14,7 @@ from mini_basic.display import (
     colour_to_rgb,
     count_framebuffer_pixels,
     create_display,
+    desktop_size,
 )
 
 pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
@@ -21,6 +22,14 @@ pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
 
 
 class DisplayTests(unittest.TestCase):
+    def test_desktop_size_uses_largest_display(self):
+        pygame = type('P', (), {})()
+        pygame.display = type('D', (), {
+            'get_desktop_sizes': staticmethod(lambda: [(1280, 720), (1920, 1080)]),
+            'Info': staticmethod(lambda: type('I', (), {'current_w': 800, 'current_h': 600})()),
+        })()
+        self.assertEqual(desktop_size(pygame), (1920, 1080))
+
     def test_null_display_is_noop(self):
         display = NullDisplay()
         display.begin_run()
@@ -174,6 +183,31 @@ class DisplayTests(unittest.TestCase):
         interp._ensure_display()
         self.assertTrue(interp._display.is_open)
         interp._shutdown_display(hold=False)
+
+    def test_mode9_default_scale_is_2x_on_1080p_windows(self):
+        """WSL and native Windows should both keep default 2x on a 1080p desk."""
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
+            with mock.patch('mini_basic.display.sys.platform', 'win32'):
+                display = PygameDisplay(
+                    graphics_width=640,
+                    graphics_height=512,
+                    scale=2,
+                    scale_locked=False,
+                )
+                display.begin_run()
+                display.set_mode(9)
+                self.assertEqual(display.scale, 2)
+                self.assertEqual(display._screen.get_size(), (1280, 1024))
+                display.end_run()
 
     def test_pygame_scale_locked_honours_cli_scale(self):
         try:

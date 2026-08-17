@@ -1031,10 +1031,11 @@ class PygameDisplay(DisplayBackend):
         screen_w, screen_h = desktop_size(pygame)
         win_w = w + _WINDOW_CHROME_WIDTH
         win_h = h + _TITLE_BAR_ESTIMATE + _WINDOW_MARGIN
-        if sys.platform == 'win32' and win_h > int(screen_h * 0.92):
-            return False
+        # Do not apply a 92% height cutoff on Windows. Default 2x MODE 8/9 is
+        # 1280x1024; plus chrome that is 1072px, and 1072 > 1080*0.92 (=993)
+        # forced 1x while WSL (no cutoff) kept 2x on the same monitor.
         if not hasattr(pygame, 'Window'):
-            return win_h <= screen_h and win_w <= screen_w
+            return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
         try:
             window = pygame.Window.from_display_module()
             x, y = window.position
@@ -2100,11 +2101,23 @@ class PygameDisplay(DisplayBackend):
 
 
 def desktop_size(pygame) -> Tuple[int, int]:
-    sizes = pygame.display.get_desktop_sizes()
-    if sizes:
-        return sizes[0]
-    info = pygame.display.Info()
-    return info.current_w or 1920, info.current_h or 1080
+    """Largest connected desktop, so a small display[0] does not force 1x."""
+    candidates: List[Tuple[int, int]] = []
+    try:
+        sizes = pygame.display.get_desktop_sizes()
+        if sizes:
+            candidates.extend((int(w), int(h)) for w, h in sizes if w and h)
+    except Exception:
+        pass
+    try:
+        info = pygame.display.Info()
+        if info.current_w and info.current_h:
+            candidates.append((int(info.current_w), int(info.current_h)))
+    except Exception:
+        pass
+    if not candidates:
+        return 1920, 1080
+    return max(candidates, key=lambda pair: pair[0] * pair[1])
 
 
 def fit_display_scale(
