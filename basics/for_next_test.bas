@@ -1,6 +1,0 @@
-    10 FOR Y=1 TO 3
-    20 FOR X=1 TO 5
-    30 PRINT X;
-    40 NEXT X
-    50 PRINT
-    60 NEXT Y

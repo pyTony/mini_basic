@@ -1,8 +1,0 @@
-10 DEF FNfact(n)
-20 IF n<2 THEN
-30 =1
-40 ELSE
-50 =n*FNfact(n-1)
-60 ENDIF
-70 END DEF
-80 PRINT FNfact(10)
