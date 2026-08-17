@@ -1252,15 +1252,9 @@ class RuntimeIoMixin:
                 return self._ansi_goto(row, col)
             column = int(self._eval_numeric(args[0]))
             target = max(0, column - 1)
-            self._ensure_display()
-            if self._display_enabled():
-                if self.print_column > target:
-                    self._print_finish_line()
-                    self._display.newline()
-                self.print_column = target
-                self.text_col = target
-                self._display.goto(self.text_row, target)
-                return ''
+            # Always emit spaces. Display-enabled TAB used to goto() and
+            # return ''; the whole PRINT was then written from that cursor
+            # (bacarrat: "BANKERPLAYER" starting at column 20).
             parts: List[str] = []
             if self.print_column > target:
                 parts.append('\n')

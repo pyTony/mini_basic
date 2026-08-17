@@ -2991,11 +2991,63 @@ class MiniBASICTests(unittest.TestCase):
     def test_rnd_zero_repeats(self):
         lines = [
             (10, "LET S = RND(-99)"),
-            (20, "LET A = RND"),
+            (20, "LET A = RND(1)"),
             (30, "IF A = RND(0) THEN PRINT 1 ELSE PRINT 0"),
             (40, "END"),
         ]
         self.assertEqual(self.run_program(lines), "1")
+
+    def test_rnd_negative_returns_seed(self):
+        lines = [
+            (10, 'PRINT RND(-42)'),
+            (20, 'END'),
+        ]
+        self.assertEqual(self.run_program(lines), '-42')
+
+    def test_rnd_bare_is_32bit_integer(self):
+        lines = [
+            (10, 'LET S = RND(-7)'),
+            (20, 'FOR I = 1 TO 20'),
+            (30, 'LET X = RND'),
+            (40, 'IF X <> INT(X) THEN PRINT "frac"'),
+            (50, 'IF X < -2147483648 THEN PRINT "low"'),
+            (60, 'IF X > 4294967295 THEN PRINT "high"'),
+            (70, 'NEXT I'),
+            (80, 'PRINT "ok"'),
+            (90, 'END'),
+        ]
+        self.assertEqual(self.run_program(lines), 'ok')
+
+    def test_rnd_zero_is_unit_after_bare(self):
+        """RND(0) is last draw in RND(1) form, not the bare 32-bit integer."""
+        lines = [
+            (10, 'LET S = RND(-3)'),
+            (20, 'LET A = RND'),
+            (30, 'LET U = RND(0)'),
+            (40, 'IF U < 0 OR U >= 1 THEN PRINT "range"'),
+            (50, 'IF U = A THEN PRINT "same"'),
+            (60, 'PRINT "ok"'),
+            (70, 'END'),
+        ]
+        self.assertEqual(self.run_program(lines), 'ok')
+
+    def test_rnd_neg_time_seeds(self):
+        lines = [
+            (10, 'LET S = RND(-TIME)'),
+            (20, 'IF S <> -TIME THEN PRINT "bad" ELSE PRINT "ok"'),
+            (30, 'END'),
+        ]
+        self.assertEqual(self.run_program(lines), 'ok')
+
+    def test_bbc_randomize_rejected(self):
+        out = self.run_program(
+            [
+                (10, 'RANDOMIZE 1'),
+                (20, 'END'),
+            ],
+            dialect='bbc',
+        )
+        self.assertIn('RANDOMIZE', out)
 
     def test_print_spc_and_tab(self):
         lines = [
@@ -3043,6 +3095,23 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('KING', out)
         self.assertIn('ACE', out)
         self.assertNotIn('subscript', out.lower())
+
+    def test_glued_tab_columns_on_terminal_after_tab(self):
+        """After PRINT TAB, mid-line TAB must pad, not glue BANKERPLAYER."""
+        interp = self.make_interp(dialect='mits', display='terminal')
+        interp.program[10] = 'PRINT TAB(26);"BACCARAT"'
+        interp.program[20] = 'PRINT "BANKER"TAB(20)"PLAYER"'
+        interp.program[30] = 'PRINT "NINE OF HEARTS"TAB(20)"JACK OF CLUBS"'
+        interp.program[40] = 'END'
+        with redirect_stdout(io.StringIO()):
+            interp.run()
+        rows = [''.join(cell[0] for cell in row) for row in interp._display._text]
+        header = next(row for row in rows if 'BANKER' in row)
+        cards = next(row for row in rows if 'NINE OF HEARTS' in row)
+        self.assertNotIn('BANKERPLAYER', header)
+        self.assertGreaterEqual(header.index('PLAYER'), 19)
+        self.assertEqual(header.index('BANKER'), 0)
+        self.assertGreaterEqual(cards.index('JACK'), 19)
 
     def test_print_comma_empty_field(self):
         lines = [
