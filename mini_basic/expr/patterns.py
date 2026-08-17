@@ -37,7 +37,8 @@ RE_PROC_CALL_REST = re.compile(
 
 # Arithmetic and condition normalisation.
 RE_MOD = re.compile(r'\bMOD\b', re.IGNORECASE)
-RE_INT_DIV = re.compile(r'(?<=[\d.)])\s*\\\s*(?=[\d.(])')
+# After a value; allow unary +/- on the right (MBASIC ``10 \ -3``).
+RE_INT_DIV = re.compile(r'(?<=[\d.)])\s*\\\s*(?=[\d.(+\-])')
 RE_TIME = re.compile(r'\bTIME\b', re.IGNORECASE)
 RE_HAS_LETTER = re.compile(r'[A-Za-z]')
 RE_COND_NE = re.compile(r'<>')
@@ -53,7 +54,7 @@ RE_ARRAY_HEAD = re.compile(
 
 # String builtin calls with parentheses.
 RE_FUNC_CALL = re.compile(
-    r'(CHR\$|STR\$|STR\$~|HEX\$|BIN\$|STRING\$|SPACE\$|INKEY\$|GET\$|MKI\$|MKS\$|MKD\$|ASC|LEFT\$|RIGHT\$|'
+    r'(CHR\$|STR\$|STR\$~|HEX\$|OCT\$|BIN\$|STRING\$|SPACE\$|INKEY\$|GET\$|MKI\$|MKS\$|MKD\$|ASC|LEFT\$|RIGHT\$|'
     r'MID\$|UCASE\$|LCASE\$|ANSI\$|FG\$|BG\$|RGB\$|BGRGB\$|RESET\$|ARG\$)\s*\(',
     re.IGNORECASE,
 )

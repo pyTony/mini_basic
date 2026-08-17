@@ -1835,6 +1835,14 @@ class RuntimeIoMixin:
         except Exception as exc:
             self._emit_error(f'Save failed: {type(exc).__name__}: {exc}')
 
+    def _kill_file(self, rest: str) -> None:
+        """MS BASIC KILL — delete a file in the working directory."""
+        filename = self._eval_string_arg(rest)
+        path = self.resolve_path(filename)
+        if not os.path.isfile(path):
+            raise ValueError(f'file not found ({filename})')
+        os.remove(path)
+
     def load(self, filename, *, announce: bool = True) -> bool:
         """Load a BASIC program from disk.
 

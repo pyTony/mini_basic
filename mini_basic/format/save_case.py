@@ -32,12 +32,13 @@ _STMT_KEYWORDS = (
     'ORIGIN', 'PLOT', 'SPRITEDEF', 'SPRITE', 'STOP', 'OSCLI', 'WAIT',
     'TO', 'STEP', 'THEN', 'MOD', 'AND', 'OR', 'NOT', 'TRUE', 'FALSE',
     'ON', 'ERROR', 'OFF', 'OPEN', 'FIELD', 'GET', 'PUT', 'LSET', 'RSET',
+    'KILL', 'ERASE',
     'OPTION', 'BASE', 'RANDOMIZE', 'DEFINT', 'DEFSNG', 'DEFDBL', 'DEFSTR',
     'INT', 'SNG', 'DBL', 'STR',
 )
 
 _STRING_BUILTINS = (
-    'CHR$', 'STR$', 'HEX$', 'BIN$', 'STRING$', 'SPACE$', 'INKEY$', 'MKI$', 'MKS$', 'MKD$',
+    'CHR$', 'STR$', 'HEX$', 'OCT$', 'BIN$', 'STRING$', 'SPACE$', 'INKEY$', 'MKI$', 'MKS$', 'MKD$',
     'ASC', 'LEFT$', 'RIGHT$', 'MID$', 'UCASE$', 'LCASE$', 'ANSI$', 'FG$', 'BG$',
     'RGB$', 'BGRGB$', 'RESET$', 'ARG$', 'OPENIN', 'OPENOUT',
 )

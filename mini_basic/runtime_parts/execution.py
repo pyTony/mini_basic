@@ -2512,8 +2512,18 @@ class RuntimeExecutionMixin:
         if not rest:
             self._runtime_error('? CHAIN error: missing filename', line_num, stmt_index)
             return
+        parts = self._split_args(rest)
+        filename_expr = (parts[0] if parts else '').strip()
+        start_expr = parts[1].strip() if len(parts) >= 2 else ''
+        flag_expr = parts[2].strip() if len(parts) >= 3 else ''
+        keep_all = False
+        if start_expr.upper() == 'ALL' and not flag_expr:
+            keep_all = True
+            start_expr = ''
+        elif flag_expr.upper() == 'ALL':
+            keep_all = True
         try:
-            filename = self._eval_string_arg(rest)
+            filename = self._eval_string_arg(filename_expr)
         except Exception as exc:
             self._runtime_error(
                 self._error_message('? CHAIN error', exc), line_num, stmt_index
@@ -2531,12 +2541,59 @@ class RuntimeExecutionMixin:
                 f'? CHAIN error: file not found ({path})', line_num, stmt_index
             )
             return
-        self.load(path, announce=False)
-        if not self.program:
+        start_line = None
+        if start_expr:
+            try:
+                start_line = int(self._eval_numeric(start_expr))
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? CHAIN error', exc), line_num, stmt_index
+                )
+                return
+        saved = None
+        if keep_all:
+            saved = (
+                dict(self.variables),
+                dict(self.int_variables),
+                dict(self.str_variables),
+                dict(self.array_storage),
+                dict(self.default_var_types),
+                self.option_base,
+            )
+        if not self.load(path, announce=False):
+            if saved is not None:
+                (
+                    self.variables,
+                    self.int_variables,
+                    self.str_variables,
+                    self.array_storage,
+                    self.default_var_types,
+                    self.option_base,
+                ) = (
+                    saved[0],
+                    saved[1],
+                    saved[2],
+                    saved[3],
+                    saved[4],
+                    saved[5],
+                )
             self._runtime_error(
                 f'? CHAIN error: no program loaded from {path}', line_num, stmt_index
             )
             return
+        if saved is not None:
+            self.variables.clear()
+            self.variables.update(saved[0])
+            self.int_variables.clear()
+            self.int_variables.update(saved[1])
+            self.str_variables.clear()
+            self.str_variables.update(saved[2])
+            self.array_storage.clear()
+            self.array_storage.update(saved[3])
+            self.default_var_types.clear()
+            self.default_var_types.update(saved[4])
+            self.option_base = saved[5]
+        self._chain_start_line = start_line
         raise ChainTransfer()
 
     def _handle_gfx_proc_stub(self, name: str, args_str: str, line_num: int, stmt_index: int) -> None:
@@ -4855,7 +4912,13 @@ class RuntimeExecutionMixin:
                     self._close_file_channels()
                     self._prepare_run()
                     self._ensure_display()
-                    i = 0
+                    start = getattr(self, '_chain_start_line', None)
+                    self._chain_start_line = None
+                    if start is not None:
+                        next_index = self._run_line_index.get(start)
+                        i = 0 if next_index is None else next_index
+                    else:
+                        i = 0
                     same_line_target = None
                     same_line_count = 0
         except ProgramExit:

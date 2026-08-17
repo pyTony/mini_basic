@@ -559,6 +559,8 @@ class RuntimeExprMixin:
             if len(args) > 1:
                 text = self._pad_base_digits(text, self._eval_numeric(args[1]))
             return text
+        if func == 'OCT$':
+            return self._bbc_oct_string(self._eval_numeric(args[0]))
         if func == 'BIN$':
             text = self._bbc_bin_string(self._eval_numeric(args[0]))
             if len(args) > 1:
@@ -644,7 +646,7 @@ class RuntimeExprMixin:
         # Convert to CHR$(65) form so the parenthesized call logic below can
         # expand it. Only do this when the "arg" does not look like the start of
         # another call (to avoid breaking CHR$ASC( without outer parens).
-        for f in ('CHR$', 'STR$', 'HEX$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$'):
+        for f in ('CHR$', 'STR$', 'HEX$', 'OCT$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$'):
             pat = re.compile(
                 rf'(?<![A-Za-z0-9_]){re.escape(f)}\s*(?!\()',
                 re.IGNORECASE,
@@ -1065,7 +1067,7 @@ class RuntimeExprMixin:
             return 'float'
         upper = expr.lstrip().upper()
         for func in (
-            'CHR$', 'STR$', 'STR$~', 'HEX$', 'BIN$', 'STRING$', 'LEFT$', 'RIGHT$', 'MID$', 'LOWER$',
+            'CHR$', 'STR$', 'STR$~', 'HEX$', 'OCT$', 'BIN$', 'STRING$', 'LEFT$', 'RIGHT$', 'MID$', 'LOWER$',
             'UPPER$', 'LCASE$', 'UCASE$', 'SPACE$', 'REVERSE$', 'REPT$',
             'VAL$', 'GUID$', 'MODE$', 'INKEY$', 'GET$', 'TIME$', 'REPORT$',
             'ARG$', '@DIR$', '@LIB$', '@USR$',
@@ -1351,12 +1353,26 @@ class RuntimeExprMixin:
             if abs(fval) >= 1e15:
                 return float(floored)
             return int(floored)
-        if func == 'SNG':
+        if func == 'FIX':
+            # MS BASIC: truncate toward 0 (INT floors).
+            if isinstance(value, int) and not isinstance(value, bool):
+                return int(value)
+            fval = float(value)
+            if not math.isfinite(fval):
+                return fval
+            truncated = math.trunc(fval)
+            if abs(fval) >= 1e15:
+                return float(truncated)
+            return int(truncated)
+        if func == 'CINT':
+            # MS BASIC: round to nearest integer (half away from 0).
+            return self._coerce_int_storage(value)
+        if func in ('CSNG', 'SNG'):
             try:
                 return struct.unpack('<f', struct.pack('<f', float(value)))[0]
             except OverflowError:
                 return math.copysign(float('inf'), float(value))
-        if func in ('DBL', 'FLOAT'):
+        if func in ('CDBL', 'DBL', 'FLOAT'):
             return float(value)
         if func == 'CVI':
             return self._cvi_value(arg)
@@ -2243,6 +2259,19 @@ class RuntimeExprMixin:
         else:
             self.str_variables.pop(base, None)
 
+    def _erase_arrays(self, rest: str) -> None:
+        """MS BASIC ERASE — undimension arrays so DIM can reuse the name."""
+        tokens = self._split_args(rest)
+        names = [token.strip() for token in tokens if token.strip()]
+        if not names:
+            raise ValueError('ERASE needs an array name')
+        for name in names:
+            base, kind = self._parse_var_token(name)
+            key = self._resolve_array_key(base, kind)
+            if key not in self.array_storage:
+                raise ValueError(f'unknown array {name}')
+            del self.array_storage[key]
+
     def _dim_array(self, rest: str) -> None:
         decls = self._split_dim_decls(rest.strip())
         if not decls:
@@ -2848,10 +2877,18 @@ class RuntimeExprMixin:
         )
         expr = re.sub(rad, r'\1(RAD(\2))', expr, flags=flags)
         alts = '|'.join(self._MONADIC_NUMERIC_UNGLUE_FUNCS)
-        bare = (
-            rf'(?<![A-Za-z0-9_])({alts})([A-Za-z_][\w%]*)'
-            rf'(?![A-Za-z0-9_$(])'
-        )
+        # Fold/MS long names: EXPECTED is a variable, not EXP(ECTED).
+        # BBC case-sensitive still allows ABSX → ABS(X).
+        if flags:
+            bare = (
+                rf'(?<![A-Za-z0-9_])({alts})([A-Za-z][0-9]*[%$!#]?)'
+                rf'(?![A-Za-z0-9_$(])'
+            )
+        else:
+            bare = (
+                rf'(?<![A-Za-z0-9_])({alts})([A-Za-z_][\w%]*)'
+                rf'(?![A-Za-z0-9_$(])'
+            )
         num = (
             rf'(?<![A-Za-z0-9_])({alts})'
             rf'(-?(?:\d+(?:\.\d*)?|\.\d+))(?![A-Za-z0-9_$])'

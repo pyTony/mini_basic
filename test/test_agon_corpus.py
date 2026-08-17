@@ -171,15 +171,17 @@ class AgonFeatureTests(unittest.TestCase):
         self.assertIn('*', out)
 
     def test_compact_if_array_element_assignment(self):
-        """life.bas: IF RND(1)>=.7 N%(I%,J%)=1 ELSE N%(I%,J%)=0"""
+        """life.bas: IF cond N%(I%,J%)=1 ELSE N%(I%,J%)=0 (no RND — that was flaky)."""
         out = self.run_lines([
             (10, 'DIM N%(2,2)'),
             (20, 'I%=1:J%=1'),
-            (30, 'IF RND(1)>=.7 N%(I%,J%)=1 ELSE N%(I%,J%)=0'),
+            (30, 'IF 0 N%(I%,J%)=1 ELSE N%(I%,J%)=0'),
             (40, 'PRINT N%(1,1)'),
-            (50, 'END'),
+            (50, 'IF 1 N%(I%,J%)=1 ELSE N%(I%,J%)=0'),
+            (60, 'PRINT N%(1,1)'),
+            (70, 'END'),
         ])
-        self.assertIn('0', out)
+        self.assertEqual(out.replace('\r', '').strip().split(), ['0', '1'])
         self.assertNotIn('? IF error', out)
 
     def test_on_error_off(self):

@@ -317,6 +317,56 @@ def _h_mouse(
     return None
 
 
+def _h_kill(
+    interp: Any,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+    line_nums: List[int],
+) -> Optional[int]:
+    try:
+        interp._kill_file(rest)
+    except BasicRuntimeError:
+        raise
+    except Exception as exc:
+        interp._runtime_error(
+            interp._error_message('? KILL error', exc),
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+    return None
+
+
+def _h_erase(
+    interp: Any,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+    line_nums: List[int],
+) -> Optional[int]:
+    try:
+        interp._erase_arrays(rest)
+    except BasicRuntimeError:
+        raise
+    except Exception as exc:
+        interp._runtime_error(
+            interp._error_message('? ERASE error', exc),
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+    return None
+
+
 def _h_quit(
     interp: Any,
     rest: str,
@@ -346,6 +396,8 @@ SIMPLE_STMT_HANDLERS: Dict[str, SimpleHandler] = {
     'TRACE': _h_trace,
     'WIDTH': _h_width,
     'MOUSE': _h_mouse,
+    'KILL': _h_kill,
+    'ERASE': _h_erase,
     'QUIT': _h_quit,
     'BYE': _h_quit,
     'GOODBYE': _h_quit,

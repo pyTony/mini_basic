@@ -1075,6 +1075,32 @@ class RuntimeCoreMixin:
         except json.JSONDecodeError:
             return self._decode_bbc_quoted_string(expr[1:-1])
 
+    def _closing_quote_index(self, text: str, start: int) -> int:
+        """Index of the closing ``"`` at ``start``.
+
+        ``json.dumps`` embeddings use ``\\\"`` (``CHR$(34)`` → ``"\\""``).
+        BASIC source ``"\\"`` / USING ``"\\   \\"`` is a literal backslash —
+        that closer must not be eaten as an escape.
+        """
+        index = start + 1
+        n = len(text)
+        while index < n:
+            ch = text[index]
+            if ch == '\\' and index + 1 < n and text[index + 1] == '"':
+                after = index + 2
+                while after < n and text[after].isspace():
+                    after += 1
+                # BASIC ``"\\"`` ends the literal; JSON ``"\\""`` / ``"a\\"b"``
+                # still has payload after the escaped quote.
+                if after >= n or text[after] in ';,)+':
+                    return index + 1
+                index += 2
+                continue
+            if ch == '"':
+                return index
+            index += 1
+        return -1
+
     def _decode_bbc_adjacent_string_literals(self, text: str) -> str:
         """Decode BBC chained literals: ``"one"'"two"`` → ``onetwo``."""
         text = text.strip()
@@ -1087,10 +1113,8 @@ class RuntimeCoreMixin:
                 break
             if text[index] != '"':
                 raise ValueError('expected string literal')
-            end = index + 1
-            while end < len(text) and text[end] != '"':
-                end += 1
-            if end >= len(text):
+            end = self._closing_quote_index(text, index)
+            if end < 0:
                 raise ValueError('unterminated string literal')
             parts.append(self._decode_string_literal(text[index:end + 1]))
             index = end + 1
@@ -1125,10 +1149,8 @@ class RuntimeCoreMixin:
                 while True:
                     if index >= len(expr) or expr[index] != '"':
                         break
-                    end = index + 1
-                    while end < len(expr) and expr[end] != '"':
-                        end += 1
-                    if end >= len(expr):
+                    end = self._closing_quote_index(expr, index)
+                    if end < 0:
                         raise ValueError('unterminated string literal')
                     index = end + 1
                     while index < len(expr) and expr[index].isspace():

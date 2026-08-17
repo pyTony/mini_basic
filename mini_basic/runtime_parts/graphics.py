@@ -704,6 +704,16 @@ class RuntimeGraphicsMixin:
             uval = self._bbc_to_uint32(float(ival))
             return f'{uval:X}'
 
+    def _bbc_oct_string(self, value: object) -> str:
+        """Octal digits (no prefix) for OCT$. Negative: 32-bit two's complement."""
+        try:
+            ival = int(value)
+        except (TypeError, ValueError):
+            ival = int(float(value))
+        if ival >= 0:
+            return format(ival, 'o')
+        return format(self._bbc_to_uint32(float(ival)), 'o')
+
     def _bbc_bin_string(self, value: object) -> str:
         """Uppercase-free binary digits (no & or prefix) for BIN$.
 

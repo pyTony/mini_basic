@@ -41,6 +41,12 @@ def test_integer_backslash_div():
     assert interp.eval_expr('10 \\ 3') == 3
 
 
+def test_integer_backslash_div_unary_minus():
+    """``\\`` before unary minus is integer divide, not a line continuation."""
+    interp = _interp()
+    assert interp.eval_expr('10 \\ -3') == -4
+
+
 def test_mod_before_addition():
     interp = _interp()
     assert interp.eval_expr('10 MOD 3+1') == 2
@@ -98,3 +104,81 @@ def test_input_line_modifier():
             parsed = False
     if not parsed:
         pytest.xfail('INPUT ... LINE var$ not parsed (MBASIC LINE modifier)')
+
+
+def test_oct_dollar():
+    interp = _interp()
+    assert interp._eval_string_expr('OCT$(8)') == '10'
+    assert interp._eval_string_expr('OCT$(255)') == '377'
+    assert interp._eval_string_expr('HEX$(255)') == 'FF'
+
+
+def test_fix_truncates_toward_zero():
+    interp = _interp()
+    assert interp.eval_expr('FIX(10.9)') == 10
+    assert interp.eval_expr('FIX(-10.9)') == -10
+    assert interp.eval_expr('INT(-10.9)') == -11
+
+
+def test_cint_rounds_half_away():
+    interp = _interp()
+    assert interp.eval_expr('CINT(3.2)') == 3
+    assert interp.eval_expr('CINT(3.7)') == 4
+    assert interp.eval_expr('CINT(-2.3)') == -2
+    assert interp.eval_expr('CINT(-2.7)') == -3
+
+
+def test_expected_is_not_exp():
+    """Long names must not be eaten by EXP/INT/SIN unglue."""
+    interp = _interp()
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        interp.set_program_line(10, 'EXPECTED = 10')
+        interp.set_program_line(20, 'PRINT EXPECTED')
+        interp.run()
+    assert int(getattr(interp, 'error_line_num', 0) or 0) == 0
+    assert '10' in buf.getvalue()
+
+
+def test_chr_quote_build():
+    interp = _interp()
+    assert interp._eval_string_expr('CHR$(34)') == '"'
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        interp.set_program_line(10, 'PRINT CHR$(34); "BASIC"; CHR$(34)')
+        interp.set_program_line(20, 'PRINT "\\"; "ok"')
+        interp.run()
+    out = buf.getvalue()
+    assert int(getattr(interp, 'error_line_num', 0) or 0) == 0
+    assert '"BASIC"' in out.replace(' ', '')
+    assert '\\ok' in out.replace(' ', '').replace('\n', '')
+
+
+def test_erase_redim(tmp_path):
+    interp = _interp()
+    interp.working_dir = str(tmp_path)
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        interp.set_program_line(10, 'DIM A(5)')
+        interp.set_program_line(20, 'A(2) = 20')
+        interp.set_program_line(30, 'ERASE A')
+        interp.set_program_line(40, 'DIM A(5)')
+        interp.set_program_line(50, 'PRINT A(2)')
+        interp.run()
+    assert int(getattr(interp, 'error_line_num', 0) or 0) == 0
+    assert '0' in buf.getvalue()
+
+
+def test_kill_deletes_file(tmp_path):
+    interp = _interp()
+    interp.working_dir = str(tmp_path)
+    target = tmp_path / 'GONE.TXT'
+    target.write_text('x', encoding='utf-8')
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        interp.set_program_line(10, 'KILL "GONE.TXT"')
+        interp.set_program_line(20, 'PRINT "ok"')
+        interp.run()
+    assert int(getattr(interp, 'error_line_num', 0) or 0) == 0
+    assert 'ok' in buf.getvalue()
+    assert not target.exists()

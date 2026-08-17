@@ -42,19 +42,7 @@ _DIALECT = {
 
 # Only listings that *crash* or fail their own PASS/FAIL summary.
 # PRINT spacing vs 5.21 .txt is not an xfail — a clean run is a pass.
-_XFAIL = {
-    'test_operator_precedence': 'EXPECTED parsed as EXP(ECTED)',
-    'test_def_fn': 'FN GREET$ / quote-build line errors',
-    'test_erase': 'ERASE statement not implemented',
-    'test_chain': 'CHR$(34) quote-build / CHAIN partner file',
-    'test_file_io': 'KILL not implemented',
-    'test_random_files': 'KILL not implemented (FIELD/GET/PUT already ran)',
-    'test_hex_oct': 'OCT$ not implemented (HEX$ ran)',
-    'test_math_functions': 'FIX not implemented',
-    'test_mid_assignment': 'CHR$(34) quote-build in PRINT',
-    'test_mod_intdiv': 'backslash \\ after unary minus vs line-continuation',
-    'test_type_conversion': 'CINT not implemented',
-}
+_XFAIL = {}
 
 _SELF_OK = re.compile(
     r'All tests PASSED|Tests failed:\s*0\b',

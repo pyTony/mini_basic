@@ -52,7 +52,8 @@ python -m mini_basic -q --dialect mits examples\m6502-cport\01_hello.bas</code><
 <pre><code>python test/manual/fetch_mbasic_golden.py
 python -m pytest -q test/test_mbasic521_golden.py --timeout=45</code></pre>
 <p>Without the fetch, those tests skip. Owned snippets in <code>test/test_mits_ms_rules.py</code> always run.</p>
-<p>Judge: a <strong>clean run</strong> (no <code>?</code>, no self-check FAIL) is a pass. We do <strong>not</strong> require 5.21 PRINT column match. <code>x</code> means a real gap (KILL, FIX, CINT, OCT$, <code>EXPECTED</code>→<code>EXP</code>, <code>ERASE</code>, quote-build <code>CHR$(34)</code>).</p>
+<p>Judge: a <strong>clean run</strong> (no <code>?</code>, no self-check FAIL) is a pass. We do <strong>not</strong> require 5.21 PRINT column match.</p>
+<p>Covered on the ladder: <code>OCT$</code>, <code>FIX</code>, <code>CINT</code>/<code>CSNG</code>/<code>CDBL</code>, <code>KILL</code>, <code>ERASE</code>, <code>CHAIN … ALL</code>, <code>CHR$(34)</code> quote-build, <code>10 \ -3</code>, and long names such as <code>EXPECTED</code> (not <code>EXP(ECTED)</code>).</p>
 <p><code>WHILE</code> cases run under dialect <code>mini</code>.</p>
 <h3 id="gaps-left-not-regular-1-00">Gaps left (not regular 1.00)</h3>
 <ol><li><code>POKE</code> / <code>PEEK</code> / memory <code>WAIT</code> — host-memory stubs only if demanded  </li><li>C-port <code>OPEN ch,path,mode</code> alias for file examples 51–60 (out of regular 1.00)</li></ol>

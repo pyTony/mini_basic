@@ -83,7 +83,9 @@ python -m pytest -q test/test_mbasic521_golden.py --timeout=45
 
 Without the fetch, those tests skip. Owned snippets in `test/test_mits_ms_rules.py` always run.
 
-Judge: a **clean run** (no `?`, no self-check FAIL) is a pass. We do **not** require 5.21 PRINT column match. `x` means a real gap (KILL, FIX, CINT, OCT$, `EXPECTED`→`EXP`, `ERASE`, quote-build `CHR$(34)`).
+Judge: a **clean run** (no `?`, no self-check FAIL) is a pass. We do **not** require 5.21 PRINT column match.
+
+Covered on the ladder: `OCT$`, `FIX`, `CINT`/`CSNG`/`CDBL`, `KILL`, `ERASE`, `CHAIN … ALL`, `CHR$(34)` quote-build, `10 \ -3`, and long names such as `EXPECTED` (not `EXP(ECTED)`).
 
 `WHILE` cases run under dialect `mini`.
 

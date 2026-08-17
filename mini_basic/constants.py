@@ -33,7 +33,8 @@ NUMERIC_BUILTIN_FUNCS = (
     'SIN', 'COS', 'TAN', 'SINRAD', 'COSRAD', 'TANRAD',
     'ASN', 'ASIN', 'ACS', 'ACOS', 'ATN', 'ATAN',
     'DEG', 'RAD',
-    'LOG', 'EXP', 'SQR', 'SQRT', 'ABS', 'INT', 'SNG', 'DBL', 'FLOAT', 'DIM', 'SUM',
+    'LOG', 'EXP', 'SQR', 'SQRT', 'ABS', 'INT', 'FIX', 'CINT', 'CSNG', 'CDBL',
+    'SNG', 'DBL', 'FLOAT', 'DIM', 'SUM',
     'CVI', 'CVS', 'CVD', 'LOC', 'LOF', 'EOF',
 )
 # Longest names first so SINRAD matches before SIN in glued BBC forms (SINRADT).
