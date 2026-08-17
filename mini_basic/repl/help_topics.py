@@ -457,7 +457,7 @@ def _print_help_repl() -> None:
         'SAVE [PRETTY|REFS] [file]   LOAD file   DIR [path|pattern]   CD [path]',
         '  DIR test / DIR test\\  list folder contents; DIR *.bas  name filter',
         'REN|RENUMBER [start[,step]]   AUTO [start[,step]]',
-        'EDIT n      edit one line (Esc / Ctrl+C / empty Enter cancels)',
+        'EDIT n      edit one line (Ctrl+C / empty Enter cancels)',
         'EDIT        open the program in $EDITOR / Notepad, then reload',
         'HELP [topic]   MATRIX (= HELP DIALECTS)',
         'DIALECT [mini|mits|commodore|tiny|bbc] [strict|loose]   CASE [on|off|auto]',
@@ -531,7 +531,7 @@ def _print_help_program() -> None:
         ]),
         ('EDIT', [
             'EDIT n                       edit one stored line (prefilled buffer)',
-            '  Empty Enter, Esc, or Ctrl+C cancels (line unchanged).',
+            '  Empty Enter or Ctrl+C cancels (line unchanged).',
             '  Enter keeps the prefilled (or edited) text.',
             '  Arrow / Home / End keys move in the text (Windows, WSL, Linux, Termux).',
             '  To delete: bare line number at > (e.g. 15).',

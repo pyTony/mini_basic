@@ -36,14 +36,15 @@ class EditCommandTests(unittest.TestCase):
             )
         self.assertEqual(result, '    WEND')
 
-    def test_posix_escape_cancels_line_edit(self) -> None:
-        keys = list('\x1b')
-        with self.assertRaises(LineEditCancelled):
-            _posix_editing_input(
-                '420 ',
-                'ang += 0.03',
-                getwch=lambda: keys.pop(0),
-            )
+    def test_posix_left_arrow_does_not_cancel(self) -> None:
+        """Left arrow is ESC [ D — must move the cursor, not abandon the edit."""
+        keys = list('\x1b[D\n')
+        result = _posix_editing_input(
+            '420 ',
+            'ang += 0.03',
+            getwch=lambda: keys.pop(0),
+        )
+        self.assertEqual(result, 'ang += 0.03')
 
     def test_posix_ctrl_c_cancels_line_edit(self) -> None:
         keys = list('\x03')

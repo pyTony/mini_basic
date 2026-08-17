@@ -19,16 +19,16 @@ import time
 from typing import Callable, List, Optional, Tuple
 
 from ..type_system import ProgramExit
-
-
-class LineEditCancelled(Exception):
-    """Esc or Ctrl+C abandoned an EDIT/AUTO line; do not store the buffer."""
 from .completion import (
     TabCompletionCycle,
     accept_unique_completion,
     advance_tab_completion,
     compute_matches,
 )
+
+
+class LineEditCancelled(Exception):
+    """Ctrl+C abandoned an EDIT/AUTO line; do not store the buffer."""
 
 _COMPLETER_DELIMS = ' \t\n;'
 _WORD_BREAK = frozenset(' \t\n;,:()+-*/=<>"\'')
@@ -308,37 +308,6 @@ def _is_editable_char(ch: str) -> bool:
     return True
 
 
-def _live_tty_getwch(getwch) -> bool:
-    """True when *getwch* reads the real console (not a test stub)."""
-    if getwch is None:
-        return True
-    name = getattr(getwch, '__name__', '')
-    return name in ('getwch', 'getch', 'posix_getwch')
-
-
-def _stdin_escape_pending(timeout: float = 0.06) -> bool:
-    """True if more bytes follow ESC (arrow / CSI), else a lone Esc key."""
-    if sys.platform == 'win32':
-        try:
-            import msvcrt
-
-            deadline = time.perf_counter() + timeout
-            while time.perf_counter() < deadline:
-                if msvcrt.kbhit():
-                    return True
-                time.sleep(0.005)
-            return False
-        except Exception:
-            return False
-    try:
-        import select
-
-        ready, _, _ = select.select([sys.stdin], [], [], timeout)
-        return bool(ready)
-    except Exception:
-        return False
-
-
 def _cancel_line_edit() -> None:
     # \\r\\n: POSIX setraw does not map \\n to CR+LF.
     sys.stdout.write('\r\n')
@@ -357,7 +326,7 @@ def windows_line_edit(
     expand_abbrev: Optional[Callable[[str], str]] = None,
     use_history: bool = True,
     use_completion: bool = False,
-    escape_cancels: bool = False,
+    escape_cancels: bool = False,  # Ctrl+C cancels; Esc is never cancel (arrows).
 ) -> str:
     """Shared Windows line editor for REPL and AUTO/EDIT prompts."""
     # Import msvcrt only on the Windows console path. Linux EDIT n reuses this
@@ -490,9 +459,7 @@ def windows_line_edit(
             continue
 
         if key in ('\x00', '\xe0', '\x1b'):
-            if key == '\x1b' and escape_cancels:
-                if _live_tty_getwch(getwch) and not _stdin_escape_pending():
-                    _cancel_line_edit()
+            # Esc is only the start of arrow / Home / End sequences — not cancel.
             try:
                 action = parse_special_key(getwch, key)
             except KeyboardInterrupt:
@@ -500,8 +467,6 @@ def windows_line_edit(
                     _cancel_line_edit()
                 raise
             if action is None:
-                if escape_cancels and key == '\x1b':
-                    _cancel_line_edit()
                 continue
             if action == 'up' and use_history and history:
                 if hist_index == -1:
