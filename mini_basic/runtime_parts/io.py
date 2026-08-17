@@ -553,11 +553,16 @@ class RuntimeIoMixin:
         self._print_line_parts.clear()
 
     def _print_program_text(self, text: str, newline: bool) -> None:
-        self._ensure_display()
+        # Immediate mode (REPL ``PRINT`` after RUN): stay on the terminal.
+        # Re-opening pygame here hid the numbers on the graphics window, and
+        # poll() treating Esc as QUIT then raised ProgramExit → Goodbye!
+        immediate = getattr(self, '_active_line_num', -1) == 0
+        if not (immediate and not self._display_live):
+            self._ensure_display()
         if newline and text and text[-1] == '\n':
             newline = False
         if self._display_enabled():
-            if self._terminal_tee_enabled():
+            if self._terminal_tee_enabled() or immediate:
                 if text:
                     self._tee_terminal_write(text)
                 if newline:
@@ -570,7 +575,10 @@ class RuntimeIoMixin:
             if self._refresh_enabled and hasattr(self._display, 'mark_dirty'):
                 self._display.mark_dirty()
             if not self._display.poll():
-                self._invoke_on_close_and_exit()
+                if immediate:
+                    self._mark_display_closed()
+                else:
+                    self._invoke_on_close_and_exit()
             return
         if text:
             prefix = self._colour_prefix_for_output()
