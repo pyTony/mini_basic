@@ -250,6 +250,7 @@ class RuntimeCoreMixin:
         self._gfx_textures: dict = {}
         self._proc_skip_lines: Set[int] = set()
         self._rnd_last: float = 0.0
+        self._rng = random.Random()
         self.program_args: List[str] = []
         self._fn_skip_lines: Set[int] = set()
         self._in_fn_body = False
@@ -1703,30 +1704,47 @@ class RuntimeCoreMixin:
         if self._definitions_dirty:
             self._refresh_user_definitions_from_program()
 
+    def _rnd_ms_dialect(self) -> bool:
+        """Microsoft-style RND (always 0..1). BBC/mini use Acorn RND."""
+        return self.config.dialect in ('mits', 'commodore', 'tiny')
+
+    def _rnd_seed(self, n: float) -> None:
+        """Seed the PRNG from n (BBC: typically negative; same stream as RANDOMIZE -n)."""
+        self._rng.seed(int(n))
+
+    def _rnd_advance_u32(self) -> int:
+        bits = self._rng.getrandbits(32)
+        self._rnd_last = bits / 4294967296.0
+        return bits
+
     def _rnd_value(self, arg_expr: Optional[str]) -> float:
-        if arg_expr is None or not arg_expr.strip():
-            value = random.random()
-            self._rnd_last = value
-            return value
+        # BBCSDL: no RANDOMIZE. RND / RND(n) / RND(1) / RND(0) / RND(-n).
+        ms = self._rnd_ms_dialect()
+        if arg_expr is None or not str(arg_expr).strip():
+            if ms:
+                value = self._rng.random()
+                self._rnd_last = value
+                return value
+            return self._bbc_from_uint32(self._rnd_advance_u32())
         arg = float(self._eval_numeric(arg_expr.strip()))
+        if arg < 0:
+            self._rnd_seed(arg)
+            return arg
         if arg == 0:
             return self._rnd_last
-        if arg < 0:
-            random.seed(int(abs(arg)))
-            value = random.random()
+        if ms:
+            value = self._rng.random()
             self._rnd_last = value
             return value
         if arg == 1:
-            value = random.random()
-            self._rnd_last = value
-            return value
-        if arg > 1:
-            value = float(random.randint(1, int(arg)))
-            self._rnd_last = value
-            return value
-        value = random.random()
-        self._rnd_last = value
-        return value
+            self._rnd_advance_u32()
+            return self._rnd_last
+        n = int(arg)
+        if n <= 1:
+            self._rnd_advance_u32()
+            return self._rnd_last
+        self._rnd_advance_u32()
+        return float(int(n * self._rnd_last) + 1)
 
     def _sgn_value(self, arg_expr: str) -> float:
         value = self._eval_numeric(arg_expr.strip())

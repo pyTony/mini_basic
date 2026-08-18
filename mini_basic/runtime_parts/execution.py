@@ -2890,11 +2890,19 @@ class RuntimeExecutionMixin:
 
         randomize_match = re.match(r'^RANDOMIZE(?:\s+(.+))?$', line, re.IGNORECASE)
         if randomize_match:
+            # Mini/MS convenience. BBC SDL has no RANDOMIZE — use X=RND(-TIME).
+            if self.config.dialect == 'bbc':
+                self._runtime_error(
+                    '? RANDOMIZE is not a BBC keyword (use X=RND(-TIME))',
+                    line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
             seed_expr = randomize_match.group(1)
             if seed_expr is None or not seed_expr.strip():
-                random.seed()
+                self._rng.seed()
             else:
-                random.seed(int(self._eval_numeric(seed_expr.strip())))
+                seed = int(self._eval_numeric(seed_expr.strip()))
+                # Same stream as RND(-seed).
+                self._rnd_seed(float(-seed if seed >= 0 else seed))
             return None
 
         if re.match(r'^CONT\s*$', line, re.IGNORECASE):

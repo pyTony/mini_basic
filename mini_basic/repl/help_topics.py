@@ -143,8 +143,13 @@ def _print_help_cli() -> None:
 def _print_help_functions() -> None:
     _section('=== Numeric / math functions ===', [
         'PI()                 pi (no arguments)',
-        'RND[(n)]             random 0..1, or 1..n integer when n>=1',
-        'RANDOMIZE [seed]     reseed RNG (statement, not a function)',
+        'RND                  32-bit random integer (0 to &FFFFFFFF)',
+        'RND(1)               real in 0.0 to 0.99999999',
+        'RND(n)               integer 1 to n (n>1)',
+        'RND(0)               last random, as RND(1)',
+        'RND(-n)              seed PRNG from n; returns n',
+        '                     BBC has no RANDOMIZE: X=RND(-TIME)',
+        'RANDOMIZE [seed]     mini/MS only; same seed as RND(-seed)',
         '',
         'SIN(x)  COS(x)  TAN(x)',
         'ASN(x)  ACS(x)  ATN(x)     aliases: ASIN  ACOS  ATAN',
@@ -248,7 +253,8 @@ def _print_help_statements() -> None:
         'TRACE TO file       log the path to a file; TRACE CLOSE  back to stderr',
         'LVAR                list variables, arrays, FN/PROC (immediate or program)',
         'DATA ...   READ   RESTORE [line]',
-        'RANDOMIZE [seed]   WAIT n   (n centiseconds)',
+        'RANDOMIZE [seed]   mini/MS; BBC uses X=RND(-TIME)',
+        'WAIT n             (n centiseconds)',
         'TIME   TIME=0   TIME=n   TIME=TIME+n   centisecond clock (persists across RUN)',
     ])
 
