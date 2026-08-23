@@ -3,22 +3,22 @@
 30 H = 12
 40 MI = 32
 50 FOR PY = 0 TO H - 1
-60   CI = -1.15 + PY / H * 2.3
-70   FOR PX = 0 TO W - 1
-80     CR = -2.35 + PX / W * 1.15
-90     ZR = 0 : ZI = 0 : CNT = 0
-100    FOR K = 1 TO MI
-110      ZR2 = ZR * ZR - ZI * ZI + CR
-120      ZI2 = 2 * ZR * ZI + CI
-130      MAG2 = ZR2 * ZR2 + ZI2 * ZI2
-140      IF MAG2 > 4 THEN
-150        BREAK
-160      ENDIF
-170      ZR = ZR2 : ZI = ZI2 : CNT = K
-180    NEXT K
-190    CH = ASC(" ") + (CNT MOD 11) * 6
-200    PRINT CHR$(CH);
-210  NEXT PX
-220  PRINT
+60     CI = -1.15 + PY / H * 2.3
+70     FOR PX = 0 TO W - 1
+80         CR = -2.35 + PX / W * 1.15
+90         ZR = 0: ZI = 0: CNT = 0
+100         FOR K = 1 TO MI
+110             ZR2 = ZR * ZR - ZI * ZI + CR
+120             ZI2 = 2 * ZR * ZI + CI
+130             MAG2 = ZR2 * ZR2 + ZI2 * ZI2
+140             IF MAG2 > 4 THEN
+150                 BREAK
+160             ENDIF
+170             ZR = ZR2: ZI = ZI2: CNT = K
+180         NEXT K
+190         CH = ASC(" ") + (CNT MOD 11) * 6
+200         PRINT CHR$(CH);
+210     NEXT PX
+220     PRINT
 230 NEXT PY
 240 END

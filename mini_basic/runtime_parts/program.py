@@ -1045,7 +1045,7 @@ class RuntimeProgramMixin:
         if backend in ('none', 'null'):
             return
         name = os.path.basename(self.loaded_filename or '') or 'program'
-        print(f'Graphics: {name} ({backend})')
+        print(f'Graphics: {name} ({backend})', file=self._get_error_stream())
 
     def _scan_statement_dialect_violations(self, statement: str) -> List[str]:
         violations: List[str] = []
@@ -1054,6 +1054,8 @@ class RuntimeProgramMixin:
             if not text:
                 continue
             stripped = text.strip()
+            if self._is_comment_statement(stripped):
+                continue
             if re.match(r'^ON\s+CLOSE\b', stripped, re.IGNORECASE):
                 if not self._dialect_allows('on_close'):
                     violations.append('on_close')
@@ -1070,8 +1072,8 @@ class RuntimeProgramMixin:
             cmd, rest = self._parse_command(text)
             if cmd in self._MITS_FORBIDDEN_CMDS and not self._dialect_allows(cmd):
                 violations.append(cmd)
-            if cmd in self._MINI_ONLY_CMDS and not self._dialect_allows(cmd):
-                violations.append(cmd.lower())
+            elif cmd in self._MINI_ONLY_CMDS and not self._dialect_allows(cmd):
+                violations.append(cmd)
             if cmd == 'DEF' and not re.search(r'\)\s*=', rest):
                 if not self._dialect_allows('multiline_def'):
                     violations.append('multiline_def')
@@ -2314,7 +2316,6 @@ class RuntimeProgramMixin:
     ) -> List[str]:
         goto_targets = self._collect_goto_targets()
         loop_depths = self._compute_loop_depths() if mode in ('pretty', 'refs') else {}
-        split_statements = mode in ('pretty', 'refs')
         def_header_lines: Set[int] = set()
         if mode == 'refs':
             def_header_lines, _, _ = self._collect_def_layout(sorted(self.program))
@@ -2326,57 +2327,42 @@ class RuntimeProgramMixin:
             if end_line is not None and line_num > end_line:
                 continue
             raw_line = self.program[line_num]
-            parts = self._split_colon_statements(raw_line)
             user_indent = self.line_indent.get(line_num, 0)
             show_number = True
             if mode == 'refs':
                 show_number = line_num in goto_targets
 
-            display_parts = parts if split_statements else [raw_line]
-
-            for part_index, display_part in enumerate(display_parts):
-                if split_statements:
-                    # Same formatter as LIST/SAVE standard (fold none for mini).
-                    from mini_basic.format.save_case import (
-                        format_statement_part as _fmt_part,
-                        resolve_list_fold,
-                    )
-                    fold = resolve_list_fold(case_fold)
-                    formatted = (
-                        _fmt_part(display_part, fold) if display_part.strip() else ''
-                    )
-                else:
-                    formatted = self.format_list_line(display_part)
-
-                structural_indent = loop_depths.get(line_num, 0) * 4 if mode in ('pretty', 'refs') else 0
-                if part_index > 0:
-                    structural_indent += 4
-                if mode in ('pretty', 'refs'):
-                    # Always reindent from structure — never keep prior user indent.
-                    indent_width = structural_indent
-                else:
-                    indent_width = user_indent
-                stmt_indent = ' ' * indent_width
-                # Pretty/refs formatting may still carry spaces from a part; strip
-                # so structure indent is the only leading whitespace.
-                if mode in ('pretty', 'refs') and formatted:
-                    formatted = formatted.lstrip(' \t')
-                number = self._format_line_number(
-                    line_num,
-                    include_line_numbers and show_number and part_index == 0,
-                    # Pad for LIST REFS column alignment; omit for SAVE PRETTY (no numbers).
-                    align=include_line_numbers and part_index == 0,
+            if mode in ('pretty', 'refs'):
+                # Keep colon-joined statements on one listing line
+                # (``A = C : B = D``, not a wrapped extra indent).
+                from mini_basic.format.save_case import (
+                    format_program_line as _fmt_line,
+                    resolve_list_fold,
                 )
-                if formatted:
-                    if (
-                        mode == 'refs'
-                        and part_index == 0
-                        and line_num in def_header_lines
-                        and lines
-                        and lines[-1] != ''
-                    ):
-                        lines.append('')
-                    lines.append(f'{number}{stmt_indent}{formatted}')
+                fold = resolve_list_fold(case_fold)
+                formatted = _fmt_line(raw_line, fold) if raw_line.strip() else ''
+                formatted = formatted.lstrip(' \t')
+                indent_width = loop_depths.get(line_num, 0) * 4
+            else:
+                formatted = self.format_list_line(raw_line)
+                indent_width = user_indent
+            if not formatted:
+                continue
+            stmt_indent = ' ' * indent_width
+            number = self._format_line_number(
+                line_num,
+                include_line_numbers and show_number,
+                # Pad for LIST REFS column alignment; omit for SAVE PRETTY (no numbers).
+                align=include_line_numbers,
+            )
+            if (
+                mode == 'refs'
+                and line_num in def_header_lines
+                and lines
+                and lines[-1] != ''
+            ):
+                lines.append('')
+            lines.append(f'{number}{stmt_indent}{formatted}')
         return lines
 
     def _parse_unnumbered_line(self, line: str) -> Optional[Tuple[str, int]]:

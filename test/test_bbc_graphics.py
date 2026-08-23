@@ -67,6 +67,17 @@ class BBCGraphicsTests(unittest.TestCase):
         gfx.plot_code(101, 20, 20)
         self.assertEqual(gfx.point_colour(15, 15), 4)
 
+    def test_fill_rectangle_gcol0_block(self):
+        """Mandelbrot-style RECTANGLE FILL uses a block write, not per-pixel plots."""
+        gfx = BBCGraphics(64, 64, x_scale=1, y_scale=1)
+        gfx.gcol(0, 5)
+        gfx.fill_rectangle(8, 8, 8, 8)
+        self.assertEqual(gfx.point_colour(8, 8), 5)
+        self.assertEqual(gfx.point_colour(15, 15), 5)
+        self.assertEqual(gfx.point_colour(16, 16), 5)
+        self.assertEqual(gfx.point_colour(17, 17), 0)
+        self.assertGreaterEqual(gfx.plot_count, 64)
+
     def test_plot_181_filled_triangle_absolute(self):
         gfx = BBCGraphics(320, 256, x_scale=4, y_scale=4)
         gfx.gcol(0, 1)

@@ -11,6 +11,7 @@ if _ROOT not in sys.path:
 
 from mini_basic.display import (
     NullDisplay,
+    aspect_fit_size,
     colour_to_rgb,
     count_framebuffer_pixels,
     create_display,
@@ -183,6 +184,11 @@ class DisplayTests(unittest.TestCase):
         interp._ensure_display()
         self.assertTrue(interp._display.is_open)
         interp._shutdown_display(hold=False)
+
+    def test_aspect_fit_mode9_into_gnome_usable_height(self):
+        """2× MODE 9 (1280×1024) into a 1080p client of 1280×932 keeps 5:4."""
+        self.assertEqual(aspect_fit_size(1280, 1024, 1280, 932), (1165, 932))
+        self.assertEqual(aspect_fit_size(1280, 1024, 1280, 1024), (1280, 1024))
 
     def test_mode9_default_scale_is_2x_on_1080p_windows(self):
         """WSL and native Windows should both keep default 2x on a 1080p desk."""

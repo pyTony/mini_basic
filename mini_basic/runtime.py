@@ -173,9 +173,10 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         # Add others as identified (e.g. some advanced VDU, VOICE etc. if top-level)
     }
     _MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE', 'EXIT'})
-    _MINI_ONLY_FUNCS = frozenset({
-        'ARG', 'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
+    _ANSI_COLOUR_FUNCS = frozenset({
+        'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
     })
+    _MINI_ONLY_FUNCS = frozenset({'ARG'}) | _ANSI_COLOUR_FUNCS
     _NUMBERED_GOTO_DIALECTS = frozenset({'mits', 'commodore', 'tiny'})
     _IF_GOTO_DIALECTS = frozenset({'mini', 'mits', 'commodore'})
     _IF_THEN_LINE_DIALECTS = frozenset({'mini', 'mits', 'bbc', 'commodore'})

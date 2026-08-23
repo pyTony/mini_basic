@@ -48,6 +48,7 @@ MITS_FORBIDDEN_CMDS = frozenset({
     'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
 })
 MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE', 'EXIT'})
-MINI_ONLY_FUNCS = frozenset({
-    'ARG', 'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
+ANSI_COLOUR_FUNCS = frozenset({
+    'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
 })
+MINI_ONLY_FUNCS = frozenset({'ARG'}) | ANSI_COLOUR_FUNCS

@@ -490,6 +490,9 @@ class RuntimeGraphicsMixin:
         *,
         announce: bool = True,
     ) -> None:
+        # FG$/RESET$ are terminal ANSI; never open or keep a pygame text window.
+        if self._keep_ansi_on_terminal(parsed_lines, announce=announce):
+            return
         if self.config.display_locked:
             return
         if self.config.dialect not in self._GRAPHICS_DIALECTS:
@@ -499,6 +502,27 @@ class RuntimeGraphicsMixin:
         if not self._program_statements_use_graphics(parsed_lines):
             return
         self._enable_pygame_display(announce=announce)
+
+    def _keep_ansi_on_terminal(
+        self,
+        parsed_lines: List[Tuple[int, str, int]],
+        *,
+        announce: bool = True,
+    ) -> bool:
+        """True if this program uses ANSI colour and must stay on the terminal."""
+        if not self._ansi_colour_funcs_used(parsed_lines):
+            return False
+        if self._display_backend_name() == 'pygame':
+            if announce:
+                print(
+                    'Note: ANSI colour (FG$/RESET$) uses the terminal, '
+                    'not a pygame window',
+                    file=self._get_error_stream(),
+                )
+            self.config.display = 'terminal'
+            self.config.hold_display_open = False
+            self.config.display_locked = True
+        return True
 
     def _sync_display_caption(self, caption: str) -> None:
         """Window title follows the last successful LOAD (not the first .bbc)."""

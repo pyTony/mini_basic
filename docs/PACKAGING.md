@@ -15,8 +15,9 @@ Only the **importable interpreter package** under `mini_basic/`:
 **Optional extras** (not hard dependencies):
 
 - `pip install "mini-basic[display]"` → `pygame-ce` (MODE/PLOT windows)
+- `pip install "mini-basic[accel]"` → `numpy` (uint8 framebuffer / fast present)
 - `pip install "mini-basic[repl]"` → `pyreadline3` on Windows
-- `pip install "mini-basic[all]"` → both
+- `pip install "mini-basic[all]"` → display + accel + repl
 
 ## Explicitly excluded from the wheel
 

@@ -314,6 +314,32 @@ class BBCGraphics:
         bottom = min(self.height - 1, bottom)
         if left > right or top > bottom:
             return
+        mode, colour = gcol
+        # Mandelbrot tiles: GCOL 0 replace, no disc clip — one slice, not N plots.
+        if (
+            mode == 0
+            and self._clip_disc is None
+            and self._truecolour_rgb is None
+        ):
+            n = (right - left + 1) * (bottom - top + 1)
+            colour_b = int(colour) & 0xFF
+            if self.pixels_is_numpy:
+                self.pixels[top : bottom + 1, left : right + 1] = colour_b
+            else:
+                fill = [colour_b] * (right - left + 1)
+                for sy in range(top, bottom + 1):
+                    self.pixels[sy][left : right + 1] = fill
+            if colour_b == 0 and self.rgb_pixels is not None:
+                for sy in range(top, bottom + 1):
+                    rgb_row = self.rgb_pixels[sy]
+                    for sx in range(left, right + 1):
+                        if rgb_row[sx] is not None:
+                            rgb_row[sx] = None
+                            self.rgb_dirty.discard((sx, sy))
+            self._mark_pixel_dirty(left, top)
+            self._mark_pixel_dirty(right, bottom)
+            self.plot_count += n
+            return
         for sy in range(top, bottom + 1):
             for sx in range(left, right + 1):
                 self._put_screen_pixel(sx, sy, gcol)

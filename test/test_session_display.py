@@ -102,6 +102,66 @@ class AutoEnableGuiGateTests(unittest.TestCase):
         interp._apply_program_refresh_off_at_start()
         self.assertFalse(interp._refresh_enabled)
 
+    def test_ansi_colour_does_not_open_pygame(self):
+        """FG$/RESET$ stay on the terminal even if --pygame was requested."""
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='mini',
+                display='pygame',
+                display_locked=True,
+                hold_display_open=True,
+            ),
+        )
+        parsed = [
+            (10, 'PRINT FG$(1);"x";RESET$()', 0),
+            (20, 'END', 0),
+        ]
+        err = StringIO()
+        with redirect_stdout(StringIO()), patch.object(
+            interp, '_get_error_stream', return_value=err
+        ):
+            interp._maybe_auto_enable_pygame_display(parsed, announce=True)
+        self.assertEqual(interp.config.display, 'terminal')
+        self.assertTrue(interp.config.display_locked)
+        self.assertIn('ANSI colour', err.getvalue())
+        self.assertFalse(interp._program_statements_use_graphics(parsed))
+
+    def test_load_does_not_say_program_cleared(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
+        )
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        path = os.path.join(root, 'basics', 'fact.bas')
+        if not os.path.isfile(path):
+            self.skipTest('basics/fact.bas missing')
+        out, err = StringIO(), StringIO()
+        with redirect_stdout(out), patch.object(interp, '_get_error_stream', return_value=err):
+            self.assertTrue(interp.load(path, announce=True))
+        combined = out.getvalue() + err.getvalue()
+        self.assertNotIn('Program cleared.', combined)
+        self.assertIn('Loaded:', err.getvalue())
+
+    def test_pygame_locked_load_does_not_double_graphics_banner(self):
+        """--pygame LOAD used to print Graphics:, then RUN printed it again."""
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect='bbc',
+                display='pygame',
+                display_locked=True,
+                hold_display_open=False,
+            ),
+        )
+        interp.loaded_filename = 'mand_mode9_and.bas'
+        interp.program[10] = 'MODE 9'
+        interp.program[20] = 'END'
+        out, err = StringIO(), StringIO()
+        with redirect_stdout(out), patch.object(interp, '_get_error_stream', return_value=err):
+            interp._announce_program_graphics()
+        combined = out.getvalue() + err.getvalue()
+        self.assertEqual(combined.count('Graphics:'), 1)
+        self.assertIn('Graphics: mand_mode9_and.bas (pygame)', err.getvalue())
+        self.assertNotIn('Graphics:', out.getvalue())
+
     def test_load_updates_caption_from_basename(self):
         interp = BASICInterpreter(
             InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),

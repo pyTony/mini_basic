@@ -860,6 +860,23 @@ class PygameDisplay(DisplayBackend):
     def _window_client_size(self) -> Tuple[int, int]:
         return self._window_client_size_at_scale(self.scale)
 
+    def _set_display_mode(self, size: Tuple[int, int]):
+        """``set_mode`` without the pygame-ce OS-resize RuntimeWarning.
+
+        2× MODE 9 is 1280×1024, which a 1080p desktop with a panel/title bar
+        cannot host as a client area. SDL then shrinks the window and pygame-ce
+        2.5+ warns. We still request the integer scale, then fit into whatever
+        the OS actually granted.
+        """
+        pygame = self._pygame
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                'ignore',
+                message=r'.*forcibly resized by the OS.*',
+                category=RuntimeWarning,
+            )
+            return pygame.display.set_mode(size)
+
     def _erase_cursor_cell(self) -> None:
         if self._cursor_col <= 0:
             return
@@ -964,7 +981,8 @@ class PygameDisplay(DisplayBackend):
             # fits 2× on 1080p/1440p height).
             self.scale = max(1, self._requested_scale)
             win_w, win_h = self._window_client_size_at_scale(self.scale)
-            self._screen = pygame.display.set_mode((win_w, win_h))
+            self._screen = self._set_display_mode((win_w, win_h))
+            self._fit_window_to_os_size(win_w, win_h)
             self.pump_events()
             if center:
                 self._center_window()
@@ -973,13 +991,17 @@ class PygameDisplay(DisplayBackend):
             for scale in range(start_scale, 0, -1):
                 self.scale = scale
                 win_w, win_h = self._window_client_size_at_scale(self.scale)
-                self._screen = pygame.display.set_mode((win_w, win_h))
+                self._screen = self._set_display_mode((win_w, win_h))
+                if self._fit_window_to_os_size(win_w, win_h):
+                    self.pump_events()
+                    if center:
+                        self._center_window()
+                    break
                 self.pump_events()
                 if center:
                     self._center_window()
                 if self._window_fits_on_screen():
                     break
-            win_w, win_h = self._window_client_size()
         self._refresh_window_caption()
         logical_w, logical_h = self._logical_canvas_size()
         self._canvas = pygame.Surface((logical_w, logical_h))
@@ -1002,7 +1024,10 @@ class PygameDisplay(DisplayBackend):
         else:
             mode_note = f' MODE{self._mode}' if self._mode <= 7 else ''
         try:
-            win_w, win_h = self._window_client_size()
+            if self._screen is not None:
+                win_w, win_h = self._screen.get_width(), self._screen.get_height()
+            else:
+                win_w, win_h = self._window_client_size()
             suffix = f' ({self.scale}x, {win_w}x{win_h})'
         except Exception:
             suffix = f' ({self.scale}x)'
@@ -1010,6 +1035,23 @@ class PygameDisplay(DisplayBackend):
             pygame.display.set_caption(f'{self.caption}{mode_note}{suffix}')
         except Exception:
             pass
+
+    def _fit_window_to_os_size(self, requested_w: int, requested_h: int) -> bool:
+        """If the OS clipped ``set_mode``, reopen at the largest same-aspect size.
+
+        Returns True when the window was resized (caller should stop dropping
+        integer scale — a 1280×932 MODE 9 view is better than falling to 1×).
+        """
+        if self._screen is None:
+            return False
+        actual_w = self._screen.get_width()
+        actual_h = self._screen.get_height()
+        if (actual_w, actual_h) == (requested_w, requested_h):
+            return False
+        fitted = aspect_fit_size(requested_w, requested_h, actual_w, actual_h)
+        if fitted != (actual_w, actual_h):
+            self._screen = self._set_display_mode(fitted)
+        return True
 
     def _center_window(self) -> None:
         pygame = self._pygame
@@ -1887,10 +1929,23 @@ class PygameDisplay(DisplayBackend):
             else:
                 self._render_text_mode()
                 self._compose_full = False
-            target_w, target_h = self._screen.get_width(), self._screen.get_height()
-            scaled = self._scale_surface(self._canvas, target_w, target_h)
+            intended_w, intended_h = self._window_client_size()
+            actual_w, actual_h = self._screen.get_width(), self._screen.get_height()
+            # Scale canvas to the PAR-correct window first, then letterbox if
+            # the OS granted a smaller client (1080p panel clips 2× MODE 9).
+            scaled = self._scale_surface(self._canvas, intended_w, intended_h)
             self._screen.fill((0, 0, 0))
-            self._screen.blit(scaled, (0, 0))
+            if (actual_w, actual_h) != (intended_w, intended_h):
+                fit_w, fit_h = aspect_fit_size(
+                    intended_w, intended_h, actual_w, actual_h
+                )
+                if (fit_w, fit_h) != (intended_w, intended_h):
+                    scaled = self._scale_surface(scaled, fit_w, fit_h)
+                ox = (actual_w - scaled.get_width()) // 2
+                oy = (actual_h - scaled.get_height()) // 2
+                self._screen.blit(scaled, (ox, oy))
+            else:
+                self._screen.blit(scaled, (0, 0))
             self._pygame.display.flip()
             self._dirty = False
             self._compose_full = False
@@ -2100,6 +2155,19 @@ class PygameDisplay(DisplayBackend):
         return self._screen.get_width(), self._screen.get_height(), rows
 
 
+def aspect_fit_size(
+    src_w: int,
+    src_h: int,
+    max_w: int,
+    max_h: int,
+) -> Tuple[int, int]:
+    """Largest ``src``-aspect size that fits in ``max_w`` × ``max_h``."""
+    if src_w <= 0 or src_h <= 0 or max_w <= 0 or max_h <= 0:
+        return max(1, max_w), max(1, max_h)
+    scale = min(max_w / src_w, max_h / src_h, 1.0)
+    return max(1, int(src_w * scale)), max(1, int(src_h * scale))
+
+
 def desktop_size(pygame) -> Tuple[int, int]:
     """Largest connected desktop, so a small display[0] does not force 1x."""
     candidates: List[Tuple[int, int]] = []
@@ -2193,8 +2261,8 @@ def pygame_install_hint() -> str:
         '  Quick text mode:  python -m mini_basic --display terminal file.bas\n'
         '  Install options:\n'
         '    python3 -m venv .venv && source .venv/bin/activate\n'
-        '    pip install pygame-ce\n'
-        '    # or:  pip install "mini-basic[display]"\n'
+        '    pip install pygame-ce numpy\n'
+        '    # or:  pip install "mini-basic[display]" "mini-basic[accel]"\n'
         '  Debian/Ubuntu/WSL (after sudo apt update):\n'
         '    sudo apt install python3-pygame\n'
         '  Windows:  pip install pygame-ce'

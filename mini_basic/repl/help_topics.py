@@ -206,10 +206,11 @@ def _print_help_strings() -> None:
         'OPENOUT(path$)       channel for sequential write',
     ])
     print()
-    _section('ANSI colour (mini, terminal display)', [
+    _section('ANSI colour (mini, terminal only — not the pygame window)', [
         'FG$(n)  BG$(n)         BBC/Agon palette 0-15, or 256-colour index',
         'RGB$(r,g,b)  BGRGB$(r,g,b)   true-colour foreground/background',
         'ANSI$(codes...)  RESET$()',
+        'Requires dialect mini. --pygame is ignored for these programs.',
     ])
 
 

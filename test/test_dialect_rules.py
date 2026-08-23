@@ -207,6 +207,39 @@ def test_instr_allowed_on_bbc_not_mits() -> None:
     assert not ok_mits, out_mits
 
 
+def test_ansi_colour_requires_mini_not_bbc() -> None:
+    src = (
+        "' dialect: mini\n"
+        '10 PRINT FG$(1);"x";RESET$()\n'
+        '20 END\n'
+    )
+    interp = _interp('bbc', strict=False)
+    interp.config.dialect_locked = True
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, 'p.bas')
+        with open(path, 'w', encoding='utf-8') as handle:
+            handle.write(src)
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            ok = interp.load(path, announce=True)
+    combined = out.getvalue() + err.getvalue()
+    assert not ok
+    assert 'requires dialect mini' in combined
+    assert 'omit --dialect bbc' in combined
+
+
+def test_comment_exit_while_is_not_bbc_violation() -> None:
+    src = (
+        "10 REM BBCSDL: EXIT WHILE not BREAK\n"
+        "20 PRINT 1\n"
+        "30 END\n"
+    )
+    ok, out, _ = _load_text('bbc', src, strict=True)
+    assert ok, out
+    assert 'EXIT' not in out
+    assert 'BREAK' not in out
+
+
 def test_arg_rejected_on_bbc_allowed_on_mini() -> None:
     src = '10 PRINT ARG(1)\n20 END\n'
     ok_bbc, out_bbc, _ = _load_text('bbc', src, strict=True)

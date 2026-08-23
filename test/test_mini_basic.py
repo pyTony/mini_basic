@@ -770,16 +770,17 @@ class MiniBASICTests(unittest.TestCase):
             interp.run()
         self.assertEqual(buf.getvalue().strip(), "ok")
 
-    def test_list_pretty_splits_colons(self):
+    def test_list_pretty_keeps_colons_on_one_line(self):
         interp = self.make_interp()
         interp.set_program_line(10, "A=1:B=2")
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.list_program('pretty')
-        out = buf.getvalue()
-        self.assertIn("A = 1", out)
-        self.assertIn("B = 2", out)
-        self.assertGreaterEqual(out.count("\n"), 1)
+        code_lines = [ln for ln in buf.getvalue().splitlines() if 'A = 1' in ln or 'B = 2' in ln]
+        self.assertEqual(len(code_lines), 1)
+        self.assertIn('A = 1', code_lines[0])
+        self.assertIn('B = 2', code_lines[0])
+        self.assertIn(':', code_lines[0])
 
     def test_list_pretty_closer_aligns_with_opener(self):
         interp = self.make_interp()

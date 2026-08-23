@@ -1,2 +1,5 @@
 # pygame-ce has prebuilt wheels for Python 3.14 on Windows; plain pygame may not.
 pygame-ce>=2.5.0
+# Optional framebuffer acceleration (present, CIRCLE FILL, RECTANGLE FILL).
+# Graphics still run without it (Python list pixels).
+numpy>=1.26

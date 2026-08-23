@@ -817,6 +817,8 @@ class RuntimeCoreMixin:
             return
         legacy: List[str] = []
         for line_num, statement, _ in parsed_lines:
+            if self._is_comment_statement(statement):
+                continue
             upper = statement.upper()
             if re.search(r'\bEND\s+IF\b', upper):
                 legacy.append(
@@ -870,6 +872,16 @@ class RuntimeCoreMixin:
     @staticmethod
     def _is_rem_only_statement(rest: str) -> bool:
         return bool(re.match(r'^REM(?:\s|$)', rest.strip(), re.IGNORECASE))
+
+    @staticmethod
+    def _is_comment_statement(text: str) -> bool:
+        """True for REM or apostrophe comments (whole statement)."""
+        stripped = text.strip()
+        if not stripped:
+            return False
+        if stripped.startswith("'"):
+            return True
+        return bool(re.match(r'^REM(?:\s|$)', stripped, re.IGNORECASE))
 
     def _unknown_statement_message(self, line: str) -> str:
         keyword = self._statement_keyword(line)
