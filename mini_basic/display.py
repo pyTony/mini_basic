@@ -508,10 +508,13 @@ class TerminalDisplay(DisplayBackend):
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
-            # Keep full 0..127 (piechart COLOR 15+128 → sky palette index 15).
-            # Classic Acorn flash bg is only 136-143 with logical 0-7.
-            self._bg_colour = logical & 255
-            self._text_flash = 136 <= code <= 143 and logical < 8
+            # COLOUR 136..143 = flashing background 0..7 (128+8 .. 128+15).
+            if 8 <= logical <= 15:
+                self._bg_colour = logical - 8
+                self._text_flash = True
+            else:
+                # Keep full 0..127 (piechart COLOR 15+128 → sky palette index 15).
+                self._bg_colour = logical & 255
         elif code >= 8:
             self._fg_colour = (code - 8) & 7
             self._text_flash = True
@@ -1200,7 +1203,7 @@ class PygameDisplay(DisplayBackend):
         * ``0..7`` — foreground (and clear flash)
         * ``8..15`` — flashing foreground (logical colour ``n-8``)
         * ``128..255`` — background colour ``n-128`` (full index; MODE 8 palette)
-        * ``136..143`` with logical 0-7 — classic flashing background
+        * ``136..143`` — flashing background 0..7 (``128+8`` .. ``128+15``)
 
         ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray.
         Hanoi MODE 3 still maps via ``map_mode_text_colour`` when blitting.
@@ -1208,8 +1211,11 @@ class PygameDisplay(DisplayBackend):
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
-            self._bg_colour = logical & 255
-            self._text_flash = 136 <= code <= 143 and logical < 8
+            if 8 <= logical <= 15:
+                self._bg_colour = logical - 8
+                self._text_flash = True
+            else:
+                self._bg_colour = logical & 255
             if self._gfx is not None:
                 self._gfx.gcol_bg = (0, self._bg_colour)
             return
