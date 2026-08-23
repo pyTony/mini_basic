@@ -362,6 +362,27 @@ class DisplayTests(unittest.TestCase):
         self.assertGreater(flash_on, 0)
         self.assertEqual(flash_off, 0)
 
+        # After the first present, dirty is clear — flash must still redraw.
+        def count_canvas_glyph():
+            count = 0
+            x0 = cw
+            for y in range(d._effective_cell_height()):
+                for x in range(x0, x0 + cw):
+                    if d._canvas.get_at((x, y))[:3] != bg_rgb:
+                        count += 1
+            return count
+
+        d._dirty = False
+        d._compose_full = False
+        with mock.patch.object(d._pygame.time, 'get_ticks', return_value=0):
+            d.present()
+        self.assertGreater(count_canvas_glyph(), 0)
+        d._dirty = False
+        d._compose_full = False
+        with mock.patch.object(d._pygame.time, 'get_ticks', return_value=600):
+            d.present()
+        self.assertEqual(count_canvas_glyph(), 0)
+
     def test_mode_resets_text_colours_to_white_on_black(self):
         try:
             import pygame  # noqa: F401

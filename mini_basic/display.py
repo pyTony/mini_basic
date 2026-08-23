@@ -1922,16 +1922,32 @@ class PygameDisplay(DisplayBackend):
         self._compose_full = True
         self._dirty = True
 
+    def _text_grid_has_flash(self) -> bool:
+        """True if any text cell is BBC-flashing (COLOUR 8-15 / 136-143)."""
+        grid = getattr(self, '_text', None)
+        if not grid:
+            return False
+        for row in grid:
+            for cell in row:
+                if self._decode_text_cell(cell)[3]:
+                    return True
+        return False
+
     def present(self, *, force: bool = False) -> None:
         if not self._open or self._screen is None or self._canvas is None:
             return
-        if force or self._dirty:
+        flash = self._text_grid_has_flash()
+        if force or self._dirty or flash:
+            # Flash must rebuild the text overlay even when pixels are clean
+            # (WAIT loops and hold-open otherwise skip present).
             logical_w, logical_h = self._logical_canvas_size()
             if self._canvas.get_width() != logical_w or self._canvas.get_height() != logical_h:
                 self._canvas = self._pygame.Surface((logical_w, logical_h))
                 self._compose_full = True
             if self.is_graphics_mode():
-                self._render_graphics_mode(force_full=force or self._compose_full)
+                self._render_graphics_mode(
+                    force_full=force or self._compose_full or flash
+                )
             else:
                 self._render_text_mode()
                 self._compose_full = False

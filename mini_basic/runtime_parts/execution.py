@@ -2165,6 +2165,14 @@ class RuntimeExecutionMixin:
                 deadline = time.time() + centiseconds / 100.0
                 while time.time() < deadline:
                     self._service_run_events()
+                    disp = self._display
+                    if (
+                        self._refresh_enabled
+                        and disp is not None
+                        and hasattr(disp, '_text_grid_has_flash')
+                        and disp._text_grid_has_flash()
+                    ):
+                        disp.present()
                     remaining = deadline - time.time()
                     if remaining > 0:
                         time.sleep(min(0.02, remaining))
