@@ -2206,6 +2206,10 @@ class RuntimeCoreMixin:
         self._last_present_time = 0.0
         self._clear_stop_state()
         self._run_aborted = False
+        self._bbc_custom_colours.clear()
+        reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
+        if callable(reset_pal):
+            reset_pal()
 
     def run(self):
         if not self.program:
@@ -2451,6 +2455,10 @@ class RuntimeCoreMixin:
         if clear_loaded_filename:
             self.loaded_filename = None
         self._program_source_numbered = None
+        self._bbc_custom_colours.clear()
+        reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
+        if callable(reset_pal):
+            reset_pal()
         self._invalidate_program_caches()
         self._run_line_nums = []
         self._run_line_index = {}

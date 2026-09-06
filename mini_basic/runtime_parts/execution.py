@@ -2051,10 +2051,11 @@ class RuntimeExecutionMixin:
             self._display.goto(self.text_row, self.text_col)
 
     def _vdu_reset_colours(self) -> None:
-        """VDU 20: default white-on-black text colours."""
+        """VDU 20: default white-on-black text colours and default palette."""
         self.text_fg_colour = 7
         self.text_bg_colour = 0
         self._last_emitted_fg_colour = None
+        self._bbc_custom_colours.clear()
         self._ensure_display()
         if not self._display_enabled():
             return

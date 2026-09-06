@@ -122,6 +122,7 @@ class RuntimeExprMixin:
         spec = bbc_mode_spec(mode)
         if spec is None:
             return
+        self._bbc_custom_colours.clear()
         self._apply_text_dimensions(spec.text_cols, spec.text_rows)
         if spec.gfx_width > 0:
             self.config.graphics_width = spec.gfx_width
