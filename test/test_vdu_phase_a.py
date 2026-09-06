@@ -56,6 +56,14 @@ class VduPhaseATests(unittest.TestCase):
         self.assertEqual(interp.text_fg_colour, 7)
         self.assertEqual(interp.text_bg_colour, 0)
 
+    def test_vdu_20_clears_custom_palette(self):
+        interp = self.run_lines([
+            (10, 'COLOR 3,0,255,255'),
+            (20, 'VDU 20'),
+            (30, 'END'),
+        ])
+        self.assertEqual(interp._bbc_custom_colours, {})
+
     def test_vdu_30_homes_cursor(self):
         interp = self.run_lines([
             (10, 'VDU 31,5,4'),

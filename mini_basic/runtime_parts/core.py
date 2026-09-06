@@ -144,6 +144,7 @@ class RuntimeCoreMixin:
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
         self.trace_enabled = False
+        self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
         self.trace_proc = False
         self.trace_step = False
@@ -211,6 +212,8 @@ class RuntimeCoreMixin:
         self._var_subst_float_entries: List[Tuple[re.Pattern, str]] = []
         self._compiled_expr_cache: Dict[Tuple[str, bool], CompiledExpr] = {}
         self._parse_command_cache: Dict[str, Tuple[str, str]] = {}
+        self._stmt_fast_runners: Dict[str, object] = {}
+        self._while_assign_accel: Dict[int, object] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
         self._ansi_bg_cache: Dict[int, str] = {}
         self._ansi_reset_text: Optional[str] = None
@@ -244,6 +247,12 @@ class RuntimeCoreMixin:
         self.data_pointer: int = 0
         self.user_functions: Dict[str, UserFunction] = {}
         self.user_procedures: Dict[str, UserProcedure] = {}
+        self._fn_memo: Dict[Tuple[str, tuple], object] = {}
+        self._fn_memoable: Dict[str, bool] = {}
+        self._fn_memo_steps: Dict[str, list] = {}
+        self._fn_trampoline_depth = 0
+        self._fn_miss_capture = False
+        self._fn_captured_miss = None
         self.proc_stack: List[List[Tuple[str, VarKind, object, bool]]] = []
         # Pygame stubs for BBCSDL gfxlib etc.
         self._gfx_next_texture_id: int = 1
@@ -384,6 +393,9 @@ class RuntimeCoreMixin:
         return int(table.get(int(offset), 0))
 
     def _substitute_bbcsdl_special_vars(self, expr: str) -> str:
+        # Hot numeric eval (WHILE LET fallback) has no @vars; skip the regex ladder.
+        if '@' not in expr:
+            return expr
         width = self.config.graphics_width or 1280
         height = self.config.graphics_height or 1024
         # @vdu%!n indirection before bare @vdu%
@@ -623,6 +635,8 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries.clear()
         self._var_subst_float_entries.clear()
         self._compiled_expr_cache.clear()
+        self._stmt_fast_runners.clear()
+        self._while_assign_accel.clear()
 
     def _bigint_enabled(self) -> bool:
         return bool(self.config.bigint_enabled)
@@ -847,6 +861,20 @@ class RuntimeCoreMixin:
             print(f'  {hint}')
         if len(legacy) > 4:
             print(f'  …and {len(legacy) - 4} more')
+
+    def _announce_mini_dialect_mismatch(self, features: List[str]) -> None:
+        """LOAD note: listing uses mini-only syntax under another dialect."""
+        if not features:
+            return
+        shown = ', '.join(features[:8])
+        extra = ''
+        if len(features) > 8:
+            extra = f' (+{len(features) - 8} more)'
+        print(
+            f'Note: program uses mini-only {shown}{extra} '
+            f'(dialect is {self.config.dialect}, not mini). '
+            f'Use --dialect mini or add `1 REM dialect: mini`.'
+        )
 
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""
@@ -1542,6 +1570,8 @@ class RuntimeCoreMixin:
         if key == '_optimization_level':
             self.config.__post_init__()
             self._compiled_expr_cache.clear()
+            self._stmt_fast_runners.clear()
+            self._while_assign_accel.clear()
 
     def _system_vars_in_expr(self, expr: str) -> Tuple[str, ...]:
         found: List[str] = []
@@ -2144,6 +2174,8 @@ class RuntimeCoreMixin:
         self.if_stack.clear()
         self.gosub_stack.clear()
         self.proc_stack.clear()
+        self._fn_memo.clear()
+        self._fn_trampoline_depth = 0
         self.resume_at = None
         self.error_trap_line = 0
         self.error_trap_gosub = False
@@ -2174,6 +2206,10 @@ class RuntimeCoreMixin:
         self._last_present_time = 0.0
         self._clear_stop_state()
         self._run_aborted = False
+        self._bbc_custom_colours.clear()
+        reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
+        if callable(reset_pal):
+            reset_pal()
 
     def run(self):
         if not self.program:
@@ -2193,6 +2229,8 @@ class RuntimeCoreMixin:
         self._apply_program_refresh_off_at_start()
 
         self._run_interrupt_watch = True
+        timing = bool(getattr(self, 'timing_enabled', False))
+        t0 = time.perf_counter() if timing else None
         try:
             self._run_program_loop(0)
         except KeyboardInterrupt:
@@ -2208,6 +2246,14 @@ class RuntimeCoreMixin:
             self._run_interrupt_watch = False
             self._trace_finish_line()
             self._flush_program_output()
+            if t0 is not None and getattr(self, 'timing_enabled', False):
+                elapsed = time.perf_counter() - t0
+                try:
+                    stream = self._get_error_stream()
+                    stream.write(f'Time: {elapsed:.3f} s\n')
+                    stream.flush()
+                except Exception:
+                    pass
             if not self.stopped:
                 self._close_file_channels()
             hold = self.config.hold_display_open and not getattr(self, '_run_aborted', False)
@@ -2373,6 +2419,12 @@ class RuntimeCoreMixin:
         self.data_pointer = 0
         self.user_functions.clear()
         self.user_procedures.clear()
+        self._fn_memo.clear()
+        self._fn_memoable.clear()
+        self._fn_memo_steps.clear()
+        self._fn_trampoline_depth = 0
+        self._fn_miss_capture = False
+        self._fn_captured_miss = None
         self._definitions_dirty = True
         self.proc_stack.clear()
         self._rnd_last = 0.0
@@ -2403,6 +2455,10 @@ class RuntimeCoreMixin:
         if clear_loaded_filename:
             self.loaded_filename = None
         self._program_source_numbered = None
+        self._bbc_custom_colours.clear()
+        reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
+        if callable(reset_pal):
+            reset_pal()
         self._invalidate_program_caches()
         self._run_line_nums = []
         self._run_line_index = {}

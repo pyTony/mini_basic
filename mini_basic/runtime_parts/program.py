@@ -245,6 +245,19 @@ class RuntimeProgramMixin:
         self._close_trace_file()
         self.trace_file = open(path, 'w', encoding='utf-8', newline='\n')
 
+    def _configure_timing(self, rest: str) -> None:
+        arg = rest.strip()
+        if not arg:
+            raise ValueError('ON or OFF')
+        upper = arg.upper()
+        if upper == 'ON':
+            self.timing_enabled = True
+            return
+        if upper == 'OFF':
+            self.timing_enabled = False
+            return
+        raise ValueError('ON or OFF')
+
     def _configure_trace(self, rest: str) -> None:
         arg = rest.strip()
         if not arg:
@@ -639,12 +652,45 @@ class RuntimeProgramMixin:
             return self._program_source_numbered
         return True
 
+    def _strip_tail_apostrophe_comment(self, statement: str) -> str:
+        """QBasic/BBC: ``X=1 ' comment`` — ``'`` starts a tail comment.
+
+        Leave PRINT (apostrophe is newline), DATA, REM, and ``\"a\"'\"b\"`` glue.
+        """
+        text = statement
+        if not text or "'" not in text:
+            return text
+        if self._line_skips_expr_canonicalize(text):
+            return text
+        cmd, _rest = self._parse_command(text)
+        if cmd in ('PRINT', 'PRINT#', 'DATA', 'REM'):
+            return text
+        in_string = False
+        index = 0
+        while index < len(text):
+            ch = text[index]
+            if ch == '"':
+                in_string = not in_string
+                index += 1
+                continue
+            if not in_string and ch == "'":
+                prev = text[:index].rstrip()
+                nxt = text[index + 1 :].lstrip()
+                if prev.endswith('"') and nxt.startswith('"'):
+                    index += 1
+                    continue
+                return text[:index].rstrip()
+            index += 1
+        return text
+
     def _parse_line_statements(self, line: str) -> List[Tuple[Optional[str], str]]:
         statements: List[Tuple[Optional[str], str]] = []
         for part in self._split_colon_statements(line):
             label, text = self._extract_label_prefix(part)
             if text and text != ';':
-                statements.append((label, text))
+                text = self._strip_tail_apostrophe_comment(text)
+                if text:
+                    statements.append((label, text))
         return statements
 
     def _prepare_run(self) -> None:
@@ -692,6 +738,8 @@ class RuntimeProgramMixin:
         self._compiled_expr_cache = {}
         self._parse_command_cache = {}
         self._assign_parse_cache = {}
+        self._stmt_fast_runners = {}
+        self._while_assign_accel = {}
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()
@@ -994,6 +1042,8 @@ class RuntimeProgramMixin:
                 if not text:
                     continue
                 cmd, _ = self._parse_command(text)
+                if cmd in ('REM', 'DATA'):
+                    continue
                 if cmd in self._GRAPHICS_CMDS:
                     return True
                 # For bbc dialect, CLS / MODE / VDU / CLG / COLOUR etc. auto-enable pygame
@@ -1010,7 +1060,10 @@ class RuntimeProgramMixin:
             (line_num, statement, self.line_indent.get(line_num, 0))
             for line_num, statement in sorted(self.program.items())
         ]
-        self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+        if self._program_statements_use_graphics(parsed_lines):
+            self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+            return
+        self._revert_auto_pygame_display()
 
     def _current_program_parsed_lines(self) -> List[Tuple[int, str, int]]:
         return [
@@ -1084,10 +1137,55 @@ class RuntimeProgramMixin:
             if re.search(r'\bINSTR\b', upper) and not self._dialect_allows('INSTR'):
                 violations.append('INSTR')
             for func in self._MINI_ONLY_FUNCS:
-                if re.search(rf'\b{re.escape(func)}\b', upper):
+                if self._text_has_mini_only_func(upper, func):
                     if not self._dialect_allows(func):
                         violations.append(func)
         return violations
+
+    @staticmethod
+    def _text_has_mini_only_func(upper_text: str, func: str) -> bool:
+        """Match FG$ / RESET$ — ``\\b`` does not fire after ``$``."""
+        if func.endswith('$'):
+            return re.search(
+                rf'(?<![A-Za-z0-9_]){re.escape(func)}(?![A-Za-z0-9_])',
+                upper_text,
+            ) is not None
+        return re.search(rf'\b{re.escape(func)}\b', upper_text) is not None
+
+    def _collect_mini_only_features(
+        self,
+        parsed_lines: List[Tuple[int, str, int]],
+    ) -> List[str]:
+        """Mini-only commands/functions used in the listing (any dialect)."""
+        found: List[str] = []
+        seen: Set[str] = set()
+
+        def add(name: str) -> None:
+            key = name.upper()
+            if key not in seen:
+                seen.add(key)
+                found.append(name)
+
+        for _, statement, _ in parsed_lines:
+            for part in self._split_colon_statements(statement):
+                _, text = self._extract_label_prefix(part)
+                stripped = text.strip()
+                if not stripped or stripped.startswith("'"):
+                    continue
+                cmd, rest = self._parse_command(text)
+                if cmd == 'REM':
+                    continue
+                if re.match(r'^ON\s+CLOSE\b', stripped, re.IGNORECASE):
+                    add('ON CLOSE')
+                if cmd in self._MINI_ONLY_CMDS:
+                    add(cmd)
+                upper = stripped.upper()
+                for func in self._MINI_ONLY_FUNCS:
+                    if self._text_has_mini_only_func(upper, func):
+                        add(func)
+                if re.search(r'\bINKEY\s*\(\s*-', upper):
+                    add('INKEY(-n)')
+        return found
 
     @classmethod
     def _normalize_hash_file_commands(cls, line: str) -> str:
@@ -1168,6 +1266,7 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bEND\s+PROC\b', 'ENDPROC', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+CASE\b', 'ENDCASE', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+FN\b', 'END DEF', line, flags=re.IGNORECASE)
+        line = re.sub(r'\bEND\s+FUNCTION\b', 'END DEF', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+DEF\b', 'END DEF', line, flags=re.IGNORECASE)
         if fold_endwhile:
             line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
@@ -1269,7 +1368,7 @@ class RuntimeProgramMixin:
         text = line.strip()
         core = re.split(r'\s+REM(?:\s|$)', text, maxsplit=1, flags=re.IGNORECASE)[0].rstrip()
         match = re.match(
-            r'^END\s+(IF|WHILE|PROC|FN|DEF|CASE)\s*$',
+            r'^END\s+(IF|WHILE|PROC|FN|FUNCTION|DEF|CASE)\s*$',
             core,
             re.IGNORECASE,
         )
@@ -1280,6 +1379,7 @@ class RuntimeProgramMixin:
             'WHILE': 'WEND',
             'PROC': 'ENDPROC',
             'FN': 'END DEF',
+            'FUNCTION': 'END DEF',
             'DEF': 'END DEF',
             'CASE': 'ENDCASE',
         }
@@ -1291,6 +1391,10 @@ class RuntimeProgramMixin:
         if cached is not None:
             return cached
         line = self._normalize_hash_file_commands(line.strip())
+        # QBasic FUNCTION ... is DEF ... (FUNCTION= stays an assignment;
+        # END FUNCTION / EXIT FUNCTION are two-word forms starting END/EXIT).
+        line = re.sub(r'^FUNCTION(?=\s)', 'DEF', line, flags=re.IGNORECASE)
+        line = re.sub(r'^FUNCTION(?=FN)', 'DEF ', line, flags=re.IGNORECASE)
         line = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', line, flags=re.IGNORECASE)
         line = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', line, flags=re.IGNORECASE)
         if self.config.dialect == 'bbc':
@@ -1750,6 +1854,8 @@ class RuntimeProgramMixin:
         self.user_procedures = procedures
         functions, _ = self._scan_user_functions(line_nums)
         self.user_functions = functions
+        self._rebuild_fn_memoable()
+        self._fn_memo.clear()
         self._definitions_dirty = False
 
     def _build_user_functions(self) -> None:
@@ -1762,6 +1868,8 @@ class RuntimeProgramMixin:
         self.user_functions = functions
         self._finalize_fn_return_kinds()
         self._warn_def_fn_missing_returns()
+        self._rebuild_fn_memoable()
+        self._fn_memo.clear()
         self._fn_skip_lines = skip_lines
         if self._fn_skip_lines:
             self._run_line_nums = [

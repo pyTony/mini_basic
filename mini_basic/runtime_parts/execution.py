@@ -103,6 +103,22 @@ from .helpers import (
 )
 from .stmt_simple import MISSING, dispatch_simple_stmt
 
+# LHS names that must not use the compiled assignment kernel (system / protected).
+_ACCEL_FORBIDDEN_LHS = frozenset({
+    'TIME', 'PAGE', 'LOMEM', 'HIMEM', 'PI', 'ERR', 'ERL',
+})
+# Statements that keep WHILE on the interpreter path (PRINT, nested control, …).
+_WHILE_ACCEL_BLOCKING_CMDS = frozenset({
+    'WHILE', 'REPEAT', 'FOR', 'IF', 'ELSE', 'ELSEIF', 'ENDIF',
+    'GOTO', 'GOSUB', 'PROC', 'ENDPROC', 'EXIT', 'NEXT', 'UNTIL',
+    'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE', 'BREAK', 'CONTINUE',
+    'ON', 'DEF', 'LOCAL', 'DIM', 'READ', 'RESTORE', 'DATA',
+    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END',
+    'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
+    'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
+    'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP',
+})
+
 class RuntimeExecutionMixin:
     """Mixin providing execution-related BASICInterpreter methods."""
 
@@ -944,6 +960,12 @@ class RuntimeExecutionMixin:
                 vname, vkind = self._parse_var_token(var_tok)
                 if vkind == 'str':
                     return None
+                lhs_key = var_tok.strip().upper()
+                if lhs_key == '@%' or vname.upper() in _ACCEL_FORBIDDEN_LHS:
+                    return None
+                # _bigint / _save_case / _epsilon etc. must go through _assign.
+                if self._canonical_system_var_name(var_tok.strip()):
+                    return None
                 ce = self._get_compiled_expr(expr_src, is_condition=False)
                 if ce.use_fallback and self._expr_is_pure_bitwise(expr_src):
                     # force recompile attempt already done; allow slow eval wrapper
@@ -1091,6 +1113,220 @@ class RuntimeExecutionMixin:
                 return None
         return runners
 
+    def _try_fast_numeric_assignment(self, line: str) -> bool:
+        """Run a compiled scalar LET when the line is only ``var = expr``.
+
+        Skips the ON ERROR / OPEN / SWAP regex ladder in ``_execute_statement``.
+        Returns True if the assignment ran (or is known not to be a simple LET).
+        False means the caller should keep the slow dispatch path.
+        """
+        cache = self._stmt_fast_runners
+        cached = cache.get(line)
+        if cached is False:
+            return False
+        if not self.config.use_compiled_exprs:
+            cache[line] = False
+            return False
+        if cached is None:
+            cmd, rest = self._parse_command(line)
+            if cmd not in ('', 'LET'):
+                cache[line] = False
+                return False
+            if self._in_fn_body:
+                try:
+                    var, op, _expr = self._parse_assignment_statement(
+                        rest if cmd == 'LET' else line
+                    )
+                except Exception:
+                    var, op = '', ''
+                if op == '=' and self._is_qb_fn_result_assign(var):
+                    cache[line] = False
+                    return False
+            text = rest if cmd == 'LET' else line
+            runners = self._compile_accelerate_body([('LET', text)])
+            if not runners or len(runners) != 1:
+                cache[line] = False
+                return False
+            cached = runners[0]
+            cache[line] = cached
+        try:
+            cached()
+        except BasicRuntimeError:
+            raise
+        except Exception:
+            # Div0 / overflow / etc. must use _assign so ON ERROR / ERR work.
+            return False
+        return True
+
+    def _try_accelerate_while_assign_body(
+        self,
+        line_num: int,
+        rest: str,
+        line_nums: List[int],
+        stmt_index: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+    ) -> Optional[int]:
+        """Run a WHILE whose body is only numeric assignments in Python.
+
+        Mandelbrot inner loops are WHILE + four LETs; interpreting each
+        statement through ``_execute_statement`` dominates BBCSDL (~14×).
+        Returns the line after WEND/ENDWHILE, or None to use the interpreter.
+        """
+        if not self.config.use_compiled_exprs:
+            return None
+        if self.error_trap_line:
+            return None
+        cached = self._while_assign_accel.get(line_num)
+        if cached is False:
+            return None
+        if cached is not None:
+            cond_src, runners, exit_line, resume = cached
+            return self._run_accelerated_while(cond_src, runners, exit_line, resume)
+
+        collected = self._collect_while_assign_body(
+            line_num, line_nums, stmt_index, stmt_parts,
+        )
+        if collected is None:
+            self._while_assign_accel[line_num] = False
+            return None
+        body_stmts, exit_line, resume = collected
+        runners = self._compile_accelerate_body(body_stmts)
+        if not runners:
+            self._while_assign_accel[line_num] = False
+            return None
+        cond_src = rest.strip()
+        if not cond_src:
+            self._while_assign_accel[line_num] = False
+            return None
+        self._while_assign_accel[line_num] = (cond_src, runners, exit_line, resume)
+        return self._run_accelerated_while(cond_src, runners, exit_line, resume)
+
+    def _run_accelerated_while(
+        self,
+        cond_src: str,
+        runners: List[callable],
+        exit_line: int,
+        resume: Optional[Tuple[int, int]],
+    ) -> int:
+        ce = self._get_compiled_expr(cond_src, is_condition=True)
+        compiled = ce.code is not None and not ce.use_fallback
+        n = 0
+        while True:
+            if compiled:
+                if not ce.eval_condition(self):
+                    break
+            elif not self._eval_condition(cond_src):
+                break
+            for run in runners:
+                run()
+            n += 1
+            if n & 8191 == 0:
+                self._check_user_interrupt()
+        if resume is not None:
+            self.resume_at = resume
+            return resume[0]
+        return exit_line if exit_line != -1 else -1
+
+    def _collect_while_assign_body(
+        self,
+        line_num: int,
+        line_nums: List[int],
+        stmt_index: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+    ) -> Optional[Tuple[List[Tuple[str, str]], int, Optional[Tuple[int, int]]]]:
+        parts = stmt_parts if stmt_parts is not None else self._stmt_parts_for_line(line_num)
+        wend_stmt_idx = -1
+        if parts:
+            for idx_w in range(stmt_index + 1, len(parts)):
+                _, next_text = parts[idx_w]
+                next_cmd, _ = self._parse_command(next_text)
+                if next_cmd in ('WEND', 'ENDWHILE'):
+                    wend_stmt_idx = idx_w
+                    break
+                if next_cmd in ('WHILE', 'REPEAT', 'FOR'):
+                    break
+
+        body: List[Tuple[str, str]] = []
+
+        def add_stmt(text: str) -> bool:
+            if not text or text == ';':
+                return True
+            cmd, crest = self._parse_command(text)
+            if cmd in ('REM',):
+                return True
+            if cmd in _WHILE_ACCEL_BLOCKING_CMDS:
+                return False
+            if cmd in ('WEND', 'ENDWHILE'):
+                return False
+            if cmd in ('', 'LET'):
+                payload = crest if cmd == 'LET' else text
+                if '=' not in payload or '(' in payload.split('=', 1)[0]:
+                    return False
+                body.append(('LET', payload))
+                return True
+            if not cmd and '=' in text:
+                if '(' in text.split('=', 1)[0]:
+                    return False
+                body.append(('LET', text))
+                return True
+            return False
+
+        if wend_stmt_idx >= 0:
+            for idx in range(stmt_index + 1, wend_stmt_idx):
+                _, text = parts[idx]
+                if not add_stmt(text):
+                    return None
+            if not body:
+                return None
+            after = wend_stmt_idx + 1
+            if after < len(parts):
+                resume = (line_num, after)
+                return body, line_num, resume
+            exit_line = self._next_line_num(line_num, line_nums)
+            return body, exit_line, None
+
+        if parts:
+            for idx in range(stmt_index + 1, len(parts)):
+                _, text = parts[idx]
+                cmd, _ = self._parse_command(text)
+                if cmd in ('WEND', 'ENDWHILE'):
+                    return None
+                if not add_stmt(text):
+                    return None
+
+        wend_line = self._run_while_wend.get(line_num)
+        if wend_line is None:
+            wend_line = self._find_matching_wend(line_num, line_nums)
+        if wend_line == -1:
+            return None
+
+        idx = self._line_index(line_num, line_nums)
+        wend_idx = self._line_index(wend_line, line_nums)
+        scan = idx + 1
+        while scan < wend_idx:
+            ln = line_nums[scan]
+            for _, text in self._stmt_parts_for_line(ln):
+                if not add_stmt(text):
+                    return None
+            scan += 1
+
+        wend_parts = self._stmt_parts_for_line(wend_line)
+        wend_on_line = 0
+        for i, (_, text) in enumerate(wend_parts):
+            cmd, _ = self._parse_command(text)
+            if cmd in ('WEND', 'ENDWHILE'):
+                wend_on_line = i
+                break
+            if not add_stmt(text):
+                return None
+        if not body:
+            return None
+        after = wend_on_line + 1
+        if after < len(wend_parts):
+            return body, wend_line, (wend_line, after)
+        exit_line = self._next_line_num(wend_line, line_nums)
+        return body, exit_line, None
+
     def _find_last_fn_body_return_expr(
         self,
         body_start: int,
@@ -1211,7 +1447,7 @@ class RuntimeExecutionMixin:
                 cmd, rest = self._parse_command(text)
                 if depth == 0 and self._is_def_fn_or_proc_header(cmd, rest):
                     return None
-                if cmd == 'END' and rest.strip().upper() in ('DEF', 'FN'):
+                if cmd == 'END' and rest.strip().upper() in ('DEF', 'FN', 'FUNCTION'):
                     if depth == 0:
                         return line_num
                     continue
@@ -1320,6 +1556,16 @@ class RuntimeExecutionMixin:
             self.resume_at = saved_resume_at
             self._in_proc_body = False
 
+    def _is_qb_fn_result_assign(self, var: str) -> bool:
+        """QBasic ``FNACK = expr`` / ``ACK = expr`` inside DEF FNACK."""
+        fn = self._active_fn
+        if fn is None:
+            return False
+        token = self._normalize_identifier(var.strip().rstrip('%$!#'))
+        fname = str(fn.name)
+        low = token.lower()
+        return low in (fname.lower(), 'fn' + fname.lower(), 'fn_' + fname.lower())
+
     def _handle_exit(self, kind: str) -> Optional[int]:
         kind_map = {
             'FOR': 'for',
@@ -1328,6 +1574,9 @@ class RuntimeExecutionMixin:
         }
         target_kind = kind_map.get(kind.strip().upper())
         if target_kind is None:
+            if kind.strip().upper() == 'FUNCTION' and self._in_fn_body:
+                pending = getattr(self, '_fn_qb_return', None)
+                raise FnReturn(0 if pending is None else pending)
             self._emit_error('? EXIT error')
             return None
         for index in range(len(self.stack) - 1, -1, -1):
@@ -1365,6 +1614,7 @@ class RuntimeExecutionMixin:
         self._in_fn_body = True
         self._active_fn = fn
         self._fn_local_error_return = None
+        self._fn_qb_return = None
         full_line_nums = sorted(self.program)
         body_line_nums = [
             line_num for line_num in full_line_nums
@@ -1407,10 +1657,16 @@ class RuntimeExecutionMixin:
                             self._eval_numeric(self._fn_local_error_return),
                         )
                     if target not in body_line_index:
+                        # Structured IF/WHILE/FOR exit onto END DEF (body_end).
+                        if target == fn.body_end or target == -1:
+                            break
                         raise ValueError('DEF FN jump outside body')
                     idx = body_line_index[target]
                 else:
                     idx += 1
+            pending = getattr(self, '_fn_qb_return', None)
+            if pending is not None:
+                return self._coerce_fn_return(fn, pending)
             raise ValueError('? DEF FN missing return')
         finally:
             self._restore_local_bindings()
@@ -1420,6 +1676,7 @@ class RuntimeExecutionMixin:
             self._in_fn_body = saved_in_fn_body
             self._active_fn = saved_active_fn
             self._fn_local_error_return = saved_fn_err
+            self._fn_qb_return = None
             self.error_trap_line = saved_error_trap_line
             self.error_trap_gosub = saved_error_trap_gosub
 
@@ -1794,10 +2051,11 @@ class RuntimeExecutionMixin:
             self._display.goto(self.text_row, self.text_col)
 
     def _vdu_reset_colours(self) -> None:
-        """VDU 20: default white-on-black text colours."""
+        """VDU 20: default white-on-black text colours and default palette."""
         self.text_fg_colour = 7
         self.text_bg_colour = 0
         self._last_emitted_fg_colour = None
+        self._bbc_custom_colours.clear()
         self._ensure_display()
         if not self._display_enabled():
             return
@@ -2461,20 +2719,24 @@ class RuntimeExecutionMixin:
                         px, py = sx + i, sy + j
                         if 0 <= px < gfx.width and 0 <= py < gfx.height:
                             r, g, b = (int(arr[i, j, 0]), int(arr[i, j, 1]), int(arr[i, j, 2]))
-                            # nearest palette index
+                            # Nearest index using the live palette (custom COLOR n,r,g,b).
+                            # Default BBC 15 is white; piechart sky (15) must map to 15, not 7.
                             best, best_d = 0, 1 << 30
+                            pixel_rgb = getattr(disp, '_pixel_rgb', None)
                             from ..display import colour_to_rgb
 
                             for ci in range(16):
-                                cr, cg, cb = colour_to_rgb(ci)
+                                if callable(pixel_rgb):
+                                    cr, cg, cb = pixel_rgb(ci)
+                                else:
+                                    cr, cg, cb = colour_to_rgb(ci)
                                 d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2
                                 if d < best_d:
                                     best_d, best = d, ci
                             gfx.pixels[py][px] = best
-                            if hasattr(gfx, '_ensure_rgb_pixels'):
-                                gfx._ensure_rgb_pixels()[py][px] = (r, g, b)
-                            elif getattr(gfx, 'rgb_pixels', None) is not None:
-                                gfx.rgb_pixels[py][px] = (r, g, b)
+                            layer = gfx._ensure_rgb_pixels() if hasattr(gfx, '_ensure_rgb_pixels') else getattr(gfx, 'rgb_pixels', None)
+                            if layer is not None:
+                                layer[py][px] = (r, g, b)
                                 if hasattr(gfx, 'rgb_dirty'):
                                     gfx.rgb_dirty.add((px, py))
             except Exception:
@@ -2758,19 +3020,22 @@ class RuntimeExecutionMixin:
         self._exec_stmt_count = stmt_count
         self._active_stmt_index = stmt_index
         line = statement.strip()
-        self._active_statement = line
         cmd = ''
         rest = ''
         if not line or line == ';':
             return None
-        self.dprint('[EXEC]', repr(line))
-
         stripped = line.lstrip()
         if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
             hint = parse_comment_dialect_line(line)
             if hint is not None:
                 self._apply_dialect_hint(hint, announce=False)
             return None
+        # QBasic/BBC tail comment: T1 = TIMER ' Start …  (PRINT keeps ').
+        line = self._strip_tail_apostrophe_comment(line)
+        if not line:
+            return None
+        self._active_statement = line
+        self.dprint('[EXEC]', repr(line))
 
         if line.startswith('*'):
             try:
@@ -2778,6 +3043,9 @@ class RuntimeExecutionMixin:
             except Exception as exc:
                 self._runtime_error(
                     self._error_message('? OSCLI error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if '=' in line and self._try_fast_numeric_assignment(line):
             return None
 
         if re.match(r'^ON\s+MOUSE\b', line, re.IGNORECASE):
@@ -3413,6 +3681,11 @@ class RuntimeExecutionMixin:
 
         if cmd == 'WHILE':
             try:
+                accelerated = self._try_accelerate_while_assign_body(
+                    line_num, rest, line_nums, stmt_index, stmt_parts,
+                )
+                if accelerated is not None:
+                    return accelerated
                 condition = rest.strip()
                 # Same-line form: WHILE cond: body: WEND  (colon-split like REPEAT/FOR)
                 wend_stmt_idx = -1
@@ -3640,6 +3913,9 @@ class RuntimeExecutionMixin:
             return None
 
         if cmd == 'EXIT':
+            if rest.strip().upper() == 'FUNCTION' and self._in_fn_body:
+                pending = getattr(self, '_fn_qb_return', None)
+                raise FnReturn(0 if pending is None else pending)
             if not self._dialect_allows('EXIT'):
                 self._runtime_error(
                     '? EXIT FOR/WHILE/REPEAT is a mini (SDL) extension',
@@ -4255,6 +4531,13 @@ class RuntimeExecutionMixin:
             if '=' in line:
                 try:
                     var, op, expr = self._parse_assignment_statement(line)
+                    if (
+                        op == '='
+                        and self._in_fn_body
+                        and self._is_qb_fn_result_assign(var)
+                    ):
+                        self._fn_qb_return = self._eval_fn_return_expression(expr)
+                        return None
                     if op == '=':
                         self._assign(var, expr)
                     else:
@@ -4742,8 +5025,9 @@ class RuntimeExecutionMixin:
                 continue
             if re.match(r'^CONT\s*$', statement, re.IGNORECASE):
                 return True
-            cmd, _ = self._parse_command(statement)
-            if cmd or '=' in statement:
+            folded = self._fold_immediate_statement_keyword(statement)
+            cmd, _ = self._parse_command(folded)
+            if cmd or '=' in folded:
                 return True
         return False
 

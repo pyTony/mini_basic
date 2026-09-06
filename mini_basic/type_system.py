@@ -9,7 +9,7 @@ Key types
 - ``FileChannel``, ``FieldBuffer`` — sequential and random file I/O state
 - ``UserFunction``, ``UserProcedure`` — DEF FN / PROC metadata
 - ``LoopFrame``, ``IfFrame``, ``IfBlockLayout`` — structured control flow
-- Exceptions: ``ProgramExit``, ``FnReturn``, ``ProcReturn``, ``BasicRuntimeError``
+- Exceptions: ``ProgramExit``, ``FnReturn``, ``FnMemoMiss``, ``ProcReturn``, ``BasicRuntimeError``
 """
 from __future__ import annotations
 
@@ -39,6 +39,21 @@ class FnReturn(BaseException):
 
     def __init__(self, value: object):
         self.value = value
+        super().__init__()
+
+
+class FnMemoMiss(BaseException):
+    """Pure DEF FN cache miss while the trampoline is filling the memo table.
+
+    Not a BASIC error: nested FN evaluation raises this instead of recursing
+    on the Python stack. The trampoline computes the missing call, stores the
+    result, and retries the parent body.
+    """
+
+    def __init__(self, fn: 'UserFunction', bindings: list, direct_eval: bool):
+        self.fn = fn
+        self.bindings = bindings
+        self.direct_eval = direct_eval
         super().__init__()
 
 

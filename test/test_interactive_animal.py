@@ -119,7 +119,8 @@ class InteractiveAnimalTests(unittest.TestCase):
             self.assertIn('Close the game window to exit.', out)
             saved = os.path.join(tmp, 'animal.dat')
             self.assertTrue(os.path.isfile(saved))
-            self.assertIn('goldfish', open(saved, encoding='utf-8').read())
+            with open(saved, encoding='utf-8') as handle:
+                self.assertIn('goldfish', handle.read())
 
     def test_animal_fnquery_accepts_y(self):
         interp = load_lines(bbc_none(), FNQUERY_LINES + FNART_LINES + FNSTRIP_LINES)

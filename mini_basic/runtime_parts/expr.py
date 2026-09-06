@@ -72,6 +72,7 @@ from ..type_system import (
     FieldBuffer,
     FileChannel,
     FnReturn,
+    FnMemoMiss,
     CaseBlockLayout,
     CaseFrame,
     IfBlockLayout,
@@ -86,6 +87,8 @@ from ..type_system import (
     VarKind,
 )
 from typing import Callable, Dict, List, Optional, Set, TextIO, Tuple
+
+_FN_MEMO_MISS = object()
 
 _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
@@ -119,6 +122,7 @@ class RuntimeExprMixin:
         spec = bbc_mode_spec(mode)
         if spec is None:
             return
+        self._bbc_custom_colours.clear()
         self._apply_text_dimensions(spec.text_cols, spec.text_rows)
         if spec.gfx_width > 0:
             self.config.graphics_width = spec.gfx_width
@@ -260,18 +264,20 @@ class RuntimeExprMixin:
         )
 
     def _get_compiled_expr(self, source: str, is_condition: bool = False) -> CompiledExpr:
-        key = (source.strip(), is_condition)
+        # Outer parens: CONT = (ZX*ZX+ZY*ZY < 4) must compile as a comparison,
+        # not fall back to _eval_numeric (regex ladder) every WHILE iteration.
+        stripped = self._strip_outer_parens(source)
+        key = (stripped, is_condition)
         cached = self._compiled_expr_cache.get(key)
         if cached is not None:
             return cached
 
-        compiled = CompiledExpr(source=source, is_condition=is_condition)
-        if not source.strip():
+        compiled = CompiledExpr(source=stripped, is_condition=is_condition)
+        if not stripped:
             self._compiled_expr_cache[key] = compiled
             return compiled
 
         try:
-            stripped = source.strip()
             compiled.has_array = '(' in stripped and self._expr_has_array_ref(stripped)
             compiled.needs_int_coerce = self._expr_is_pure_bitwise(stripped)
             if self._boolean_literal_value(stripped) is not None:
@@ -356,6 +362,10 @@ class RuntimeExprMixin:
                 ):
                     return False
 
+        mini_used = self._collect_mini_only_features(parsed_lines)
+        if announce and self.config.dialect != 'mini' and mini_used:
+            self._announce_mini_dialect_mismatch(mini_used)
+
         seen: Set[str] = set()
         for _, statement, _ in parsed_lines:
             for violation in self._scan_statement_dialect_violations(statement):
@@ -368,10 +378,11 @@ class RuntimeExprMixin:
                 ):
                     return False
 
-        if announce and self.config.dialect == 'bbc':
+        if announce and self.config.dialect == 'bbc' and not mini_used:
             # mini is the intentional default for both numbered and unnumbered
             # sources; do not nag "consider --dialect …". SAVE of unnumbered
             # loads defaults to PRETTY so the file stays unnumbered.
+            # Skip SDL spelling notes when the listing is mini-only (BREAK/FG$).
             self._announce_bbc_sdl_keyword_hints(parsed_lines)
         return True
 
@@ -867,12 +878,18 @@ class RuntimeExprMixin:
         return self._array_aliases.get((base, kind), (base, kind))
 
     def _ensure_implicit_array(self, base: str, kind: VarKind, rank: int) -> None:
-        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis)."""
+        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis).
+
+        BBC / mini require DIM (or a real function). ``PRINT ZZZ(1)`` must not
+        become a silent 0 via an implicit array.
+        """
         if rank < 1:
             raise ValueError('unknown array')
         key = self._resolve_array_key(base, kind)
         if key in self.array_storage:
             return
+        if self.config.dialect not in self._NUMBERED_GOTO_DIALECTS:
+            raise ValueError('unknown array')
         self._store_array(base, kind, [10] * rank)
 
     def _get_array_storage_entry(self, base: str, kind: VarKind) -> ArrayStorage:
@@ -1126,6 +1143,24 @@ class RuntimeExprMixin:
             expr = match.group(1).strip()
             if expr:
                 candidates.append(expr)
+        # QBasic: FNACK = expr  /  THEN FNACK = N+1
+        for match in re.finditer(
+            rf'(?:THEN|ELSE)\s+(?:FN_?)?{self._VAR_BASE_PATTERN}\s*=\s*(.+?)(?=\s*:|\s+ELSE\b|\s*$)',
+            stripped,
+            flags=re.IGNORECASE,
+        ):
+            expr = match.group(1).strip()
+            if expr:
+                candidates.append(expr)
+        qb = re.match(
+            rf'^(?:FN_?)?{self._VAR_BASE_PATTERN}\s*=\s*(.+)$',
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if qb:
+            candidates.append(qb.group(1).strip())
+        if re.search(r'\bEXIT\s+FUNCTION\b', stripped, flags=re.IGNORECASE):
+            candidates.append('0')
         return candidates
 
     def _apply_inferred_fn_return_kind(
@@ -1220,6 +1255,11 @@ class RuntimeExprMixin:
             if arg is not None and arg.strip():
                 raise ValueError('GET takes no arguments')
             return float(self._read_get_char())
+        if func == 'TIMER':
+            if arg is not None and arg.strip():
+                raise ValueError('TIMER takes no arguments')
+            # QBasic TIMER: seconds since midnight-ish; BBC TIME is centiseconds.
+            return float(self._get_time()) / 100.0
         if func == 'INKEY':
             if arg is None or not arg.strip():
                 return self._inkey_code()
@@ -1507,6 +1547,24 @@ class RuntimeExprMixin:
         finally:
             self._fn_direct_eval = False
 
+    def _fn_memo_canon(self, value: object) -> object:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, float):
+            if math.isfinite(value) and value == int(value) and abs(value) < 1e16:
+                return int(value)
+            return value
+        if isinstance(value, (int, str)):
+            return value
+        return repr(value)
+
+    def _fn_memo_key(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+    ) -> Tuple[str, tuple]:
+        return (fn.name, tuple(self._fn_memo_canon(value) for _, _, value in bindings))
+
     def _eval_user_function(self, fn: UserFunction, args: List[str]) -> object:
         if len(args) != len(fn.params):
             raise ValueError('wrong number of arguments')
@@ -1530,6 +1588,175 @@ class RuntimeExprMixin:
                 ))
             else:
                 bindings.append((param_name, param_kind, self._eval_numeric(arg_expr)))
+        memoable = (not array_aliases) and self._fn_is_memoable(fn)
+        if memoable:
+            key = self._fn_memo_key(fn, bindings)
+            cached = self._fn_memo.get(key, _FN_MEMO_MISS)
+            if cached is not _FN_MEMO_MISS:
+                if self._trace_call('FN', fn.name):
+                    raise ProgramStop()
+                return cached
+            if self._fn_trampoline_depth:
+                raise FnMemoMiss(fn, bindings, self._fn_direct_eval)
+            return self._fn_trampoline_eval(fn, bindings, key)
+        return self._eval_user_function_bound(fn, bindings, array_aliases)
+
+    def _fn_trampoline_eval(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        key: Tuple[str, tuple],
+    ) -> object:
+        stack: List[Tuple[UserFunction, list, tuple, bool]] = [
+            (fn, bindings, key, self._fn_direct_eval),
+        ]
+        self._fn_trampoline_depth += 1
+        try:
+            while stack:
+                cur_fn, cur_bind, cur_key, direct = stack[-1]
+                cached = self._fn_memo.get(cur_key, _FN_MEMO_MISS)
+                if cached is not _FN_MEMO_MISS:
+                    stack.pop()
+                    continue
+                self._fn_captured_miss = None
+                saved_direct = self._fn_direct_eval
+                self._fn_direct_eval = direct
+                steps = self._fn_memo_steps.get(cur_fn.name)
+                try:
+                    if steps is not None:
+                        result = self._eval_memoable_fn_steps(cur_fn, cur_bind, steps)
+                    else:
+                        result = self._eval_user_function_bound(cur_fn, cur_bind, {})
+                except FnMemoMiss as miss:
+                    self._fn_captured_miss = (
+                        miss.fn,
+                        miss.bindings,
+                        miss.direct_eval,
+                    )
+                    result = _FN_MEMO_MISS
+                finally:
+                    self._fn_direct_eval = saved_direct
+                miss = self._fn_captured_miss
+                if miss is not None:
+                    mfn, mbind, mdir = miss
+                    miss_key = self._fn_memo_key(mfn, mbind)
+                    if self._fn_memo.get(miss_key, _FN_MEMO_MISS) is _FN_MEMO_MISS:
+                        stack.append((mfn, mbind, miss_key, mdir))
+                    continue
+                self._fn_memo[cur_key] = result
+                stack.pop()
+            return self._fn_memo[key]
+        finally:
+            self._fn_trampoline_depth -= 1
+            self._fn_captured_miss = None
+
+    def _eval_fn_memo_ast(self, node: tuple, env: Dict[str, object]) -> object:
+        kind = node[0]
+        if kind == 'const':
+            return node[1]
+        if kind == 'param':
+            value = env.get(node[1])
+            if value is None:
+                value = env.get(str(node[1]).upper())
+            return 0 if value is None else value
+        if kind == 'neg':
+            inner = self._eval_fn_memo_ast(node[1], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            return -inner
+        if kind in ('add', 'sub', 'mul', 'div'):
+            left = self._eval_fn_memo_ast(node[1], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            right = self._eval_fn_memo_ast(node[2], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            if kind == 'add':
+                return left + right
+            if kind == 'sub':
+                return left - right
+            if kind == 'mul':
+                return left * right
+            if right == 0:
+                raise ValueError('division by zero')
+            return left / right
+        if kind == 'cmp':
+            left = self._eval_fn_memo_ast(node[2], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            right = self._eval_fn_memo_ast(node[3], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            op = node[1]
+            if op == '=':
+                return left == right
+            if op == '<>':
+                return left != right
+            if op == '<':
+                return left < right
+            if op == '>':
+                return left > right
+            if op == '<=':
+                return left <= right
+            return left >= right
+        if kind == 'call':
+            args = []
+            for arg_node in node[2]:
+                value = self._eval_fn_memo_ast(arg_node, env)
+                if self._fn_captured_miss is not None:
+                    return 0
+                args.append(value)
+            callee = self._lookup_user_function(node[1])
+            if callee is None:
+                raise ValueError(f'unknown function FN{node[1]}')
+            bindings = [
+                (param_name, param_kind, arg)
+                for (param_name, param_kind), arg in zip(callee.params, args)
+            ]
+            key = self._fn_memo_key(callee, bindings)
+            cached = self._fn_memo.get(key, _FN_MEMO_MISS)
+            if cached is not _FN_MEMO_MISS:
+                return cached
+            self._fn_captured_miss = (callee, bindings, True)
+            return 0
+        raise ValueError('bad FN memo AST')
+
+    def _eval_memoable_fn_steps(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        steps: list,
+    ) -> object:
+        if self._trace_call('FN', fn.name):
+            raise ProgramStop()
+        env: Dict[str, object] = {}
+        for name, _kind, value in bindings:
+            env[name] = value
+            env[str(name).upper()] = value
+        for step in steps:
+            kind = step[0]
+            if kind == 'if_ret':
+                flag = self._eval_fn_memo_ast(step[1], env)
+                if self._fn_captured_miss is not None:
+                    return _FN_MEMO_MISS
+                if flag:
+                    value = self._eval_fn_memo_ast(step[2], env)
+                    if self._fn_captured_miss is not None:
+                        return _FN_MEMO_MISS
+                    return self._coerce_fn_return(fn, value)
+                continue
+            value = self._eval_fn_memo_ast(step[1], env)
+            if self._fn_captured_miss is not None:
+                return _FN_MEMO_MISS
+            return self._coerce_fn_return(fn, value)
+        raise ValueError('? DEF FN missing return')
+
+    def _eval_user_function_bound(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        array_aliases: Dict[Tuple[str, VarKind], Tuple[str, VarKind]],
+    ) -> object:
         saved = self._apply_fn_param_bindings(bindings)
         saved_array_aliases = dict(self._array_aliases)
         self._array_aliases.update(array_aliases)
@@ -1562,12 +1789,54 @@ class RuntimeExprMixin:
             self._restore_fn_param_bindings(saved)
             self._array_aliases = saved_array_aliases
 
+    def _active_fn_result_value(self, name: Optional[str] = None) -> Optional[object]:
+        """QBasic/Pascal: bare FNname inside DEF FN is the return variable."""
+        if not self._in_fn_body or self._active_fn is None:
+            return None
+        token = self._active_fn.name if name is None else name
+        if not self._is_qb_fn_result_assign(token):
+            return None
+        pending = getattr(self, '_fn_qb_return', None)
+        return 0 if pending is None else pending
+
+    def _substitute_active_fn_result(self, expr: str) -> str:
+        if not self._in_fn_body or self._active_fn is None:
+            return expr
+        if not expr:
+            return expr
+        value = self._active_fn_result_value()
+        if value is None:
+            return expr
+        fname = re.escape(str(self._active_fn.name))
+        pattern = (
+            rf'(?<![A-Za-z0-9_])(?:FN_?)?{fname}(?![A-Za-z0-9_%$])(?!\s*\()'
+        )
+        return re.sub(
+            pattern,
+            self._embed_subst_number(value),
+            expr,
+            flags=re.IGNORECASE,
+        )
+
     def _expand_fn_calls(self, expr: str) -> str:
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         # BBC: FNgetbmp  (no ()) for a no-arg FN. Do not touch FNfoo(.
+        # Inside DEF FNcalc, bare FNCALC is the return var — not FNCALC().
+        def _bare_fn_to_call(match: re.Match) -> str:
+            full = match.group(1)
+            inner = match.group(2)
+            if self._in_fn_body and (
+                self._is_qb_fn_result_assign(full)
+                or (inner is not None and self._is_qb_fn_result_assign(inner))
+            ):
+                return full
+            return f'{full}()'
+
         expr = re.sub(
             rf'(?<![A-Za-z0-9_])(FN_?\s*{_PROC_FN_NAME_PATTERN}(?:%|\$)?)'
             rf'(?![A-Za-z0-9_%$])(?!\s*\()',
-            r'\1()',
+            _bare_fn_to_call,
             expr,
             flags=re.IGNORECASE,
         )
@@ -1613,6 +1882,8 @@ class RuntimeExprMixin:
                 raise ValueError(f'unknown function FN{name}')
             args = self._split_args(arg) if arg.strip() else []
             value = self._eval_user_function_for_expand(fn, args)
+            if self._fn_captured_miss is not None:
+                return expr
             if fn.return_kind == 'str':
                 repl = json.dumps(str(value))
             elif isinstance(value, str) and self._RE_FN_CALL.search(value):
@@ -3056,9 +3327,13 @@ class RuntimeExprMixin:
         )
 
     def _eval_numeric(self, expr: str) -> object:
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
+        # @vdu%!220 before generic p%!n heap indirection (unset vdu% is pointer 0).
+        expr = self._substitute_bbcsdl_special_vars(expr)
         expr = self._expand_bbc_indirection(expr)
         expr = self._unglue_monadic_expr(expr)
         # Compiled eval does not subst NAME%%; FNgetbmp's ``= p%%`` became 0.
@@ -3107,6 +3382,8 @@ class RuntimeExprMixin:
 
     def _eval_condition(self, expr: str) -> bool:
         expr = expr.strip()
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         if not expr:
             return False
         expr = self._unglue_monadic_expr(expr)

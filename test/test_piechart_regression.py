@@ -251,6 +251,50 @@ class TestPiechartSkyBackground(unittest.TestCase):
         self.assertGreater(b, r + 20, msg=f"expected sky-ish blue, got {(r, g, b)}")
         self.assertGreater(b, 150)
 
+    def test_gsave_display_keeps_custom_sky_not_white_rect(self):
+        """piechart squash: DISPLAY must not map sky (15) to default white."""
+        os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect="bbc",
+                display="pygame",
+                display_locked=True,
+                hold_display_open=False,
+                graphics_width=640,
+                graphics_height=512,
+            )
+        )
+        interp._shutdown_display = lambda **k: None  # type: ignore[method-assign]
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "sky.bmp").replace("\\", "\\\\")
+            lines = [
+                "MODE 8",
+                "COLOR 15,&87,&CE,&FF",
+                "COLOR 15+128",
+                "CLS",
+                "Cx% = @vdu%!208",
+                "Cy% = @vdu%!212",
+                f'OSCLI "GSAVE ""{path}"" "+STR$(Cx%-300)+","+STR$(Cy%-300)+","+"600,728"',
+                "CLS",
+                f'OSCLI "DISPLAY ""{path}"" "+STR$(Cx%-300)+","+STR$(Cy%-150)+","+"600,364"',
+                "END",
+            ]
+            for i, line in enumerate(lines, 1):
+                interp.set_program_line(i * 10, line)
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()), patch(
+                "time.sleep"
+            ):
+                interp.run()
+        disp = interp._display
+        self.assertIsNotNone(disp)
+        disp.present(force=True)
+        surf = disp._canvas
+        w, h = surf.get_size()
+        r, g, b = surf.get_at((w // 2, h // 2))[:3]
+        self.assertGreater(b, 150, msg=f"DISPLAY rect should stay sky, got {(r, g, b)}")
+        self.assertGreater(b, r + 20, msg=f"DISPLAY rect should stay sky, got {(r, g, b)}")
+        self.assertNotEqual((r, g, b), (255, 255, 255))
+
 
 class TestVduIndirection(unittest.TestCase):
     def test_vdu_bang_with_spaces_around_percent(self):

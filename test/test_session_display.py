@@ -160,6 +160,46 @@ class AutoEnableGuiGateTests(unittest.TestCase):
             interp._maybe_auto_enable_pygame_display(parsed, announce=False)
         self.assertEqual(interp.config.display, 'terminal')
 
+    def test_rem_mentioning_mode_gcol_does_not_enable_pygame(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='terminal', optimization_level=0),
+        )
+        parsed = [
+            (10, 'REM no MODE/GCOL/RECTANGLE/*REFRESH', 0),
+            (20, 'PRINT 1', 0),
+        ]
+        with patch('mini_basic.util.session.session_supports_gui', return_value=True):
+            interp._maybe_auto_enable_pygame_display(parsed, announce=False)
+        self.assertEqual(interp.config.display, 'terminal')
+        self.assertFalse(interp._program_statements_use_graphics(parsed))
+
+    def test_compute_only_mandelbrot_does_not_use_graphics(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True),
+        )
+        path = os.path.join(
+            _ROOT, 'examples', 'graphics', 'mandelbrot', 'mandelbrot_compute_only.bas',
+        )
+        if not os.path.isfile(path):
+            self.skipTest('mandelbrot_compute_only.bas missing')
+        with redirect_stdout(StringIO()):
+            self.assertTrue(interp.load(path, announce=False))
+        parsed = interp._current_program_parsed_lines()
+        self.assertFalse(interp._program_statements_use_graphics(parsed))
+
+    def test_text_program_after_graphics_reverts_pygame(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='terminal', optimization_level=0),
+        )
+        gfx = [(10, 'MODE 9', 0), (20, 'CLG', 0)]
+        with patch('mini_basic.util.session.session_supports_gui', return_value=True):
+            interp._maybe_auto_enable_pygame_display(gfx, announce=False)
+        self.assertEqual(interp.config.display, 'pygame')
+        interp.program = {10: 'PRINT "compute only"', 20: 'END'}
+        interp._maybe_auto_enable_pygame_from_program(announce=False)
+        self.assertEqual(interp.config.display, 'terminal')
+        self.assertFalse(interp.config.hold_display_open)
+
 
 class TerminalInterruptTests(unittest.TestCase):
     def test_check_user_interrupt_raises_on_ctrl_c(self):

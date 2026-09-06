@@ -60,7 +60,7 @@ if ($Uninstall) {
         Write-Host "Target not present: $target"
     }
     $binDir = Join-Path $env:USERPROFILE "bin"
-    foreach ($name in @("mini_basic.ps1","minibasic.ps1","mini_basic.cmd","minibasic.cmd")) {
+    foreach ($name in @("mini_basic.ps1","minibasic.ps1","mini_basic.cmd","minibasic.cmd","pypy_mini.ps1","pypy_mini.cmd")) {
         $f = Join-Path $binDir $name
         if (Test-Path $f) { Remove-Item $f -Force -ErrorAction SilentlyContinue }
     }
@@ -293,6 +293,19 @@ where pwsh >nul 2>&1 || set "PSCMD=powershell"
 '@
 Set-Content -Path (Join-Path $binDir "mini_basic.cmd") -Value $cmdShim -Encoding ASCII
 Set-Content -Path (Join-Path $binDir "minibasic.cmd") -Value $cmdShim -Encoding ASCII
+$pypyLauncher = Join-Path $TargetDir "scripts\ps1\pypy_mini.ps1"
+if (Test-Path -LiteralPath $pypyLauncher) {
+    Copy-Item -LiteralPath $pypyLauncher -Destination (Join-Path $binDir "pypy_mini.ps1") -Force
+    $pypyCmd = @'
+@echo off
+setlocal
+set "PSCMD=pwsh"
+where pwsh >nul 2>&1 || set "PSCMD=powershell"
+%PSCMD% -NoProfile -ExecutionPolicy Bypass -File "%~dp0pypy_mini.ps1" %*
+exit /b %ERRORLEVEL%
+'@
+    Set-Content -Path (Join-Path $binDir "pypy_mini.cmd") -Value $pypyCmd -Encoding ASCII
+}
 $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
 if (-not $userPath) { $userPath = '' }
 $pathParts = $userPath -split ';' | Where-Object { $_ }

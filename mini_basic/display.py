@@ -130,6 +130,10 @@ class DisplayBackend(ABC):
     def clear(self) -> None:
         ...
 
+    def reset_palette(self) -> None:
+        """Restore default BBC logical colours (MODE, VDU 20, RUN)."""
+        return
+
     @abstractmethod
     def set_mode(self, mode: int) -> None:
         ...
@@ -1108,10 +1112,21 @@ class PygameDisplay(DisplayBackend):
     def set_graphics_print_mode(self, enabled: bool) -> None:
         self._print_at_graphics = bool(enabled)
 
+    def reset_palette(self) -> None:
+        """Drop COLOR n,r,g,b / VDU 19 overrides (MODE and VDU 20)."""
+        self._palette_rgb.clear()
+        self._palette_dirty = True
+        if self._gfx is not None:
+            self._gfx.clear_truecolour()
+
     def reset_text_colours(self) -> None:
-        """BBC MODE/VDU 20 default: white foreground on black background."""
+        """BBC MODE/VDU 20 default: white foreground on black background.
+
+        VDU 20 also restores the default palette (cancels COLOR n,r,g,b).
+        """
         self._fg_colour = 7
         self._bg_colour = 0
+        self.reset_palette()
         if self._gfx is not None:
             self._gfx.gcol_fg = (0, 7)
             self._gfx.gcol_bg = (0, 0)

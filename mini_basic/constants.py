@@ -29,7 +29,7 @@ EXPR_RESERVED_WORDS = frozenset({
 
 NUMERIC_BUILTIN_FUNCS = (
     'NEARSIG', 'NEAR', 'SGN', 'RND', 'LEN', 'INSTR', 'ARG', 'PI', 'POINT', 'TINT', 'VAL',
-    'POS', 'VPOS', 'GET', 'INKEY', 'WIDTH',
+    'POS', 'VPOS', 'GET', 'INKEY', 'TIMER', 'WIDTH',
     'SIN', 'COS', 'TAN', 'SINRAD', 'COSRAD', 'TANRAD',
     'ASN', 'ASIN', 'ACS', 'ACOS', 'ATN', 'ATAN',
     'DEG', 'RAD',

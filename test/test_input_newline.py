@@ -102,6 +102,37 @@ class InputThenPrintTests(unittest.TestCase):
         rows = [''.join(cell[0] for cell in row) for row in disp._text]
         self.assertIn('2', '\n'.join(rows))
 
+    def test_tty_input_uses_stdin_readline_not_input(self) -> None:
+        """PyPy pyrepl ``input()`` overwrites a pre-printed prompt; TTY uses readline."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='mini', display='none', display_locked=True)
+        )
+        interp.set_program_line(10, 'INPUT "Enter M (recommend 1-3): ", M')
+        interp.set_program_line(20, 'PRINT M')
+        interp.set_program_line(30, 'END')
+
+        class FakeIn(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        class FakeOut(io.StringIO):
+            def isatty(self) -> bool:
+                return True
+
+        stdin = FakeIn('3\n')
+        stdout = FakeOut()
+
+        def boom(_prompt: str = '') -> str:
+            raise AssertionError('builtins.input must not be used on a TTY')
+
+        with patch('sys.stdin', stdin), patch('sys.stdout', stdout), patch(
+            'builtins.input', side_effect=boom
+        ):
+            interp.run()
+        self.assertIn('Enter M (recommend 1-3):', stdout.getvalue())
+        self.assertEqual(interp.variables.get('M'), 3.0)
+        self.assertNotIn('3nter', stdout.getvalue())
+
 
 if __name__ == '__main__':
     unittest.main()
