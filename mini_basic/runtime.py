@@ -836,8 +836,8 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
     )
     if sys.platform == 'win32' and sys.stdin.isatty() and not readline_ok:
         print(
-            'Note: install pyreadline3 for smoother Windows line editing '
-            '(pip install -r requirements-repl.txt)'
+            'Note: CPython on Windows: pip install -r requirements-repl.txt '
+            '(pyreadline3). PyPy already ships readline; skip pyreadline3.'
         )
     repl_history: List[str] = []
 

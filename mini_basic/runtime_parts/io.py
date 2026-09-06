@@ -205,6 +205,36 @@ class RuntimeIoMixin:
                 pygame_mod.key.stop_text_input()
         return ''.join(buffer)
 
+    def _read_cooked_stdin_line(self, prompt: str = '') -> str:
+        """Read a line without pyrepl/readline rewriting the current row.
+
+        Program INPUT prints the prompt first, then reads. PyPy's ``readline``
+        (pyrepl) replaces ``input()`` and redraws from column 0, so the first
+        typed character overwrites the prompt (``3nter M...``). On a real TTY
+        use ``stdin.readline()`` so the console echoes after the prompt.
+        Tests patch ``input()`` and are not a TTY — keep ``input()`` there.
+        """
+        sys.stdout.flush()
+        tty = False
+        try:
+            tty = (
+                self._program_stdout is None
+                and sys.stdin.isatty()
+                and sys.stdout.isatty()
+            )
+        except Exception:
+            tty = False
+        if tty:
+            if prompt:
+                sys.stdout.write(str(prompt))
+                sys.stdout.flush()
+            line = sys.stdin.readline()
+            if line == '':
+                raise EOFError
+            return line.rstrip('\n\r')
+        line = input(prompt)
+        return line.rstrip('\n\r')
+
     def _read_terminal_line_windows(self) -> str:
         import msvcrt
 
@@ -264,8 +294,8 @@ class RuntimeIoMixin:
     def _read_terminal_line_while_pumping_display(self) -> str:
         """Read stdin on the main thread while pumping display events if needed.
 
-        Pure terminal (no pygame): use line-buffered ``input()`` so repeated
-        digits and long numbers are not mangled by char-by-char getwch paths.
+        Pure terminal (no pygame): line-buffered stdin so repeated digits
+        are not mangled by char-by-char getwch, without pyrepl ``input()``.
         Pygame tee mode still needs the msvcrt/select pump loops.
         """
         if self._program_stdout is not None:
@@ -275,7 +305,7 @@ class RuntimeIoMixin:
             sys.stdout.flush()
             self._pump_display_for_input()
             try:
-                return input().rstrip('\n\r')
+                return self._read_cooked_stdin_line('')
             except EOFError:
                 raise ProgramExit()
             except KeyboardInterrupt:
@@ -294,7 +324,7 @@ class RuntimeIoMixin:
                 pass
         sys.stdout.flush()
         self._pump_display_for_input()
-        return input().rstrip('\n\r')
+        return self._read_cooked_stdin_line('')
 
     def _read_program_input(self, prompt: str = '? ') -> str:
         self._flush_program_output()
@@ -344,7 +374,7 @@ class RuntimeIoMixin:
             return line
         self._flush_program_output()
         try:
-            line = input(prompt)
+            line = self._read_cooked_stdin_line(prompt)
         except EOFError:
             raise ProgramExit()
         except KeyboardInterrupt:
