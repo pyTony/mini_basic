@@ -134,6 +134,23 @@ class QBasicAckermannListingTests(unittest.TestCase):
         self.assertEqual(lines[-2:], ['1', '2'])
         self.assertFalse(any(interp._fn_memoable.get(k) for k in ('X', 'x')))
 
+    def test_only_recursive_fn_is_memoized(self):
+        out, interp = _run([
+            'PRINT FNdouble(3); FNfact(5)',
+            'END',
+            'DEF FNdouble(N)=2*N',
+            'DEF FNfact(N)',
+            'IF N<=1 THEN FNfact=1: EXIT FUNCTION',
+            'FNfact = N * FNfact(N-1)',
+            'END FUNCTION',
+        ])
+        self.assertNotIn('?', out)
+        self.assertIn('6', out)
+        self.assertIn('120', out)
+        keys = {str(k).upper(): v for k, v in interp._fn_memoable.items()}
+        self.assertFalse(keys.get('DOUBLE', False))
+        self.assertTrue(keys.get('FACT', False))
+
     def test_fn_name_assign_then_structured_if_cap(self):
         """QBasic FNname= plus IF/ENDIF must not jump to END DEF."""
         out20, _ = _run([

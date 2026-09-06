@@ -447,8 +447,26 @@ class RuntimeDefsMixin:
             self._rebuild_fn_memoable()
         return bool(self._fn_memoable.get(fn.name, False))
 
+    def _fn_reaches_self(self, name: str, callees: Dict[str, Set[str]]) -> bool:
+        """True if *name* is recursive (direct self-call or a mutual cycle)."""
+        graph: Dict[str, Set[str]] = {}
+        for stored, called in callees.items():
+            graph[stored.lower()] = {c.lower() for c in called}
+        start = str(name).lower()
+        seen: Set[str] = set()
+        stack = list(graph.get(start, ()))
+        while stack:
+            cur = stack.pop()
+            if cur == start:
+                return True
+            if cur in seen:
+                continue
+            seen.add(cur)
+            stack.extend(graph.get(cur, ()))
+        return False
+
     def _rebuild_fn_memoable(self) -> None:
-        """Mark DEF FN entries that depend only on their parameters as cacheable."""
+        """Cache only pure recursive DEF FN (self-call or mutual cycle)."""
         local_ok: Dict[str, bool] = {}
         callees: Dict[str, Set[str]] = {}
         for fn in self.user_functions.values():
@@ -467,6 +485,9 @@ class RuntimeDefsMixin:
                         memoable[name] = False
                         changed = True
                         break
+        for name in list(memoable):
+            if memoable[name] and not self._fn_reaches_self(name, callees):
+                memoable[name] = False
         self._fn_memoable = memoable
         steps: Dict[str, list] = {}
         for fn in self.user_functions.values():
