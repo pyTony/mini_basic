@@ -2687,20 +2687,24 @@ class RuntimeExecutionMixin:
                         px, py = sx + i, sy + j
                         if 0 <= px < gfx.width and 0 <= py < gfx.height:
                             r, g, b = (int(arr[i, j, 0]), int(arr[i, j, 1]), int(arr[i, j, 2]))
-                            # nearest palette index
+                            # Nearest index using the live palette (custom COLOR n,r,g,b).
+                            # Default BBC 15 is white; piechart sky (15) must map to 15, not 7.
                             best, best_d = 0, 1 << 30
+                            pixel_rgb = getattr(disp, '_pixel_rgb', None)
                             from ..display import colour_to_rgb
 
                             for ci in range(16):
-                                cr, cg, cb = colour_to_rgb(ci)
+                                if callable(pixel_rgb):
+                                    cr, cg, cb = pixel_rgb(ci)
+                                else:
+                                    cr, cg, cb = colour_to_rgb(ci)
                                 d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2
                                 if d < best_d:
                                     best_d, best = d, ci
                             gfx.pixels[py][px] = best
-                            if hasattr(gfx, '_ensure_rgb_pixels'):
-                                gfx._ensure_rgb_pixels()[py][px] = (r, g, b)
-                            elif getattr(gfx, 'rgb_pixels', None) is not None:
-                                gfx.rgb_pixels[py][px] = (r, g, b)
+                            layer = gfx._ensure_rgb_pixels() if hasattr(gfx, '_ensure_rgb_pixels') else getattr(gfx, 'rgb_pixels', None)
+                            if layer is not None:
+                                layer[py][px] = (r, g, b)
                                 if hasattr(gfx, 'rgb_dirty'):
                                     gfx.rgb_dirty.add((px, py))
             except Exception:
