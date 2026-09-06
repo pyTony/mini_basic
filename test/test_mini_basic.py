@@ -2218,7 +2218,8 @@ class MiniBASICTests(unittest.TestCase):
             with redirect_stdout(buf):
                 interp.run()
             self.assertEqual(interp.error_line_num, 0, buf.getvalue())
-            data = open(path, 'rb').read()
+            with open(path, 'rb') as handle:
+                data = handle.read()
             self.assertEqual(data, bytes([0x04, 0x03, 0x02, 0x01]))
 
     def run_program_lines(self, interp, lines):
@@ -2377,14 +2378,16 @@ class MiniBASICTests(unittest.TestCase):
             with redirect_stdout(buf):
                 interp.save('out.bas')  # default standard → auto pretty
             self.assertIn('pretty', buf.getvalue().lower())
-            text = open(os.path.join(tmp, 'out.bas'), encoding='utf-8').read()
+            with open(os.path.join(tmp, 'out.bas'), encoding='utf-8') as handle:
+                text = handle.read()
             self.assertTrue(
                 all(not re.match(r'^\s*\d+\s', ln) for ln in text.splitlines() if ln.strip()),
             )
             self.assertIn('FOR I = 1 TO 2', text)
             with redirect_stdout(io.StringIO()):
                 interp.save('numbered.bas', 'numbered')
-            num_text = open(os.path.join(tmp, 'numbered.bas'), encoding='utf-8').read()
+            with open(os.path.join(tmp, 'numbered.bas'), encoding='utf-8') as handle:
+                num_text = handle.read()
             self.assertRegex(num_text, r'(?m)^\s*10\s')
 
     def test_load_unnumbered_with_goto(self):
