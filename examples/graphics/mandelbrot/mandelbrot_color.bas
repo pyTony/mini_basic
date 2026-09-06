@@ -15,7 +15,7 @@
    240       A = T: P = A / F: Q = B / F
    250       IF (P * P) + (Q * Q) >= 5 THEN
    260         PRINT FG$(I MOD 8); MID$(Z$, I + 1, 1);
-   270         EXIT FOR
+   270         BREAK
    280       ENDIF
    290       I = I + 1
    300     END WHILE
