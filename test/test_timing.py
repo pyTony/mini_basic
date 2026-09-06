@@ -52,6 +52,22 @@ class TimingOnOffTests(unittest.TestCase):
         self.assertNotIn('Time:', out.getvalue())
         self.assertNotIn('Time:', err.getvalue())
 
+    def test_repl_lowercase_timing_on(self):
+        from mini_basic.runtime import _execute_repl_line
+
+        interp = _interp()
+        interp.set_program_line(10, 'PRINT 1')
+        interp.set_program_line(20, 'END')
+        out = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            ok = _execute_repl_line(interp, 'timing on')
+            self.assertTrue(ok)
+            interp.run()
+        self.assertNotIn('?', out.getvalue())
+        self.assertTrue(interp.timing_enabled)
+        self.assertRegex(err.getvalue(), r'Time:\s+\d+\.\d{3} s')
+
     def test_timing_survives_new_and_does_not_use_program_timer_vars(self):
         interp = _interp()
         interp.execute_immediate('TIMING ON')

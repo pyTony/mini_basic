@@ -5024,8 +5024,9 @@ class RuntimeExecutionMixin:
                 continue
             if re.match(r'^CONT\s*$', statement, re.IGNORECASE):
                 return True
-            cmd, _ = self._parse_command(statement)
-            if cmd or '=' in statement:
+            folded = self._fold_immediate_statement_keyword(statement)
+            cmd, _ = self._parse_command(folded)
+            if cmd or '=' in folded:
                 return True
         return False
 
