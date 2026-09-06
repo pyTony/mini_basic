@@ -1391,6 +1391,10 @@ class RuntimeProgramMixin:
         if cached is not None:
             return cached
         line = self._normalize_hash_file_commands(line.strip())
+        # QBasic FUNCTION ... is DEF ... (FUNCTION= stays an assignment;
+        # END FUNCTION / EXIT FUNCTION are two-word forms starting END/EXIT).
+        line = re.sub(r'^FUNCTION(?=\s)', 'DEF', line, flags=re.IGNORECASE)
+        line = re.sub(r'^FUNCTION(?=FN)', 'DEF ', line, flags=re.IGNORECASE)
         line = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', line, flags=re.IGNORECASE)
         line = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', line, flags=re.IGNORECASE)
         if self.config.dialect == 'bbc':

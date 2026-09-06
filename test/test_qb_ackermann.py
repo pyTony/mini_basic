@@ -120,6 +120,41 @@ class QBasicAckermannListingTests(unittest.TestCase):
         self.assertNotIn('?', out)
         self.assertEqual(out.strip().splitlines()[-1].strip(), '65533')
 
+    def test_function_keyword_is_def(self):
+        """FUNCTION FNname ... END FUNCTION is the same as DEF FN."""
+        out, interp = _run([
+            'PRINT FNACK(1, 1)',
+            'END',
+            'FUNCTION FNACK(M, N)',
+            'IF M = 0 THEN FNACK = N + 1: EXIT FUNCTION',
+            'IF N = 0 THEN FNACK = FNACK(M - 1, 1): EXIT FUNCTION',
+            'FNACK = FNACK(M - 1, FNACK(M, N - 1))',
+            'END FUNCTION',
+        ])
+        self.assertNotIn('?', out)
+        self.assertIn('3', out.strip().splitlines()[-1])
+        cmd, rest = interp._parse_command('FUNCTION FNACK(M, N)')
+        self.assertEqual(cmd, 'DEF')
+        self.assertTrue(rest.strip().upper().startswith('FNACK'))
+
+    def test_function_one_line_is_def_fn(self):
+        out, _ = _run([
+            'PRINT FNdouble(3)',
+            'END',
+            'FUNCTION FNdouble(N)=2*N',
+        ])
+        self.assertNotIn('?', out)
+        self.assertEqual(out.strip().splitlines()[-1].strip(), '6')
+
+    def test_function_equals_stays_assignment(self):
+        out, interp = _run([
+            'FUNCTION=7',
+            'PRINT FUNCTION',
+            'END',
+        ])
+        self.assertNotIn('?', out)
+        self.assertEqual(int(interp.variables.get('FUNCTION', 0)), 7)
+
     def test_impure_global_not_memoized(self):
         out, interp = _run([
             'G=1',

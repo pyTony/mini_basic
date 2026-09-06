@@ -239,6 +239,7 @@ def _print_help_statements() -> None:
         'DEF PROCname(...) ... ENDPROC   PROC name',
         'DEF FNname(x)=expr',
         'DEF FNname(x) ... =ret ... END DEF',
+        'FUNCTION is DEF (FUNCTION FNname ... END FUNCTION)',
         '  In DEF FN, IF needs THEN:  IF n<2 THEN =1 ELSE =n*FNfact(n-1)',
         '  (THEN is not optional when the branch is a =return)',
         'Closers: ENDIF or END IF, ENDWHILE (WEND still runs), ENDPROC or END PROC',

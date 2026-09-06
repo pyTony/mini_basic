@@ -212,14 +212,14 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'BREAK', 'CONTINUE', 'EXIT', 'PROC', 'ENDPROC',
         'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
         'GOTO', 'GOSUB', 'RESUME', 'RETURN',
-        'DATA', 'DEF', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
+        'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
         'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE', 'CIRCLE', 'MOUSE',
         'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW',
         'ORIGIN', 'PLOT', 'SPRITEDEF', 'SPRITE', 'STOP', 'OSCLI', 'CHAIN', 'RUN', 'WAIT',
         'KILL', 'ERASE', 'LINE', 'TRACE', 'TIMING', 'LVAR', 'SWAP',
     )
     _GLUABLE_AFTER_KEYWORDS = frozenset([
-        'FOR', 'LET', 'DIM', 'READ', 'INPUT', 'LOCAL', 'DEF', 'PROC', 'FN',
+        'FOR', 'LET', 'DIM', 'READ', 'INPUT', 'LOCAL', 'DEF', 'FUNCTION', 'PROC', 'FN',
         'GOTO', 'GOSUB', 'RESUME', 'RETURN', 'RESTORE', 'ON', 'DATA',
         'NEXT', 'UNTIL', 'WEND', 'REPEAT',
     ])
