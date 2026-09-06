@@ -208,6 +208,29 @@ def _h_envelope(
     return None
 
 
+def _h_timing(
+    interp: Any,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+    line_nums: List[int],
+) -> Optional[int]:
+    try:
+        interp._configure_timing(rest)
+    except Exception as exc:
+        interp._runtime_error(
+            interp._error_message('? TIMING error', exc),
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+    return None
+
+
 def _h_trace(
     interp: Any,
     rest: str,
@@ -423,6 +446,7 @@ SIMPLE_STMT_HANDLERS: Dict[str, SimpleHandler] = {
     'SOUND': _h_sound,
     'ENVELOPE': _h_envelope,
     'TRACE': _h_trace,
+    'TIMING': _h_timing,
     'LVAR': _h_lvar,
     'WIDTH': _h_width,
     'MOUSE': _h_mouse,

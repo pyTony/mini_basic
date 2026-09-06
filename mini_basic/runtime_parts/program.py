@@ -245,6 +245,19 @@ class RuntimeProgramMixin:
         self._close_trace_file()
         self.trace_file = open(path, 'w', encoding='utf-8', newline='\n')
 
+    def _configure_timing(self, rest: str) -> None:
+        arg = rest.strip()
+        if not arg:
+            raise ValueError('ON or OFF')
+        upper = arg.upper()
+        if upper == 'ON':
+            self.timing_enabled = True
+            return
+        if upper == 'OFF':
+            self.timing_enabled = False
+            return
+        raise ValueError('ON or OFF')
+
     def _configure_trace(self, rest: str) -> None:
         arg = rest.strip()
         if not arg:

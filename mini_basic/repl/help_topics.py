@@ -247,6 +247,7 @@ def _print_help_statements() -> None:
         'ON ERROR GOTO|GOSUB line   RESUME [0]   RESUME NEXT   ON ERROR OFF',
         'STOP   END   CONT (after STOP)   LIST / PRINT / LVAR while stopped',
         'TRACE ON|OFF        [line] numbers to stderr (also CLI --trace)',
+        'TIMING ON|OFF       after RUN, print wall time to stderr (no TIMER vars)',
         'TRACE n             only lines numbered below n (BBC)',
         'TRACE PROC          PROC/FN names as they are called',
         'TRACE STEP [n|PROC] wait for a key after each traced line (Esc = STOP)',

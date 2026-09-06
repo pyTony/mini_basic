@@ -144,6 +144,7 @@ class RuntimeCoreMixin:
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
         self.trace_enabled = False
+        self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
         self.trace_proc = False
         self.trace_step = False
@@ -2221,6 +2222,8 @@ class RuntimeCoreMixin:
         self._apply_program_refresh_off_at_start()
 
         self._run_interrupt_watch = True
+        timing = bool(getattr(self, 'timing_enabled', False))
+        t0 = time.perf_counter() if timing else None
         try:
             self._run_program_loop(0)
         except KeyboardInterrupt:
@@ -2236,6 +2239,14 @@ class RuntimeCoreMixin:
             self._run_interrupt_watch = False
             self._trace_finish_line()
             self._flush_program_output()
+            if t0 is not None and getattr(self, 'timing_enabled', False):
+                elapsed = time.perf_counter() - t0
+                try:
+                    stream = self._get_error_stream()
+                    stream.write(f'Time: {elapsed:.3f} s\n')
+                    stream.flush()
+                except Exception:
+                    pass
             if not self.stopped:
                 self._close_file_channels()
             hold = self.config.hold_display_open and not getattr(self, '_run_aborted', False)
