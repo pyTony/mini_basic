@@ -393,6 +393,9 @@ class RuntimeCoreMixin:
         return int(table.get(int(offset), 0))
 
     def _substitute_bbcsdl_special_vars(self, expr: str) -> str:
+        # Hot numeric eval (WHILE LET fallback) has no @vars; skip the regex ladder.
+        if '@' not in expr:
+            return expr
         width = self.config.graphics_width or 1280
         height = self.config.graphics_height or 1024
         # @vdu%!n indirection before bare @vdu%

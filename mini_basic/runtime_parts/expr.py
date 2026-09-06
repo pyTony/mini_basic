@@ -263,18 +263,20 @@ class RuntimeExprMixin:
         )
 
     def _get_compiled_expr(self, source: str, is_condition: bool = False) -> CompiledExpr:
-        key = (source.strip(), is_condition)
+        # Outer parens: CONT = (ZX*ZX+ZY*ZY < 4) must compile as a comparison,
+        # not fall back to _eval_numeric (regex ladder) every WHILE iteration.
+        stripped = self._strip_outer_parens(source)
+        key = (stripped, is_condition)
         cached = self._compiled_expr_cache.get(key)
         if cached is not None:
             return cached
 
-        compiled = CompiledExpr(source=source, is_condition=is_condition)
-        if not source.strip():
+        compiled = CompiledExpr(source=stripped, is_condition=is_condition)
+        if not stripped:
             self._compiled_expr_cache[key] = compiled
             return compiled
 
         try:
-            stripped = source.strip()
             compiled.has_array = '(' in stripped and self._expr_has_array_ref(stripped)
             compiled.needs_int_coerce = self._expr_is_pure_bitwise(stripped)
             if self._boolean_literal_value(stripped) is not None:

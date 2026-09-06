@@ -174,6 +174,39 @@ class WhileAssignAccelTests(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_parenthesized_comparison_compiles(self):
+        """CONT = (ZX*ZX+ZY*ZY < 4) must not fall back to _eval_numeric."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        ce = interp._get_compiled_expr('(ZX * ZX + ZY * ZY < 4)', False)
+        self.assertFalse(ce.use_fallback)
+        self.assertIsNotNone(ce.code)
+        interp.variables['ZX'] = 0.5
+        interp.variables['ZY'] = 0.5
+        self.assertEqual(ce.eval_numeric(interp), -1.0)
+        interp.variables['ZX'] = 2.0
+        interp.variables['ZY'] = 2.0
+        self.assertEqual(ce.eval_numeric(interp), 0.0)
+
+    def test_cont_assign_while_body_accelerates(self):
+        out, interp = _run([
+            'I%=0 : ZX=0 : ZY=0 : CONT=-1 : MAXITER%=8',
+            'WHILE CONT AND (I% < MAXITER%)',
+            'TEMP = ZX * ZX - ZY * ZY',
+            'ZY = 2 * ZX * ZY + 0.25',
+            'ZX = TEMP + -0.5',
+            'I% = I% + 1',
+            'CONT = (ZX * ZX + ZY * ZY < 4)',
+            'ENDWHILE',
+            'PRINT I%;CONT',
+        ])
+        self.assertNotIn('?', out)
+        self.assertEqual(interp._while_assign_accel.get(20) is not False, True)
+        self.assertTrue(
+            any(v not in (False, None) for v in interp._while_assign_accel.values())
+        )
+
     def test_accelerator_accepts_assign_body(self):
         interp = BASICInterpreter(
             InterpreterConfig(dialect='bbc', display='none', display_locked=True)
