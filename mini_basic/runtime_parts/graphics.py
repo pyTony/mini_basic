@@ -500,6 +500,22 @@ class RuntimeGraphicsMixin:
             return
         self._enable_pygame_display(announce=announce)
 
+    def _revert_auto_pygame_display(self) -> None:
+        """Text-only program after a graphics RUN: close pygame, back to terminal.
+
+        LOAD/NEW does not reset ``config.display``, so compute-only Mandelbrot
+        kept the previous MODE 9 window.
+        """
+        if self.config.display_locked:
+            return
+        if self._display_backend_name() != 'pygame':
+            return
+        self.config.hold_display_open = False
+        self._shutdown_display(hold=False)
+        self._display = None
+        self._display_live = False
+        self.config.display = 'terminal'
+
     def _sync_display_caption(self, caption: str) -> None:
         """Window title follows the last successful LOAD (not the first .bbc)."""
         name = str(caption or '').strip() or 'mini_basic'

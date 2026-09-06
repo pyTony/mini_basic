@@ -1042,6 +1042,8 @@ class RuntimeProgramMixin:
                 if not text:
                     continue
                 cmd, _ = self._parse_command(text)
+                if cmd in ('REM', 'DATA'):
+                    continue
                 if cmd in self._GRAPHICS_CMDS:
                     return True
                 # For bbc dialect, CLS / MODE / VDU / CLG / COLOUR etc. auto-enable pygame
@@ -1058,7 +1060,10 @@ class RuntimeProgramMixin:
             (line_num, statement, self.line_indent.get(line_num, 0))
             for line_num, statement in sorted(self.program.items())
         ]
-        self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+        if self._program_statements_use_graphics(parsed_lines):
+            self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+            return
+        self._revert_auto_pygame_display()
 
     def _current_program_parsed_lines(self) -> List[Tuple[int, str, int]]:
         return [
