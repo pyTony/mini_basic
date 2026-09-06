@@ -48,6 +48,24 @@ class QBasicAckermannListingTests(unittest.TestCase):
         ])
         self.assertIn("A'B", out)
 
+    def test_saved_ackermann_bas_tail_comments(self):
+        path = os.path.join(_ROOT, 'basics', 'ackermann.bas')
+        if not os.path.isfile(path):
+            self.skipTest('basics/ackermann.bas missing')
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='mini', display='none', display_locked=True)
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.load(path, announce=False)
+            interp.set_program_line(30, 'M=1')
+            interp.set_program_line(40, 'N=1')
+            interp.run()
+        out = buf.getvalue()
+        self.assertNotIn('unterminated', out.lower())
+        self.assertNotIn('needs =return', out)
+        self.assertIn('3', out)
+
     def test_ackermann_1_1(self):
         out, _ = _run([
             'M=1: N=1',

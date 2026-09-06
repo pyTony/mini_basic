@@ -3016,19 +3016,22 @@ class RuntimeExecutionMixin:
         self._exec_stmt_count = stmt_count
         self._active_stmt_index = stmt_index
         line = statement.strip()
-        self._active_statement = line
         cmd = ''
         rest = ''
         if not line or line == ';':
             return None
-        self.dprint('[EXEC]', repr(line))
-
         stripped = line.lstrip()
         if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
             hint = parse_comment_dialect_line(line)
             if hint is not None:
                 self._apply_dialect_hint(hint, announce=False)
             return None
+        # QBasic/BBC tail comment: T1 = TIMER ' Start …  (PRINT keeps ').
+        line = self._strip_tail_apostrophe_comment(line)
+        if not line:
+            return None
+        self._active_statement = line
+        self.dprint('[EXEC]', repr(line))
 
         if line.startswith('*'):
             try:

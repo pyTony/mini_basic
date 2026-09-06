@@ -1153,6 +1153,8 @@ class RuntimeExprMixin:
         )
         if qb:
             candidates.append(qb.group(1).strip())
+        if re.search(r'\bEXIT\s+FUNCTION\b', stripped, flags=re.IGNORECASE):
+            candidates.append('0')
         return candidates
 
     def _apply_inferred_fn_return_kind(
