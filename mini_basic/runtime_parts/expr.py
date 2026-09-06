@@ -1816,7 +1816,8 @@ class RuntimeExprMixin:
         )
 
     def _expand_fn_calls(self, expr: str) -> str:
-        expr = self._substitute_active_fn_result(expr)
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         # BBC: FNgetbmp  (no ()) for a no-arg FN. Do not touch FNfoo(.
         # Inside DEF FNcalc, bare FNCALC is the return var — not FNCALC().
         def _bare_fn_to_call(match: re.Match) -> str:
@@ -3323,7 +3324,8 @@ class RuntimeExprMixin:
         )
 
     def _eval_numeric(self, expr: str) -> object:
-        expr = self._substitute_active_fn_result(expr)
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
@@ -3376,7 +3378,9 @@ class RuntimeExprMixin:
         return self._get_compiled_expr(expr, is_condition=False).eval_numeric(self)
 
     def _eval_condition(self, expr: str) -> bool:
-        expr = self._substitute_active_fn_result(expr.strip())
+        expr = expr.strip()
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         if not expr:
             return False
         expr = self._unglue_monadic_expr(expr)

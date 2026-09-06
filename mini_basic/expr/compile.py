@@ -84,21 +84,26 @@ class CompiledExpr:
             self._ns_cache = namespace
         if self.needs_time:
             namespace['__basic_time__'] = interp._get_time()
+        # FN-name-as-return-var only inside DEF FN. Mandelbrot WHILE hits this
+        # millions of times; skip the lookup when not in a function body.
+        in_fn = bool(getattr(interp, '_in_fn_body', False) and interp._active_fn)
         for name in self.float_vars:
             if name in SAFE_EVAL_GLOBALS:
                 continue
-            fn_ret = interp._active_fn_result_value(name)
-            if fn_ret is not None:
-                namespace[name] = fn_ret
-            else:
-                # Classic BASIC: an unset numeric is 0 (N=N+1, PRINT X, …).
-                namespace[name] = interp.variables.get(name, 0.0)
+            if in_fn:
+                fn_ret = interp._active_fn_result_value(name)
+                if fn_ret is not None:
+                    namespace[name] = fn_ret
+                    continue
+            # Classic BASIC: an unset numeric is 0 (N=N+1, PRINT X, …).
+            namespace[name] = interp.variables.get(name, 0.0)
         for name in self.int_vars:
-            fn_ret = interp._active_fn_result_value(name)
-            if fn_ret is not None:
-                namespace[int_slot(name)] = fn_ret
-            else:
-                namespace[int_slot(name)] = interp.int_variables.get(name, 0)
+            if in_fn:
+                fn_ret = interp._active_fn_result_value(name)
+                if fn_ret is not None:
+                    namespace[int_slot(name)] = fn_ret
+                    continue
+            namespace[int_slot(name)] = interp.int_variables.get(name, 0)
         for name in self.system_vars:
             namespace[name] = interp._get_system_var(name)
         return namespace
