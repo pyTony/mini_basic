@@ -203,6 +203,16 @@ class WhileAssignAccelTests(unittest.TestCase):
         self.assertNotIn('no', out.lower())
         self.assertIn('E', out)
 
+    def test_assign_fast_path_skips_system_vars(self):
+        """_bigint / _optimization_level must use _assign, not compiled LET."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        self.assertFalse(interp._try_fast_numeric_assignment('_optimization_level = 1'))
+        self.assertFalse(interp._try_fast_numeric_assignment('LET _bigint = 0'))
+        interp.execute_immediate('_optimization_level = 1')
+        self.assertEqual(interp.config.optimization_level, 1)
+
     def test_assign_fast_path_simple_let(self):
         interp = BASICInterpreter(
             InterpreterConfig(dialect='bbc', display='none', display_locked=True)

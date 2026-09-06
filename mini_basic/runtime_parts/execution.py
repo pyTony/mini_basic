@@ -963,6 +963,9 @@ class RuntimeExecutionMixin:
                 lhs_key = var_tok.strip().upper()
                 if lhs_key == '@%' or vname.upper() in _ACCEL_FORBIDDEN_LHS:
                     return None
+                # _bigint / _save_case / _epsilon etc. must go through _assign.
+                if self._canonical_system_var_name(var_tok.strip()):
+                    return None
                 ce = self._get_compiled_expr(expr_src, is_condition=False)
                 if ce.use_fallback and self._expr_is_pure_bitwise(expr_src):
                     # force recompile attempt already done; allow slow eval wrapper
