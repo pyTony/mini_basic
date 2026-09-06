@@ -872,12 +872,18 @@ class RuntimeExprMixin:
         return self._array_aliases.get((base, kind), (base, kind))
 
     def _ensure_implicit_array(self, base: str, kind: VarKind, rank: int) -> None:
-        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis)."""
+        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis).
+
+        BBC / mini require DIM (or a real function). ``PRINT ZZZ(1)`` must not
+        become a silent 0 via an implicit array.
+        """
         if rank < 1:
             raise ValueError('unknown array')
         key = self._resolve_array_key(base, kind)
         if key in self.array_storage:
             return
+        if self.config.dialect not in self._NUMBERED_GOTO_DIALECTS:
+            raise ValueError('unknown array')
         self._store_array(base, kind, [10] * rank)
 
     def _get_array_storage_entry(self, base: str, kind: VarKind) -> ArrayStorage:
@@ -3064,6 +3070,8 @@ class RuntimeExprMixin:
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
+        # @vdu%!220 before generic p%!n heap indirection (unset vdu% is pointer 0).
+        expr = self._substitute_bbcsdl_special_vars(expr)
         expr = self._expand_bbc_indirection(expr)
         expr = self._unglue_monadic_expr(expr)
         # Compiled eval does not subst NAME%%; FNgetbmp's ``= p%%`` became 0.
