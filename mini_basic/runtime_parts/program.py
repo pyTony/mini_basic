@@ -1086,10 +1086,55 @@ class RuntimeProgramMixin:
             if re.search(r'\bINSTR\b', upper) and not self._dialect_allows('INSTR'):
                 violations.append('INSTR')
             for func in self._MINI_ONLY_FUNCS:
-                if re.search(rf'\b{re.escape(func)}\b', upper):
+                if self._text_has_mini_only_func(upper, func):
                     if not self._dialect_allows(func):
                         violations.append(func)
         return violations
+
+    @staticmethod
+    def _text_has_mini_only_func(upper_text: str, func: str) -> bool:
+        """Match FG$ / RESET$ — ``\\b`` does not fire after ``$``."""
+        if func.endswith('$'):
+            return re.search(
+                rf'(?<![A-Za-z0-9_]){re.escape(func)}(?![A-Za-z0-9_])',
+                upper_text,
+            ) is not None
+        return re.search(rf'\b{re.escape(func)}\b', upper_text) is not None
+
+    def _collect_mini_only_features(
+        self,
+        parsed_lines: List[Tuple[int, str, int]],
+    ) -> List[str]:
+        """Mini-only commands/functions used in the listing (any dialect)."""
+        found: List[str] = []
+        seen: Set[str] = set()
+
+        def add(name: str) -> None:
+            key = name.upper()
+            if key not in seen:
+                seen.add(key)
+                found.append(name)
+
+        for _, statement, _ in parsed_lines:
+            for part in self._split_colon_statements(statement):
+                _, text = self._extract_label_prefix(part)
+                stripped = text.strip()
+                if not stripped or stripped.startswith("'"):
+                    continue
+                cmd, rest = self._parse_command(text)
+                if cmd == 'REM':
+                    continue
+                if re.match(r'^ON\s+CLOSE\b', stripped, re.IGNORECASE):
+                    add('ON CLOSE')
+                if cmd in self._MINI_ONLY_CMDS:
+                    add(cmd)
+                upper = stripped.upper()
+                for func in self._MINI_ONLY_FUNCS:
+                    if self._text_has_mini_only_func(upper, func):
+                        add(func)
+                if re.search(r'\bINKEY\s*\(\s*-', upper):
+                    add('INKEY(-n)')
+        return found
 
     @classmethod
     def _normalize_hash_file_commands(cls, line: str) -> str:

@@ -852,6 +852,20 @@ class RuntimeCoreMixin:
         if len(legacy) > 4:
             print(f'  …and {len(legacy) - 4} more')
 
+    def _announce_mini_dialect_mismatch(self, features: List[str]) -> None:
+        """LOAD note: listing uses mini-only syntax under another dialect."""
+        if not features:
+            return
+        shown = ', '.join(features[:8])
+        extra = ''
+        if len(features) > 8:
+            extra = f' (+{len(features) - 8} more)'
+        print(
+            f'Note: program uses mini-only {shown}{extra} '
+            f'(dialect is {self.config.dialect}, not mini). '
+            f'Use --dialect mini or add `1 REM dialect: mini`.'
+        )
+
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""
         id_flags = self._identifier_re_flags()

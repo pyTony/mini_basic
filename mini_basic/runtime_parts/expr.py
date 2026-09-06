@@ -356,6 +356,10 @@ class RuntimeExprMixin:
                 ):
                     return False
 
+        mini_used = self._collect_mini_only_features(parsed_lines)
+        if announce and self.config.dialect != 'mini' and mini_used:
+            self._announce_mini_dialect_mismatch(mini_used)
+
         seen: Set[str] = set()
         for _, statement, _ in parsed_lines:
             for violation in self._scan_statement_dialect_violations(statement):
@@ -368,10 +372,11 @@ class RuntimeExprMixin:
                 ):
                     return False
 
-        if announce and self.config.dialect == 'bbc':
+        if announce and self.config.dialect == 'bbc' and not mini_used:
             # mini is the intentional default for both numbered and unnumbered
             # sources; do not nag "consider --dialect …". SAVE of unnumbered
             # loads defaults to PRETTY so the file stays unnumbered.
+            # Skip SDL spelling notes when the listing is mini-only (BREAK/FG$).
             self._announce_bbc_sdl_keyword_hints(parsed_lines)
         return True
 
