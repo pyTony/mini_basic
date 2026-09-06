@@ -190,6 +190,9 @@ class RuntimeDefsMixin:
     def _register_def_fn(self, rest: str) -> None:
         fn = self._parse_def_fn_rest(rest)
         self.user_functions[fn.name] = fn
+        self._fn_memoable.clear()
+        self._fn_memo_steps.clear()
+        self._fn_memo.clear()
 
     def _lookup_user_function(self, name: str):
         """Find DEF FN by stored name; fold case if the exact key is missing.
@@ -422,4 +425,380 @@ class RuntimeDefsMixin:
             if not handled:
                 idx += 1
         return headers, bodies, ends
+
+    def _fn_source_text(self, fn: UserFunction) -> str:
+        if not fn.multiline:
+            return fn.body or ''
+        parts: List[str] = []
+        header_line = int(getattr(fn, 'header_line', 0) or 0)
+        for line_num in sorted(self.program):
+            if header_line and line_num == header_line:
+                parts.append(self.program[line_num])
+            elif fn.body_start <= line_num < fn.body_end:
+                parts.append(self.program[line_num])
+        return '\n'.join(parts)
+
+    def _fn_is_memoable(self, fn: UserFunction) -> bool:
+        if fn.array_params:
+            return False
+        if not self._fn_memoable and self.user_functions:
+            self._rebuild_fn_memoable()
+        elif fn.name not in self._fn_memoable and self.user_functions:
+            self._rebuild_fn_memoable()
+        return bool(self._fn_memoable.get(fn.name, False))
+
+    def _rebuild_fn_memoable(self) -> None:
+        """Mark DEF FN entries that depend only on their parameters as cacheable."""
+        local_ok: Dict[str, bool] = {}
+        callees: Dict[str, Set[str]] = {}
+        for fn in self.user_functions.values():
+            ok, called = self._fn_local_memoable(fn)
+            local_ok[fn.name] = ok
+            callees[fn.name] = called
+        memoable = dict(local_ok)
+        changed = True
+        while changed:
+            changed = False
+            for name, ok in list(memoable.items()):
+                if not ok:
+                    continue
+                for callee in callees.get(name, ()):
+                    if not memoable.get(callee, False):
+                        memoable[name] = False
+                        changed = True
+                        break
+        self._fn_memoable = memoable
+        steps: Dict[str, list] = {}
+        for fn in self.user_functions.values():
+            if not memoable.get(fn.name):
+                continue
+            compiled = self._compile_fn_memo_steps(fn)
+            if compiled is not None:
+                steps[fn.name] = compiled
+        self._fn_memo_steps = steps
+
+    def _fn_local_memoable(self, fn: UserFunction) -> Tuple[bool, Set[str]]:
+        if fn.array_params:
+            return False, set()
+        text = self._fn_source_text(fn)
+        text = re.sub(r'"[^"]*"', ' ', text)
+        text = re.sub(r'\bREM\b.*', ' ', text, flags=re.IGNORECASE)
+        ident_re = re.compile(
+            rf'(?<![A-Za-z0-9_])({_VAR_BASE_PATTERN})([$%#!]?)',
+            re.IGNORECASE,
+        )
+        allowed = set(_FN_MEMO_KEYWORDS)
+        allowed.update(_FN_MEMO_PURE_BUILTINS)
+        for param_name, _kind in fn.params:
+            allowed.add(self._normalize_identifier(param_name).upper().rstrip('%$!#'))
+            allowed.add(self._normalize_identifier(param_name).upper())
+        fname = str(fn.name).upper()
+        allowed.add(fname)
+        allowed.add('FN' + fname)
+        allowed.add('FN_' + fname)
+        for match in re.finditer(r'\bLOCAL\b\s*([^\n:]+)', text, re.IGNORECASE):
+            for token in match.group(1).split(','):
+                raw = token.strip().split('(')[0].strip()
+                if not raw:
+                    continue
+                norm = self._normalize_identifier(raw)
+                allowed.add(norm.upper())
+                allowed.add(norm.upper().rstrip('%$!#'))
+        called: Set[str] = set()
+        for match in _RE_FN_CALL.finditer(text):
+            callee = self._normalize_identifier(match.group(1))
+            called.add(callee)
+            allowed.add(callee.upper())
+            allowed.add(('FN' + callee).upper())
+        for match in ident_re.finditer(text):
+            raw = (match.group(1) + (match.group(2) or '')).upper()
+            base = match.group(1).upper()
+            if raw in _FN_MEMO_IMPURE or base in _FN_MEMO_IMPURE:
+                return False, set()
+            if raw.startswith('FN') and len(raw) > 2:
+                continue
+            if raw in allowed or base in allowed:
+                continue
+            return False, set()
+        return True, called
+
+    def _fn_assign_matches(self, fn: UserFunction, var: str) -> bool:
+        token = self._normalize_identifier(var.strip().rstrip('%$!#'))
+        fname = str(fn.name)
+        low = token.lower()
+        return low in (fname.lower(), 'fn' + fname.lower(), 'fn_' + fname.lower())
+
+    def _fn_stmt_return_expr(self, fn: UserFunction, text: str) -> Optional[str]:
+        stripped = text.strip()
+        if not stripped:
+            return None
+        if stripped.startswith('='):
+            return stripped[1:].strip() or None
+        if '=' not in stripped:
+            return None
+        try:
+            var, op, expr = self._parse_assignment_statement(stripped)
+        except ValueError:
+            return None
+        if op != '=' or not self._fn_assign_matches(fn, var):
+            return None
+        return expr
+
+    def _compile_fn_memo_steps(self, fn: UserFunction) -> Optional[list]:
+        """Straight-line IF/return bodies compiled to a tiny AST. None → slow path."""
+        if not fn.multiline:
+            body = (fn.body or '').strip()
+            if not body:
+                return None
+            ast = self._fn_memo_parse(body)
+            return None if ast is None else [('ret', ast)]
+        steps: list = []
+        for line_num in sorted(self.program):
+            if not (fn.body_start <= line_num < fn.body_end):
+                continue
+            parts = self._run_stmts.get(line_num)
+            if parts is None:
+                parts = self._parse_line_statements(self.program[line_num])
+            for _, text in parts:
+                cmd, rest = self._parse_command(text)
+                if cmd == 'IF':
+                    try:
+                        then_part, else_part = self._split_if_else_parts(rest)
+                    except ValueError:
+                        return None
+                    if else_part:
+                        return None
+                    cond, then_code = self._split_bbc_compact_if_then(then_part)
+                    then_stmts = [
+                        piece.strip()
+                        for piece in then_code.split(':')
+                        if piece.strip()
+                    ]
+                    ret_expr = None
+                    for stmt in then_stmts:
+                        scmd, srest = self._parse_command(stmt)
+                        if scmd == 'EXIT' and srest.strip().upper() == 'FUNCTION':
+                            continue
+                        if scmd == 'END':
+                            continue
+                        expr = self._fn_stmt_return_expr(fn, stmt)
+                        if expr is None or ret_expr is not None:
+                            return None
+                        ret_expr = expr
+                    if ret_expr is None:
+                        return None
+                    cond_ast = self._fn_memo_parse(cond)
+                    expr_ast = self._fn_memo_parse(ret_expr)
+                    if cond_ast is None or expr_ast is None:
+                        return None
+                    steps.append(('if_ret', cond_ast, expr_ast))
+                    continue
+                if cmd == 'EXIT' and rest.strip().upper() == 'FUNCTION':
+                    continue
+                if cmd in ('END', 'REM') or not text.strip():
+                    continue
+                expr = self._fn_stmt_return_expr(fn, text)
+                if expr is None:
+                    return None
+                expr_ast = self._fn_memo_parse(expr)
+                if expr_ast is None:
+                    return None
+                steps.append(('ret', expr_ast))
+        return steps or None
+
+    def _fn_memo_tokenize(self, text: str) -> Optional[list]:
+        tokens: list = []
+        i = 0
+        n = len(text)
+        while i < n:
+            ch = text[i]
+            if ch.isspace():
+                i += 1
+                continue
+            if ch in '+-*/(),':
+                tokens.append(ch)
+                i += 1
+                continue
+            two = text[i:i + 2]
+            if two in ('<=', '>=', '<>'):
+                tokens.append(two)
+                i += 2
+                continue
+            if ch in '<>=':
+                tokens.append(ch)
+                i += 1
+                continue
+            if ch == '"':
+                j = i + 1
+                while j < n and text[j] != '"':
+                    j += 1
+                if j >= n:
+                    return None
+                tokens.append(('str', text[i + 1:j]))
+                i = j + 1
+                continue
+            if ch.isdigit() or (ch == '.' and i + 1 < n and text[i + 1].isdigit()):
+                j = i
+                while j < n and (text[j].isdigit() or text[j] == '.'):
+                    j += 1
+                raw = text[i:j]
+                tokens.append(('num', float(raw) if '.' in raw else int(raw)))
+                i = j
+                continue
+            if ch.isalpha() or ch == '_':
+                j = i
+                while j < n and (text[j].isalnum() or text[j] in '_%$!'):
+                    j += 1
+                tokens.append(('id', text[i:j]))
+                i = j
+                continue
+            return None
+        return tokens
+
+    def _fn_memo_parse(self, text: str) -> Optional[tuple]:
+        tokens = self._fn_memo_tokenize(text)
+        if tokens is None:
+            return None
+        state = {'i': 0}
+
+        def peek():
+            i = state['i']
+            return tokens[i] if i < len(tokens) else None
+
+        def eat(expected=None):
+            tok = peek()
+            if expected is not None and tok != expected:
+                return None
+            if tok is None:
+                return None
+            state['i'] += 1
+            return tok
+
+        def parse_cmp():
+            left = parse_add()
+            if left is None:
+                return None
+            tok = peek()
+            if tok in ('=', '<>', '<', '>', '<=', '>='):
+                eat()
+                right = parse_add()
+                if right is None:
+                    return None
+                return ('cmp', tok, left, right)
+            return left
+
+        def parse_add():
+            left = parse_mul()
+            if left is None:
+                return None
+            while peek() in ('+', '-'):
+                op = eat()
+                right = parse_mul()
+                if right is None:
+                    return None
+                left = ('add' if op == '+' else 'sub', left, right)
+            return left
+
+        def parse_mul():
+            left = parse_unary()
+            if left is None:
+                return None
+            while peek() in ('*', '/'):
+                op = eat()
+                right = parse_unary()
+                if right is None:
+                    return None
+                left = ('mul' if op == '*' else 'div', left, right)
+            return left
+
+        def parse_unary():
+            if peek() == '-':
+                eat()
+                inner = parse_unary()
+                if inner is None:
+                    return None
+                return ('neg', inner)
+            if peek() == '+':
+                eat()
+                return parse_unary()
+            return parse_atom()
+
+        def parse_atom():
+            tok = peek()
+            if tok is None:
+                return None
+            if isinstance(tok, tuple) and tok[0] in ('num', 'str'):
+                eat()
+                return ('const', tok[1])
+            if tok == '(':
+                eat()
+                inner = parse_cmp()
+                if inner is None or eat(')') is None:
+                    return None
+                return inner
+            if isinstance(tok, tuple) and tok[0] == 'id':
+                eat()
+                name = tok[1]
+                if peek() == '(':
+                    eat()
+                    args: list = []
+                    if peek() != ')':
+                        while True:
+                            arg = parse_cmp()
+                            if arg is None:
+                                return None
+                            args.append(arg)
+                            if peek() == ',':
+                                eat()
+                                continue
+                            break
+                    if eat(')') is None:
+                        return None
+                    raw = name
+                    if raw[:2].upper() == 'FN':
+                        raw = raw[2:].lstrip('_')
+                    callee_fn = self._lookup_user_function(raw)
+                    if callee_fn is None:
+                        return None
+                    return ('call', callee_fn.name, tuple(args))
+                pname, _kind = self._parse_var_token(name)
+                return ('param', pname)
+            return None
+
+        tree = parse_cmp()
+        if tree is None or peek() is not None:
+            return None
+        return tree
+
+
+_FN_MEMO_KEYWORDS = frozenset({
+    'IF', 'THEN', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF',
+    'FOR', 'TO', 'STEP', 'NEXT', 'WHILE', 'WEND',
+    'REPEAT', 'UNTIL', 'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
+    'END', 'DEF', 'FN', 'EXIT', 'FUNCTION', 'LOCAL',
+    'AND', 'OR', 'NOT', 'XOR', 'EOR', 'EQV', 'IMP', 'MOD', 'DIV',
+    'TRUE', 'FALSE', 'LET', 'REM',
+})
+_FN_MEMO_PURE_BUILTINS = frozenset({
+    'ABS', 'INT', 'FIX', 'SGN', 'SQR', 'SQRT', 'SIN', 'COS', 'TAN',
+    'ASN', 'ASIN', 'ACS', 'ACOS', 'ATN', 'ATAN', 'SINRAD', 'COSRAD', 'TANRAD',
+    'DEG', 'RAD', 'LOG', 'EXP', 'PI', 'LEN', 'VAL', 'ASC',
+    'CHR', 'STR', 'LEFT', 'RIGHT', 'MID', 'INSTR', 'STRING', 'SPACE',
+    'HEX', 'OCT', 'BIN', 'UCASE', 'LCASE', 'CINT', 'CSNG', 'CDBL',
+    'SNG', 'DBL', 'FLOAT', 'NEAR', 'NEARSIG',
+    'CHR$', 'STR$', 'LEFT$', 'RIGHT$', 'MID$', 'STRING$', 'SPACE$',
+    'HEX$', 'OCT$', 'BIN$', 'UCASE$', 'LCASE$',
+})
+_FN_MEMO_IMPURE = frozenset({
+    'RND', 'TIME', 'TIMER', 'GET', 'INKEY', 'INKEY$', 'GET$',
+    'POS', 'VPOS', 'POINT', 'TINT', 'ADVAL', 'MOUSE',
+    'ERR', 'ERL', 'LOC', 'LOF', 'EOF', 'PTR', 'EXT', 'ARG', 'ARG$',
+    'INPUT', 'PRINT', 'READ', 'DATA', 'RESTORE',
+    'PLOT', 'DRAW', 'MOVE', 'CIRCLE', 'RECTANGLE', 'LINE', 'MODE',
+    'COLOUR', 'COLOR', 'GCOL', 'CLS', 'CLG', 'VDU', 'SYS', 'OSCLI',
+    'SOUND', 'BEEP', 'WAIT', 'CALL', 'PROC', 'ENDPROC',
+    'OPENIN', 'OPENOUT', 'OPENUP', 'OPEN', 'CLOSE', 'BGET', 'BPUT',
+    'CHAIN', 'RUN', 'LOAD', 'SAVE',
+    'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
+})
 

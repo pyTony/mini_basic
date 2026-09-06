@@ -93,6 +93,47 @@ class QBasicAckermannListingTests(unittest.TestCase):
         self.assertNotIn('?', out)
         self.assertIn('7', out.strip().splitlines()[-1])
 
+    def test_ackermann_3_4(self):
+        out, interp = _run([
+            'PRINT FNACK(3, 4)',
+            'END',
+            'DEF FNACK(M, N)',
+            'IF M = 0 THEN FNACK = N + 1: EXIT FUNCTION',
+            'IF N = 0 THEN FNACK = FNACK(M - 1, 1): EXIT FUNCTION',
+            'FNACK = FNACK(M - 1, FNACK(M, N - 1))',
+            'END FUNCTION',
+        ])
+        self.assertNotIn('?', out)
+        self.assertEqual(out.strip().splitlines()[-1].strip(), '125')
+        self.assertTrue(interp._fn_memoable.get('ACK', False))
+
+    def test_ackermann_4_1(self):
+        out, _ = _run([
+            'PRINT FNACK(4, 1)',
+            'END',
+            'DEF FNACK(M, N)',
+            'IF M = 0 THEN FNACK = N + 1: EXIT FUNCTION',
+            'IF N = 0 THEN FNACK = FNACK(M - 1, 1): EXIT FUNCTION',
+            'FNACK = FNACK(M - 1, FNACK(M, N - 1))',
+            'END FUNCTION',
+        ])
+        self.assertNotIn('?', out)
+        self.assertEqual(out.strip().splitlines()[-1].strip(), '65533')
+
+    def test_impure_global_not_memoized(self):
+        out, interp = _run([
+            'G=1',
+            'PRINT FNx',
+            'G=2',
+            'PRINT FNx',
+            'END',
+            'DEF FNx()=G',
+        ])
+        self.assertNotIn('?', out)
+        lines = [ln.strip() for ln in out.strip().splitlines() if ln.strip()]
+        self.assertEqual(lines[-2:], ['1', '2'])
+        self.assertFalse(any(interp._fn_memoable.get(k) for k in ('X', 'x')))
+
 
 if __name__ == '__main__':
     unittest.main()

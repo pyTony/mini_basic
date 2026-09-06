@@ -246,6 +246,12 @@ class RuntimeCoreMixin:
         self.data_pointer: int = 0
         self.user_functions: Dict[str, UserFunction] = {}
         self.user_procedures: Dict[str, UserProcedure] = {}
+        self._fn_memo: Dict[Tuple[str, tuple], object] = {}
+        self._fn_memoable: Dict[str, bool] = {}
+        self._fn_memo_steps: Dict[str, list] = {}
+        self._fn_trampoline_depth = 0
+        self._fn_miss_capture = False
+        self._fn_captured_miss = None
         self.proc_stack: List[List[Tuple[str, VarKind, object, bool]]] = []
         # Pygame stubs for BBCSDL gfxlib etc.
         self._gfx_next_texture_id: int = 1
@@ -2164,6 +2170,8 @@ class RuntimeCoreMixin:
         self.if_stack.clear()
         self.gosub_stack.clear()
         self.proc_stack.clear()
+        self._fn_memo.clear()
+        self._fn_trampoline_depth = 0
         self.resume_at = None
         self.error_trap_line = 0
         self.error_trap_gosub = False
@@ -2393,6 +2401,12 @@ class RuntimeCoreMixin:
         self.data_pointer = 0
         self.user_functions.clear()
         self.user_procedures.clear()
+        self._fn_memo.clear()
+        self._fn_memoable.clear()
+        self._fn_memo_steps.clear()
+        self._fn_trampoline_depth = 0
+        self._fn_miss_capture = False
+        self._fn_captured_miss = None
         self._definitions_dirty = True
         self.proc_stack.clear()
         self._rnd_last = 0.0

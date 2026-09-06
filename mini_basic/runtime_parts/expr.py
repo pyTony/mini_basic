@@ -72,6 +72,7 @@ from ..type_system import (
     FieldBuffer,
     FileChannel,
     FnReturn,
+    FnMemoMiss,
     CaseBlockLayout,
     CaseFrame,
     IfBlockLayout,
@@ -86,6 +87,8 @@ from ..type_system import (
     VarKind,
 )
 from typing import Callable, Dict, List, Optional, Set, TextIO, Tuple
+
+_FN_MEMO_MISS = object()
 
 _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
@@ -1541,6 +1544,24 @@ class RuntimeExprMixin:
         finally:
             self._fn_direct_eval = False
 
+    def _fn_memo_canon(self, value: object) -> object:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, float):
+            if math.isfinite(value) and value == int(value) and abs(value) < 1e16:
+                return int(value)
+            return value
+        if isinstance(value, (int, str)):
+            return value
+        return repr(value)
+
+    def _fn_memo_key(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+    ) -> Tuple[str, tuple]:
+        return (fn.name, tuple(self._fn_memo_canon(value) for _, _, value in bindings))
+
     def _eval_user_function(self, fn: UserFunction, args: List[str]) -> object:
         if len(args) != len(fn.params):
             raise ValueError('wrong number of arguments')
@@ -1564,6 +1585,175 @@ class RuntimeExprMixin:
                 ))
             else:
                 bindings.append((param_name, param_kind, self._eval_numeric(arg_expr)))
+        memoable = (not array_aliases) and self._fn_is_memoable(fn)
+        if memoable:
+            key = self._fn_memo_key(fn, bindings)
+            cached = self._fn_memo.get(key, _FN_MEMO_MISS)
+            if cached is not _FN_MEMO_MISS:
+                if self._trace_call('FN', fn.name):
+                    raise ProgramStop()
+                return cached
+            if self._fn_trampoline_depth:
+                raise FnMemoMiss(fn, bindings, self._fn_direct_eval)
+            return self._fn_trampoline_eval(fn, bindings, key)
+        return self._eval_user_function_bound(fn, bindings, array_aliases)
+
+    def _fn_trampoline_eval(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        key: Tuple[str, tuple],
+    ) -> object:
+        stack: List[Tuple[UserFunction, list, tuple, bool]] = [
+            (fn, bindings, key, self._fn_direct_eval),
+        ]
+        self._fn_trampoline_depth += 1
+        try:
+            while stack:
+                cur_fn, cur_bind, cur_key, direct = stack[-1]
+                cached = self._fn_memo.get(cur_key, _FN_MEMO_MISS)
+                if cached is not _FN_MEMO_MISS:
+                    stack.pop()
+                    continue
+                self._fn_captured_miss = None
+                saved_direct = self._fn_direct_eval
+                self._fn_direct_eval = direct
+                steps = self._fn_memo_steps.get(cur_fn.name)
+                try:
+                    if steps is not None:
+                        result = self._eval_memoable_fn_steps(cur_fn, cur_bind, steps)
+                    else:
+                        result = self._eval_user_function_bound(cur_fn, cur_bind, {})
+                except FnMemoMiss as miss:
+                    self._fn_captured_miss = (
+                        miss.fn,
+                        miss.bindings,
+                        miss.direct_eval,
+                    )
+                    result = _FN_MEMO_MISS
+                finally:
+                    self._fn_direct_eval = saved_direct
+                miss = self._fn_captured_miss
+                if miss is not None:
+                    mfn, mbind, mdir = miss
+                    miss_key = self._fn_memo_key(mfn, mbind)
+                    if self._fn_memo.get(miss_key, _FN_MEMO_MISS) is _FN_MEMO_MISS:
+                        stack.append((mfn, mbind, miss_key, mdir))
+                    continue
+                self._fn_memo[cur_key] = result
+                stack.pop()
+            return self._fn_memo[key]
+        finally:
+            self._fn_trampoline_depth -= 1
+            self._fn_captured_miss = None
+
+    def _eval_fn_memo_ast(self, node: tuple, env: Dict[str, object]) -> object:
+        kind = node[0]
+        if kind == 'const':
+            return node[1]
+        if kind == 'param':
+            value = env.get(node[1])
+            if value is None:
+                value = env.get(str(node[1]).upper())
+            return 0 if value is None else value
+        if kind == 'neg':
+            inner = self._eval_fn_memo_ast(node[1], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            return -inner
+        if kind in ('add', 'sub', 'mul', 'div'):
+            left = self._eval_fn_memo_ast(node[1], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            right = self._eval_fn_memo_ast(node[2], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            if kind == 'add':
+                return left + right
+            if kind == 'sub':
+                return left - right
+            if kind == 'mul':
+                return left * right
+            if right == 0:
+                raise ValueError('division by zero')
+            return left / right
+        if kind == 'cmp':
+            left = self._eval_fn_memo_ast(node[2], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            right = self._eval_fn_memo_ast(node[3], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            op = node[1]
+            if op == '=':
+                return left == right
+            if op == '<>':
+                return left != right
+            if op == '<':
+                return left < right
+            if op == '>':
+                return left > right
+            if op == '<=':
+                return left <= right
+            return left >= right
+        if kind == 'call':
+            args = []
+            for arg_node in node[2]:
+                value = self._eval_fn_memo_ast(arg_node, env)
+                if self._fn_captured_miss is not None:
+                    return 0
+                args.append(value)
+            callee = self._lookup_user_function(node[1])
+            if callee is None:
+                raise ValueError(f'unknown function FN{node[1]}')
+            bindings = [
+                (param_name, param_kind, arg)
+                for (param_name, param_kind), arg in zip(callee.params, args)
+            ]
+            key = self._fn_memo_key(callee, bindings)
+            cached = self._fn_memo.get(key, _FN_MEMO_MISS)
+            if cached is not _FN_MEMO_MISS:
+                return cached
+            self._fn_captured_miss = (callee, bindings, True)
+            return 0
+        raise ValueError('bad FN memo AST')
+
+    def _eval_memoable_fn_steps(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        steps: list,
+    ) -> object:
+        if self._trace_call('FN', fn.name):
+            raise ProgramStop()
+        env: Dict[str, object] = {}
+        for name, _kind, value in bindings:
+            env[name] = value
+            env[str(name).upper()] = value
+        for step in steps:
+            kind = step[0]
+            if kind == 'if_ret':
+                flag = self._eval_fn_memo_ast(step[1], env)
+                if self._fn_captured_miss is not None:
+                    return _FN_MEMO_MISS
+                if flag:
+                    value = self._eval_fn_memo_ast(step[2], env)
+                    if self._fn_captured_miss is not None:
+                        return _FN_MEMO_MISS
+                    return self._coerce_fn_return(fn, value)
+                continue
+            value = self._eval_fn_memo_ast(step[1], env)
+            if self._fn_captured_miss is not None:
+                return _FN_MEMO_MISS
+            return self._coerce_fn_return(fn, value)
+        raise ValueError('? DEF FN missing return')
+
+    def _eval_user_function_bound(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        array_aliases: Dict[Tuple[str, VarKind], Tuple[str, VarKind]],
+    ) -> object:
         saved = self._apply_fn_param_bindings(bindings)
         saved_array_aliases = dict(self._array_aliases)
         self._array_aliases.update(array_aliases)
@@ -1647,6 +1837,8 @@ class RuntimeExprMixin:
                 raise ValueError(f'unknown function FN{name}')
             args = self._split_args(arg) if arg.strip() else []
             value = self._eval_user_function_for_expand(fn, args)
+            if self._fn_captured_miss is not None:
+                return expr
             if fn.return_kind == 'str':
                 repl = json.dumps(str(value))
             elif isinstance(value, str) and self._RE_FN_CALL.search(value):

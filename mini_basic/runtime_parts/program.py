@@ -1832,6 +1832,8 @@ class RuntimeProgramMixin:
         self.user_procedures = procedures
         functions, _ = self._scan_user_functions(line_nums)
         self.user_functions = functions
+        self._rebuild_fn_memoable()
+        self._fn_memo.clear()
         self._definitions_dirty = False
 
     def _build_user_functions(self) -> None:
@@ -1844,6 +1846,8 @@ class RuntimeProgramMixin:
         self.user_functions = functions
         self._finalize_fn_return_kinds()
         self._warn_def_fn_missing_returns()
+        self._rebuild_fn_memoable()
+        self._fn_memo.clear()
         self._fn_skip_lines = skip_lines
         if self._fn_skip_lines:
             self._run_line_nums = [
