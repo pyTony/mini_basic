@@ -1657,6 +1657,9 @@ class RuntimeExecutionMixin:
                             self._eval_numeric(self._fn_local_error_return),
                         )
                     if target not in body_line_index:
+                        # Structured IF/WHILE/FOR exit onto END DEF (body_end).
+                        if target == fn.body_end or target == -1:
+                            break
                         raise ValueError('DEF FN jump outside body')
                     idx = body_line_index[target]
                 else:

@@ -134,6 +134,35 @@ class QBasicAckermannListingTests(unittest.TestCase):
         self.assertEqual(lines[-2:], ['1', '2'])
         self.assertFalse(any(interp._fn_memoable.get(k) for k in ('X', 'x')))
 
+    def test_fn_name_assign_then_structured_if_cap(self):
+        """QBasic FNname= plus IF/ENDIF must not jump to END DEF."""
+        out20, _ = _run([
+            'PRINT FNCALC(20)',
+            'END',
+            'DEF FNCALC(X)',
+            'FNCALC = X * 2',
+            'IF FNCALC > 100 THEN',
+            'FNCALC = 100',
+            'ENDIF',
+            'END DEF',
+        ])
+        self.assertNotIn('?', out20)
+        self.assertNotIn('jump outside', out20.lower())
+        self.assertEqual(out20.strip().splitlines()[-1].strip(), '40')
+
+        out60, _ = _run([
+            'PRINT FNCALC(60)',
+            'END',
+            'DEF FNCALC(X)',
+            'FNCALC = X * 2',
+            'IF FNCALC > 100 THEN',
+            'FNCALC = 100',
+            'ENDIF',
+            'END DEF',
+        ])
+        self.assertNotIn('?', out60)
+        self.assertEqual(out60.strip().splitlines()[-1].strip(), '100')
+
 
 if __name__ == '__main__':
     unittest.main()

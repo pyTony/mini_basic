@@ -87,10 +87,18 @@ class CompiledExpr:
         for name in self.float_vars:
             if name in SAFE_EVAL_GLOBALS:
                 continue
-            # Classic BASIC: an unset numeric is 0 (N=N+1, PRINT X, …).
-            namespace[name] = interp.variables.get(name, 0.0)
+            fn_ret = interp._active_fn_result_value(name)
+            if fn_ret is not None:
+                namespace[name] = fn_ret
+            else:
+                # Classic BASIC: an unset numeric is 0 (N=N+1, PRINT X, …).
+                namespace[name] = interp.variables.get(name, 0.0)
         for name in self.int_vars:
-            namespace[int_slot(name)] = interp.int_variables.get(name, 0)
+            fn_ret = interp._active_fn_result_value(name)
+            if fn_ret is not None:
+                namespace[int_slot(name)] = fn_ret
+            else:
+                namespace[int_slot(name)] = interp.int_variables.get(name, 0)
         for name in self.system_vars:
             namespace[name] = interp._get_system_var(name)
         return namespace

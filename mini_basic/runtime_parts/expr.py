@@ -1786,12 +1786,53 @@ class RuntimeExprMixin:
             self._restore_fn_param_bindings(saved)
             self._array_aliases = saved_array_aliases
 
+    def _active_fn_result_value(self, name: Optional[str] = None) -> Optional[object]:
+        """QBasic/Pascal: bare FNname inside DEF FN is the return variable."""
+        if not self._in_fn_body or self._active_fn is None:
+            return None
+        token = self._active_fn.name if name is None else name
+        if not self._is_qb_fn_result_assign(token):
+            return None
+        pending = getattr(self, '_fn_qb_return', None)
+        return 0 if pending is None else pending
+
+    def _substitute_active_fn_result(self, expr: str) -> str:
+        if not self._in_fn_body or self._active_fn is None:
+            return expr
+        if not expr:
+            return expr
+        value = self._active_fn_result_value()
+        if value is None:
+            return expr
+        fname = re.escape(str(self._active_fn.name))
+        pattern = (
+            rf'(?<![A-Za-z0-9_])(?:FN_?)?{fname}(?![A-Za-z0-9_%$])(?!\s*\()'
+        )
+        return re.sub(
+            pattern,
+            self._embed_subst_number(value),
+            expr,
+            flags=re.IGNORECASE,
+        )
+
     def _expand_fn_calls(self, expr: str) -> str:
+        expr = self._substitute_active_fn_result(expr)
         # BBC: FNgetbmp  (no ()) for a no-arg FN. Do not touch FNfoo(.
+        # Inside DEF FNcalc, bare FNCALC is the return var — not FNCALC().
+        def _bare_fn_to_call(match: re.Match) -> str:
+            full = match.group(1)
+            inner = match.group(2)
+            if self._in_fn_body and (
+                self._is_qb_fn_result_assign(full)
+                or (inner is not None and self._is_qb_fn_result_assign(inner))
+            ):
+                return full
+            return f'{full}()'
+
         expr = re.sub(
             rf'(?<![A-Za-z0-9_])(FN_?\s*{_PROC_FN_NAME_PATTERN}(?:%|\$)?)'
             rf'(?![A-Za-z0-9_%$])(?!\s*\()',
-            r'\1()',
+            _bare_fn_to_call,
             expr,
             flags=re.IGNORECASE,
         )
@@ -3282,6 +3323,7 @@ class RuntimeExprMixin:
         )
 
     def _eval_numeric(self, expr: str) -> object:
+        expr = self._substitute_active_fn_result(expr)
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
@@ -3334,7 +3376,7 @@ class RuntimeExprMixin:
         return self._get_compiled_expr(expr, is_condition=False).eval_numeric(self)
 
     def _eval_condition(self, expr: str) -> bool:
-        expr = expr.strip()
+        expr = self._substitute_active_fn_result(expr.strip())
         if not expr:
             return False
         expr = self._unglue_monadic_expr(expr)
