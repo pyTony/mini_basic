@@ -194,7 +194,7 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'PROC': 'ENDPROC',
     }
     _BBC_BARE_STRING_ARG_FUNCS = frozenset({'LEN', 'VAL'})
-    _BBC_BARE_NO_ARG_FUNCS = frozenset({'PI', 'POS', 'VPOS', 'GET', 'INKEY'})
+    _BBC_BARE_NO_ARG_FUNCS = frozenset({'PI', 'POS', 'VPOS', 'GET', 'INKEY', 'TIMER'})
     _FILE_CHANNEL_HASH_FUNCS = frozenset({'EOF', 'LOF', 'LOC', 'PTR', 'EXT'})
     _RE_BAD_PERCENT_MOD = re.compile(
         r'(?:\d|\))\s*%'

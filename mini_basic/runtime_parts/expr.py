@@ -1137,6 +1137,22 @@ class RuntimeExprMixin:
             expr = match.group(1).strip()
             if expr:
                 candidates.append(expr)
+        # QBasic: FNACK = expr  /  THEN FNACK = N+1
+        for match in re.finditer(
+            rf'(?:THEN|ELSE)\s+(?:FN_?)?{self._VAR_BASE_PATTERN}\s*=\s*(.+?)(?=\s*:|\s+ELSE\b|\s*$)',
+            stripped,
+            flags=re.IGNORECASE,
+        ):
+            expr = match.group(1).strip()
+            if expr:
+                candidates.append(expr)
+        qb = re.match(
+            rf'^(?:FN_?)?{self._VAR_BASE_PATTERN}\s*=\s*(.+)$',
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if qb:
+            candidates.append(qb.group(1).strip())
         return candidates
 
     def _apply_inferred_fn_return_kind(
@@ -1231,6 +1247,11 @@ class RuntimeExprMixin:
             if arg is not None and arg.strip():
                 raise ValueError('GET takes no arguments')
             return float(self._read_get_char())
+        if func == 'TIMER':
+            if arg is not None and arg.strip():
+                raise ValueError('TIMER takes no arguments')
+            # QBasic TIMER: seconds since midnight-ish; BBC TIME is centiseconds.
+            return float(self._get_time()) / 100.0
         if func == 'INKEY':
             if arg is None or not arg.strip():
                 return self._inkey_code()

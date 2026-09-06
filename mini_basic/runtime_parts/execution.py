@@ -1132,6 +1132,16 @@ class RuntimeExecutionMixin:
             if cmd not in ('', 'LET'):
                 cache[line] = False
                 return False
+            if self._in_fn_body:
+                try:
+                    var, op, _expr = self._parse_assignment_statement(
+                        rest if cmd == 'LET' else line
+                    )
+                except Exception:
+                    var, op = '', ''
+                if op == '=' and self._is_qb_fn_result_assign(var):
+                    cache[line] = False
+                    return False
             text = rest if cmd == 'LET' else line
             runners = self._compile_accelerate_body([('LET', text)])
             if not runners or len(runners) != 1:
@@ -1437,7 +1447,7 @@ class RuntimeExecutionMixin:
                 cmd, rest = self._parse_command(text)
                 if depth == 0 and self._is_def_fn_or_proc_header(cmd, rest):
                     return None
-                if cmd == 'END' and rest.strip().upper() in ('DEF', 'FN'):
+                if cmd == 'END' and rest.strip().upper() in ('DEF', 'FN', 'FUNCTION'):
                     if depth == 0:
                         return line_num
                     continue
@@ -1546,6 +1556,16 @@ class RuntimeExecutionMixin:
             self.resume_at = saved_resume_at
             self._in_proc_body = False
 
+    def _is_qb_fn_result_assign(self, var: str) -> bool:
+        """QBasic ``FNACK = expr`` / ``ACK = expr`` inside DEF FNACK."""
+        fn = self._active_fn
+        if fn is None:
+            return False
+        token = self._normalize_identifier(var.strip().rstrip('%$!#'))
+        fname = str(fn.name)
+        low = token.lower()
+        return low in (fname.lower(), 'fn' + fname.lower(), 'fn_' + fname.lower())
+
     def _handle_exit(self, kind: str) -> Optional[int]:
         kind_map = {
             'FOR': 'for',
@@ -1554,6 +1574,9 @@ class RuntimeExecutionMixin:
         }
         target_kind = kind_map.get(kind.strip().upper())
         if target_kind is None:
+            if kind.strip().upper() == 'FUNCTION' and self._in_fn_body:
+                pending = getattr(self, '_fn_qb_return', None)
+                raise FnReturn(0 if pending is None else pending)
             self._emit_error('? EXIT error')
             return None
         for index in range(len(self.stack) - 1, -1, -1):
@@ -1591,6 +1614,7 @@ class RuntimeExecutionMixin:
         self._in_fn_body = True
         self._active_fn = fn
         self._fn_local_error_return = None
+        self._fn_qb_return = None
         full_line_nums = sorted(self.program)
         body_line_nums = [
             line_num for line_num in full_line_nums
@@ -1637,6 +1661,9 @@ class RuntimeExecutionMixin:
                     idx = body_line_index[target]
                 else:
                     idx += 1
+            pending = getattr(self, '_fn_qb_return', None)
+            if pending is not None:
+                return self._coerce_fn_return(fn, pending)
             raise ValueError('? DEF FN missing return')
         finally:
             self._restore_local_bindings()
@@ -1646,6 +1673,7 @@ class RuntimeExecutionMixin:
             self._in_fn_body = saved_in_fn_body
             self._active_fn = saved_active_fn
             self._fn_local_error_return = saved_fn_err
+            self._fn_qb_return = None
             self.error_trap_line = saved_error_trap_line
             self.error_trap_gosub = saved_error_trap_gosub
 
@@ -3878,6 +3906,9 @@ class RuntimeExecutionMixin:
             return None
 
         if cmd == 'EXIT':
+            if rest.strip().upper() == 'FUNCTION' and self._in_fn_body:
+                pending = getattr(self, '_fn_qb_return', None)
+                raise FnReturn(0 if pending is None else pending)
             if not self._dialect_allows('EXIT'):
                 self._runtime_error(
                     '? EXIT FOR/WHILE/REPEAT is a mini (SDL) extension',
@@ -4493,6 +4524,13 @@ class RuntimeExecutionMixin:
             if '=' in line:
                 try:
                     var, op, expr = self._parse_assignment_statement(line)
+                    if (
+                        op == '='
+                        and self._in_fn_body
+                        and self._is_qb_fn_result_assign(var)
+                    ):
+                        self._fn_qb_return = self._eval_fn_return_expression(expr)
+                        return None
                     if op == '=':
                         self._assign(var, expr)
                     else:

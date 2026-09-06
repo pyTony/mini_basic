@@ -639,12 +639,45 @@ class RuntimeProgramMixin:
             return self._program_source_numbered
         return True
 
+    def _strip_tail_apostrophe_comment(self, statement: str) -> str:
+        """QBasic/BBC: ``X=1 ' comment`` — ``'`` starts a tail comment.
+
+        Leave PRINT (apostrophe is newline), DATA, REM, and ``\"a\"'\"b\"`` glue.
+        """
+        text = statement
+        if not text or "'" not in text:
+            return text
+        if self._line_skips_expr_canonicalize(text):
+            return text
+        cmd, _rest = self._parse_command(text)
+        if cmd in ('PRINT', 'PRINT#', 'DATA', 'REM'):
+            return text
+        in_string = False
+        index = 0
+        while index < len(text):
+            ch = text[index]
+            if ch == '"':
+                in_string = not in_string
+                index += 1
+                continue
+            if not in_string and ch == "'":
+                prev = text[:index].rstrip()
+                nxt = text[index + 1 :].lstrip()
+                if prev.endswith('"') and nxt.startswith('"'):
+                    index += 1
+                    continue
+                return text[:index].rstrip()
+            index += 1
+        return text
+
     def _parse_line_statements(self, line: str) -> List[Tuple[Optional[str], str]]:
         statements: List[Tuple[Optional[str], str]] = []
         for part in self._split_colon_statements(line):
             label, text = self._extract_label_prefix(part)
             if text and text != ';':
-                statements.append((label, text))
+                text = self._strip_tail_apostrophe_comment(text)
+                if text:
+                    statements.append((label, text))
         return statements
 
     def _prepare_run(self) -> None:
@@ -1215,6 +1248,7 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bEND\s+PROC\b', 'ENDPROC', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+CASE\b', 'ENDCASE', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+FN\b', 'END DEF', line, flags=re.IGNORECASE)
+        line = re.sub(r'\bEND\s+FUNCTION\b', 'END DEF', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+DEF\b', 'END DEF', line, flags=re.IGNORECASE)
         if fold_endwhile:
             line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
@@ -1316,7 +1350,7 @@ class RuntimeProgramMixin:
         text = line.strip()
         core = re.split(r'\s+REM(?:\s|$)', text, maxsplit=1, flags=re.IGNORECASE)[0].rstrip()
         match = re.match(
-            r'^END\s+(IF|WHILE|PROC|FN|DEF|CASE)\s*$',
+            r'^END\s+(IF|WHILE|PROC|FN|FUNCTION|DEF|CASE)\s*$',
             core,
             re.IGNORECASE,
         )
@@ -1327,6 +1361,7 @@ class RuntimeProgramMixin:
             'WHILE': 'WEND',
             'PROC': 'ENDPROC',
             'FN': 'END DEF',
+            'FUNCTION': 'END DEF',
             'DEF': 'END DEF',
             'CASE': 'ENDCASE',
         }
