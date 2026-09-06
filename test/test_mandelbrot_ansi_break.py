@@ -79,6 +79,15 @@ class MandelbrotAnsiBreakTests(unittest.TestCase):
         rows = [ln for ln in _plain(out).splitlines() if ln.strip() != '']
         self.assertEqual(rows, ['....', '....'])
 
+    def test_color_listing_declares_mini_dialect(self):
+        """BREAK / FG$ are mini, not bbc (Beeb + V)."""
+        path = os.path.join(
+            _ROOT, 'examples', 'graphics', 'mandelbrot', 'mandelbrot_color.bas',
+        )
+        with open(path, encoding='utf-8') as handle:
+            head = handle.read(200)
+        self.assertRegex(head, r'(?i)REM\s+dialect:\s*mini')
+
     def test_color_listing_row_is_full_width(self):
         """Charset Mandelbrot row is X=-49..29 (79 cells), not one '.'."""
         path = os.path.join(
@@ -101,6 +110,7 @@ class MandelbrotAnsiBreakTests(unittest.TestCase):
             and 'Loaded' not in ln
             and 'Program cleared' not in ln
             and 'Graphics' not in ln
+            and 'Dialect:' not in ln
         ]
         self.assertGreaterEqual(len(rows), 20)
         widths = [len(ln) for ln in rows]

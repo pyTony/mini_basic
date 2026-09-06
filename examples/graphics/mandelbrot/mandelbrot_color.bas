@@ -1,3 +1,4 @@
+     1 REM dialect: mini
    100 PRINT "Mandelbrot - ANSI color"
    110 PRINT "Start"
    120 TIME = 0
