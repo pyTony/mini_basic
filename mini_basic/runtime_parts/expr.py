@@ -263,6 +263,55 @@ class RuntimeExprMixin:
             flags=id_flags,
         )
 
+    _RE_LOGICAL_WORD = re.compile(
+        r'(?<![A-Za-z0-9_$%])(?:AND|OR|NOT|XOR|EOR|EQV|IMP)(?![A-Za-z0-9_$%])',
+        re.IGNORECASE,
+    )
+
+    def _expr_has_chained_comparison(self, expr: str) -> bool:
+        """True if two relational operators share one operand run (A < B < C)."""
+        if expr.count('<') + expr.count('>') + expr.count('=') < 2:
+            return False
+        depth = 0
+        in_string = False
+        count = 0
+        index = 0
+        length = len(expr)
+        while index < length:
+            ch = expr[index]
+            if ch == '"':
+                in_string = not in_string
+                index += 1
+                continue
+            if in_string:
+                index += 1
+                continue
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif depth == 0:
+                if ch in '<>' and expr.startswith(ch * 2, index):
+                    # << >> >>> shifts, not comparisons
+                    while index < length and expr[index] == ch:
+                        index += 1
+                    continue
+                op = self._boolean_relop_at(expr, index)
+                if op is not None:
+                    count += 1
+                    if count > 1:
+                        return True
+                    index += len(op)
+                    continue
+                if ch.isalpha():
+                    match = self._RE_LOGICAL_WORD.match(expr, index)
+                    if match and (index == 0 or not (expr[index - 1].isalnum() or expr[index - 1] in '_$%')):
+                        count = 0
+                        index = match.end()
+                        continue
+            index += 1
+        return False
+
     def _get_compiled_expr(self, source: str, is_condition: bool = False) -> CompiledExpr:
         # Outer parens: CONT = (ZX*ZX+ZY*ZY < 4) must compile as a comparison,
         # not fall back to _eval_numeric (regex ladder) every WHILE iteration.
@@ -282,6 +331,9 @@ class RuntimeExprMixin:
             compiled.needs_int_coerce = self._expr_is_pure_bitwise(stripped)
             if self._boolean_literal_value(stripped) is not None:
                 raise ValueError('boolean literal')
+            if self._expr_has_chained_comparison(stripped):
+                # Python would chain 3 > 2 > 1 as (3 > 2 and 2 > 1).
+                raise ValueError('chained comparison')
             if self._expr_has_boolean_syntax(stripped):
                 if self._expr_is_pure_bitwise(stripped):
                     expr, needs_time, float_vars, int_vars, system_vars = (

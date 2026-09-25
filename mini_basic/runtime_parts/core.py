@@ -158,7 +158,9 @@ class RuntimeCoreMixin:
         self._mouse_y = 0
         self._mouse_buttons = 0
         self._bbc_custom_colours: Dict[int, Tuple[int, int, int]] = {}
-        self.gosub_stack: List[Tuple[int, int]] = []
+        self.gosub_stack: List[tuple] = []
+        # >0 while an IF THEN/ELSE clause runs as its own statement list.
+        self._inline_exec_depth = 0
         self.resume_at: Optional[Tuple[int, int]] = None
         self.error_trap_line: int = 0
         self.error_trap_gosub: bool = False

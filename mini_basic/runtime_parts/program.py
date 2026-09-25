@@ -2064,7 +2064,21 @@ class RuntimeProgramMixin:
             raise ValueError('expected expression')
         right_kind, right_value = self._eval_comparison_operand(right_fragment)
         index = right_end
-        return self._compare_mixed_values(op, left_kind, left_value, right_kind, right_value), index
+        value = self._compare_mixed_values(op, left_kind, left_value, right_kind, right_value)
+        # BASIC chains left to right: 3 > 2 > 1 is (3 > 2) > 1 = -1 > 1 = 0.
+        while True:
+            index = self._boolean_skip_ws(expr, index)
+            op = self._boolean_relop_at(expr, index)
+            if op is None:
+                return value, index
+            index += len(op)
+            right_end = self._boolean_find_arith_end(expr, index)
+            right_fragment = expr[index:right_end].strip()
+            if not right_fragment:
+                raise ValueError('expected expression')
+            right_kind, right_value = self._eval_comparison_operand(right_fragment)
+            index = right_end
+            value = self._compare_mixed_values(op, 'num', value, right_kind, right_value)
 
     def _boolean_parse_not(self, expr: str, index: int) -> Tuple[float, int]:
         index = self._boolean_skip_ws(expr, index)

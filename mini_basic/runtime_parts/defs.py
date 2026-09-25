@@ -573,7 +573,7 @@ class RuntimeDefsMixin:
                 return None
             ast = self._fn_memo_parse(body)
             return None if ast is None else [('ret', ast)]
-        steps: list = []
+        texts: List[str] = []
         for line_num in sorted(self.program):
             if not (fn.body_start <= line_num < fn.body_end):
                 continue
@@ -582,49 +582,68 @@ class RuntimeDefsMixin:
                 parts = self._parse_line_statements(self.program[line_num])
             for _, text in parts:
                 cmd, rest = self._parse_command(text)
-                if cmd == 'IF':
-                    try:
-                        then_part, else_part = self._split_if_else_parts(rest)
-                    except ValueError:
-                        return None
-                    if else_part:
-                        return None
-                    cond, then_code = self._split_bbc_compact_if_then(then_part)
-                    then_stmts = [
-                        piece.strip()
-                        for piece in then_code.split(':')
-                        if piece.strip()
-                    ]
-                    ret_expr = None
-                    for stmt in then_stmts:
-                        scmd, srest = self._parse_command(stmt)
-                        if scmd == 'EXIT' and srest.strip().upper() == 'FUNCTION':
-                            continue
-                        if scmd == 'END':
-                            continue
-                        expr = self._fn_stmt_return_expr(fn, stmt)
-                        if expr is None or ret_expr is not None:
-                            return None
-                        ret_expr = expr
-                    if ret_expr is None:
-                        return None
-                    cond_ast = self._fn_memo_parse(cond)
-                    expr_ast = self._fn_memo_parse(ret_expr)
-                    if cond_ast is None or expr_ast is None:
-                        return None
-                    steps.append(('if_ret', cond_ast, expr_ast))
-                    continue
-                if cmd == 'EXIT' and rest.strip().upper() == 'FUNCTION':
-                    continue
                 if cmd in ('END', 'REM') or not text.strip():
                     continue
-                expr = self._fn_stmt_return_expr(fn, text)
-                if expr is None:
+                texts.append(text)
+
+        def is_exit(stmt: str) -> bool:
+            scmd, srest = self._parse_command(stmt)
+            return scmd == 'END' or (scmd == 'EXIT' and srest.strip().upper() == 'FUNCTION')
+
+        def return_expr(stmts: List[str], index: int) -> Optional[str]:
+            """Expr if stmts[index] ends the call: ``= e``, or ``FNx = e`` then exit/end."""
+            stmt = stmts[index]
+            expr = self._fn_stmt_return_expr(fn, stmt)
+            if expr is None or stmt.strip().startswith('='):
+                return expr
+            # FNx = e only sets the result; later statements may still change it.
+            if index + 1 == len(stmts) or is_exit(stmts[index + 1]):
+                return expr
+            return None
+
+        steps: list = []
+        for index, text in enumerate(texts):
+            cmd, rest = self._parse_command(text)
+            if cmd == 'IF':
+                try:
+                    then_part, else_part = self._split_if_else_parts(rest)
+                except ValueError:
                     return None
-                expr_ast = self._fn_memo_parse(expr)
-                if expr_ast is None:
+                if else_part:
                     return None
-                steps.append(('ret', expr_ast))
+                cond, then_code = self._split_bbc_compact_if_then(then_part)
+                then_stmts = [
+                    piece.strip()
+                    for piece in then_code.split(':')
+                    if piece.strip()
+                ]
+                if not then_stmts or is_exit(then_stmts[0]):
+                    return None
+                ret_expr = return_expr(then_stmts, 0)
+                if ret_expr is None or not all(is_exit(t) for t in then_stmts[1:]):
+                    return None
+                if (
+                    len(then_stmts) == 1
+                    and not then_stmts[0].startswith('=')
+                    and index + 1 < len(texts)
+                ):
+                    # IF c THEN FNx = e with more body after it: not a return.
+                    return None
+                cond_ast = self._fn_memo_parse(cond)
+                expr_ast = self._fn_memo_parse(ret_expr)
+                if cond_ast is None or expr_ast is None:
+                    return None
+                steps.append(('if_ret', cond_ast, expr_ast))
+                continue
+            if is_exit(text):
+                continue
+            expr = return_expr(texts, index)
+            if expr is None:
+                return None
+            expr_ast = self._fn_memo_parse(expr)
+            if expr_ast is None:
+                return None
+            steps.append(('ret', expr_ast))
         return steps or None
 
     def _fn_memo_tokenize(self, text: str) -> Optional[list]:

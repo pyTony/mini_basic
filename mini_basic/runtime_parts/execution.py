@@ -218,10 +218,7 @@ class RuntimeExecutionMixin:
                 return None
             target_token = targets[index - 1]
             if kind.upper() == 'GOSUB':
-                if stmt_index + 1 < stmt_count:
-                    self.gosub_stack.append((line_num, stmt_index + 1))
-                else:
-                    self.gosub_stack.append((self._next_line_num(line_num, line_nums), 0))
+                self._push_gosub_return(line_num, stmt_index, stmt_count, line_nums)
             return self.resolve_jump_target(target_token)
         except Exception as exc:
             self._emit_error(self._error_message('? ON GOTO/GOSUB error', exc))
@@ -266,13 +263,33 @@ class RuntimeExecutionMixin:
                 return code
         return 5
 
-    def _push_error_gosub_return(self, line_num: int, stmt_index: int) -> None:
-        if stmt_index + 1 < self._exec_stmt_count:
-            self.gosub_stack.append((line_num, stmt_index + 1))
-        elif self._exec_line_nums:
-            self.gosub_stack.append((self._next_line_num(line_num, self._exec_line_nums), 0))
+    def _push_gosub_return(
+        self,
+        line_num: int,
+        stmt_index: int,
+        stmt_count: int,
+        line_nums: List[int],
+    ) -> None:
+        # Entry: (line, stmt, IF-clause parts or None, loop-stack depth).
+        depth = len(self.stack)
+        if stmt_index + 1 >= stmt_count:
+            self.gosub_stack.append((self._next_line_num(line_num, line_nums), 0, None, depth))
+        elif self._inline_exec_depth and self._active_stmt_parts is not None:
+            # stmt_index counts IF-clause statements, not the line's statements.
+            self.gosub_stack.append((line_num, stmt_index + 1, self._active_stmt_parts, depth))
         else:
-            self.gosub_stack.append((line_num, stmt_index + 1))
+            self.gosub_stack.append((line_num, stmt_index + 1, None, depth))
+
+    def _push_error_gosub_return(self, line_num: int, stmt_index: int) -> None:
+        depth = len(self.stack)
+        if stmt_index + 1 < self._exec_stmt_count:
+            self.gosub_stack.append((line_num, stmt_index + 1, None, depth))
+        elif self._exec_line_nums:
+            self.gosub_stack.append(
+                (self._next_line_num(line_num, self._exec_line_nums), 0, None, depth)
+            )
+        else:
+            self.gosub_stack.append((line_num, stmt_index + 1, None, depth))
 
     def _runtime_error(
         self,
@@ -579,10 +596,19 @@ class RuntimeExecutionMixin:
             for part in self._split_colon_statements(code)
         ]
         parts = [(label, text) for label, text in parts if text]
+        return self._execute_inline_parts(parts, line_num, line_nums)
+
+    def _execute_inline_parts(
+        self,
+        parts: List[Tuple[Optional[str], str]],
+        line_num: int,
+        line_nums: List[int],
+    ) -> Optional[int]:
         saved_line = self._active_line_num
         saved_parts = self._active_stmt_parts
         self._active_line_num = line_num
         self._active_stmt_parts = parts
+        self._inline_exec_depth += 1
         try:
             while True:
                 target = self._execute_statement_parts(line_num, parts, line_nums)
@@ -595,6 +621,7 @@ class RuntimeExecutionMixin:
                 return self.error_trap_line
             raise
         finally:
+            self._inline_exec_depth -= 1
             self._active_line_num = saved_line
             self._active_stmt_parts = saved_parts
 
@@ -4153,10 +4180,7 @@ class RuntimeExecutionMixin:
         if cmd == 'GOSUB':
             try:
                 target = self.resolve_jump_target(rest.strip())
-                if stmt_index + 1 < stmt_count:
-                    self.gosub_stack.append((line_num, stmt_index + 1))
-                else:
-                    self.gosub_stack.append((self._next_line_num(line_num, line_nums), 0))
+                self._push_gosub_return(line_num, stmt_index, stmt_count, line_nums)
                 return target
             except Exception as exc:
                 self._runtime_error(
@@ -4170,7 +4194,16 @@ class RuntimeExecutionMixin:
             if not self.gosub_stack:
                 self._runtime_error('? RETURN without GOSUB', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
-            ret_line, ret_stmt = self.gosub_stack.pop()
+            ret_line, ret_stmt, inline_parts, loop_depth = self.gosub_stack.pop()
+            # MS BASIC: RETURN discards FOR/WHILE loops opened by the subroutine.
+            del self.stack[loop_depth:]
+            if inline_parts is not None:
+                # GOSUB ran inside an IF THEN/ELSE clause: finish that clause,
+                # then carry on after the line (the clause owns the line tail).
+                target = self._execute_inline_parts(inline_parts[ret_stmt:], ret_line, line_nums)
+                if target is not None:
+                    return target
+                return self._next_line_num(ret_line, line_nums)
             if ret_line == -1:
                 return -1
             self.resume_at = (ret_line, ret_stmt)
