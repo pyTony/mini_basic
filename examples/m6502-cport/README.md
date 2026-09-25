@@ -44,14 +44,11 @@ BBC `OPENIN`/`OPENOUT`, and MS `OPEN "O",#n,"file"`. What the C-port demos use
 that fails today is mainly **`OPEN 1,"file","OUTPUT"`** (channel-first + mode
 string), not the absence of `PRINT#`.
 
-Most of **01–48** run under `--dialect mits`. Known gaps when using mini_basic:
+Most of **01–48** run under `--dialect mits` (**46 / 48**). Remaining items are out of scope for regular 1.00, not unfinished core:
 
 | Examples | Issue |
 |----------|--------|
-| `08_goto_counter` | MS allows `N=N+1` before `N` is set; mini_basic needs `N=0` first |
-| `04_integer_variables` | `%` expression edge cases may still trip the integer path |
-| `21`–`22` DEF FN | MS form `DEF FN S(X)=…` (space after FN); mini expects glued `DEF FNS(X)=…` |
-| `29`–`30` | `POKE` / `WAIT` not implemented |
+| `29`–`30` | `POKE` / memory `WAIT` out of scope (not regular 1.00) |
 | `51`–`60` | **`PRINT#` / `INPUT#` / `CLOSE#` exist** in mini_basic. C-port uses MS `OPEN ch,"file","OUTPUT"` / `"INPUT"`; mini expects BBC `ch=OPENOUT("file")` / `OPENIN`, or MS-style `OPEN "O",#n,"file"`. `CMD` / `GET#` / bare `CLOSE n` may still differ |
 | Interactive `49`–`50`, `apps/`, `adv/` | Need keyboard or piped answers |
 

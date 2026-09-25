@@ -2974,7 +2974,7 @@ class RuntimeExecutionMixin:
                 self._gfx_stub_warned = warned
             if name not in warned:
                 warned.add(name)
-                self._emit_error(f'? Not implemented: PROC/CALL {name} (stub)')
+                self._emit_error(f'? Out of scope: PROC/CALL {name} (stub)')
         except Exception as exc:
             self._emit_error(self._error_message(f'? Graphics stub error ({name})', exc))
 
@@ -3003,7 +3003,7 @@ class RuntimeExecutionMixin:
             self._gfx_stub_warned = warned
         if name not in warned:
             warned.add(name)
-            self._emit_error(f'? Not implemented: FN/CALL {name} (stub, returns 0)')
+            self._emit_error(f'? Out of scope: FN/CALL {name} (stub, returns 0)')
         return 0
 
     def _execute_statement(
@@ -3348,7 +3348,7 @@ class RuntimeExecutionMixin:
 
         if cmd in self._NOT_IMPLEMENTED_STATEMENTS:
             detail = self._NOT_IMPLEMENTED_STATEMENTS[cmd]
-            self._runtime_error(f'? Not implemented: {detail}', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            self._runtime_error(f'? Out of scope: {detail}', line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         # Simple independent statements (REM, CLS, STOP, WAIT, …) — dict dispatch

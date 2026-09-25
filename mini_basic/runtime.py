@@ -151,9 +151,9 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
     })
     _UNIMPLEMENTED_COMMANDS = {
-        # Platform-bound / OS / machine language commands are not implemented in this interpreter.
+        # Platform-bound / OS / machine language commands are out of scope for 1.00.
         # Per user guidance: document and do not directly test them in core Phase-1 (non-graphics).
-        # They report ? Unimplemented: instead of silent fail.
+        # They report ? Out of scope: instead of silent fail.
         # See test_unknown_syntax.py for coverage of error reporting (non-platform ones prioritized).
         'SYS': 'SYS (RISC OS / OS call)',
         'CALL': 'CALL (machine-code subroutine)',

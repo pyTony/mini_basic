@@ -9,10 +9,10 @@ REM    129-135 alpha colours   145-151 graphics colours
 REM    136/137 flash           154/155 separated mosaics
 REM    156/157 black / new bg  158/159 hold graphics
 REM    mosaic chars 160-191 / 224-255 (2x3 sextants)
+REM    140/141 double height   152 conceal / 153 reveal (+ contiguous)
 REM
 REM  FUTURE (rows marked [F] — may be wrong until full SAA5050):
-REM    140/141 double height   152/153 conceal / cont graphics
-REM    158/159 already partial hold; boxed, contiguous, etc.
+REM    boxed / remaining SAA5050 parity
 REM ============================================================
 
 MODE 7
@@ -22,7 +22,7 @@ OFF
 REM --- Title (white alpha by default after CLS) ---
 PRINT CHR$141;CHR$135;" TELETEXT MODE 7 TEST SCREEN"
 PRINT CHR$141;CHR$135;" TELETEXT MODE 7 TEST SCREEN"
-PRINT CHR$135;" mini_basic — implemented + [F]uture rows"
+PRINT CHR$135;" mini_basic — MODE 7 teletext test screen"
 PRINT
 
 REM --- Alpha colours 129-135 ---
@@ -72,12 +72,12 @@ NEXT
 PRINT
 PRINT
 
-REM ========== FUTURE / incomplete rows ==========
-PRINT CHR$131;"--- [F] FUTURE SAA5050 (expect wrong until done) ---"
-PRINT CHR$135;"[F] DOUBLE HEIGHT 141 (two lines should be tall chars)"
+REM ========== Double-height + conceal (implemented) ==========
+PRINT CHR$131;"--- DOUBLE-HEIGHT + CONCEAL (implemented) ---"
+PRINT CHR$135;"DOUBLE HEIGHT 141 (two lines = tall chars)"
 PRINT CHR$141;CHR$130;" DOUBLE HEIGHT GREEN"
 PRINT CHR$141;CHR$130;" DOUBLE HEIGHT GREEN"
-PRINT CHR$135;"[F] CONCEAL 152 then reveal (should hide then show)"
+PRINT CHR$135;"CONCEAL 152 then reveal 153 (hide then show)"
 PRINT CHR$152;CHR$129;"CONCEALED TEXT";CHR$153;" revealed? (if 153 used)"
 PRINT
 PRINT CHR$135;"ESC / Ctrl+C to exit  |  WAIT holds the page"

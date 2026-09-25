@@ -289,7 +289,7 @@ def _print_help_graphics() -> None:
         'PLOT code,x,y        BBC/Agon plot codes (156=circle fill, ...)',
         'SPRITEDEF / SPRITE   hardware-style sprites (pygame)',
         'POINT(x,y)           read pixel colour',
-        'OSCLI / *            REFRESH, GSAVE, DISPLAY, ERASE; SYS not implemented',
+        'OSCLI / *            REFRESH, GSAVE, DISPLAY, ERASE; SYS out of scope (1.00)',
         '',
         'CLI: --pygame  --display pygame|terminal|none',
         'Text-only (no DISPLAY / MINIBASIC_NO_GRAPHICS=1): no auto pygame window',
@@ -303,8 +303,8 @@ def _print_help_graphics() -> None:
 _MODE_STATUS_OVERRIDES: Dict[int, Tuple[str, str]] = {
     7: (
         'partial',
-        'alpha/gfx colours, mosaics, flash/hold/separated/bg; '
-        'double-height/conceal/full SAA5050 still open',
+        'alpha/gfx colours, mosaics, flash/hold/separated/bg, '
+        'double-height 140/141 + conceal 152; boxed/full SAA5050 remainder deferred',
     ),
 }
 
@@ -423,12 +423,12 @@ def _print_help_modes() -> None:
     _section('=== BBC MODE n (bbc dialect, pygame display) ===', [
         'MODE n sets the text grid and graphics framebuffer.',
         'Default on pygame startup: MODE 8 (640x512).',
-        'Unknown mode numbers: not implemented (ignored).',
+        'Unknown mode numbers: ignored (no spec).',
         '',
         'Status key:',
         '  implemented          MODE switch, text, and graphics (where applicable)',
-        '  under construction   partial support — behaviour may change',
-        '  not implemented      no spec / not accepted',
+        '  partial              documented remainder (not a 1.00 hole)',
+        '  out of scope         no spec / ignored',
     ])
     print()
     _print_mode_group('BBC Model B / Model A (modes 0-7)', BBC_MODE_SPECS)
@@ -450,7 +450,8 @@ def _print_help_modes() -> None:
         'Modes 3 and 6 are text-only on real hardware; PLOT and CLG are ignored.',
         'Modes 0 and 2 use non-square pixels (PAR 1:2 or 2:1); window corrects aspect.',
         'Modes 8+ use square pixels (PAR 1:1); default interpreter framebuffer is MODE 8.',
-        'MODE 7: VDU teletext control codes (129-135 fg, 145-151 gfx, 160-191 mosaic).',
+        'MODE 7: VDU teletext (129-135 fg, 145-151 gfx, mosaics, flash/hold/bg, '
+        'double-height 140/141, conceal 152/reveal 153); boxed/full SAA5050 deferred.',
         'CLI --gfx-width/--gfx-height overrides framebuffer without changing MODE table.',
         'CLI --scale N zooms the pygame window (set before first graphics command).',
     ])
@@ -514,7 +515,7 @@ def _print_help_program() -> None:
             '  Omit filename → reuse last LOADed/SAVEd name when known.',
             '  Non-mini dialect: prepends  N REM dialect: …  (N>=1 free line).',
             '  Extension is not invented on SAVE — type demo.bas if you want .bas.',
-            '  Tokenized SAVE is not implemented (text only).',
+            '  SAVE writes text only (tokenized SAVE out of scope).',
         ]),
         ('LIST', [
             'LIST                         full program, numbered as stored',

@@ -127,7 +127,7 @@ Source: `bbc_family_rows()` → `01b_bbc_family.txt`.
 | Tokenized program files | + | + | + | + | + | Formats differ; mini **detokenizes** only |
 | Line numbers required | + | − | − | − | ~ | Beeb classic; ROS/BB4W text unnumbered OK |
 | SOUND / ENVELOPE | + | ~ | + | + | ~ | mini: stubs (silent / wait) |
-| SYS / rich OS | ~ | + | + | + | ~ | mini: OSCLI subset (REFRESH/GSAVE/DISPLAY); `SYS` unimplemented |
+| SYS / rich OS | ~ | + | + | + | ~ | mini: OSCLI subset (REFRESH/GSAVE/DISPLAY); `SYS` out of scope (1.00) |
 | INSTALL libraries | − | ~ | + | + | ~ | Deferred depth |
 
 Full table and notes: always prefer the generated file over this excerpt.

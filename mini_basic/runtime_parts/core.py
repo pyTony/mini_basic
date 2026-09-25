@@ -903,7 +903,7 @@ class RuntimeCoreMixin:
         keyword = self._statement_keyword(line)
         if keyword in self._UNIMPLEMENTED_COMMANDS:
             detail = self._UNIMPLEMENTED_COMMANDS[keyword]
-            return f'? Unimplemented: {detail}'
+            return f'? Out of scope: {detail}'
         # Crunched BBC forms (PRINTTAB, DEFPROC…) only expand in --dialect bbc.
         if (
             getattr(self.config, 'dialect', None) != 'bbc'

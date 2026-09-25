@@ -4339,7 +4339,7 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('8x8', out)
         self.assertIn('2x4', out)
         self.assertIn('implemented', out)
-        self.assertIn('under construction', out)
+        self.assertIn('out of scope', out)
         self.assertIn('MODE 7   teletext', out)
         self.assertIn('Column guide', out)
 
