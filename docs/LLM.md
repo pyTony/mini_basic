@@ -19,7 +19,7 @@ python -m pytest -q -m "phase1 and not slow" --timeout=45
 ## Language (short)
 
 - Dialects: `mini` (default), `bbc`, `mits`, `commodore`, `tiny`.
-- Case-on (default mini/bbc): **keywords uppercase**; names are case-sensitive. `CASE OFF` folds keywords.
+- Case-on (default mini/bbc): names are case-sensitive. **bbc** keywords are uppercase only; **mini** accepts any keyword case (`for i = 1 to 3` is stored as `FOR i = 1 TO 3`). `CASE OFF` folds keywords.
 - Use `MOD` for modulo. Bare `%` is an integer suffix, not modulo.
 - `SIN` / `COS` / `TAN` use **radians** (`DEG` / `RAD` helpers exist).
 - Regular product is text-only. Graphics (`--pygame`) is an optional extra, not required.

@@ -18,7 +18,7 @@ It is not a packaging/build toolkit, not pygame, and not full BBCSDL.
 | **mits** | Classic numbered/GOTO (ELIZA, M6502 C-port tutorials) |
 | **commodore** / **tiny** | Teaching / museum subsets |
 
-Case-on (default mini/bbc): **keywords uppercase**; names case-sensitive. `CASE OFF` folds keywords.
+Case-on (default mini/bbc): names case-sensitive. **bbc** keywords uppercase only; **mini** accepts any keyword case. `CASE OFF` folds keywords.
 
 ### Language / REPL
 - Numbered + unnumbered programs; `LOAD`/`SAVE`/`LIST`/`EDIT`/`AUTO`; session scripts (`INPUT.TXT`, `-c`, stdin)

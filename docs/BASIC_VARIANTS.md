@@ -94,7 +94,9 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 - **mini** = **bbc + SDL/desktop extras** (EXIT FOR, ON CLOSE, INKEY(−n), COLOUR fg,bg, BREAK/CONTINUE, ARG, ANSI).
 - **Case mode (all dialects):** when case-sensitive (default for mini/bbc; `CASE ON`
   elsewhere), **statement keywords are uppercase only** (`PRINT`, `COLOUR`, `FOR`).
-  Mixed-case `Colour&` / `print` are not commands. Fold mode (`CASE OFF`) restores
+  Mixed-case `Colour&` / `print` are not commands. Exception: **mini** is not strict
+  and uppercases lowercase keywords at entry (`print`, `for … to … step`, `then`,
+  `len(`); identifiers stay case-sensitive. Fold mode (`CASE OFF`) restores
   freedom of case for keywords (`print`/`PRINT`). Which commands exist is still
   dialect-gated.
 

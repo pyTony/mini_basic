@@ -68,12 +68,18 @@ def test_default_case_mode(dialect: str) -> None:
         assert not interp._identifiers_case_sensitive()
 
 
-@pytest.mark.parametrize('dialect', BBC_FAMILY)
-def test_case_on_rejects_lowercase_print(dialect: str) -> None:
-    out, interp = _run_lines(dialect, [(10, 'print 1'), (20, 'END')])
+def test_case_on_bbc_rejects_lowercase_print() -> None:
+    out, interp = _run_lines('bbc', [(10, 'print 1'), (20, 'END')])
     assert interp._identifiers_case_sensitive()
     assert '?' in out or '1' not in out.splitlines()[0] if out else True
     assert '1\n' not in out
+
+
+def test_case_on_mini_accepts_lowercase_keywords() -> None:
+    # mini is not strict about keyword case; identifiers stay case-sensitive.
+    out, interp = _run_lines('mini', [(10, 'print 1'), (20, 'END')])
+    assert interp._identifiers_case_sensitive()
+    assert '1' in out
 
 
 @pytest.mark.parametrize('dialect', NUMBERED_GOTO)

@@ -474,6 +474,114 @@ class RuntimeProgramMixin:
             return None
         return int(match.group(1))
 
+    _MINI_FOLD_STMT_WORDS = frozenset(
+        word for word in (
+            'PRINT', 'INPUT', 'WRITE', 'FOR', 'NEXT', 'WHILE', 'WEND', 'ENDWHILE',
+            'REPEAT', 'UNTIL', 'BREAK', 'CONTINUE', 'EXIT', 'ENDPROC',
+            'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN',
+            'OTHERWISE', 'ENDCASE', 'SELECT', 'GOTO', 'GOSUB', 'RESUME', 'RETURN',
+            'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
+            'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
+            'CIRCLE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
+            'PLOT', 'STOP', 'CHAIN', 'RUN', 'WAIT', 'KILL', 'ERASE', 'LINE',
+            'TRACE', 'SWAP', 'LOCAL', 'RANDOMIZE', 'OPEN', 'CLOSE', 'SOUND',
+            'BEEP', 'LOCATE', 'SUB', 'ERROR', 'OPTION', 'BASE', 'CLEAR', 'TAB',
+        )
+    )
+    # Always keywords wherever they appear (outside strings/comments).
+    _MINI_FOLD_OPERATOR_WORDS = frozenset({
+        'THEN', 'ELSE', 'TO', 'STEP', 'AND', 'OR', 'NOT', 'XOR', 'EOR', 'EQV',
+        'IMP', 'MOD', 'DIV', 'GOTO', 'GOSUB', 'OF', 'USING',
+    })
+    # Words after which a statement keyword may follow (END IF, ON ERROR GOTO).
+    _MINI_FOLD_REOPEN_WORDS = frozenset({
+        'THEN', 'ELSE', 'END', 'EXIT', 'ON', 'LINE', 'SELECT', 'OPTION', 'ERROR',
+    })
+    _RE_MINI_FOLD_WORD = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\$?')
+
+    def _fold_mini_keywords(self, statement: str) -> str:
+        """Uppercase lowercase/mixed-case keywords in a mini program line.
+
+        Statement words fold only in statement position (not ``print = 5``);
+        builtins only before ``(``. Strings, REM, ``'`` and DATA are untouched.
+        """
+        if not any(ch.islower() for ch in statement):
+            return statement
+        from ..constants import NUMERIC_BUILTIN_FUNCS
+        from ..format.save_case import _STRING_BUILTINS
+
+        funcs = {name.upper() for name in (*NUMERIC_BUILTIN_FUNCS, *_STRING_BUILTINS)}
+        funcs.update({'TAB', 'SPC', 'SPACE$', 'UCASE$', 'LCASE$'})
+        out: List[str] = []
+        index = 0
+        length = len(statement)
+        stmt_start = True
+        while index < length:
+            ch = statement[index]
+            if ch == '"':
+                end = statement.find('"', index + 1)
+                end = length if end < 0 else end + 1
+                out.append(statement[index:end])
+                index = end
+                stmt_start = False
+                continue
+            if ch == "'":
+                out.append(statement[index:])
+                break
+            if ch == ':':
+                out.append(ch)
+                index += 1
+                stmt_start = True
+                continue
+            if ch.isspace():
+                out.append(ch)
+                index += 1
+                continue
+            if ch.isdigit() or ch == '.':
+                # Line numbers / numerals (skip exponent letters: 1e3).
+                match = re.match(r'[0-9.]+(?:[eE][-+]?[0-9]+)?', statement[index:])
+                out.append(match.group(0))
+                index += match.end()
+                stmt_start = stmt_start and out[-1].isdigit() and not ''.join(
+                    out[:-1]
+                ).strip()
+                continue
+            match = self._RE_MINI_FOLD_WORD.match(statement, index)
+            if not match:
+                out.append(ch)
+                index += 1
+                stmt_start = False
+                continue
+            word = match.group(0)
+            upper = word.upper()
+            end = match.end()
+            after = statement[end:].lstrip()
+            nxt = after[:1]
+            folded = False
+            if word != upper:
+                if upper.endswith('$'):
+                    if upper in funcs and nxt == '(':
+                        folded = True
+                elif nxt in ('%', '!', '#', '&') or (nxt == '$'):
+                    folded = False
+                elif stmt_start and upper in self._MINI_FOLD_STMT_WORDS:
+                    # print = 5 / for(3) = 1 are variables, not statements.
+                    folded = not (nxt == '=' or (nxt == '(' and upper not in (
+                        'PRINT', 'IF', 'WHILE', 'UNTIL', 'RETURN', 'ON',
+                    )))
+                elif upper in self._MINI_FOLD_OPERATOR_WORDS:
+                    folded = True
+                elif upper in funcs and nxt == '(':
+                    folded = True
+            out.append(upper if folded else word)
+            index = end
+            effective = upper if (folded or word == upper) else ''
+            if effective in ('REM', 'DATA') and stmt_start:
+                out.append(statement[index:])
+                break
+            stmt_start = effective in self._MINI_FOLD_REOPEN_WORDS
+        return ''.join(out)
+
     def canonicalize_program_line(self, statement: str) -> str:
         """Normalize one program statement at entry (LOAD / EDIT / set_program_line).
 
@@ -488,6 +596,9 @@ class RuntimeProgramMixin:
         from .helpers import _sanitize_basic_source
 
         statement = _sanitize_basic_source(statement)
+        if self.config.dialect == 'mini':
+            # mini is not strict about keyword case (bbc stays uppercase-only).
+            statement = self._fold_mini_keywords(statement)
         # Type suffixes glued (A $ → A$); leave % (modulo / integer suffix).
         statement = re.sub(r'(\w)\s+([!$#]+)', r'\1\2', statement)
         statement = re.sub(r'([!$#]+)\s+(\w)', r'\1\2', statement)

@@ -143,5 +143,48 @@ class FnAssignIsNotReturnTests(unittest.TestCase):
         self.assertEqual(out.strip(), '6', msg=err)
 
 
+class MiniLowercaseKeywordTests(unittest.TestCase):
+    """mini is not strict about keyword case; bbc keeps uppercase-only keywords."""
+
+    def test_lowercase_for_next_print(self):
+        out, err = _run('10 for i = 1 to 3 step 1 : print i; : next i\n')
+        self.assertEqual(out.strip(), '123', msg=err)
+
+    def test_lowercase_if_then_else_goto_gosub(self):
+        out, err = _run(
+            '10 x = 3 : if x > 2 then print "big" else print "small"\n'
+            '20 if x = 3 and not x = 4 then gosub 100\n'
+            '30 goto 50\n'
+            '40 print "skipped"\n'
+            '50 end\n'
+            '100 print len("abc"); mid$("hello", 2, 3); x mod 2 : return\n'
+        )
+        self.assertEqual(out.split(), ['big', '3ell1'], msg=err)
+
+    def test_lowercase_while_and_dim(self):
+        out, err = _run(
+            '10 dim a(3) : n = 0\n'
+            '20 while n < 3 : n = n + 1 : a(n) = n * n : wend\n'
+            '30 print a(3)\n'
+        )
+        self.assertEqual(out.strip(), '9', msg=err)
+
+    def test_lowercase_identifiers_stay_case_sensitive(self):
+        out, err = _run('10 a = 1 : A = 2 : print a; A\n')
+        self.assertEqual(out.strip(), '12', msg=err)
+
+    def test_strings_and_rem_are_not_folded(self):
+        out, err = _run(
+            '10 print "for to next" : rem print this\n'
+            '20 read d$ : print d$\n'
+            '30 data then else\n'
+        )
+        self.assertEqual(out.splitlines(), ['for to next', 'then else'], msg=err)
+
+    def test_bbc_still_rejects_lowercase_keywords(self):
+        out, err = _run('10 print "hi"\n', 'bbc')
+        self.assertIn('Unknown statement', out + err)
+
+
 if __name__ == '__main__':
     unittest.main()
