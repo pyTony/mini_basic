@@ -186,5 +186,105 @@ class MiniLowercaseKeywordTests(unittest.TestCase):
         self.assertIn('Unknown statement', out + err)
 
 
+class EvalSandboxTests(unittest.TestCase):
+    """Expressions are evaluated with Python eval; Python internals must stay out of reach."""
+
+    def test_attribute_access_is_rejected(self):
+        for expr in (
+            '(1).__class__.__bases__',
+            '(1).__class__',
+            '().__class__.__name__',
+        ):
+            out, err = _run(f'10 X = {expr}\n20 PRINT "REACHED"\n')
+            self.assertNotIn('REACHED', out, msg=expr)
+            self.assertNotIn('tuple', out + err, msg=expr)
+            self.assertNotIn('type', out + err, msg=expr)
+
+    def test_comprehension_and_lambda_rejected(self):
+        for expr in ('[x for x in (1,2)][1]', '(lambda: 7)()'):
+            out, err = _run(f'10 PRINT {expr}\n')
+            self.assertIn('?', out + err, msg=expr)
+            self.assertNotEqual(out.strip(), '2', msg=expr)
+
+    def test_data_items_cannot_reach_attributes(self):
+        # Before: eval ran the attribute chain and READ got 3.
+        out, err = _run('10 READ A\n20 PRINT A\n30 DATA (1).__class__.__name__.__len__()\n')
+        self.assertNotEqual(out.strip(), '3', msg=err)
+
+
+class NestedWhileTests(unittest.TestCase):
+    def test_outer_while_line_with_trailing_statement(self):
+        out, err = _run(
+            '10 I = 0\n'
+            '20 WHILE I < 2 : J = 0\n'
+            '30 WHILE J < 2\n'
+            '35 PRINT I; J;\n'
+            '36 J = J + 1\n'
+            '37 WEND\n'
+            '40 I = I + 1 : WEND\n'
+        )
+        self.assertEqual(out.strip(), '00011011', msg=err)
+
+    def test_wend_does_not_rerun_statements_before_while(self):
+        out, err = _run(
+            '10 I = 0 : WHILE I < 3\n'
+            '20 I = I + 1 : PRINT I;\n'
+            '30 WEND\n'
+            '40 PRINT "END"\n'
+        )
+        self.assertEqual(out.strip(), '123END', msg=err)
+
+    def test_inline_while_after_other_statements(self):
+        out, err = _run(
+            '10 I = 0 : WHILE I < 3 : I = I + 1 : PRINT I; : WEND : PRINT "END"\n'
+        )
+        self.assertEqual(out.strip(), '123END', msg=err)
+
+    def test_while_false_skips_trailing_body_statements(self):
+        out, err = _run(
+            '10 WHILE 0 : PRINT "NO"\n'
+            '20 PRINT "NO2"\n'
+            '30 WEND : PRINT "END"\n'
+        )
+        self.assertEqual(out.strip(), 'END', msg=err)
+
+
+class PrintStringComparisonTests(unittest.TestCase):
+    def test_print_string_comparisons(self):
+        out, err = _run(
+            '10 A$ = "Q"\n'
+            '20 PRINT "A"<"B"\n'
+            '30 PRINT "B">"A"\n'
+            '40 PRINT "A"="A"\n'
+            '50 PRINT "A"<>"A"\n'
+            '60 PRINT A$="Q"\n'
+            '70 PRINT "A"+"B"="AB"\n'
+            '80 PRINT "X"; A$="Q"; "Y"\n'
+        )
+        self.assertEqual(
+            out.splitlines(), ['-1', '-1', '-1', '0', '-1', '-1', 'X-1Y'], msg=err,
+        )
+
+    def test_print_string_plus_number_is_an_error(self):
+        out, err = _run('10 PRINT "A" + 1\n')
+        self.assertNotEqual(out.strip(), 'A', msg=err)
+        self.assertIn('?', out + err)
+
+
+class DimKeepsScalarTests(unittest.TestCase):
+    def test_dim_does_not_clear_same_named_scalar(self):
+        for dialect in ('mini', 'bbc', 'mits'):
+            out, err = _run(
+                '10 A = 1\n'
+                '20 DIM A(3)\n'
+                '30 A(2) = 7\n'
+                '40 PRINT A\n'
+                '50 PRINT A(2)\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['1', '7'], msg=(dialect, err))
+            self.assertNotIn('SyntaxWarning', err, msg=dialect)
+
+
 if __name__ == '__main__':
     unittest.main()

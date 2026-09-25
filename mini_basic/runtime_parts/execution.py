@@ -1945,6 +1945,26 @@ class RuntimeExecutionMixin:
                     # else closed an inner/ additional, continue searching for ours
         return -1
 
+    def _wend_stmt_index(self, wend_line: int, while_line: int, while_stmt: int) -> int:
+        """Statement index of the WEND that closes the WHILE at (while_line, while_stmt)."""
+        depth = 0
+        for line_num in sorted(self.program):
+            if line_num < while_line or line_num > wend_line:
+                continue
+            parts = self._run_stmts.get(line_num) if self._run_stmts else None
+            if parts is None:
+                parts = self._parse_line_statements(self.program[line_num])
+            start = while_stmt + 1 if line_num == while_line else 0
+            for index in range(start, len(parts)):
+                cmd, _ = self._parse_command(parts[index][1])
+                if cmd in ('WHILE', 'REPEAT'):
+                    depth += 1
+                elif cmd in ('WEND', 'UNTIL'):
+                    if depth == 0 and cmd == 'WEND':
+                        return index if line_num == wend_line else -1
+                    depth = max(0, depth - 1)
+        return -1
+
     def _find_matching_wend(self, while_line: int, line_nums: List[int]) -> int:
         start_idx = self._line_index(while_line, line_nums)
         depth = 0
@@ -3741,9 +3761,16 @@ class RuntimeExecutionMixin:
                             'check for a typo such as WHILE END'
                         )
                     exit_line = self._next_line_num(wend_line, line_nums)
-                    idx = self._line_index(line_num, line_nums)
-                    body_line = line_nums[idx + 1] if idx + 1 < len(line_nums) else line_num
-                    body_stmt = 0
+                    if stmt_parts and any(
+                        text for _, text in stmt_parts[stmt_index + 1:]
+                    ):
+                        # WHILE c : J = 0  — the body starts on this line.
+                        body_line = line_num
+                        body_stmt = stmt_index + 1
+                    else:
+                        idx = self._line_index(line_num, line_nums)
+                        body_line = line_nums[idx + 1] if idx + 1 < len(line_nums) else line_num
+                        body_stmt = 0
                 # Detect re-entry from WEND (frame still on stack, we jumped back to re-eval condition)
                 active_frame = None
                 if self.stack and self.stack[-1].kind == 'while' and getattr(self.stack[-1], 'while_line', None) == line_num:
@@ -3760,10 +3787,18 @@ class RuntimeExecutionMixin:
                             return line_num
                         self.resume_at = (line_num, len(stmt_parts) if stmt_parts else 0)
                         return line_num
+                    wend_idx = self._wend_stmt_index(wend_line, line_num, stmt_index)
+                    wend_parts = self._run_stmts.get(wend_line) if self._run_stmts else None
+                    if wend_parts is None and wend_line in self.program:
+                        wend_parts = self._parse_line_statements(self.program[wend_line])
+                    if wend_idx >= 0 and wend_parts and wend_idx + 1 < len(wend_parts):
+                        # WEND : PRINT "END" — carry on after WEND on its line.
+                        self.resume_at = (wend_line, wend_idx + 1)
+                        return wend_line
                     return exit_line if exit_line != -1 else -1
                 if active_frame:
                     # Re-entry via WEND jump-back: condition still true, do not push again
-                    if getattr(active_frame, 'inline', False):
+                    if getattr(active_frame, 'inline', False) or active_frame.body_line == line_num:
                         self.resume_at = (line_num, getattr(active_frame, 'body_stmt', stmt_index + 1))
                         return line_num
                     return active_frame.body_line
@@ -3779,9 +3814,10 @@ class RuntimeExecutionMixin:
                     inline=inline,
                     body_stmt=body_stmt,
                     next_stmt=wend_stmt_idx,
+                    while_stmt=stmt_index,
                 ))
-                if inline:
-                    # Fall through colon body to WEND on this line
+                if inline or body_line == line_num:
+                    # Fall through colon body (to WEND, or on to the next line)
                     return None
                 return body_line
             except Exception as exc:
@@ -3930,10 +3966,9 @@ class RuntimeExecutionMixin:
                 return -1
             frame = self.stack[-1]
             if self._eval_condition(frame.condition):
-                # Jump back to WHILE (re-eval condition / re-run body)
-                if getattr(frame, 'inline', False):
-                    self.resume_at = (frame.while_line, 0)
-                    return frame.while_line
+                # Jump back to the WHILE statement itself (not statement 0:
+                # I = 0 : WHILE I < 3 must not re-run I = 0 every pass).
+                self.resume_at = (frame.while_line, frame.while_stmt)
                 return frame.while_line
             self.stack.pop()
             # Inline: fall through any stmts after WEND on this line

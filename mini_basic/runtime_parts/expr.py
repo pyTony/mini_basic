@@ -27,6 +27,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from ..expr.safe_eval import compile_safe, safe_eval
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
@@ -357,7 +358,7 @@ class RuntimeExprMixin:
                 expr, needs_time, float_vars, int_vars, system_vars = (
                     self._prepare_expr_for_compile(stripped, is_condition)
                 )
-            code = compile(expr, '<basic>', 'eval')
+            code = compile_safe(expr)
         except Exception:
             compiled.use_fallback = True
         else:
@@ -1536,7 +1537,7 @@ class RuntimeExprMixin:
         prepared = self._normalize_operators(prepared)
         prepared = re.sub(r'(\d+)\.0\b', r'\1', prepared)
         try:
-            result = eval(prepared, _SAFE_EVAL_GLOBALS, {})
+            result = safe_eval(prepared)
         except Exception:
             return self._eval_numeric_without_fn(expr)
         if isinstance(result, bool):
@@ -1561,7 +1562,7 @@ class RuntimeExprMixin:
             raise ValueError(f'unexpanded FN call in {expr!r}')
         expr = self._substitute_array_references(expr)
         expr = self._normalize_operators(expr)
-        result = eval(expr, _SAFE_EVAL_GLOBALS, {})
+        result = safe_eval(expr)
         if isinstance(result, bool):
             return -1 if result else 0
         if isinstance(result, float) and math.isfinite(result) and result == int(result) and abs(result) < 1e16:
@@ -2597,13 +2598,8 @@ class RuntimeExprMixin:
         key = (base, kind)
         if key in self.array_storage:
             raise ValueError('array already dimensioned')
+        # A and A() are separate names in BASIC: DIM must not clear scalar A.
         self.array_storage[key] = self._allocate_array_storage(dims, kind)
-        if kind == 'float':
-            self.variables.pop(base, None)
-        elif kind == 'int':
-            self.int_variables.pop(base, None)
-        else:
-            self.str_variables.pop(base, None)
 
     def _erase_arrays(self, rest: str) -> None:
         """MS BASIC ERASE — undimension arrays so DIM can reuse the name."""
@@ -3125,7 +3121,7 @@ class RuntimeExprMixin:
         expr = self._substitute_array_references(expr)
         expr = self._substitute_variables(expr)
         expr = self._normalize_operators(expr)
-        result = eval(expr, _SAFE_EVAL_GLOBALS, {})
+        result = safe_eval(expr)
         if isinstance(result, bool):
             return -1 if result else 0
         if isinstance(result, float) and math.isfinite(result) and result == int(result) and abs(result) < 1e16:

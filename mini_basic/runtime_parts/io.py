@@ -1162,6 +1162,30 @@ class RuntimeIoMixin:
             return True
         return '$' in item
 
+    def _print_item_has_top_level_relop(self, item: str) -> bool:
+        """True for = <> < > <= >= outside strings and parentheses."""
+        depth = 0
+        in_string = False
+        index = 0
+        length = len(item)
+        while index < length:
+            ch = item[index]
+            if ch == '"':
+                in_string = not in_string
+            elif not in_string:
+                if ch == '(':
+                    depth += 1
+                elif ch == ')':
+                    depth -= 1
+                elif depth == 0 and ch in '<>=':
+                    if ch in '<>' and item.startswith(ch * 2, index):
+                        while index < length and item[index] == ch:
+                            index += 1  # << >> >>> shifts
+                        continue
+                    return True
+            index += 1
+        return False
+
     def _print_item_has_string_concat(self, item: str) -> bool:
         in_string = False
         for ch in item:
@@ -1401,10 +1425,21 @@ class RuntimeIoMixin:
                     text = special
                 else:
                     if self._is_string_print_item(item_strip):
-                        try:
-                            text = self._eval_string_expr(item_strip)
-                        except Exception:
-                            text = self.eval_print_value(item)
+                        if self._print_item_has_top_level_relop(item_strip):
+                            # "A"<"B" / A$="Q": a comparison is numeric (-1 / 0).
+                            try:
+                                text = self._format_number(self._eval_numeric(item_strip))
+                            except Exception as exc:
+                                text = self._report_expression_error(item_strip, exc)
+                        else:
+                            try:
+                                text = self._eval_string_expr(item_strip)
+                            except Exception as exc:
+                                if self._print_item_has_string_concat(item_strip):
+                                    # "A" + 1: type mismatch, not a silent "A".
+                                    text = self._report_expression_error(item_strip, exc)
+                                else:
+                                    text = self.eval_print_value(item)
                     elif hex_mode:
                         text = self._bbc_hex_string(self._eval_numeric(item_strip))
                     else:

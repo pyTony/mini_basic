@@ -215,6 +215,7 @@ class LoopFrame:
         for_line: int = 0,
         body_stmt: int = 0,
         next_stmt: int = 0,
+        while_stmt: int = 0,
     ):
         self.kind = kind
         self.body_line = body_line
@@ -233,3 +234,5 @@ class LoopFrame:
         self.for_line = for_line
         self.body_stmt = body_stmt
         self.next_stmt = next_stmt
+        # Statement index of WHILE on while_line (WEND jumps back here, not to 0).
+        self.while_stmt = while_stmt

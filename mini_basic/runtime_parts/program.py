@@ -27,6 +27,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from ..expr.safe_eval import compile_safe, safe_eval
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
@@ -1766,7 +1767,7 @@ class RuntimeProgramMixin:
             return DataItem('str', token)
         normalized = self._normalize_operators(token)
         try:
-            return DataItem('float', float(eval(normalized, _SAFE_EVAL_GLOBALS, {})))
+            return DataItem('float', float(safe_eval(normalized)))
         except Exception:
             return DataItem('str', token)
 
