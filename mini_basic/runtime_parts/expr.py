@@ -1248,7 +1248,8 @@ class RuntimeExprMixin:
             return 0.0
         # Support &hex and %binary literals like in expressions
         text = self._substitute_bbc_hex_literals(text)
-        match = re.match(r'^[ \t]*([+-])?(\d+\.?\d*|\.\d+)', text)
+        # Optional exponent: VAL("1E3") is 1000; a bare "1E" stays 1.
+        match = re.match(r'^[ \t]*([+-])?((?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)', text)
         if not match:
             return 0.0
         sign = -1.0 if match.group(1) == '-' else 1.0

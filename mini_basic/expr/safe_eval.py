@@ -38,11 +38,57 @@ def check_expression_tree(tree: ast.AST) -> None:
             raise ValueError('syntax error')
 
 
+class _BasicSemantics(ast.NodeTransformer):
+    """Give Python's %, // and ** the BASIC meaning.
+
+    * ``%`` (MOD) and ``//`` (DIV, backslash) truncate toward zero, so
+      -7 MOD 3 is -1 and -7 DIV 2 is -3 (Python floors: 2 and -4).
+    * ``^`` is left-associative in BASIC: 2^3^2 is 64, Python's ** gives 512.
+      Only chains the source did not parenthesize are regrouped.
+    """
+
+    def __init__(self, source: str) -> None:
+        self._src = source.encode('utf-8')
+
+    def _parenthesized(self, node: ast.AST) -> bool:
+        index = getattr(node, 'col_offset', 0) - 1
+        while index >= 0 and self._src[index:index + 1].isspace():
+            index -= 1
+        return index >= 0 and self._src[index:index + 1] == b'('
+
+    def _left_assoc_pow(self, node: ast.BinOp) -> ast.BinOp:
+        right = node.right
+        if (
+            isinstance(right, ast.BinOp)
+            and isinstance(right.op, ast.Pow)
+            and not self._parenthesized(right)
+        ):
+            left = ast.copy_location(ast.BinOp(node.left, ast.Pow(), right.left), node)
+            left = self._left_assoc_pow(left)
+            node = ast.copy_location(ast.BinOp(left, ast.Pow(), right.right), node)
+        return node
+
+    def visit_BinOp(self, node: ast.BinOp) -> ast.AST:
+        self.generic_visit(node)
+        if isinstance(node.op, ast.Pow):
+            return self._left_assoc_pow(node)
+        helper = None
+        if isinstance(node.op, ast.Mod):
+            helper = '__basic_mod__'
+        elif isinstance(node.op, ast.FloorDiv):
+            helper = '__basic_idiv__'
+        if helper is None:
+            return node
+        call = ast.Call(ast.Name(helper, ast.Load()), [node.left, node.right], [])
+        return ast.copy_location(call, node)
+
+
 @lru_cache(maxsize=4096)
 def compile_safe(source: str) -> CodeType:
     """Parse, validate and compile *source*; SyntaxError / ValueError on failure."""
     tree = ast.parse(source, filename='<string>', mode='eval')
     check_expression_tree(tree)
+    tree = ast.fix_missing_locations(_BasicSemantics(source).visit(tree))
     return compile(tree, '<string>', 'eval')
 
 

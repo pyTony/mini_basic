@@ -4482,7 +4482,8 @@ class MiniBASICTests(unittest.TestCase):
     def test_div_integer_division(self):
         interp = self.make_interp()
         self.assertEqual(interp.eval_expr('17 DIV 5'), 3.0)
-        self.assertEqual(interp.eval_expr('-17 DIV 5'), -4.0)
+        # BBC/MS BASIC truncate toward zero (not Python's floor).
+        self.assertEqual(interp.eval_expr('-17 DIV 5'), -3.0)
 
     def test_report_after_trapped_error(self):
         lines = [

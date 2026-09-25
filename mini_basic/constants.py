@@ -6,6 +6,8 @@ builtin, update ``NUMERIC_BUILTIN_FUNCS`` and the expander in ``mini_basic.py``
 (or future ``expr/builtins.py``).
 """
 
+import math
+
 CLI_EXIT_WORDS = frozenset({
     'bye',
     'goodbye',
@@ -18,7 +20,30 @@ CLI_EXIT_WORDS = frozenset({
 EXIT_HOLD_CONSOLE = 10
 """Exit code for mini_basic.cmd pause-after-run behaviour."""
 
-SAFE_EVAL_GLOBALS = {'__builtins__': {}, 'int': int}
+def _basic_mod(a, b):
+    """BASIC MOD: truncating remainder, sign of the dividend (-7 MOD 3 = -1)."""
+    if not b:
+        raise ZeroDivisionError('division by zero')
+    if isinstance(a, int) and isinstance(b, int):
+        r = abs(a) % abs(b)
+        return -r if a < 0 else r
+    return math.fmod(a, b)
+
+
+def _basic_idiv(a, b):
+    """BASIC DIV and backslash: quotient truncated toward zero (-7 DIV 2 = -3)."""
+    if not b:
+        raise ZeroDivisionError('division by zero')
+    q = abs(a) // abs(b)
+    return q if (a < 0) == (b < 0) else -q
+
+
+SAFE_EVAL_GLOBALS = {
+    '__builtins__': {},
+    'int': int,
+    '__basic_mod__': _basic_mod,
+    '__basic_idiv__': _basic_idiv,
+}
 """Restricted globals dict for CompiledExpr eval()."""
 
 EXPR_RESERVED_WORDS = frozenset({

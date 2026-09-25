@@ -286,5 +286,57 @@ class DimKeepsScalarTests(unittest.TestCase):
             self.assertNotIn('SyntaxWarning', err, msg=dialect)
 
 
+class IntegerOpSignTests(unittest.TestCase):
+    """MS and BBC BASIC truncate toward zero: MOD takes the dividend's sign."""
+
+    def test_mod_sign_follows_dividend(self):
+        for dialect in ('mini', 'bbc', 'mits'):
+            out, err = _run(
+                '10 PRINT -7 MOD 3\n'
+                '20 PRINT 7 MOD -3\n'
+                '30 PRINT 7 MOD 3\n'
+                '40 A = -7 : B = 3 : PRINT A MOD B\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['-1', '1', '1', '-1'], msg=(dialect, err))
+
+    def test_integer_division_truncates(self):
+        out, err = _run('10 PRINT -7 \\ 2\n20 PRINT 7 \\ -2\n30 PRINT 7 \\ 2\n', 'mits')
+        self.assertEqual(out.split(), ['-3', '-3', '3'], msg=err)
+        out, err = _run('10 PRINT -7 DIV 2\n20 A% = -7 : PRINT A% DIV 2\n', 'bbc')
+        self.assertEqual(out.split(), ['-3', '-3'], msg=err)
+
+    def test_mod_by_zero_is_an_error(self):
+        out, err = _run('10 PRINT 5 MOD 0\n')
+        self.assertIn('division by zero', (out + err).lower())
+
+
+class PowerAssociativityTests(unittest.TestCase):
+    def test_power_is_left_associative(self):
+        for dialect in ('mini', 'bbc', 'mits'):
+            out, err = _run(
+                '10 PRINT 2^3^2\n'
+                '20 PRINT 2^(3^2)\n'
+                '30 PRINT (2^3)^2\n'
+                '40 X = 2 : PRINT X^3^2\n'
+                '50 PRINT -3^2\n',
+                dialect,
+            )
+            self.assertEqual(
+                out.split(), ['64', '512', '64', '64', '-9'], msg=(dialect, err),
+            )
+
+
+class ValExponentTests(unittest.TestCase):
+    def test_val_reads_exponent(self):
+        out, err = _run(
+            '10 PRINT VAL("1E3")\n'
+            '20 PRINT VAL("2.5E-1")\n'
+            '30 PRINT VAL("  12AB")\n'
+            '40 PRINT VAL("1E")\n'
+        )
+        self.assertEqual(out.split(), ['1000', '0.25', '12', '1'], msg=err)
+
+
 if __name__ == '__main__':
     unittest.main()
