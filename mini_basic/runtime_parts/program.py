@@ -802,8 +802,33 @@ class RuntimeProgramMixin:
             if text and text != ';':
                 text = self._strip_tail_apostrophe_comment(text)
                 if text:
-                    statements.append((label, text))
+                    statements.append((label, self._escape_doubled_quotes(text)))
         return statements
+
+    def _escape_doubled_quotes(self, text: str) -> str:
+        # A doubled quote inside a literal is one quote character: rewrite it
+        # as "+CHR$(34)+" (a backslash escape is ambiguous with paths like
+        # "C:\"). Otherwise Python glues X""Y literals into XY.
+        if '""' not in text:
+            return text
+        cmd, _rest = self._parse_command(text)
+        if cmd in ('REM', 'DATA'):
+            return text
+        out: List[str] = []
+        in_string = False
+        index = 0
+        n = len(text)
+        while index < n:
+            ch = text[index]
+            if ch == '"':
+                if in_string and index + 1 < n and text[index + 1] == '"':
+                    out.append('"+CHR$(34)+"')
+                    index += 2
+                    continue
+                in_string = not in_string
+            out.append(ch)
+            index += 1
+        return ''.join(out)
 
     def _prepare_run(self) -> None:
         self._run_line_nums = sorted(self.program.keys())
@@ -1843,7 +1868,13 @@ class RuntimeProgramMixin:
                     break
                 end_line = self._find_matching_end_def(line_num, line_nums)
                 if end_line is None:
-                    equals_return = self._find_def_fn_equals_return(line_num, line_nums)
+                    # DEF FNa(Y) : ON ERROR LOCAL = 7 — a one-expression body
+                    # would skip that header preamble; use the multiline path.
+                    has_preamble = text is not stmt_parts[-1][1]
+                    equals_return = (
+                        None if has_preamble
+                        else self._find_def_fn_equals_return(line_num, line_nums)
+                    )
                     if equals_return is not None:
                         equals_line, expr = equals_return
                         fn.body = expr

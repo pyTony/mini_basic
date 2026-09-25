@@ -493,6 +493,10 @@ class RuntimeExecutionMixin:
 
                 if cmd == 'OTHERWISE' and case_depth == 1:
                     spec, inline = self._parse_otherwise_spec(rest)
+                    if not spec.upper().startswith('IF '):
+                        # ``OTHERWISE PRINT "X" : Y``: all of it is the body.
+                        spec = ''
+                        inline = rest.strip().lstrip(':').strip() or None
                     otherwise_index = len(branch_starts)
                     branch_starts.append(line_num)
                     branch_specs.append(spec or 'OTHERWISE')
@@ -3380,7 +3384,19 @@ class RuntimeExecutionMixin:
         if self._in_fn_body:
             ret_match = re.match(r'^=\s*(.+)$', line)
             if ret_match:
-                raise FnReturn(self._eval_fn_return_expression(ret_match.group(1).strip()))
+                try:
+                    value = self._eval_fn_return_expression(ret_match.group(1).strip())
+                except (FnReturn, BasicRuntimeError):
+                    raise
+                except Exception as exc:
+                    if not self._error_trap_enabled():
+                        raise
+                    # ``= ATN(Y/X)`` with ON ERROR LOCAL = …: trap, don't report.
+                    self._runtime_error(
+                        self._error_message('? Expression error', exc),
+                        line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                    return None
+                raise FnReturn(value)
 
         # Early stubs for common BBCSDL idioms that appear in advanced demos (torus2d etc.)
         # These prevent cascades of "unknown/syntax" errors for library setup and platform calls.
@@ -4474,7 +4490,7 @@ class RuntimeExecutionMixin:
             self.dprint('[IF]', 'eval_condition')
             if self._eval_condition(condition):
                 then_inline = self._if_branch_inline_code(
-                    then_code,
+                    self._then_code_with_nested_else(then_code, else_part),
                     stmt_parts,
                     stmt_index,
                     append_trailing=else_part is None,

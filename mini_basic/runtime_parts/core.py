@@ -937,6 +937,12 @@ class RuntimeCoreMixin:
         return not text[then_at + 4:].strip()
 
     def _split_if_else_parts(self, rest: str) -> Tuple[str, Optional[str]]:
+        """Split at the first ELSE; the ELSE part keeps any later ELSEs.
+
+        BBC single-line IF: a false condition runs from the first ELSE on, so
+        ``ELSE IF c THEN a ELSE b`` chains work. A true THEN part holding a
+        nested IF gets the tail back (see ``_then_code_with_nested_else``).
+        """
         parts: List[str] = []
         current: List[str] = []
         in_string = False
@@ -954,22 +960,25 @@ class RuntimeCoreMixin:
                 before = text[max(0, index - 1):index]
                 after = text[index + 4:index + 5]
                 if (not before or not before[-1].isalnum()) and (not after or not after.isalnum()):
-                    parts.append(''.join(current).strip())
-                    current = []
-                    index += 4
-                    continue
+                    return ''.join(current).strip(), text[index + 4:].strip()
             if ch == '(' and not in_string:
                 depth += 1
             elif ch == ')' and not in_string:
                 depth -= 1
             current.append(ch)
             index += 1
-        parts.append(''.join(current).strip())
-        if len(parts) == 1:
-            return parts[0], None
-        if len(parts) == 2:
-            return parts[0], parts[1]
-        raise ValueError('invalid IF syntax')
+        return ''.join(current).strip(), None
+
+    _RE_NESTED_IF_WORD = re.compile(r'(?<![A-Za-z0-9_$%])IF(?![A-Za-z0-9_$%])')
+
+    def _then_code_with_nested_else(self, then_code: str, else_part: Optional[str]) -> str:
+        """IF a THEN IF b THEN x ELSE y: when a is true the ELSE belongs to IF b."""
+        if else_part is None:
+            return then_code
+        outside = re.sub(r'"[^"]*"', '""', then_code)
+        if not self._RE_NESTED_IF_WORD.search(outside):
+            return then_code
+        return f'{then_code} ELSE {else_part}'
 
     def _extract_branch_condition(self, rest: str) -> str:
         text = rest.strip()
@@ -1232,7 +1241,35 @@ class RuntimeCoreMixin:
         return self.eval_print_value(self._expand_dynamic_calls(part))
 
     def _split_string_concat(self, expr: str) -> List[str]:
-        parts = self._split_at_depth(expr, '+', skip_empty=True)
+        if '\\"' not in expr:
+            parts = self._split_at_depth(expr, '+', skip_empty=True)
+            return parts or ['']
+        # CHR$(34) is embedded as "\"" — skip literals via _closing_quote_index
+        # so the + after it still splits ("X"+CHR$(34)+"Y" lost its "Y").
+        parts: List[str] = []
+        start = 0
+        depth = 0
+        index = 0
+        n = len(expr)
+        while index < n:
+            ch = expr[index]
+            if ch == '"':
+                end = self._closing_quote_index(expr, index)
+                index = n if end < 0 else end + 1
+                continue
+            if ch in '({':
+                depth += 1
+            elif ch in ')}':
+                depth = max(0, depth - 1)
+            elif ch == '+' and depth == 0:
+                part = expr[start:index].strip()
+                if part:
+                    parts.append(part)
+                start = index + 1
+            index += 1
+        part = expr[start:].strip()
+        if part:
+            parts.append(part)
         return parts or ['']
 
     def _resolve_string_atom(self, expr: str) -> str:

@@ -338,5 +338,96 @@ class ValExponentTests(unittest.TestCase):
         self.assertEqual(out.split(), ['1000', '0.25', '12', '1'], msg=err)
 
 
+class DoubledQuoteTests(unittest.TestCase):
+    """"" inside a string literal is one quote character."""
+
+    def test_print_doubled_quotes(self):
+        for dialect in ('mini', 'bbc'):
+            out, err = _run(
+                '10 PRINT "SAY ""HI"""\n'
+                '20 A$ = """" : PRINT LEN(A$); A$\n'
+                '30 B$ = "X""Y" : PRINT B$; LEN(B$)\n',
+                dialect,
+            )
+            self.assertEqual(
+                out.splitlines(), ['SAY "HI"', '1"', 'X"Y3'], msg=(dialect, err),
+            )
+
+    def test_doubled_quote_with_colon_stays_in_string(self):
+        out, err = _run('10 PRINT "A"":B" : PRINT "C"\n')
+        self.assertEqual(out.splitlines(), ['A":B', 'C'], msg=err)
+
+
+    def test_doubled_quotes_in_data_if_and_instr(self):
+        out, err = _run(
+            '10 DATA "A""B", 2\n'
+            '20 READ X$, N : PRINT X$; N\n'
+            '30 IF X$ = "A""B" THEN PRINT "EQ"\n'
+            '40 PRINT INSTR("XY""Z", """")\n',
+        )
+        self.assertEqual(out.splitlines(), ['A"B2', 'EQ', '3'], msg=err)
+
+
+class Chr34ConcatTests(unittest.TestCase):
+    def test_concat_after_chr34_keeps_tail(self):
+        out, err = _run('10 Q$ = "Q" + CHR$(34) + "R" : PRINT Q$; LEN(Q$)\n')
+        self.assertEqual(out.split(), ['Q"R3'], msg=err)
+
+    def test_print_instr_with_concat_argument(self):
+        out, err = _run('10 PRINT INSTR("XY" + CHR$(34) + "Z", CHR$(34))\n')
+        self.assertEqual(out.split(), ['3'], msg=err)
+
+
+class FnLocalErrorTests(unittest.TestCase):
+    def test_on_error_local_traps_return_expression(self):
+        out, err = _run(
+            '10 PRINT FNa(1, 0)\n'
+            '100 DEF FNa(Y, X) : ON ERROR LOCAL = 7\n'
+            '110 = ATN(Y/X)\n',
+            'bbc',
+        )
+        self.assertEqual(out.split(), ['7'], msg=err)
+
+
+class NestedIfElseTests(unittest.TestCase):
+    def test_else_binds_to_inner_if(self):
+        for dialect in ('mini', 'bbc'):
+            out, err = _run(
+                '10 A = 1 : B = 2\n'
+                '20 IF A = 1 THEN IF B = 3 THEN PRINT "X" ELSE PRINT "Y"\n'
+                '30 IF A = 2 THEN IF B = 2 THEN PRINT "P" ELSE PRINT "Q"\n'
+                '40 PRINT "END"\n',
+                dialect,
+            )
+            # BBC: a false IF jumps to the first ELSE on the line (line 30 → Q).
+            self.assertEqual(out.split(), ['Y', 'Q', 'END'], msg=(dialect, err))
+
+    def test_else_if_chain(self):
+        out, err = _run(
+            '10 FOR B = 1 TO 3\n'
+            '20 IF B = 1 THEN PRINT "P" ELSE IF B = 2 THEN PRINT "Q" ELSE PRINT "R"\n'
+            '30 NEXT\n',
+            'bbc',
+        )
+        self.assertEqual(out.split(), ['P', 'Q', 'R'], msg=err)
+
+
+class CaseOtherwiseTests(unittest.TestCase):
+    def test_otherwise_statement_on_same_line(self):
+        out, err = _run(
+            '10 FOR X = 1 TO 4\n'
+            '20 CASE X OF\n'
+            '30 WHEN 1 : PRINT "ONE"\n'
+            '40 WHEN 2, 3 : PRINT "TWOTHREE"\n'
+            '50 OTHERWISE PRINT "OTHER"\n'
+            '60 ENDCASE\n'
+            '70 NEXT\n',
+            'bbc',
+        )
+        self.assertEqual(
+            out.split(), ['ONE', 'TWOTHREE', 'TWOTHREE', 'OTHER'], msg=err,
+        )
+
+
 if __name__ == '__main__':
     unittest.main()

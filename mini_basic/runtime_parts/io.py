@@ -1187,11 +1187,19 @@ class RuntimeIoMixin:
         return False
 
     def _print_item_has_string_concat(self, item: str) -> bool:
+        # Top level only: INSTR("A"+B$, C$) is numeric, not a concat.
         in_string = False
+        depth = 0
         for ch in item:
             if ch == '"':
                 in_string = not in_string
-            elif ch == '+' and not in_string:
+            elif in_string:
+                continue
+            elif ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth = max(0, depth - 1)
+            elif ch == '+' and depth == 0:
                 return True
         return False
 
