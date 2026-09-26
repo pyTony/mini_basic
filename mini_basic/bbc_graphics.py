@@ -864,6 +864,18 @@ class BBCGraphics:
         y0 = max(0, scy - sry)
         x1 = min(self.width - 1, scx + srx)
         y1 = min(self.height - 1, scy + sry)
+        trgb = self._truecolour_rgb
+        if trgb is not None and colour != 0:
+            # COLOUR n,r,g,b + GCOL 0,n truecolour fills (surks.bbc): the
+            # palette write above alone would render every filled circle in
+            # whatever the static default palette entry n is, not the custom
+            # RGB just set — mirror _fill_hspan_screen's overlay here too.
+            rgb_pixels = self._ensure_rgb_pixels()
+            ys, xs = np.nonzero(mask[y0 : y1 + 1, x0 : x1 + 1])
+            for dy, dx in zip(ys.tolist(), xs.tolist()):
+                sx, sy = x0 + dx, y0 + dy
+                rgb_pixels[sy][sx] = trgb
+                self.rgb_dirty.add((sx, sy))
         self._mark_pixel_dirty(x0, y0)
         self._mark_pixel_dirty(x1, y1)
         self.plot_count += int(mask.sum())
