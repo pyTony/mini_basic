@@ -97,6 +97,8 @@ class BBCGraphics:
         self.cursor_x = 0
         self.cursor_y = 0
         self.stack: List[Tuple[int, int]] = []
+        # VDU 23,23,t| (BBCSDL): line thickness in pixels, used by PLOT arcs.
+        self.line_thickness = 1
         self.gcol_fg: GColState = (0, 7)
         self.gcol_bg: GColState = (0, 0)
         self._np = _try_numpy()
@@ -368,7 +370,7 @@ class BBCGraphics:
         elif op in (0x50, 0xB0):
             self._triangle(code, tx, ty)
         elif op == 0xA0:
-            self._triangle_outline(code, tx, ty)
+            self._arc(code, tx, ty)
         elif op == 0x60:
             self._rectangle(code, tx, ty)
         elif op == 0x90:
@@ -669,15 +671,59 @@ class BBCGraphics:
         gcol, _ = self._plot_subcolour(code & 7)
         self._fill_triangle(x0, y0, x1, y1, x2, y2, gcol)
 
-    def _triangle_outline(self, code: int, x2: int, y2: int) -> None:
-        if len(self.stack) < 2:
+    def _arc(self, code: int, x2: int, y2: int) -> None:
+        """PLOT 160-167: arc anticlockwise about the last-but-one point.
+
+        Starts at the last point visited and ends where the line from the
+        centre towards (x2, y2) meets the circle (swirl.bbc, wheel.bbc).
+        """
+        sub = code & 7
+        if sub in (0, 4) or len(self.stack) < 2:
             return
-        x0, y0 = self.stack[-2]
+        cx, cy = self.stack[-2]
         x1, y1 = self.stack[-1]
-        gcol, _ = self._plot_subcolour(code & 7)
-        self._bresenham_line(x0, y0, x1, y1, gcol)
-        self._bresenham_line(x1, y1, x2, y2, gcol)
-        self._bresenham_line(x2, y2, x0, y0, gcol)
+        gcol, _ = self._plot_subcolour(sub)
+        # Work in screen pixels with y up so "anticlockwise" matches BBC.
+        scx, scy = self._to_screen(cx, cy)
+        sx1, sy1 = self._to_screen(x1, y1)
+        sx2, sy2 = self._to_screen(x2, y2)
+        radius = math.hypot(sx1 - scx, sy1 - scy)
+        start = math.atan2(scy - sy1, sx1 - scx)
+        end = math.atan2(scy - sy2, sx2 - scx)
+        sweep = (end - start) % (2 * math.pi)
+        if sweep == 0.0:
+            sweep = 2 * math.pi
+        half = max(0.5, float(self.line_thickness) / 2.0)
+        r_in = max(0.0, radius - half)
+        r_out = radius + half
+        x_lo = max(0, int(math.floor(scx - r_out)))
+        x_hi = min(self.width - 1, int(math.ceil(scx + r_out)))
+        y_lo = max(0, int(math.floor(scy - r_out)))
+        y_hi = min(self.height - 1, int(math.ceil(scy + r_out)))
+        if x_lo > x_hi or y_lo > y_hi:
+            return
+        np = self._np
+        if np is not None:
+            ys, xs = np.mgrid[y_lo : y_hi + 1, x_lo : x_hi + 1]
+            dx = xs - scx
+            dy = scy - ys
+            dist = np.hypot(dx, dy)
+            ang = np.mod(np.arctan2(dy, dx) - start, 2 * math.pi)
+            mask = (dist >= r_in) & (dist < r_out) & (ang <= sweep)
+            pixels = zip(xs[mask].tolist(), ys[mask].tolist())
+        else:
+            pixels = []
+            for sy in range(y_lo, y_hi + 1):
+                for sx in range(x_lo, x_hi + 1):
+                    dx = sx - scx
+                    dy = scy - sy
+                    dist = math.hypot(dx, dy)
+                    if r_in <= dist < r_out:
+                        ang = (math.atan2(dy, dx) - start) % (2 * math.pi)
+                        if ang <= sweep:
+                            pixels.append((sx, sy))
+        for sx, sy in pixels:
+            self._put_screen_pixel(sx, sy, gcol)
 
     def _rectangle(self, code: int, x1: int, y1: int) -> None:
         if len(self.stack) < 1:

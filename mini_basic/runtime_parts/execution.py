@@ -2385,6 +2385,13 @@ class RuntimeExecutionMixin:
                     charset=charset,
                 )
                 continue
+            # VDU 23,23,t| (BBCSDL): line thickness in pixels
+            if code == 23 and index + 2 < len(codes) and codes[index + 1] == 23:
+                self._ensure_display()
+                if self._display_enabled():
+                    self._display.set_line_thickness(int(codes[index + 2]))
+                index = self._vdu_consume_23_unknown(codes, index)
+                continue
             if code == 23:
                 # Unknown / BBCSDL VDU 23,n — consume 9 params, no error (Phase C).
                 index = self._vdu_consume_23_unknown(codes, index)

@@ -628,6 +628,9 @@ class RuntimeProgramMixin:
                         folded = True
                 elif nxt in ('%', '!', '#', '&') or (nxt == '$'):
                     folded = False
+                elif re.match(r'\.[A-Za-z_]', statement[end:end + 2]):
+                    # Structure member: mode.w% = 640 is not the MODE statement.
+                    folded = False
                 elif stmt_start and upper in self._MINI_FOLD_STMT_WORDS:
                     # print = 5 / for(3) = 1 are variables, not statements.
                     folded = not (nxt == '=' or (nxt == '(' and upper not in (

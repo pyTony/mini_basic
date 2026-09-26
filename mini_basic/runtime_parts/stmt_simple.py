@@ -44,6 +44,32 @@ def _h_install(
     return None
 
 
+def _h_sys(
+    interp: Any,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+    line_nums: List[int],
+) -> Optional[int]:
+    # Known BBCSDL / BB4W calls only (timing, display mode); see sys_calls.py.
+    from .sys_calls import execute_sys
+
+    try:
+        message = execute_sys(interp, rest)
+    except BasicRuntimeError:
+        raise
+    except (ValueError, TypeError) as exc:
+        message = f'? SYS error: {exc}'
+    if message:
+        interp._runtime_error(
+            message, line_num, stmt_index, stmt_count=stmt_count, statement=statement,
+        )
+    return None
+
+
 def _h_data(
     interp: Any,
     rest: str,
@@ -436,6 +462,7 @@ def _h_quit(
 SIMPLE_STMT_HANDLERS: Dict[str, SimpleHandler] = {
     'REM': _h_rem,
     'INSTALL': _h_install,
+    'SYS': _h_sys,
     'DATA': _h_data,
     'OFF': _h_off,
     'CLS': _h_cls,

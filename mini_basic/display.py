@@ -200,6 +200,9 @@ class DisplayBackend(ABC):
     def set_palette_rgb(self, index: int, rgb: Tuple[int, int, int]) -> None:
         return
 
+    def set_line_thickness(self, pixels: int) -> None:
+        return
+
     def point_colour(self, x: int, y: int) -> int:
         return 0
 
@@ -1619,6 +1622,13 @@ class PygameDisplay(DisplayBackend):
     def set_palette_rgb(self, index: int, rgb: Tuple[int, int, int]) -> None:
         self._palette_rgb[int(index)] = tuple(int(channel) for channel in rgb[:3])
         self._palette_dirty = True
+        # COLOUR n,r,g,b while GCOL n is selected recolours later plots (swirl.bbc).
+        if self._gfx is not None and self._gfx.gcol_fg == (0, int(index)):
+            self._apply_gfx_truecolour(int(index))
+
+    def set_line_thickness(self, pixels: int) -> None:
+        if self._gfx is not None:
+            self._gfx.line_thickness = max(1, int(pixels))
 
     def _apply_gfx_truecolour(self, colour: int) -> None:
         if not self._plot_enabled or self._gfx is None:
