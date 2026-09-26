@@ -3638,6 +3638,17 @@ class RuntimeExprMixin:
             rf'(?<![A-Za-z0-9_])({alts})'
             rf'(-?(?:\d+(?:\.\d*)?|\.\d+))(?![A-Za-z0-9_$])'
         )
+        # Monadic before a call: ABSSIN(x) → ABS SIN(x) (swirl.bbc).
+        # SINRAD( is one function, not SIN RAD(.
+        chained = rf'(?<![A-Za-z0-9_])({alts})(?=({alts})\()'
+        whole = set(self._MONADIC_NUMERIC_UNGLUE_FUNCS)
+        expr = re.sub(
+            chained,
+            lambda m: m.group(1) if (m.group(1) + m.group(2)).upper() in whole
+            else m.group(1) + ' ',
+            expr,
+            flags=flags,
+        )
         # Letters before digits so ABSx1 stays ABS(x1), not ABS + leftover.
         expr = re.sub(bare, r'\1(\2)', expr, flags=flags)
         expr = re.sub(num, r'\1(\2)', expr, flags=flags)

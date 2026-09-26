@@ -939,3 +939,61 @@ class RectangleStatementTests(unittest.TestCase):
             ((1, 2, 3, 4, 5, 6, 'copy'),),
             ((1, 2, 3, 4, 5, 6, 'move'),),
         ])
+
+
+class SwirlStructSysTests(unittest.TestCase):
+    """swirl.bbc: DIM mode{}, SYS SDL calls, ABSSIN glue, PLOT 165 arcs."""
+
+    def test_struct_member_named_like_keyword_in_mini(self):
+        # mode.w% must not fold to the MODE statement.
+        for dialect in ('mini', 'bbc'):
+            out, err = _run(
+                '10 DIM mode{ fmt%, w%, h% }\n'
+                '20 mode.w% = 640\n'
+                '30 PRINT mode.w% + 1\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['641'], msg=(dialect, err))
+
+    def test_sys_display_mode_fills_struct_and_ticks_to_var(self):
+        out, err = _run(
+            '10 DIM mode{ fmt%, w%, h%, r%, d% }\n'
+            '20 SYS "SDL_GetCurrentDisplayMode", 0, mode{}\n'
+            '30 ok% = mode.w% > 0 AND mode.h% > 0 : PRINT ok%\n'
+            '40 G$ = "SDL_GetTicks"\n'
+            '50 SYS G$ TO T0%\n'
+            '60 SYS "SDL_Delay", 20\n'
+            '70 SYS G$TO T1%\n'
+            '80 PRINT T1% - T0% >= 20\n'
+        )
+        self.assertEqual(out.split(), ['-1', '-1'], msg=err)
+
+    def test_sys_unknown_name_is_out_of_scope(self):
+        out, err = _run('10 SYS "OS_Write0", "hi"\n')
+        self.assertIn('? Out of scope: SYS', out + err)
+        self.assertIn('OS_Write0', out + err)
+
+    def test_monadic_glued_to_function_call(self):
+        out, err = _run(
+            '10 x = -0.5\n'
+            '20 PRINT ABSSIN(x) = ABS(SIN(x))\n'
+            '30 PRINT SINRAD(PI/2)\n'
+        )
+        self.assertEqual(out.split(), ['-1', '1'], msg=err)
+
+
+class PlotArcTests(unittest.TestCase):
+    def test_plot_165_draws_anticlockwise_arc_with_thickness(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        gfx = BBCGraphics(64, 64)
+        gfx.gcol(0, 1)
+        gfx.line_thickness = 3
+        gfx.move_absolute(32, 32)       # centre
+        gfx.move_absolute(52, 32)       # start: east, radius 20
+        gfx.plot_code(165, 32, 60)      # end direction: north
+        # Quarter arc east → north only (anticlockwise).
+        self.assertEqual(gfx.point_colour(32 + 14, 32 + 14), 1)  # 45°, r≈19.8
+        self.assertEqual(gfx.point_colour(32 - 14, 32 + 14), 0)  # 135°
+        self.assertEqual(gfx.point_colour(32 + 14, 32 - 14), 0)  # -45°
+        self.assertEqual(gfx.point_colour(32, 32), 0)            # centre untouched
