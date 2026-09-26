@@ -1044,6 +1044,8 @@ class RuntimeProgramMixin:
                             self._run_repeat_until[line_num] = (until_line, until_cond)
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
+        self._registered_int_vars = set()
+        self._registered_float_vars = set()
         self._compiled_expr_cache = {}
         self._parse_command_cache = {}
         self._clear_string_plan_caches()
@@ -2227,10 +2229,37 @@ class RuntimeProgramMixin:
             if stmt_parts is None:
                 stmt_parts = self._parse_line_statements(self.program[line_num])
             handled = False
-            for _, text in stmt_parts:
+            for stmt_pos, (_, text) in enumerate(stmt_parts):
                 cmd, rest = self._parse_command(text)
                 if cmd != 'DEF':
                     continue
+                # A colon-joined one-liner (``DEF PROCfoo:...:ENDPROC``) is split
+                # into separate statements by _parse_line_statements, so the body
+                # after the header lands in later stmt_parts entries rather than
+                # in ``rest`` itself. Reconstruct the colon-joined text here (up
+                # to and including a same-nesting-level ENDPROC) so it parses the
+                # same way as a space-joined one-liner
+                # (``DEF PROCfoo(...) ... ENDPROC``), landing in header_stmt.
+                if stmt_pos + 1 < len(stmt_parts) and not re.search(
+                    r'\bENDPROC\b', rest, re.IGNORECASE
+                ):
+                    nest = 0
+                    end_pos = None
+                    for later_pos in range(stmt_pos + 1, len(stmt_parts)):
+                        _, later_text = stmt_parts[later_pos]
+                        later_cmd, later_rest = self._parse_command(later_text)
+                        if later_cmd == 'DEF' and self._RE_DEF_PROC.match((later_rest or '').strip()):
+                            nest += 1
+                            continue
+                        if later_cmd == 'ENDPROC':
+                            if nest == 0:
+                                end_pos = later_pos
+                                break
+                            nest -= 1
+                    if end_pos is not None:
+                        rest = ':'.join(
+                            [rest] + [stmt_parts[p][1] for p in range(stmt_pos + 1, end_pos + 1)]
+                        )
                 try:
                     proc = self._parse_def_proc_header(rest)
                 except Exception:
@@ -2251,6 +2280,7 @@ class RuntimeProgramMixin:
                     procedures[proc.name] = proc
                     skip_lines.add(line_num)
                     handled = True
+                    idx += 1
                     break
                 if end_line is None or idx + 1 >= len(line_nums):
                     break
