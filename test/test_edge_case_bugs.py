@@ -1044,6 +1044,57 @@ class SurksMiniSmokeTests(unittest.TestCase):
         self.assertEqual(errors, [])
 
 
+class StructArrayFieldTests(unittest.TestCase):
+    """DIM struct{} / struct-array element access — working cases and the
+    known-broken indexed read (surks.bbc's circle{(I%)}.r%; tracked in
+    mini_basic/features/deferred.py and docs/LANGUAGE_FEATURES_1.00.md).
+    """
+
+    def test_flat_struct_numeric_and_string_fields_read_write(self):
+        # DIM name{a%,b$,c} / name.a% read+assign — documented as already working.
+        for dialect in ('mini', 'bbc'):
+            out, err = _run(
+                '10 DIM pt{ x%, y%, label$ }\n'
+                '20 pt.x% = 3 : pt.y% = 4 : pt.label$ = "P"\n'
+                '30 pt.x% = pt.x% + 1\n'
+                '40 PRINT pt.x%; pt.y%; pt.label$\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['44P'], msg=(dialect, err))
+            self.assertEqual(err, '')
+
+    def test_struct_array_element_write_does_not_error(self):
+        # DIM circle{(n) x%,y%,r%,t%} ; circle{(0)}.r% = v — write side works.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 circle{(0)}.x% = 5\n'
+            '30 circle{(0)}.r% = 7\n'
+            '40 PRINT "ok"\n',
+        )
+        self.assertEqual(out.split(), ['ok'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_element_read_by_variable_index(self):
+        # circle{(I%)}.r% — reading a struct-array element's field back by a
+        # variable index. This is what breaks surks.bbc past the ELLIPSE fix
+        # (examples/graphics/surks_mini.bbc works around it with parallel
+        # arrays). Flip to a plain assertEqual once this is implemented.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 circle{(0)}.r% = 7\n'
+            '30 I% = 0\n'
+            '40 R% = circle{(I%)}.r%\n'
+            '50 PRINT R%\n',
+        )
+        broken = (out.split() != ['7']) or bool(err)
+        if broken:
+            pytest.xfail(
+                'struct-array element read by variable index not implemented: '
+                + (err or out)
+            )
+        self.assertEqual(out.split(), ['7'])
+
+
 class SwirlStructSysTests(unittest.TestCase):
     """swirl.bbc: DIM mode{}, SYS SDL calls, ABSSIN glue, PLOT 165 arcs."""
 
