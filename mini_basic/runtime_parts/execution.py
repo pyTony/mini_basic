@@ -1797,6 +1797,30 @@ class RuntimeExecutionMixin:
             if self.stack[index].kind == target_kind:
                 frame = self.stack[index]
                 del self.stack[index:]
+                # EXIT can fire from inside an unclosed IF/CASE block (e.g.
+                # IF cond THEN ... EXIT FOR ... ENDIF): jumping straight to
+                # frame.exit_line skips that block's own ENDIF/ENDCASE, so
+                # its IfFrame/CaseFrame would otherwise stay on the stack
+                # and get popped by a later, unrelated ENDIF/ENDCASE
+                # (surks.bbc: circle{(I%)}.r% collision check -> spurious
+                # "NEXT without FOR"). Discard any such block opened at or
+                # after the loop's own header line.
+                loop_start = (
+                    getattr(frame, 'for_line', None)
+                    or getattr(frame, 'while_line', None)
+                    or getattr(frame, 'repeat_line', None)
+                )
+                if loop_start:
+                    while (
+                        self.if_stack
+                        and self.if_stack[-1].layout.branch_starts[0] >= loop_start
+                    ):
+                        self.if_stack.pop()
+                    while (
+                        self.case_stack
+                        and self.case_stack[-1].layout.branch_starts[0] >= loop_start
+                    ):
+                        self.case_stack.pop()
                 return frame.exit_line if frame.exit_line != -1 else -1
         self._emit_error(f'? EXIT {kind.strip().upper()} outside loop')
         return None

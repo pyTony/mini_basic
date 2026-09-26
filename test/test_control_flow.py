@@ -407,6 +407,38 @@ class TestControlExitCorners(unittest.TestCase):
         self.assertRegex(out.strip(), r'\d+')
 
 
+class TestExitLeavesUnclosedIfBlock(unittest.TestCase):
+    """EXIT FOR firing inside a multi-line IF...THEN...ENDIF (not a
+    single-line IF) jumps straight to the loop's exit line, skipping that
+    IF block's own ENDIF. The IfFrame it left open must not linger on
+    if_stack: a later, unrelated ENDIF must not mistake it for its own and
+    jump to the wrong line (surks.bbc's circle collision-check loop hit
+    this as a spurious "? NEXT without FOR").
+    """
+
+    def test_exit_for_then_unrelated_endif_targets_its_own_line(self):
+        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
+        prog = (
+            '10 IF TRUE THEN\n'
+            '20 FOR I%=0 TO 3\n'
+            '30 IF I%=1 THEN\n'
+            '40 EXIT FOR\n'
+            '50 ENDIF\n'
+            '60 NEXT I%\n'
+            '70 ENDIF\n'
+            '80 PRINT "done"\n'
+        )
+        for i, line in enumerate(prog.strip('\n').split('\n')):
+            num, txt = line.split(' ', 1)
+            interp.set_program_line(int(num), txt)
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            interp.run()
+        self.assertEqual(buf.getvalue().split(), ['done'], msg=err.getvalue())
+        self.assertEqual(err.getvalue(), '')
+
+
 @st.composite
 def exit_for_from_deep_nesting(draw):
     """EXIT FOR from deep inside WHILE/REPEAT to test jumping outer FOR hierarchy."""
