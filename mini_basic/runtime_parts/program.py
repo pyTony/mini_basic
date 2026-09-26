@@ -1981,7 +1981,7 @@ class RuntimeProgramMixin:
         # Use full dotted+suffix as the storage key for uniqueness (x vs x% on same struct).
         if '.' in token and not token.startswith('.'):
             # Match optional suffix only at end; member names can have the suffix attached after dot.
-            m = re.match(r'^(.+?)(%%|%|\$\$|\$|!|#)?$', token)
+            m = re.match(r'^(.+?)(%%|%|&|\$\$|\$|!|#)?$', token)
             if m:
                 dotted = m.group(1)
                 suf = m.group(2) or ''
@@ -1989,7 +1989,7 @@ class RuntimeProgramMixin:
                     full_key = dotted + suf
                     if suf in ('$$', '$'):
                         return full_key, 'str'
-                    if suf in ('%%', '%'):
+                    if suf in ('%%', '%', '&'):
                         return full_key, 'int'
                     if suf in ('!', '#'):
                         return full_key, 'float'
@@ -2794,6 +2794,10 @@ class RuntimeProgramMixin:
         label = self._normalize_loop_label(token)
         return label, label is not None
 
+    _RE_STRUCT_LHS_TAIL = re.compile(
+        r'(?:\{\([^{}]*\)\})?(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:%%|%|\$\$|\$|&)?'
+    )
+
     def _parse_assignment_statement(self, line: str) -> Tuple[str, str, str]:
         """Return (lvalue, operator, rhs) for = / += / -= / *= / /= / OR= / AND= / …
 
@@ -2824,6 +2828,18 @@ class RuntimeProgramMixin:
 
         flags = self._identifier_re_flags()
         name_m = re.match(rf'^({self._VAR_BASE_PATTERN}[%$!#&]?)', text, flags=flags)
+        struct_m = None
+        if name_m and name_m.end() < len(text) and text[name_m.end()] in '{.':
+            struct_m = self._RE_STRUCT_LHS_TAIL.match(text, name_m.end())
+        if struct_m is not None and struct_m.end() > name_m.end():
+            # Struct member / whole struct-array element: Ball{(i%)}.Pos.x += v
+            lhs = text[: struct_m.end()].strip()
+            rest = text[struct_m.end() :].lstrip()
+            op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
+            if op_m:
+                return _remember((lhs, op_m.group(1), op_m.group(2).strip()))
+            if rest.startswith('=') and not rest.startswith('=='):
+                return _remember((lhs, '=', rest[1:].strip()))
         if name_m:
             pos = name_m.end()
             # Optional array index / whole-array (): balanced scan, not greedy .*

@@ -1785,7 +1785,12 @@ class RuntimeIoMixin:
                 indices,
                 self._array_get(base, kind, indices),
             )
+        if '{(' in token:
+            token = self._normalize_struct_array_index_refs(token)
         base, kind = self._parse_var_token(token)
+        if '.' in base:
+            default: object = '' if kind == 'str' else (0 if kind == 'int' else 0.0)
+            return ('struct', base, kind, None, self.struct_members.get(base, default))
         if kind == 'str':
             return ('var', base, kind, None, self.str_variables.get(base, ''))
         if kind == 'int':
@@ -1805,6 +1810,15 @@ class RuntimeIoMixin:
             self._array_set(base, var_kind, indices, value)
             return
         _, base, var_kind, _, _ = loc
+        if kind == 'struct':
+            if var_kind == 'str':
+                self.struct_members[base] = str(value)
+            elif var_kind == 'int':
+                ival = self._coerce_int_storage(value)
+                self.struct_members[base] = int(ival) & 0xFF if base.endswith('&') else ival
+            else:
+                self.struct_members[base] = float(value)
+            return
         if var_kind == 'str':
             self.str_variables[base] = str(value)
             return

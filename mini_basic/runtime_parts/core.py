@@ -1437,6 +1437,9 @@ class RuntimeCoreMixin:
         cmd, _ = self._parse_command(text)
         if cmd:
             return True
+        # PROCname[(args)] followed by more colon statements: IF c THEN PROCx : y = 0
+        if re.match(r'^PROC\s*[A-Za-z_@]', text, flags=self._identifier_re_flags()):
+            return True
         # Simple / compound assignment (same maximal-LHS rules as assign parse).
         # ``aand=0`` is a normal assignment, not ``a`` AND= 0.
         if '=' not in text:
@@ -1456,6 +1459,12 @@ class RuntimeCoreMixin:
             lhs,
             flags=self._identifier_re_flags(),
         ):
+            return True
+        # Struct member lvalue: Ball{(i%)}.Pos.x = 0
+        if re.match(
+            rf'^({self._VAR_BASE_PATTERN})(?:\{{\([^{{}}]*\)\}}|\{{\}})?(?:\.[A-Za-z_][A-Za-z0-9_]*)+[%$&]{{0,2}}$',
+            lhs,
+        ) or re.match(rf'^({self._VAR_BASE_PATTERN})\{{\([^{{}}]*\)\}}$', lhs):
             return True
         return False
 

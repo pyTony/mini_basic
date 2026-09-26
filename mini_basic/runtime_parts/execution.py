@@ -3327,8 +3327,9 @@ class RuntimeExecutionMixin:
 
         Returns MISSING when the line is none of these forms.
         """
-        if re.match(r'^ON\s+MOUSE\b', line, re.IGNORECASE):
-            # ON MOUSE handler registration — not yet emulated; accept and ignore.
+        if re.match(r'^ON\s+(?:MOUSE|MOVE)\b', line, re.IGNORECASE):
+            # ON MOUSE / ON MOVE (window resize) handler registration — not yet
+            # emulated (the window isn't resizable); accept and ignore.
             return None
 
         # ON CLOSE [LOCAL] OFF | QUIT | END | <stmt>{:<stmt>}
