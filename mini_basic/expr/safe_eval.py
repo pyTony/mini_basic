@@ -11,6 +11,7 @@ access they only read the eval namespace.)
 from __future__ import annotations
 
 import ast
+import re
 from functools import lru_cache
 from types import CodeType
 from typing import Optional
@@ -83,9 +84,22 @@ class _BasicSemantics(ast.NodeTransformer):
         return ast.copy_location(call, node)
 
 
+_RE_STRING_OR_LEADING_ZEROS = re.compile(r'''"[^"]*"|'[^']*'|(?<![\w.])0+(?=\d)''')
+
+
+def _strip_leading_zeros(source: str) -> str:
+    """BASIC 010 is ten; Python rejects leading zeros in int literals."""
+    if '0' not in source:
+        return source
+    return _RE_STRING_OR_LEADING_ZEROS.sub(
+        lambda m: m.group(0) if m.group(0)[0] in '"\'' else '', source,
+    )
+
+
 @lru_cache(maxsize=4096)
 def compile_safe(source: str) -> CodeType:
     """Parse, validate and compile *source*; SyntaxError / ValueError on failure."""
+    source = _strip_leading_zeros(source)
     tree = ast.parse(source, filename='<string>', mode='eval')
     check_expression_tree(tree)
     tree = ast.fix_missing_locations(_BasicSemantics(source).visit(tree))

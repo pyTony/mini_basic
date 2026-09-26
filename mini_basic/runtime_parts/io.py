@@ -1056,7 +1056,9 @@ class RuntimeIoMixin:
             # Normalize +0 → bare E like many BASICs: 1.23E+10 → 1.23E10 optional;
             # keep Python-style E+ for clarity unless bare E preferred.
             return text
-        return str(value)
+        # 15 significant digits: 0.1+0.2 prints 0.3, not float64 noise
+        # (0.30000000000000004); still exact enough to read PI back.
+        return f'{value:.15g}'
 
     def _split_implicit_print_items(self, item: str) -> List[str]:
         """MBASIC implicit PRINT items: TAB/SPC glued without ; or ,.
@@ -1337,19 +1339,17 @@ class RuntimeIoMixin:
                 row = int(self._eval_numeric(args[1]))
                 return self._ansi_goto(row, col)
             column = int(self._eval_numeric(args[0]))
-            target = max(0, column - 1)
+            # BBC TAB(n) is column n counting from 0; MS TAB(n) counts from 1.
+            target = max(0, column if self.config.dialect == 'bbc' else column - 1)
             # Always emit spaces. Display-enabled TAB used to goto() and
             # return ''; the whole PRINT was then written from that cursor
             # (bacarrat: "BANKERPLAYER" starting at column 20).
-            parts: List[str] = []
+            # The caller emits this through _print_emit, which advances
+            # print_column / text_col (and ends the line on '\n') itself.
+            # Counting the pad here too put PRINT TAB(5);"X";TAB(10);"Y" at XY.
             if self.print_column > target:
-                parts.append('\n')
-                self._print_finish_line()
-            pad = max(0, target - self.print_column)
-            self.print_column += pad
-            self.text_col += pad
-            parts.append(' ' * pad)
-            return ''.join(parts)
+                return '\n' + ' ' * target
+            return ' ' * (target - self.print_column)
         return None
 
     def _render_print_using(self, format_expr: str, value_exprs: List[str]) -> str:

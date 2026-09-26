@@ -781,7 +781,7 @@ class RuntimeGraphicsMixin:
         if re.fullmatch(r'[-+]?(?:INF|INFINITY)', expr, re.IGNORECASE):
             return '-INF' if expr.startswith('-') else 'INF'
         if re.fullmatch(r'[-+]?\d+', expr):
-            return expr
+            return str(int(expr))  # PRINT 010 / PRINT +5 print 10 / 5
         # String variables / $ expressions must not go through arith (A$ is not Python).
         if '$' in expr or self._fragment_is_string_expr(expr):
             try:

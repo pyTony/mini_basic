@@ -58,7 +58,8 @@ class AnimalTextPrintTests(unittest.TestCase):
         assert display is not None
         self.assertEqual(display.text_cols, 80)
         animal_cols = [col for col, _ in _letters_on_row(display, 0)]
-        self.assertEqual(animal_cols, list(range(14, 20)))
+        # BBC TAB(15) is column 15 counting from 0 (MS dialects use column 14).
+        self.assertEqual(animal_cols, list(range(15, 21)))
         title_letters = _letters_on_row(display, 1)
         self.assertEqual(''.join(ch for _, ch in title_letters[:8]), 'Creative')
         self.assertEqual([c for c, _ in title_letters[:8]], list(range(0, 8)))

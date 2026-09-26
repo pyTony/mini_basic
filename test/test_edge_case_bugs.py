@@ -429,5 +429,46 @@ class CaseOtherwiseTests(unittest.TestCase):
         )
 
 
+class NumberPrintTests(unittest.TestCase):
+    def test_float_noise_is_not_printed(self):
+        out, err = _run(
+            '10 PRINT 0.1 + 0.2\n'
+            '20 FOR I = 0 TO 1 STEP 0.1 : NEXT : PRINT I\n'
+            '30 PRINT 1 / 3\n'
+        )
+        self.assertEqual(
+            out.split(), ['0.3', '1.1', '0.333333333333333'], msg=err,
+        )
+
+    def test_leading_zero_and_plus_literals(self):
+        out, err = _run(
+            '10 PRINT 010\n'
+            '20 PRINT +5\n'
+            '30 A = 010 : PRINT A\n'
+            '40 PRINT 007 + 1\n'
+            '50 PRINT 0.5; 1.05\n'
+        )
+        self.assertEqual(out.split(), ['10', '5', '10', '8', '0.51.05'], msg=err)
+
+
+class TabColumnTests(unittest.TestCase):
+    def test_bbc_tab_is_zero_based(self):
+        out, err = _run('10 PRINT TAB(5); "X"\n20 PRINT "AB"; TAB(4); "Y"\n', 'bbc')
+        self.assertEqual(out.splitlines(), ['     X', 'AB  Y'], msg=err)
+
+    def test_ms_tab_is_one_based(self):
+        out, err = _run('10 PRINT TAB(5); "X"\n', 'mits')
+        self.assertEqual(out.splitlines(), ['    X'], msg=err)
+
+    def test_second_tab_on_line_counts_columns_once(self):
+        for dialect, line in (('mits', '    X    Y'), ('mini', '    X    Y'), ('bbc', '     X    Y')):
+            out, err = _run('10 PRINT TAB(5); "X"; TAB(10); "Y"\n', dialect)
+            self.assertEqual(out.splitlines(), [line], msg=(dialect, err))
+
+    def test_bbc_consecutive_tabs_stay_on_one_line(self):
+        out, err = _run('10 FOR I% = 1 TO 5 : PRINT TAB(I%); "*"; : NEXT\n', 'bbc')
+        self.assertEqual(out.splitlines(), [' *****'], msg=err)
+
+
 if __name__ == '__main__':
     unittest.main()
