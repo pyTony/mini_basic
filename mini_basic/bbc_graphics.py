@@ -480,6 +480,80 @@ class BBCGraphics:
             if right != left:
                 self._put_screen_pixel(right, sy, gcol)
 
+    def draw_ellipse(
+        self, x: int, y: int, a: int, b: int, angle: float = 0.0, filled: bool = False,
+    ) -> None:
+        """ELLIPSE [FILL] x,y,a,b[,angle] — centre (x,y), semi-axes a,b in OS units.
+
+        ``angle`` is radians, measured anticlockwise from the x-axis (BBC BASIC
+        convention). Geometry is tested in OS space via ``from_screen`` so it
+        stays correct when x_scale != y_scale.
+        """
+        x, y = int(x), int(y)
+        a, b = abs(int(a)), abs(int(b))
+        gcol = self.gcol_fg
+        if a == 0 or b == 0:
+            self._put_pixel(x, y, gcol)
+            return
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+        half_w = math.sqrt((a * cos_a) ** 2 + (b * sin_a) ** 2)
+        half_h = math.sqrt((a * sin_a) ** 2 + (b * cos_a) ** 2)
+        corners = (
+            self._to_screen(x - half_w, y - half_h),
+            self._to_screen(x + half_w, y - half_h),
+            self._to_screen(x - half_w, y + half_h),
+            self._to_screen(x + half_w, y + half_h),
+        )
+        sxs = [c[0] for c in corners]
+        sys_ = [c[1] for c in corners]
+        left = max(0, min(sxs))
+        right = min(self.width - 1, max(sxs))
+        top = max(0, min(sys_))
+        bottom = min(self.height - 1, max(sys_))
+        if left > right or top > bottom:
+            return
+
+        if filled:
+            inv_a2 = 1.0 / float(a * a)
+            inv_b2 = 1.0 / float(b * b)
+            for sy in range(top, bottom + 1):
+                span_start = None
+                for sx in range(left, right + 1):
+                    ox, oy = self.from_screen(sx, sy)
+                    dx, dy = ox - x, oy - y
+                    u = dx * cos_a + dy * sin_a
+                    v = -dx * sin_a + dy * cos_a
+                    if (u * u) * inv_a2 + (v * v) * inv_b2 <= 1.0:
+                        if span_start is None:
+                            span_start = sx
+                    elif span_start is not None:
+                        self._fill_hspan_screen(span_start, sx - 1, sy, gcol)
+                        span_start = None
+                if span_start is not None:
+                    self._fill_hspan_screen(span_start, right, sy, gcol)
+            return
+
+        # Outline: sample the perimeter and join samples with Bresenham lines
+        # so large ellipses (many screen pixels per OS unit) have no gaps.
+        perimeter_est = math.pi * (3 * (a + b) - math.sqrt((3 * a + b) * (a + 3 * b)))
+        steps = max(72, int(perimeter_est / max(1, min(self.x_scale, self.y_scale))))
+        prev_x = prev_y = None
+        first_x = first_y = None
+        for i in range(steps):
+            theta = 2.0 * math.pi * i / steps
+            ex = a * math.cos(theta)
+            ey = b * math.sin(theta)
+            px = x + ex * cos_a - ey * sin_a
+            py = y + ex * sin_a + ey * cos_a
+            if prev_x is None:
+                first_x, first_y = px, py
+            else:
+                self._bresenham_line(prev_x, prev_y, px, py, gcol)
+            prev_x, prev_y = px, py
+        if prev_x is not None:
+            self._bresenham_line(prev_x, prev_y, first_x, first_y, gcol)
+
     def _copy_block(self, left: int, top: int, right: int, bottom: int):
         rows = []
         for sy in range(top, bottom + 1):

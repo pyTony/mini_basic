@@ -942,6 +942,80 @@ class RectangleStatementTests(unittest.TestCase):
         ])
 
 
+class EllipseStatementTests(unittest.TestCase):
+    """ELLIPSE [FILL] x,y,a,b[,angle] dispatch (surks.bbc grid effect)."""
+
+    def test_ellipse_forms_reach_display(self):
+        from unittest.mock import MagicMock, patch
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        display = MagicMock()
+        display.mouse_state.return_value = (0, 0, 0)
+        interp._display = display
+        for n, text in [
+            (10, 'x%=10 : y%=20 : r%=5 : I%=3'),
+            (20, 'ELLIPSE 2*x%, 2*y%, 2*r%, 2*I%'),
+            (30, 'ELLIPSE FILL 1, 2, 3, 4, 0.5'),
+        ]:
+            interp.set_program_line(n, text)
+        errs = []
+        with patch.object(interp, '_graphics_plot_enabled', return_value=True), \
+                patch.object(interp, '_display_enabled', return_value=True), \
+                patch.object(interp, '_ensure_display'), \
+                patch.object(interp, '_sync_graphics'), \
+                patch.object(interp, '_runtime_error', side_effect=lambda m, *a, **k: errs.append(m)):
+            interp.run()
+        self.assertEqual(errs, [])
+        self.assertEqual(display.draw_ellipse.call_args_list, [
+            ((20, 40, 10, 6, 0.0, False),),
+            ((1, 2, 3, 4, 0.5, True),),
+        ])
+
+    def test_ellipse_lowercase_keyword_folds_in_mini(self):
+        # CLAUDE.md keyword-case policy: mini is not strict about keyword case.
+        out, err = _run(
+            '10 gcol 0,1\n'
+            '20 ellipse 20,20,10,5\n'
+            '30 print "ok"\n',
+        )
+        self.assertEqual(out.split(), ['ok'], msg=err)
+        self.assertEqual(err, '')
+
+
+class EllipseGeometryTests(unittest.TestCase):
+    """Pixel-level checks for BBCGraphics.draw_ellipse (axis-aligned, unrotated)."""
+
+    def test_outline_touches_axis_extremes_and_leaves_centre_clear(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        gfx = BBCGraphics(64, 64)
+        gfx.gcol(0, 1)
+        gfx.draw_ellipse(32, 32, 20, 10, filled=False)
+        self.assertEqual(gfx.point_colour(32 + 20, 32), 1)
+        self.assertEqual(gfx.point_colour(32 - 20, 32), 1)
+        self.assertEqual(gfx.point_colour(32, 32 + 10), 1)
+        self.assertEqual(gfx.point_colour(32, 32 - 10), 1)
+        self.assertEqual(gfx.point_colour(32, 32), 0)
+
+    def test_filled_area_matches_pi_a_b(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        a, b = 15, 8
+        gfx = BBCGraphics(64, 64)
+        gfx.gcol(0, 1)
+        gfx.draw_ellipse(32, 32, a, b, filled=True)
+        count = sum(
+            1
+            for sy in range(64)
+            for sx in range(64)
+            if gfx.point_colour(sx, sy) == 1
+        )
+        expected = math.pi * a * b
+        self.assertLess(abs(count - expected) / expected, 0.15)
+
+
 class SwirlStructSysTests(unittest.TestCase):
     """swirl.bbc: DIM mode{}, SYS SDL calls, ABSSIN glue, PLOT 165 arcs."""
 

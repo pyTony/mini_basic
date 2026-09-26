@@ -182,6 +182,11 @@ class DisplayBackend(ABC):
     def draw_rectangle(self, x: int, y: int, width: int, height: int) -> None:
         return
 
+    def draw_ellipse(
+        self, x: int, y: int, a: int, b: int, angle: float = 0.0, filled: bool = False,
+    ) -> None:
+        return
+
     def transfer_rectangle(
         self, x: int, y: int, width: int, height: int,
         dest_x: int, dest_y: int, mode: str = 'copy',
@@ -1583,6 +1588,14 @@ class PygameDisplay(DisplayBackend):
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.draw_rectangle(x, y, width, height)
+        self._dirty = True
+
+    def draw_ellipse(
+        self, x: int, y: int, a: int, b: int, angle: float = 0.0, filled: bool = False,
+    ) -> None:
+        if not self._plot_enabled or self._gfx is None:
+            return
+        self._gfx.draw_ellipse(x, y, a, b, angle, filled)
         self._dirty = True
 
     def transfer_rectangle(

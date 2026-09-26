@@ -5063,6 +5063,33 @@ class RuntimeExecutionMixin:
                     self._error_message('? CIRCLE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
+        if cmd == 'ELLIPSE':
+            if not self._graphics_plot_enabled():
+                return None
+            try:
+                # ELLIPSE [FILL] x,y,a,b[,angle] — centre, semi-axes (OS units),
+                # optional rotation angle in radians.
+                rest_strip = rest.strip()
+                fill_match = re.match(r'^FILL\s+(.+)$', rest_strip, re.IGNORECASE)
+                args = self._split_args(fill_match.group(1) if fill_match else rest_strip)
+                if len(args) not in (4, 5):
+                    raise ValueError('ELLIPSE needs x,y,a,b[,angle]')
+                x = int(self._eval_numeric(args[0]))
+                y = int(self._eval_numeric(args[1]))
+                a = int(self._eval_numeric(args[2]))
+                b = int(self._eval_numeric(args[3]))
+                angle = float(self._eval_numeric(args[4])) if len(args) == 5 else 0.0
+                self._ensure_display()
+                if self._display_enabled():
+                    self._display.draw_ellipse(x, y, a, b, angle, bool(fill_match))
+                    self._sync_graphics()
+            except ProgramExit:
+                raise
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? ELLIPSE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
         if cmd == 'MODE':
             self._maybe_auto_enable_pygame_now(announce=False)
             rest_strip = rest.strip()

@@ -486,7 +486,7 @@ class RuntimeProgramMixin:
             'OTHERWISE', 'ENDCASE', 'SELECT', 'GOTO', 'GOSUB', 'RESUME', 'RETURN',
             'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
             'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
-            'CIRCLE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
+            'CIRCLE', 'ELLIPSE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
             'PLOT', 'STOP', 'CHAIN', 'RUN', 'WAIT', 'KILL', 'ERASE', 'LINE',
             'TRACE', 'SWAP', 'LOCAL', 'RANDOMIZE', 'OPEN', 'CLOSE', 'SOUND',
             'BEEP', 'LOCATE', 'SUB', 'ERROR', 'OPTION', 'BASE', 'CLEAR', 'TAB',
