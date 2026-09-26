@@ -129,7 +129,7 @@ Source: `bbc_family_rows()` → `01b_bbc_family.txt`.
 | Tokenized program files | + | + | + | + | + | Formats differ; mini **detokenizes** only |
 | Line numbers required | + | − | − | − | ~ | Beeb classic; ROS/BB4W text unnumbered OK |
 | SOUND / ENVELOPE | + | ~ | + | + | ~ | mini: stubs (silent / wait) |
-| SYS / rich OS | ~ | + | + | + | ~ | mini: OSCLI subset (REFRESH/GSAVE/DISPLAY); `SYS` out of scope (1.00) |
+| SYS / rich OS | ~ | + | + | + | ~ | mini: OSCLI subset (REFRESH/GSAVE/DISPLAY); `SYS` has a small named table (ticks/delay/display mode — [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md#oscli-and-sys)), else out of scope |
 | INSTALL libraries | − | ~ | + | + | ~ | Deferred depth |
 
 Full table and notes: always prefer the generated file over this excerpt.
@@ -176,7 +176,7 @@ These compare **BB4W/SDL-style specs** to mini implementation status. Paths unde
 | [`04_arrays_matrix.txt`](../documentation/feature_matrices/04_arrays_matrix.txt) | Array fill, multiply, SUM, slices… |
 | [`05_data_read.txt`](../documentation/feature_matrices/05_data_read.txt) | DATA / READ / RESTORE |
 | [`06_implementation_status.txt`](../documentation/feature_matrices/06_implementation_status.txt) | User-verify implementation checklist |
-| [`07_deferred.txt`](../documentation/feature_matrices/07_deferred.txt) | WIMP, ASM, SYS FFI, real sound, INSTALL, structs… |
+| [`07_deferred.txt`](../documentation/feature_matrices/07_deferred.txt) | WIMP, ASM, general SYS FFI, real sound, INSTALL, nested/array structs… (flat `DIM name{}` structs and a small named SYS table already work) |
 
 Deferred rows are intentional non-goals until core language + corpus stay stable—not silent gaps.
 
