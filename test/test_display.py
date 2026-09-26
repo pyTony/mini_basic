@@ -11,6 +11,7 @@ if _ROOT not in sys.path:
 
 from mini_basic.display import (
     NullDisplay,
+    aspect_fit_size,
     colour_to_rgb,
     count_framebuffer_pixels,
     create_display,
@@ -184,6 +185,11 @@ class DisplayTests(unittest.TestCase):
         self.assertTrue(interp._display.is_open)
         interp._shutdown_display(hold=False)
 
+    def test_aspect_fit_mode9_into_gnome_usable_height(self):
+        """2× MODE 9 (1280×1024) into a 1080p client of 1280×932 keeps 5:4."""
+        self.assertEqual(aspect_fit_size(1280, 1024, 1280, 932), (1165, 932))
+        self.assertEqual(aspect_fit_size(1280, 1024, 1280, 1024), (1280, 1024))
+
     def test_mode9_default_scale_is_2x_on_1080p_windows(self):
         """WSL and native Windows should both keep default 2x on a 1080p desk."""
         try:
@@ -355,6 +361,27 @@ class DisplayTests(unittest.TestCase):
             flash_off = count_glyph_pixels()
         self.assertGreater(flash_on, 0)
         self.assertEqual(flash_off, 0)
+
+        # After the first present, dirty is clear — flash must still redraw.
+        def count_canvas_glyph():
+            count = 0
+            x0 = cw
+            for y in range(d._effective_cell_height()):
+                for x in range(x0, x0 + cw):
+                    if d._canvas.get_at((x, y))[:3] != bg_rgb:
+                        count += 1
+            return count
+
+        d._dirty = False
+        d._compose_full = False
+        with mock.patch.object(d._pygame.time, 'get_ticks', return_value=0):
+            d.present()
+        self.assertGreater(count_canvas_glyph(), 0)
+        d._dirty = False
+        d._compose_full = False
+        with mock.patch.object(d._pygame.time, 'get_ticks', return_value=600):
+            d.present()
+        self.assertEqual(count_canvas_glyph(), 0)
 
     def test_mode_resets_text_colours_to_white_on_black(self):
         try:

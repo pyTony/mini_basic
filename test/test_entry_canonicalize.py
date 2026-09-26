@@ -137,6 +137,73 @@ class EntryCanonicalizeTests(unittest.TestCase):
         self.assertEqual(int(i._eval_numeric('5AND1')), 1)
         self.assertEqual(int(i._eval_numeric('2^3')), 8)
 
+    def test_load_and_repl_numbered_store_the_same_text(self):
+        """LOAD and REPL ``10 …`` both go through set_program_line."""
+        import tempfile
+
+        glued = 'PRINTTAB(0);"x":FOR I%=1TO10:X=TAN10'
+        loaded = self._bbc()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 't.bas')
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write(f'10 {glued}\n20 END\n')
+            loaded.working_dir = tmp
+            self.assertTrue(loaded.load('t.bas', announce=False))
+        typed = self._bbc()
+        typed.set_program_line(10, glued)
+        self.assertEqual(loaded.program[10], typed.program[10])
+        self.assertIn('PRINT TAB', typed.program[10].upper())
+        self.assertIn(' TO ', typed.program[10])
+        self.assertIn('TAN(10)', typed.program[10])
+
+    def test_immediate_uses_same_canonicalize_as_program_entry(self):
+        """Direct-mode statements run the same canonicalize as LOAD."""
+        i = self._bbc()
+        glued = 'X=TAN10+ABS-3'
+        i.execute_immediate(glued)
+        stored = i.canonicalize_program_line(glued)
+        self.assertIn('TAN(10)', stored)
+        self.assertIn('ABS(-3)', stored)
+        j = self._bbc()
+        j.set_program_line(10, glued)
+        j.set_program_line(20, 'END')
+        import math
+
+        expected = math.tan(10.0) + abs(-3)
+        self.assertAlmostEqual(float(i.variables.get('X', i.int_variables.get('X', 0))), expected, places=5)
+        buf_run = __import__('io').StringIO()
+        from contextlib import redirect_stdout
+
+        with redirect_stdout(buf_run):
+            j.run()
+        self.assertAlmostEqual(float(j.variables.get('X', j.int_variables.get('X', 0))), expected, places=5)
+
+    def test_wend_stored_as_endwhile_folded_at_parse(self):
+        """Entry stores BBCSDL ENDWHILE; execute still folds to WEND."""
+        i = self._bbc()
+        i.set_program_line(10, 'WEND')
+        self.assertEqual(i.program[10].strip().upper(), 'ENDWHILE')
+        cmd, _rest = i._parse_command(i.program[10])
+        self.assertEqual(cmd, 'WEND')
+
+    def test_and_keyword_stays_basic_in_store(self):
+        """AND→& is eval translation, not entry glue — cannot peel from RUN."""
+        i = self._bbc()
+        stored = i.canonicalize_program_line('IF A% AND 1 THEN END')
+        self.assertIn('AND', stored.upper())
+        self.assertNotIn('&', stored)
+        i.int_variables['A'] = 5
+        self.assertEqual(int(i._eval_numeric('A% AND 1')), 1)
+
+    def test_operator_normalize_after_int_suffix_substitution(self):
+        """A%AND1 becomes 5AND1 after subst; eval must still split (welcome/Clock)."""
+        i = self._bbc()
+        i.int_variables['A'] = 5
+        self.assertEqual(int(i._eval_numeric('A%AND1')), 1)
+        self.assertTrue(i._expr_may_need_operator_normalize('A%AND1'))
+        # Spaced AND still needs eval translation (AND → &), so peel is blocked.
+        self.assertTrue(i._expr_may_need_operator_normalize('A% AND 1'))
+
 
 if __name__ == '__main__':
     unittest.main()
