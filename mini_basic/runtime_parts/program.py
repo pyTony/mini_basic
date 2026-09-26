@@ -1560,16 +1560,17 @@ class RuntimeProgramMixin:
                 while j < n and text[j] != '"':
                     j += 1
                 chunk = text[i:j]
+                # BBC keywords are uppercase only (mode7 is a variable), and
+                # @name is a BBCSDL system variable (@vdu%), never a keyword.
                 # Digits/parens only — ORIGIN0, SOUND1 (never "Original")
                 for kw in (
                     'ORIGIN', 'SOUND', 'ENVELOPE', 'CLG', 'CLS', 'RESTORE',
                     'UNTIL', 'COLOUR', 'COLOR',
                 ):
                     chunk = re.sub(
-                        rf'\b{kw}(?=[0-9(])',
+                        rf'(?<!@)\b{kw}(?=[0-9(])',
                         rf'{kw} ',
                         chunk,
-                        flags=re.IGNORECASE,
                     )
                 # May glue onto idents: MODE5, MOVEI%, FORI%=, GCOL0, PLOT69
                 for kw in (
@@ -1577,10 +1578,9 @@ class RuntimeProgramMixin:
                     'FOR', 'NEXT', 'PRINT', 'INPUT',
                 ):
                     chunk = re.sub(
-                        rf'\b{kw}(?=[0-9A-Za-z$%(])',
+                        rf'(?<!@)\b{kw}(?=[0-9A-Za-z$%(])',
                         rf'{kw} ',
                         chunk,
-                        flags=re.IGNORECASE,
                     )
                 # PROC calls: PROCSWOOSH( — protect ENDPROC
                 chunk = re.sub(

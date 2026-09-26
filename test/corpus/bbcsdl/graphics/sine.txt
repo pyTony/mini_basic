@@ -22,4 +22,4 @@
         PRINT MID$(A$,X,1);
       NEXT
       :
-      REPEAT WAIT 1 : UNTIL FALSE
+      REPEAT WAIT 1 : UNTIL.

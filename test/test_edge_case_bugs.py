@@ -644,5 +644,61 @@ class CompiledMathBuiltinTests(unittest.TestCase):
         self.assertIn('illegal function call', (out + err).lower())
 
 
+class BbcSystemVariableTests(unittest.TestCase):
+    """@vdu% is a BBCSDL system variable, not the VDU keyword glued to %."""
+
+    def test_at_vdu_is_not_split_as_keyword(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        self.assertEqual(
+            interp.canonicalize_program_line('@vdu%?74 AND= &7F : MODE 7'),
+            '@vdu%?74 AND= &7F : MODE 7',
+        )
+
+    def test_lowercase_words_are_not_crunched_keywords_in_bbc(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        # print5 / mode7 are variable names in BBC (keywords are uppercase).
+        self.assertEqual(interp.canonicalize_program_line('print5 = 1'), 'print5 = 1')
+        self.assertEqual(interp.canonicalize_program_line('MODE7'), 'MODE 7')
+
+
+class LoadLegacyEncodingTests(unittest.TestCase):
+    """Old BBC / Windows sources are Latin-1 / CP1252, not UTF-8."""
+
+    def _load_bytes(self, data: bytes):
+        import os
+        import tempfile
+
+        fd, path = tempfile.mkstemp(suffix='.bas')
+        os.close(fd)
+        try:
+            with open(path, 'wb') as handle:
+                handle.write(data)
+            interp = BASICInterpreter(
+                InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+            )
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                ok = interp.load(path, announce=False)
+            return ok, interp, out.getvalue() + err.getvalue()
+        finally:
+            os.remove(path)
+
+    def test_latin1_source_loads(self):
+        ok, interp, msgs = self._load_bytes(
+            b'10 REM Copyright \xa9 1981\r\n20 PRINT "caf\xe9"\r\n'
+        )
+        self.assertTrue(ok, msgs)
+        self.assertIn('©', interp.program[10])
+        self.assertIn('café', interp.program[20])
+
+    def test_binary_junk_is_still_rejected(self):
+        ok, interp, msgs = self._load_bytes(b'\x00\x01\xff\xfe\x00junk')
+        self.assertFalse(ok)
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -968,9 +968,9 @@ def _script_file_kind(path: str) -> str:
     # .txt and extensionless: sniff for REPL session vs pure program
     if ext in ('.txt', ''):
         try:
-            with open(path, 'r', encoding='utf-8') as handle:
-                sample = handle.readlines()
-        except OSError:
+            with open(path, 'rb') as handle:
+                sample = BASICInterpreter._decode_program_text(handle.read()).splitlines(True)
+        except (OSError, UnicodeDecodeError):
             return 'program'
         return 'commands' if _looks_like_repl_command_script(sample) else 'program'
     return 'program'
@@ -1062,9 +1062,9 @@ def _run_command_script(interp: BASICInterpreter, path: str) -> int:
         print(f'File not found: {resolved}')
         return 1
     try:
-        with open(resolved, 'r', encoding='utf-8') as handle:
-            lines = handle.readlines()
-    except OSError as exc:
+        with open(resolved, 'rb') as handle:
+            lines = BASICInterpreter._decode_program_text(handle.read()).splitlines(True)
+    except (OSError, UnicodeDecodeError) as exc:
         print(f'Load failed: cannot read command script {resolved} ({type(exc).__name__}: {exc})')
         return 1
 
