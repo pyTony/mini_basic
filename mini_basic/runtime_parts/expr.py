@@ -3063,6 +3063,12 @@ class RuntimeExprMixin:
             raise ValueError('invalid structure DIM syntax')
         sname = self._normalize_identifier(m.group(1))
         body = m.group(2).strip()
+        # DIM name{(n) member1, member2%, ...}: array-of-struct, size inside
+        # the braces (not before them, unlike a plain array's DIM a(n)).
+        size_match = re.match(r'^\(([^)]*)\)\s*(.*)$', body, flags=re.DOTALL)
+        size_expr = size_match.group(1) if size_match else None
+        if size_match:
+            body = size_match.group(2).strip()
         # split members, but for nested {} we keep simple split (sufficient for flat + note subs)
         raw_members = self._split_at_depth(body, ',', skip_empty=True)
         member_kinds: Dict[str, VarKind] = {}
@@ -3109,6 +3115,19 @@ class RuntimeExprMixin:
             dotted_key = f"{sname}.{mkey}"
             if dotted_key not in self.struct_members:
                 self.struct_members[dotted_key] = val
+        if size_expr is not None and size_expr.strip():
+            # DIM name{(n) members}: a struct ARRAY, indices 0..n inclusive
+            # (matches regular BBC array DIM semantics: n+1 elements). Every
+            # slot must exist with its type default, so reading a member of
+            # an index that hasn't been individually written yet (e.g.
+            # circle{(3)}.r% before circle 3 has been placed) returns 0/""
+            # instead of failing to substitute at all.
+            count = int(self._eval_numeric(size_expr.strip()))
+            for idx in range(count + 1):
+                for mkey, val in init_values.items():
+                    dotted_key = f"{sname}{{({idx})}}.{mkey}"
+                    if dotted_key not in self.struct_members:
+                        self.struct_members[dotted_key] = val
 
     def _expand_shift_operators(self, expr: str) -> str:
         if '>>' not in expr and '<<' not in expr:

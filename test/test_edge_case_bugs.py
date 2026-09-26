@@ -1017,9 +1017,12 @@ class EllipseGeometryTests(unittest.TestCase):
 
 
 class SurksMiniSmokeTests(unittest.TestCase):
-    """examples/graphics/surks_mini.bbc: mini_basic-compatible fork of surks.bbc
-    (original uses a struct-array element read, circle{(I%)}.r%, which
-    mini_basic doesn't support yet — see docs/LANGUAGE_FEATURES_1.00.md).
+    """examples/graphics/surks_mini.bbc: parallel-array fork of surks.bbc,
+    kept as a working alternative for the real BBC BASIC restriction the
+    original still hits (no EXIT FOR workaround inside a WHILE-driven
+    collision-check without restructuring it) — the struct-array element
+    access itself (circle{(I%)}.r%) now works in mini_basic directly, see
+    SurksSmokeTests below.
     """
 
     def test_runs_without_runtime_error(self):
@@ -1029,6 +1032,35 @@ class SurksMiniSmokeTests(unittest.TestCase):
             InterpreterConfig(dialect='bbc', display='none', display_locked=True)
         )
         interp.load('examples/graphics/surks_mini.bbc', announce=False)
+
+        errors = []
+
+        def patched(msg, *args, **kwargs):
+            errors.append((msg, kwargs.get('statement')))
+            raise SystemExit(1)
+
+        interp._runtime_error = patched
+
+        thread = threading.Thread(target=interp.run, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+        self.assertEqual(errors, [])
+
+
+class SurksSmokeTests(unittest.TestCase):
+    """examples/graphics/surks.bbc: the original, unmodified BB4W/BBCSDL
+    source (struct-array circle collision check, EXIT FOR). Runs cleanly
+    now that struct-array element read/write and EXIT FOR are supported
+    under --dialect bbc.
+    """
+
+    def test_runs_without_runtime_error(self):
+        import threading
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.load('examples/graphics/surks.bbc', announce=False)
 
         errors = []
 
@@ -1105,6 +1137,33 @@ class StructArrayFieldTests(unittest.TestCase):
             '50 PRINT circle{(I%)}.r%\n',
         )
         self.assertEqual(out.split(), ['7'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_unwritten_index_reads_as_type_default(self):
+        # DIM circle{(4) x%,y%,r%,t%} allocates indices 0..4 inclusive (BBC
+        # array semantics: n+1 elements), so reading a member of an index
+        # that has never been individually written (e.g. circle{(3)}.r%
+        # before circle 3 has been placed) must return the member's type
+        # default (0 for %), not fail to substitute at all. This is what
+        # blocked examples/graphics/surks.bbc's circle collision-check loop
+        # even after write/read indexing by different variables was fixed.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 circle{(0)}.r% = 7\n'
+            '30 I% = 3\n'
+            '40 PRINT circle{(I%)}.r%\n',
+        )
+        self.assertEqual(out.split(), ['0'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_unwritten_index_string_member_reads_empty(self):
+        out, err = _run(
+            '10 DIM circle{(4) x%, label$}\n'
+            '20 circle{(0)}.label$ = "hi"\n'
+            '30 I% = 2\n'
+            '40 PRINT "[" + circle{(I%)}.label$ + "]"\n',
+        )
+        self.assertEqual(out.split(), ['[]'], msg=err)
         self.assertEqual(err, '')
 
 
