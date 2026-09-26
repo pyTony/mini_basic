@@ -1038,6 +1038,7 @@ class RuntimeProgramMixin:
         self._assign_parse_cache = {}
         self._stmt_fast_runners = {}
         self._while_assign_accel = {}
+        self._if_parse_cache = {}
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()

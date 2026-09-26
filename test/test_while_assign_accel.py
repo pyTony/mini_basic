@@ -293,5 +293,108 @@ class WhileAssignAccelTests(unittest.TestCase):
         self.assertLess(dt2, dt0 * 1.15)
 
 
+class WhileGuardAccelTests(unittest.TestCase):
+    """Block IF … ENDIF guards (escape test + PRINT + BREAK) in the fast loop."""
+
+    def _same_as_interpreter(self, lines, dialect='mini'):
+        fast, fast_interp = _run(lines, dialect=dialect, opt=2)
+        slow, _ = _run(lines, dialect=dialect, opt=0)
+        self.assertNotIn('?', fast)
+        self.assertEqual(fast, slow)
+        return fast, fast_interp
+
+    def test_guard_break_matches_interpreter(self):
+        out, interp = self._same_as_interpreter([
+            'FOR X = 1 TO 12',
+            'A = X : I = 0',
+            'WHILE I < 10',
+            'A = A * 1.5',
+            'IF A > 40 THEN',
+            'PRINT I;',
+            'BREAK',
+            'ENDIF',
+            'I = I + 1',
+            'WEND',
+            'IF I >= 10 THEN PRINT "-";',
+            'NEXT X',
+            'PRINT',
+        ])
+        plans = [p for p in interp._while_assign_accel.values() if p]
+        self.assertTrue(plans and plans[0][0] == 'guarded')
+        self.assertEqual(interp.stack, [])
+
+    def test_guard_without_break_resumes_fast_loop(self):
+        out, _ = self._same_as_interpreter([
+            'I = 0 : S = 0',
+            'WHILE I < 20',
+            'I = I + 1',
+            'IF I MOD 5 = 0 THEN',
+            'PRINT I; " ";',
+            'ENDIF',
+            'S = S + I',
+            'WEND',
+            'PRINT S',
+        ])
+        self.assertEqual(out.split(), ['5', '10', '15', '20', '210'])
+
+    def test_impure_guard_stays_on_interpreter(self):
+        _, interp = _run([
+            'I = 0',
+            'WHILE I < 5',
+            'I = I + 1',
+            'IF RND(1) > 2 THEN',
+            'BREAK',
+            'ENDIF',
+            'WEND',
+            'PRINT I',
+        ], dialect='mini')
+        self.assertFalse(any(interp._while_assign_accel.values()))
+
+    def test_guard_with_else_stays_on_interpreter(self):
+        out, interp = self._same_as_interpreter([
+            'I = 0 : N = 0',
+            'WHILE I < 6',
+            'I = I + 1',
+            'IF I > 3 THEN',
+            'N = N + 10',
+            'ELSE',
+            'N = N + 1',
+            'ENDIF',
+            'WEND',
+            'PRINT N',
+        ])
+        self.assertEqual(out.strip(), '33')
+        self.assertFalse(any(interp._while_assign_accel.values()))
+
+    def test_mandel_ansi_shape(self):
+        # examples/graphics/mandelbrot/Mandel_ANSI.BAS inner loop, fewer points.
+        self._same_as_interpreter([
+            'Z$ = ".,\'~=+:;*%&$OXB#@ "',
+            'F = 50',
+            'FOR Y = -12 TO 12 STEP 4',
+            'FOR X = -49 TO 29 STEP 3',
+            'C = X * 229 / 100 : D = Y * 416 / 100',
+            'A = C : B = D : I = 0',
+            'WHILE I < 16',
+            'Q = B / F',
+            'S = B - (Q * F)',
+            'T = ((A * A) - (B * B)) / F + C',
+            'B = 2 * ((A * Q) + (A * S / F)) + D',
+            'A = T',
+            'P = A / F',
+            'Q = B / F',
+            'IF (P * P) + (Q * Q) >= 5 THEN',
+            'PRINT MID$(Z$, I + 1, 1);',
+            'BREAK',
+            'ENDIF',
+            'I = I + 1',
+            'WEND',
+            'IF I >= 16 THEN PRINT " ";',
+            'NEXT X',
+            'PRINT',
+            'NEXT Y',
+        ])
+
+
 if __name__ == '__main__':
     unittest.main()
