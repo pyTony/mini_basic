@@ -139,7 +139,7 @@ class DisplayBackend(ABC):
         ...
 
     @abstractmethod
-    def set_colour(self, colour: int) -> None:
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
         ...
 
     @abstractmethod
@@ -286,7 +286,7 @@ class NullDisplay(DisplayBackend):
     def set_text_dimensions(self, cols: int, rows: int) -> None:
         return
 
-    def set_colour(self, colour: int) -> None:
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
         return
 
     def goto(self, row: int, col: int) -> None:
@@ -507,17 +507,23 @@ class TerminalDisplay(DisplayBackend):
     def set_mode(self, mode: int) -> None:
         return
 
-    def set_colour(self, colour: int) -> None:
-        """BBC COLOUR / VDU 17: 0-127 text fg, 128-255 text bg (code-128)."""
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
+        """BBC COLOUR / VDU 17: 0-127 text fg, 128-255 text bg (code-128).
+
+        ``no_flash`` is set by the interpreter when this logical colour was
+        just redefined with ``COLOR n,r,g,b`` (piechart's ``COLOR
+        15,&87,&CE,&FF`` then ``COLOR 15+128``): that is a custom palette
+        pick, not a request for the classic COLOUR 136..143 flash.
+        """
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
             # COLOUR 136..143 = flashing background 0..7 (128+8 .. 128+15).
-            if 8 <= logical <= 15:
+            if 8 <= logical <= 15 and not no_flash:
                 self._bg_colour = logical - 8
                 self._text_flash = True
             else:
-                # Keep full 0..127 (piechart COLOR 15+128 → sky palette index 15).
+                # Keep full 0..127 (piechart COLOR 15+128 -> sky palette index 15).
                 self._bg_colour = logical & 255
         elif code >= 8:
             self._fg_colour = (code - 8) & 7
@@ -1227,7 +1233,7 @@ class PygameDisplay(DisplayBackend):
             self._open_window(center=False)
         self._dirty = True
 
-    def set_colour(self, colour: int) -> None:
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
         """BBC COLOUR / VDU 17 text colour.
 
         * ``0..7`` — foreground (and clear flash)
@@ -1235,13 +1241,16 @@ class PygameDisplay(DisplayBackend):
         * ``128..255`` — background colour ``n-128`` (full index; MODE 8 palette)
         * ``136..143`` — flashing background 0..7 (``128+8`` .. ``128+15``)
 
-        ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray.
+        ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray:
+        the interpreter passes ``no_flash=True`` when this logical colour was
+        just redefined with ``COLOR n,r,g,b``, so a custom palette pick never
+        flashes even if it lands in the classic 136..143 range.
         Hanoi MODE 3 still maps via ``map_mode_text_colour`` when blitting.
         """
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
-            if 8 <= logical <= 15:
+            if 8 <= logical <= 15 and not no_flash:
                 self._bg_colour = logical - 8
                 self._text_flash = True
             else:
