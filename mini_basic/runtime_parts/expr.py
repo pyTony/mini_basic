@@ -118,6 +118,12 @@ _RE_BARE_STRING_FUNCS = tuple(
 )
 
 
+# Operator words that may precede ``(`` without being an array: A AND (B).
+_OPERATOR_WORDS = frozenset(
+    ('AND', 'OR', 'EOR', 'XOR', 'NOT', 'MOD', 'DIV', 'EQV', 'IMP')
+)
+
+
 class RuntimeExprMixin:
     """Mixin providing expr-related BASICInterpreter methods."""
 
@@ -374,10 +380,12 @@ class RuntimeExprMixin:
                 return None
             key = self._resolve_array_key(name, kind)
             if key not in self.array_storage:
+                word = name if self._identifiers_case_sensitive() else name.upper()
                 if not suffix and (
-                    name if self._identifiers_case_sensitive() else name.upper()
-                ) in self._PURE_MATH_NAMES:
-                    out.append(expr[pos:open_idx + 1])  # SIN( … compiled later
+                    word in self._PURE_MATH_NAMES or word in _OPERATOR_WORDS
+                ):
+                    # SIN( … compiled later; AND ( / OR ( are operators.
+                    out.append(expr[pos:open_idx + 1])
                     pos = open_idx + 1
                     continue
                 return None  # FN / builtin / not yet DIMmed: keep the slow path
