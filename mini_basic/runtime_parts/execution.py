@@ -2025,6 +2025,28 @@ class RuntimeExecutionMixin:
                     return line_num, rest.strip()
         return -1, ''
 
+    def _split_rectangle_to(self, text: str) -> Tuple[str, Optional[str]]:
+        """Split ``x,y,w,h TO dx,dy`` at a top-level TO (outside strings/brackets)."""
+        depth = 0
+        in_string = False
+        for index, ch in enumerate(text):
+            if ch == '"':
+                in_string = not in_string
+            elif in_string:
+                continue
+            elif ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif (
+                depth == 0
+                and text[index:index + 2].upper() == 'TO'
+                and (index == 0 or not (text[index - 1].isalnum() or text[index - 1] == '_'))
+                and (index + 2 >= len(text) or not (text[index + 2].isalnum() or text[index + 2] == '_'))
+            ):
+                return text[:index].strip(), text[index + 2:].strip()
+        return text.strip(), None
+
     def _find_loop_frame_index(self, label: str) -> Optional[int]:
         key = self._normalize_identifier(label)
         for index in range(len(self.stack) - 1, -1, -1):
@@ -4789,19 +4811,42 @@ class RuntimeExecutionMixin:
             if not self._graphics_plot_enabled():
                 return None
             try:
-                fill_match = re.match(r'^FILL\s+(.+)$', rest.strip(), re.IGNORECASE)
-                if not fill_match:
-                    raise ValueError('RECTANGLE FILL required')
-                args = self._split_args(fill_match.group(1))
-                if len(args) < 4:
-                    raise ValueError('RECTANGLE FILL needs x,y,w,h')
+                # RECTANGLE [FILL|SWAP] x,y,w[,h] [TO dx,dy]
+                #   no TO: outline (plain) or filled (FILL)
+                #   TO:    copy (plain), move (FILL) or swap (SWAP)
+                mode_match = re.match(r'^(FILL|SWAP)\b\s*(.*)$', rest.strip(), re.IGNORECASE)
+                kind = mode_match.group(1).upper() if mode_match else ''
+                body = mode_match.group(2) if mode_match else rest.strip()
+                src_text, dest_text = self._split_rectangle_to(body)
+                args = self._split_args(src_text)
+                if len(args) not in (3, 4):
+                    raise ValueError('RECTANGLE needs x,y,w[,h]')
                 x = int(self._eval_numeric(args[0]))
                 y = int(self._eval_numeric(args[1]))
                 width = int(self._eval_numeric(args[2]))
-                height = int(self._eval_numeric(args[3]))
+                height = int(self._eval_numeric(args[3])) if len(args) == 4 else width
+                dest = None
+                if dest_text is not None:
+                    dest_args = self._split_args(dest_text)
+                    if len(dest_args) != 2:
+                        raise ValueError('RECTANGLE … TO needs x,y')
+                    dest = (
+                        int(self._eval_numeric(dest_args[0])),
+                        int(self._eval_numeric(dest_args[1])),
+                    )
+                elif kind == 'SWAP':
+                    raise ValueError('RECTANGLE SWAP needs TO x,y')
                 self._ensure_display()
                 if self._display_enabled():
-                    self._display.fill_rectangle(x, y, width, height)
+                    if dest is not None:
+                        mode = {'FILL': 'move', 'SWAP': 'swap'}.get(kind, 'copy')
+                        self._display.transfer_rectangle(
+                            x, y, width, height, dest[0], dest[1], mode,
+                        )
+                    elif kind == 'FILL':
+                        self._display.fill_rectangle(x, y, width, height)
+                    else:
+                        self._display.draw_rectangle(x, y, width, height)
                     self._sync_graphics()
             except Exception as exc:
                 self._runtime_error(

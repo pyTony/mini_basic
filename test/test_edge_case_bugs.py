@@ -901,3 +901,41 @@ class ByteVariableTests(unittest.TestCase):
         )
         self.assertEqual(out.split(), ['130', '240', '44', '255', '7', '3', '1.5', '6', '22'], msg=err)
         self.assertEqual(err, '')
+
+
+class RectangleStatementTests(unittest.TestCase):
+    """RECTANGLE [FILL|SWAP] x,y,w[,h] [TO x,y] dispatch (disco.bbc)."""
+
+    def test_rectangle_forms_reach_display(self):
+        from unittest.mock import MagicMock, patch
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        display = MagicMock()
+        display.mouse_state.return_value = (0, 0, 0)
+        interp._display = display
+        for n, text in [
+            (10, 'B%=64'),
+            (20, 'RECTANGLE 2*(1+(B%-4)/2), 2, 8, 8'),
+            (30, 'RECTANGLE FILL 1, 2, 3'),
+            (40, 'RECTANGLE SWAP 2*1, 2*2, 2*B%-1, 2*B%-1 TO 2*3, 2*4'),
+            (50, 'RECTANGLE 1, 2, 3, 4 TO 5, 6'),
+            (60, 'RECTANGLE FILL 1, 2, 3, 4 TO 5, 6'),
+        ]:
+            interp.set_program_line(n, text)
+        errs = []
+        with patch.object(interp, '_graphics_plot_enabled', return_value=True), \
+                patch.object(interp, '_display_enabled', return_value=True), \
+                patch.object(interp, '_ensure_display'), \
+                patch.object(interp, '_sync_graphics'), \
+                patch.object(interp, '_runtime_error', side_effect=lambda m, *a, **k: errs.append(m)):
+            interp.run()
+        self.assertEqual(errs, [])
+        display.draw_rectangle.assert_called_once_with(62, 2, 8, 8)
+        display.fill_rectangle.assert_called_once_with(1, 2, 3, 3)
+        self.assertEqual(display.transfer_rectangle.call_args_list, [
+            ((2, 4, 127, 127, 6, 8, 'swap'),),
+            ((1, 2, 3, 4, 5, 6, 'copy'),),
+            ((1, 2, 3, 4, 5, 6, 'move'),),
+        ])
