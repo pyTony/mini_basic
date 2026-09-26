@@ -687,6 +687,10 @@ class RuntimeCoreMixin:
         return bool(self.config.bigint_enabled)
 
     def _register_numeric_var(self, base: str, kind: VarKind) -> None:
+        # BBCSDL byte vars (key 'a&') are read by _substitute_variables,
+        # which masks them to 0..255.
+        if base.endswith('&'):
+            return
         # BBCSDL 64-bit ints use storage keys like 'a%%' (suffix included).
         is_i64 = base.endswith('%%')
         name_root = base[:-2] if is_i64 else base
@@ -694,9 +698,9 @@ class RuntimeCoreMixin:
         if sig_len > 0:
             # for limited sig, the pattern should match any longer name that
             # normalizes to this base (e.g. ABCD normalizes to AB)
-            match_pat = r'\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#])'
+            match_pat = r'\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
         else:
-            match_pat = r'\b' + re.escape(name_root) + r'\b(?![%$!#])'
+            match_pat = r'\b' + re.escape(name_root) + r'\b(?![%$!#&])'
         if kind == 'int':
             existing_patterns = {
                 pattern.pattern

@@ -1987,8 +1987,9 @@ class RuntimeProgramMixin:
         if token.endswith('%'):
             return self._validate_var_base(token[:-1]), 'int'
         # BBCSDL byte scalar/array type suffix
+        # Storage key keeps the suffix so a& and a% do not collide.
         if token.endswith('&'):
-            return self._validate_var_base(token[:-1]), 'int'
+            return self._validate_var_base(token[:-1]) + '&', 'int'
         if token.endswith('!') or token.endswith('#'):
             return self._validate_var_base(token[:-1]), 'float'
         base = self._validate_var_base(token)

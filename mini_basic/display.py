@@ -179,6 +179,15 @@ class DisplayBackend(ABC):
     def fill_rectangle(self, x: int, y: int, width: int, height: int) -> None:
         return
 
+    def draw_rectangle(self, x: int, y: int, width: int, height: int) -> None:
+        return
+
+    def transfer_rectangle(
+        self, x: int, y: int, width: int, height: int,
+        dest_x: int, dest_y: int, mode: str = 'copy',
+    ) -> None:
+        return
+
     def clear_graphics(self) -> None:
         return
 
@@ -1565,6 +1574,21 @@ class PygameDisplay(DisplayBackend):
         if not self._plot_enabled or self._gfx is None:
             return
         self._gfx.fill_rectangle(x, y, width, height)
+        self._dirty = True
+
+    def draw_rectangle(self, x: int, y: int, width: int, height: int) -> None:
+        if not self._plot_enabled or self._gfx is None:
+            return
+        self._gfx.draw_rectangle(x, y, width, height)
+        self._dirty = True
+
+    def transfer_rectangle(
+        self, x: int, y: int, width: int, height: int,
+        dest_x: int, dest_y: int, mode: str = 'copy',
+    ) -> None:
+        if not self._plot_enabled or self._gfx is None:
+            return
+        self._gfx.transfer_rectangle(x, y, width, height, dest_x, dest_y, mode)
         self._dirty = True
 
     def set_graphics_size(
