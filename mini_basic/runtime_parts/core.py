@@ -1652,7 +1652,10 @@ class RuntimeCoreMixin:
             return False
         if self._identifiers_case_sensitive() and token != token.upper():
             return False
-        return token.upper() in self._STMT_KEYWORDS
+        upper = token.upper()
+        # Keyword-prefixed forms (CLOSE, CONT, REPORT, …) are dispatched before
+        # _parse_command; without this, ``CLOSE :`` was read as a label.
+        return upper in self._STMT_KEYWORDS or upper in self._KEYWORD_PREFIXED_HEADS
 
     def set_case_sensitivity(
         self,

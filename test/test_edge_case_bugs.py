@@ -768,6 +768,41 @@ class BbcNumericPrintFieldTests(unittest.TestCase):
         self.assertEqual(out.splitlines(), ['3', '0.333333333333333'], msg=err)
 
 
+class KeywordIsNotLabelTests(unittest.TestCase):
+    """CLOSE : / CONT : / REPORT : are statements, not labels named CLOSE."""
+
+    def test_bare_keyword_before_colon_is_a_statement(self):
+        for dialect in ('mini', 'mits'):
+            out, err = _run('10 CLOSE : PRINT "C"\n20 PRINT "D"\n', dialect)
+            self.assertEqual(out.split(), ['C', 'D'], msg=(dialect, out, err))
+
+    def test_real_label_still_works(self):
+        out, err = _run('10 GOTO there\n20 PRINT "NO"\n30 there: PRINT "YES"\n')
+        self.assertEqual(out.split(), ['YES'], msg=err)
+
+
+class InputHashArrayTests(unittest.TestCase):
+    def test_bad_number_into_array_element_stores_zero(self):
+        import os
+        import tempfile
+
+        old = os.getcwd()
+        os.chdir(tempfile.mkdtemp())
+        try:
+            out, err = _run(
+                '10 DIM A(3), B%(3)\n'
+                '20 F% = OPENOUT("t.dat") : PRINT# F%, "abc", "xyz" : CLOSE# F%\n'
+                '30 A(1) = 5 : B%(2) = 7\n'
+                '40 F% = OPENIN("t.dat") : INPUT# F%, A(1), B%(2) : CLOSE# F%\n'
+                '50 PRINT A(1)\n60 PRINT B%(2)\n',
+                'bbc',
+            )
+        finally:
+            os.chdir(old)
+        self.assertNotIn('indices', out + err)
+        self.assertEqual([line.strip() for line in out.splitlines()], ['0', '0'], msg=err)
+
+
 class LoadLegacyEncodingTests(unittest.TestCase):
     """Old BBC / Windows sources are Latin-1 / CP1252, not UTF-8."""
 

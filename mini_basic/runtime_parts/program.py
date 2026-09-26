@@ -30,6 +30,7 @@ from ..expr.compile import CompiledExpr, int_slot
 from ..expr.safe_eval import compile_safe, safe_eval
 from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
+    ident_prefix_len,
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
     RE_COND_NE as _RE_COND_NE,
@@ -1769,10 +1770,11 @@ class RuntimeProgramMixin:
         if not name:
             return name
         # Parse base name + optional type suffix ($ % ! #)
-        m = re.match(rf'^({self._VAR_BASE_PATTERN})([%$!#]?)', name)
-        if not m:
+        end = ident_prefix_len(name)
+        if not end:
             return name
-        base, suffix = m.groups()
+        base = name[:end]
+        suffix = name[end] if end < len(name) and name[end] in '%$!#' else ''
         sig_len = self._var_significant_length()
         if self._identifiers_case_sensitive():
             norm_base = base
@@ -1896,21 +1898,22 @@ class RuntimeProgramMixin:
         return base, self._array_kind_from_suffix(match.group(2))
 
     def _parse_array_lvalue(self, token: str) -> Optional[Tuple[str, VarKind, str]]:
+        # NAME[suffix] ( indices )  — whole token, no re.
         token = token.strip()
-        match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)\s*\((.*)\)\s*$',
-            token,
-        )
-        if not match:
+        end = ident_prefix_len(token)
+        if not end or not token.endswith(')'):
             return None
-        base = self._validate_var_base(match.group(1))
-        suffix = match.group(2)
+        suffix = token[end] if end < len(token) and token[end] in '%$!#&' else ''
+        after = token[end + len(suffix):].lstrip()
+        if not after.startswith('('):
+            return None
+        base = self._validate_var_base(token[:end])
         kind: VarKind = 'float'
         if suffix == '$':
             kind = 'str'
         elif suffix in ('%', '&'):
             kind = 'int'
-        return base, kind, match.group(3).strip()
+        return base, kind, after[1:-1].strip()
 
     def _parse_data_item(self, token: str) -> DataItem:
         # BBC DATA keeps trailing spaces in unquoted strings (e.g. article "a ").

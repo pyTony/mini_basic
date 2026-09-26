@@ -30,6 +30,7 @@ from ..expr.compile import CompiledExpr, int_slot
 from ..expr.safe_eval import compile_safe, safe_eval
 from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
+    is_var_base,
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
     RE_COND_NE as _RE_COND_NE,
@@ -107,6 +108,15 @@ from .helpers import (
     _parse_path_arg,
     _apply_pygame_display_defaults,
 )
+
+_RE_STR_TILDE_BARE = re.compile(r'STR\$\s*~\s*(?!\()', re.IGNORECASE)
+_RE_STR_TILDE_CALL = re.compile(r'STR\$\s*~\s*\(', re.IGNORECASE)
+# Bare-argument string calls: CHR$65 / CHR$ N → CHR$(65) (built once, not per call).
+_RE_BARE_STRING_FUNCS = tuple(
+    (name, re.compile(rf'(?<![A-Za-z0-9_]){re.escape(name)}\s*(?!\()', re.IGNORECASE))
+    for name in ('CHR$', 'STR$', 'HEX$', 'OCT$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$')
+)
+
 
 class RuntimeExprMixin:
     """Mixin providing expr-related BASICInterpreter methods."""
@@ -720,8 +730,9 @@ class RuntimeExprMixin:
         # that have type suffixes like result% , and binary literals %1010.
         # e.g. STR$~X , STR$~ result% , STR$~ %10101010 , PRINT STR$~N
         # Turn into STR$~(arg) so the parenthesized handler below can expand it.
-        str_tilde_bare = re.compile(r'STR\$\s*~\s*(?!\()', re.IGNORECASE)
-        while str_tilde_bare.search(expr):
+        has_tilde = '~' in expr  # both STR$~ passes need it; skip them otherwise
+        str_tilde_bare = _RE_STR_TILDE_BARE
+        while has_tilde and str_tilde_bare.search(expr):
             m = str_tilde_bare.search(expr)
             if not m:
                 break
@@ -770,8 +781,8 @@ class RuntimeExprMixin:
 
         # Special case for BBC STR$~ (hex) before general func matching
         # so it works even if the main RE_FUNC_CALL regex isn't updated.
-        str_tilde_pat = re.compile(r'STR\$\s*~\s*\(', re.IGNORECASE)
-        while str_tilde_pat.search(expr):
+        str_tilde_pat = _RE_STR_TILDE_CALL
+        while has_tilde and str_tilde_pat.search(expr):
             m = str_tilde_pat.search(expr)
             if not m:
                 break
@@ -792,11 +803,9 @@ class RuntimeExprMixin:
         # Convert to CHR$(65) form so the parenthesized call logic below can
         # expand it. Only do this when the "arg" does not look like the start of
         # another call (to avoid breaking CHR$ASC( without outer parens).
-        for f in ('CHR$', 'STR$', 'HEX$', 'OCT$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$'):
-            pat = re.compile(
-                rf'(?<![A-Za-z0-9_]){re.escape(f)}\s*(?!\()',
-                re.IGNORECASE,
-            )
+        for f, pat in _RE_BARE_STRING_FUNCS:
+            if '$' not in expr or f not in expr.upper():
+                continue  # the usual case: no such call to rewrite
             while pat.search(expr):
                 m = pat.search(expr)
                 if not m:
@@ -1001,7 +1010,7 @@ class RuntimeExprMixin:
     def _validate_var_base(self, name: str) -> str:
         # Leading _ allowed for BBCSDL user names (_BOX, _LINE, …). Known
         # mini_basic system vars remain reserved via _canonical_system_var_name.
-        if not name or not re.fullmatch(self._VAR_BASE_PATTERN, name):
+        if not name or not is_var_base(name):
             raise ValueError('invalid variable name')
         if len(name) > self._VAR_MAX_LEN:
             raise ValueError('variable name too long')
@@ -3449,6 +3458,8 @@ class RuntimeExprMixin:
 
     def _unglue_asc_string_literal(self, expr: str) -> str:
         """ASC\"B\" → ASC(\"B\") (welcome PRINT CHR$(ASC\"B\"-(I%=M2)))."""
+        if '"' not in expr or 'ASC' not in expr.upper():
+            return expr  # already done at entry (canonicalize); EVAL text may still need it
         return re.sub(
             r'(?<![A-Za-z0-9_])ASC\s*("(?:[^"]|"")*")',
             r'ASC(\1)',
@@ -3692,6 +3703,7 @@ class RuntimeExprMixin:
             try:
                 self._assign_input_value(var_token, raw)
             except ValueError:
+                indices = self._eval_array_indices(indices_expr)
                 if kind == 'int':
                     self._array_set(
                         base, kind, indices, self._coerce_int_storage(0),
