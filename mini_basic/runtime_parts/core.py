@@ -1293,7 +1293,7 @@ class RuntimeCoreMixin:
         expr = expr.strip()
         if self._looks_like_full_string_expr(expr):
             return self._eval_string_expr(expr)
-        expr = self._expand_dynamic_calls(expr)
+        expr = self._expand_dynamic_calls(expr).strip()
         upper = expr.upper()
         if upper == 'REPORT$':
             return self.error_message

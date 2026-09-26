@@ -503,6 +503,66 @@ class RuntimeProgramMixin:
     })
     _RE_MINI_FOLD_WORD = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\$?')
 
+    def _fold_case_insensitive_line(self, statement: str) -> str:
+        """Uppercase a line outside strings, comments and DATA (MS BASIC entry).
+
+        For dialects whose names are case-insensitive (mits / commodore / tiny),
+        so ``print a`` and ``PRINT A`` are the same program. ``REM`` / ``'``
+        tails and ``DATA`` payloads (up to ``:``) keep their case.
+        """
+        if not any(ch.islower() for ch in statement):
+            return statement
+        out: List[str] = []
+        index = 0
+        length = len(statement)
+        stmt_start = True
+        prev_word = ''
+        while index < length:
+            ch = statement[index]
+            if ch == '"':
+                end = statement.find('"', index + 1)
+                end = length if end < 0 else end + 1
+                out.append(statement[index:end])
+                index = end
+                stmt_start = False
+                continue
+            if ch == "'":
+                out.append(statement[index:])
+                break
+            if ch == ':':
+                out.append(ch)
+                index += 1
+                stmt_start = True
+                continue
+            if not (ch.isalpha() or ch == '_'):
+                out.append(ch)
+                index += 1
+                if not ch.isspace():
+                    stmt_start = False
+                continue
+            end = index
+            while end < length and (statement[end].isalnum() or statement[end] == '_'):
+                end += 1
+            upper = statement[index:end].upper()
+            if upper.startswith('REM') and (stmt_start or prev_word in ('THEN', 'ELSE')):
+                out.append('REM' + statement[index + 3:])
+                break
+            out.append(upper)
+            index = end
+            if stmt_start and upper == 'DATA':
+                # Payload up to the next : outside quotes stays as typed.
+                scan = index
+                in_string = False
+                while scan < length and (in_string or statement[scan] != ':'):
+                    if statement[scan] == '"':
+                        in_string = not in_string
+                    scan += 1
+                out.append(statement[index:scan])
+                index = scan
+            stmt_start = False
+            prev_word = upper
+        return ''.join(out)
+
     def _fold_mini_keywords(self, statement: str) -> str:
         """Uppercase lowercase/mixed-case keywords in a mini program line.
 
@@ -603,6 +663,11 @@ class RuntimeProgramMixin:
         if self.config.dialect == 'mini':
             # mini is not strict about keyword case (bbc stays uppercase-only).
             statement = self._fold_mini_keywords(statement)
+        elif self.config.dialect != 'bbc' and not self._identifiers_case_sensitive():
+            # mits / commodore / tiny: case-insensitive names, so fold the line.
+            statement = self._fold_case_insensitive_line(statement)
+        # Rewrites below apply to code only: REM / ' comment text is kept verbatim.
+        statement, comment = self._split_comment_tail(statement)
         # Type suffixes glued (A $ → A$); leave % (modulo / integer suffix).
         statement = re.sub(r'(\w)\s+([!$#]+)', r'\1\2', statement)
         statement = re.sub(r'([!$#]+)\s+(\w)', r'\1\2', statement)
@@ -651,7 +716,60 @@ class RuntimeProgramMixin:
             statement = self._map_outside_strings(
                 statement, self._unglue_asc_string_literal,
             )
-        return statement
+        return statement + comment
+
+    def _split_comment_tail(self, statement: str) -> Tuple[str, str]:
+        """Split ``code`` from a trailing ``REM …`` / ``' …`` comment (with its spaces).
+
+        REM counts at a statement start (line start, after ``:``, ``THEN`` or
+        ``ELSE``); uppercase only in bbc. ``'`` uses the runtime's tail-comment
+        rule (never in bbc). Returns ``(statement, '')`` when there is none.
+        """
+        fold = self.config.dialect != 'bbc' and not self._identifiers_case_sensitive()
+        index = 0
+        length = len(statement)
+        stmt_start = True
+        cut = -1
+        while index < length:
+            ch = statement[index]
+            if ch == '"':
+                end = statement.find('"', index + 1)
+                index = length if end < 0 else end + 1
+                stmt_start = False
+                continue
+            if ch == ':':
+                stmt_start = True
+                index += 1
+                continue
+            if ch.isspace():
+                index += 1
+                continue
+            if not (ch.isalpha() or ch == '_'):
+                stmt_start = False
+                index += 1
+                continue
+            end = index
+            while end < length and (statement[end].isalnum() or statement[end] == '_'):
+                end += 1
+            word = statement[index:end]
+            if fold:
+                word = word.upper()
+            if stmt_start and word.startswith('REM'):
+                cut = index
+                break
+            stmt_start = word in ('THEN', 'ELSE')
+            index = end
+        if cut < 0 and "'" in statement and self.config.dialect != 'bbc':
+            if statement.lstrip().startswith("'"):
+                cut = 0
+            else:
+                code, found = self._split_tail_apostrophe_comment(statement)
+                if found:
+                    cut = len(code)
+        if cut < 0:
+            return statement, ''
+        code = statement[:cut].rstrip()
+        return code, statement[len(code):]
 
     def _line_skips_expr_canonicalize(self, statement: str) -> bool:
         """True for full-line comments / DATA where monadic unglue must not run."""

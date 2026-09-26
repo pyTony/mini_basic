@@ -114,6 +114,20 @@ class StringPlanResultsTests(unittest.TestCase):
             )
             self.assertEqual(out.strip(), 'clt', msg=(dialect, err))
 
+    def test_doubled_quote_is_one_quote_and_spaced_literals_join(self):
+        # Checked on Archimedes BASIC V: PRINT "A""B" → A"B, PRINT "A" "B" → AB.
+        for dialect in DIALECTS:
+            out, err = _run(
+                '10 PRINT "A""B"\n'
+                '20 PRINT "A" "B"\n'
+                '30 A$="x"+"A""B"+"y" : PRINT A$ : PRINT LEN(A$)\n'
+                '40 X$=EVAL("""A""""B""") : PRINT X$\n',
+                dialect,
+            )
+            self.assertEqual(
+                out.splitlines(), ['A"B', 'AB', 'xA"By', '5', 'A"B'], msg=(dialect, err),
+            )
+
     def test_mits_two_char_names_share_storage(self):
         out, err = _run('10 ABC$="x"\n20 Y$=ABD$+"!"\n30 PRINT Y$\n', 'mits')
         self.assertEqual(out.strip(), 'x!', msg=err)

@@ -10,7 +10,7 @@ file paths are under `mini_basic/runtime_parts/` unless stated.
 | Step | Where | What |
 |------|-------|------|
 | LOAD / typed line / EDIT | `program.py` `set_program_line` | Stores the line after `canonicalize_program_line` |
-| Canonicalize | `program.py` `canonicalize_program_line` | Sanitize control chars; glue type suffixes (`A $`→`A$`); **mini**: uppercase lowercase keywords (`_fold_mini_keywords`); **bbc**: crunched keywords (`PRINTTAB`, `MODE5`, `DEFPROC…`, uppercase only, never after `@`); **mits/commodore/tiny**: `PRINTA`→`PRINT A`, `IFA=0THEN50` (`_space_crunched_ms_statements`); `1TO10` spacing; `?`→`PRINT`; monadic unglue (`TAN10`, `INKEY1`, `ASC"x"`) |
+| Canonicalize | `program.py` `canonicalize_program_line` | Sanitize control chars; glue type suffixes (`A $`→`A$`); **mini**: uppercase lowercase keywords (`_fold_mini_keywords`); **bbc**: crunched keywords (`PRINTTAB`, `MODE5`, `DEFPROC…`, uppercase only, never after `@`); **mits/commodore/tiny** (case-insensitive names): the whole line is uppercased outside strings, `REM`/`'` comments and `DATA` payloads (`_fold_case_insensitive_line`, as MS BASIC did), then `PRINTA`→`PRINT A`, `IFA=0THEN50` (`_space_crunched_ms_statements`); `1TO10` spacing; `?`→`PRINT`; monadic unglue (`TAN10`, `INKEY1`, `ASC"x"`). All rewrites after the case fold skip a trailing comment (`_split_comment_tail`), so `REM Note` is not stored as `REM NOT e` |
 | Text encoding | `io.py` `_decode_program_text` | UTF-8, else CP1252 / Latin-1 (old sources) |
 | Tokenized `.bbc` | `bbc_detokenize.py` | Detokenized to text, then the same path |
 

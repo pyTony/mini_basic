@@ -1386,6 +1386,8 @@ class RuntimeIoMixin:
         trailing_sep: str,
         print_column: int,
     ) -> Tuple[str, bool, int]:
+        # Statement parse already escaped "" (A""B); direct callers may not have.
+        content = self._escape_doubled_quotes(content)
         saved_column = self.print_column
         self.print_column = print_column
         try:

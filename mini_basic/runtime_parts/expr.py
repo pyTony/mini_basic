@@ -1385,13 +1385,18 @@ class RuntimeExprMixin:
             if arg is None:
                 raise ValueError('EVAL requires an argument')
             s = self._eval_string_arg(arg)
+            # EVAL text never passed statement parse: "" is one quote (BASIC V).
+            s = self._escape_doubled_quotes(s)
             # Substitute hex/binary literals etc inside the EVAL'd string
             s = self._substitute_bbc_hex_literals(s)
             s = self._substitute_bbc_numeric_constants(s)
             s = self._substitute_bbc_memory_vars(s)
             if re.search(r'(?<![A-Za-z0-9_])@%\b', s):
                 s = re.sub(r'(?<![A-Za-z0-9_])@%\b', str(self.bbc_at_percent), s)
-            # EVAL can return number or string
+            # EVAL can return number or string; its first operand decides
+            # (a string literal would otherwise evaluate to 0 as a number).
+            if self._expr_static_kind(s) == 'str':
+                return self._eval_string_expr(s)
             try:
                 return self._eval_numeric(s)
             except Exception:
@@ -2078,6 +2083,9 @@ class RuntimeExprMixin:
             return '-1' if value else '0'
         if isinstance(value, int):
             return str(value)
+        if isinstance(value, str):
+            # EVAL("...") of a string; spaced so it never glues to a "" pair.
+            return ' ' + json.dumps(value) + ' '
         if isinstance(value, float):
             if not math.isfinite(value):
                 # Python eval: float('inf') etc. not available in safe eval; use large.

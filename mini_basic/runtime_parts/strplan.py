@@ -247,10 +247,9 @@ class RuntimeStrPlanMixin:
         if not term:
             return None
         if term[0] == '"':
-            if _string_end(term, 0) != len(term) or '""' in term[1:-1]:
-                # "a""b" is an escaped quote in a + chain but juxtaposition on
-                # its own (test_bbc_chained_strings): keep the text path.
-                return None
+            if _string_end(term, 0) != len(term):
+                return None  # juxtaposed "a" "b" chains keep the text path
+            # "A""B" is one literal with a quote in it (BASIC V).
             value = self._decode_string_literal(term)
             return lambda: value
         if term[0] == '(':
