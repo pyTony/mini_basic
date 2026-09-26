@@ -20,7 +20,7 @@ _RULES = (
                 r"'\w+' object is not (?:callable|subscriptable)"),
      'type mismatch'),
     (re.compile(r'was never closed|unmatched|unexpected EOF|'
-                r'is not a container or iterable|unterminated string'),
+                r'is not (?:a container or )?iterable|unterminated string'),
      'syntax error'),
     (re.compile(r'(?:float |integer )?(?:division|modulo)(?: or modulo)? by zero'),
      'division by zero'),
