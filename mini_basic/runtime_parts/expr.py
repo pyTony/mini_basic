@@ -28,6 +28,7 @@ from ..constants import (
 )
 from ..expr.compile import CompiledExpr, int_slot
 from ..expr.safe_eval import compile_safe, safe_eval
+from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
@@ -515,7 +516,7 @@ class RuntimeExprMixin:
             if msg.startswith('invalid syntax'):
                 if re.search(r'[+\-*/^%]$', text):
                     return f'incomplete expression `{text}`'
-                return msg
+                return basic_error_wording(msg)
             # Improve informativeness: turn Python NameError for unknown names/funcs into consistent message
             if msg.startswith("name '") and " is not defined" in msg:
                 import re as _re
@@ -526,7 +527,7 @@ class RuntimeExprMixin:
                         return f'no function {name}'
                     return f'name {name} is not defined'
             if msg:
-                return msg
+                return basic_error_wording(msg)
         fn_match = self._RE_FN_CALL.search(text)
         if fn_match:
             suffix = fn_match.group(2) or ''

@@ -4635,7 +4635,7 @@ class RuntimeExecutionMixin:
                     raise
                 except ValueError as exc:
                     self._runtime_error(
-                        f'? Syntax error: {exc}',
+                        f'? Syntax error: {self._format_exc_detail(exc)}',
                         line_num,
                         stmt_index,
                         stmt_count=stmt_count,

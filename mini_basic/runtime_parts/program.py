@@ -28,6 +28,7 @@ from ..constants import (
 )
 from ..expr.compile import CompiledExpr, int_slot
 from ..expr.safe_eval import compile_safe, safe_eval
+from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
@@ -367,6 +368,7 @@ class RuntimeProgramMixin:
         # pygame window that wraps through the title (sine.bbc) and looks
         # like the file name was split. Not a BASIC name.
         detail = re.sub(r'\s*\(<string>, line \d+\)', '', detail).strip()
+        detail = basic_error_wording(detail)
         return detail if detail else type(exc).__name__
 
     def _error_message(self, prefix: str, exc: Optional[BaseException] = None) -> str:

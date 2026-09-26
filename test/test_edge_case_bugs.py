@@ -535,5 +535,35 @@ class InputReplyTests(unittest.TestCase):
             self.assertNotIn('Enter a number', out + err, msg=dialect)
 
 
+class BasicErrorWordingTests(unittest.TestCase):
+    """Errors should read as BASIC, not as leaked Python exception text."""
+
+    LEAKS = (
+        'float()', 'complex', 'could not convert', 'object is not',
+        'never closed', 'container or iterable', 'nonnegative',
+        'expected a positive', 'real number', 'unsupported operand',
+    )
+
+    def _assert_basic_error(self, line: str, expected: str) -> None:
+        out, err = _run(f'10 {line}\n')
+        text = (out + err).lower()
+        self.assertIn('?', text, msg=line)
+        for leak in self.LEAKS:
+            self.assertNotIn(leak, text, msg=(line, text))
+        self.assertIn(expected, text, msg=(line, text))
+
+    def test_python_wording_is_translated(self):
+        cases = (
+            ('PRINT (-8)^(1/3)', 'illegal function call'),
+            ('PRINT SQR(-1)', 'illegal function call'),
+            ('PRINT LOG(0)', 'illegal function call'),
+            ('A = "X"', 'type mismatch'),
+            ('PRINT (1 + 2', 'syntax'),
+            ('PRINT 1 in 1', 'syntax'),
+        )
+        for line, expected in cases:
+            self._assert_basic_error(line, expected)
+
+
 if __name__ == '__main__':
     unittest.main()
