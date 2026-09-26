@@ -3057,52 +3057,28 @@ class RuntimeExecutionMixin:
             self._emit_error(f'? Out of scope: FN/CALL {name} (stub, returns 0)')
         return 0
 
-    def _execute_statement(
+    # First words whose statement forms are matched by the anchored regexes in
+    # _execute_keyword_prefixed. Other statements skip that ladder entirely
+    # (about 25 regex matches, ~10 us per statement).
+    _KEYWORD_PREFIXED_HEADS = frozenset({
+        'ON', 'OPTION', 'RANDOMIZE', 'CONT', 'REPORT', 'SWAP', 'OPEN',
+        'FIELD', 'GET', 'PUT', 'LSET', 'RSET', 'CLOSE', 'LINE',
+    })
+
+    def _execute_keyword_prefixed(
         self,
+        line: str,
         line_num: int,
-        statement: str,
         line_nums: List[int],
-        stmt_index: int = 0,
-        stmt_count: int = 1,
-        stmt_label: Optional[str] = None,
-        stmt_parts: Optional[List[Tuple[Optional[str], str]]] = None,
-    ) -> Optional[int]:
-        self._exec_line_nums = line_nums
-        self._exec_stmt_count = stmt_count
-        self._active_stmt_index = stmt_index
-        line = statement.strip()
-        cmd = ''
-        rest = ''
-        if not line or line == ';':
-            return None
-        stripped = line.lstrip()
-        if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
-            hint = parse_comment_dialect_line(line)
-            if hint is not None:
-                self._apply_dialect_hint(hint, announce=False)
-                return None
-            # bbc: ' is not a REM synonym (only the PRINT/INPUT newline), so a
-            # line starting with ' falls through to "Unknown statement".
-            if not (stripped.startswith("'") and self.config.dialect == 'bbc'):
-                return None
-        # QBasic tail comment: T1 = TIMER ' Start …  (not in bbc).
-        line = self._strip_tail_apostrophe_comment(line)
-        if not line:
-            return None
-        self._active_statement = line
-        self.dprint('[EXEC]', repr(line))
+        stmt_index: int,
+        stmt_count: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+    ) -> object:
+        """ON …, OPTION BASE, RANDOMIZE, CONT, REPORT, SWAP, OPEN, FIELD, GET,
+        PUT, LSET, RSET, CLOSE (not CLOSE#), LINE INPUT[#], ON … GOTO/GOSUB.
 
-        if line.startswith('*'):
-            try:
-                self._execute_star_command(line[1:])
-            except Exception as exc:
-                self._runtime_error(
-                    self._error_message('? OSCLI error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
-            return None
-
-        if '=' in line and self._try_fast_numeric_assignment(line):
-            return None
-
+        Returns MISSING when the line is none of these forms.
+        """
         if re.match(r'^ON\s+MOUSE\b', line, re.IGNORECASE):
             # ON MOUSE handler registration — not yet emulated; accept and ignore.
             return None
@@ -3385,29 +3361,93 @@ class RuntimeExecutionMixin:
                 stmt_count,
             )
 
-        if self._in_fn_body:
-            ret_match = re.match(r'^=\s*(.+)$', line)
-            if ret_match:
-                try:
-                    value = self._eval_fn_return_expression(ret_match.group(1).strip())
-                except (FnReturn, BasicRuntimeError):
+        return MISSING
+
+    def _execute_statement(
+        self,
+        line_num: int,
+        statement: str,
+        line_nums: List[int],
+        stmt_index: int = 0,
+        stmt_count: int = 1,
+        stmt_label: Optional[str] = None,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]] = None,
+    ) -> Optional[int]:
+        self._exec_line_nums = line_nums
+        self._exec_stmt_count = stmt_count
+        self._active_stmt_index = stmt_index
+        line = statement.strip()
+        cmd = ''
+        rest = ''
+        if not line or line == ';':
+            return None
+        stripped = line.lstrip()
+        if stripped.startswith("'") or (
+            stripped[:3].upper() == 'REM'
+            and not (stripped[3:4].isalnum() or stripped[3:4] == '_')
+        ):
+            hint = parse_comment_dialect_line(line)
+            if hint is not None:
+                self._apply_dialect_hint(hint, announce=False)
+                return None
+            # bbc: ' is not a REM synonym (only the PRINT/INPUT newline), so a
+            # line starting with ' falls through to "Unknown statement".
+            if not (stripped.startswith("'") and self.config.dialect == 'bbc'):
+                return None
+        # QBasic tail comment: T1 = TIMER ' Start …  (not in bbc).
+        line = self._strip_tail_apostrophe_comment(line)
+        if not line:
+            return None
+        self._active_statement = line
+        self.dprint('[EXEC]', repr(line))
+
+        if line.startswith('*'):
+            try:
+                self._execute_star_command(line[1:])
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? OSCLI error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if '=' in line and self._try_fast_numeric_assignment(line):
+            return None
+
+        head_end = 0
+        while head_end < len(line) and line[head_end].isalpha():
+            head_end += 1
+        if line[:head_end].upper() in self._KEYWORD_PREFIXED_HEADS:
+            prefixed = self._execute_keyword_prefixed(
+                line, line_num, line_nums, stmt_index, stmt_count, stmt_parts,
+            )
+            if prefixed is not MISSING:
+                return prefixed
+
+        # BBC FN return statement: = expr
+        if self._in_fn_body and line.startswith('=') and line[1:].strip():
+            try:
+                value = self._eval_fn_return_expression(line[1:].strip())
+            except (FnReturn, BasicRuntimeError):
+                raise
+            except Exception as exc:
+                if not self._error_trap_enabled():
                     raise
-                except Exception as exc:
-                    if not self._error_trap_enabled():
-                        raise
-                    # ``= ATN(Y/X)`` with ON ERROR LOCAL = …: trap, don't report.
-                    self._runtime_error(
-                        self._error_message('? Expression error', exc),
-                        line_num, stmt_index, stmt_count=stmt_count, statement=line)
-                    return None
-                raise FnReturn(value)
+                # ``= ATN(Y/X)`` with ON ERROR LOCAL = …: trap, don't report.
+                self._runtime_error(
+                    self._error_message('? Expression error', exc),
+                    line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
+            raise FnReturn(value)
 
         # Early stubs for common BBCSDL idioms that appear in advanced demos (torus2d etc.)
         # These prevent cascades of "unknown/syntax" errors for library setup and platform calls.
-        stripped_line = line.strip()
-        if re.match(r'^\s*@lib\$', stripped_line, re.IGNORECASE):
+        upper_line = line.upper()
+        if upper_line.startswith('@LIB$'):
             return None
-        if 'SDL_SetWindowResizable' in stripped_line.upper() or re.match(r'^IF\s+@platform%', stripped_line, re.IGNORECASE):
+        if 'SDL_SETWINDOWRESIZABLE' in upper_line or (
+            upper_line.startswith('IF')
+            and upper_line[2:3].isspace()
+            and upper_line[2:].lstrip().startswith('@PLATFORM%')
+        ):
             return None
 
         cmd, rest = self._parse_command(line)
