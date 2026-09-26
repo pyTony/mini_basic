@@ -3080,8 +3080,12 @@ class RuntimeExecutionMixin:
             hint = parse_comment_dialect_line(line)
             if hint is not None:
                 self._apply_dialect_hint(hint, announce=False)
-            return None
-        # QBasic/BBC tail comment: T1 = TIMER ' Start …  (PRINT keeps ').
+                return None
+            # bbc: ' is not a REM synonym (only the PRINT/INPUT newline), so a
+            # line starting with ' falls through to "Unknown statement".
+            if not (stripped.startswith("'") and self.config.dialect == 'bbc'):
+                return None
+        # QBasic tail comment: T1 = TIMER ' Start …  (not in bbc).
         line = self._strip_tail_apostrophe_comment(line)
         if not line:
             return None
@@ -3461,21 +3465,24 @@ class RuntimeExecutionMixin:
                     self._flush_program_output()
                 return None
 
-            content = rest
+            # A trailing ' is a newline item, not a newline suppressor: on ARM
+            # BBC BASIC V, PRINT "A"'' gives A, two blank lines, then the prompt.
+            # Only a final ; or , suppresses the end-of-PRINT newline.
+            content = rest.rstrip()
             trailing_sep = ''
-            content, suppress_newline = self._strip_bbc_print_newline_suffix(content)
             if content.endswith(';') or content.endswith(','):
                 trailing_sep = content[-1]
                 content = content[:-1].rstrip()
-            elif suppress_newline:
-                trailing_sep = ';'
             text, newline, self.print_column = self._render_print_content(
                 content,
                 trailing_sep,
                 self.print_column,
             )
-            if suppress_newline and self._display_enabled():
-                newline = True
+            if newline and content.endswith("'") and text.endswith('\n'):
+                # _print_program_text skips the final newline after text that
+                # already ends in one; here the ' newline and the end-of-PRINT
+                # newline are both real.
+                text += '\n'
             self._print_program_text(text, newline=newline)
             if newline:
                 self.print_column = 0

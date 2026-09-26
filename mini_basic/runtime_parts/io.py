@@ -1144,15 +1144,6 @@ class RuntimeIoMixin:
             items.append((item, ''))
         return self._expand_implicit_print_items(items)
 
-    def _strip_bbc_print_newline_suffix(self, content: str) -> Tuple[str, bool]:
-        """BBC trailing apostrophe suppresses PRINT newline (e.g. TEXT'' )."""
-        stripped = content.rstrip()
-        suppress = False
-        while stripped.endswith("'"):
-            stripped = stripped[:-1].rstrip()
-            suppress = True
-        return stripped, suppress
-
     def _decode_print_string_item(self, item: str) -> str:
         return self._decode_bbc_adjacent_string_literals(item.strip())
 

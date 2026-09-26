@@ -665,6 +665,73 @@ class BbcSystemVariableTests(unittest.TestCase):
         self.assertEqual(interp.canonicalize_program_line('MODE7'), 'MODE 7')
 
 
+class PrintApostropheTests(unittest.TestCase):
+    """Checked on ARM BBC BASIC V 1.05: PRINT "A"'' → A, two blank lines, prompt."""
+
+    def test_trailing_apostrophes_are_newlines_plus_final_newline(self):
+        out, err = _run('10 PRINT "A"\'\'\n20 PRINT "B"\n', 'bbc')
+        self.assertEqual(out, 'A\n\n\nB\n', msg=err)
+
+    def test_single_trailing_apostrophe(self):
+        out, err = _run('10 PRINT "A"\'\n20 PRINT "B"\n', 'bbc')
+        self.assertEqual(out, 'A\n\nB\n', msg=err)
+
+    def test_apostrophe_between_items_and_semicolon_end(self):
+        out, err = _run('10 PRINT "A"\'"B";\n20 PRINT "C"\n', 'bbc')
+        self.assertEqual(out, 'A\nBC\n', msg=err)
+
+
+class ApostropheCommentTests(unittest.TestCase):
+    """mini: ' is a REM synonym. bbc: ' is only the PRINT/INPUT newline."""
+
+    def test_mini_tail_comment_hides_colon_statements(self):
+        out, err = _run('10 X = 1 \' note: PRINT "NO"\n20 PRINT X\n')
+        self.assertEqual(out.split(), ['1'], msg=err)
+
+    def test_mini_print_tail_comment(self):
+        out, err = _run('10 PRINT "A" \' show it\n20 PRINT "B"; \' more text: PRINT "NO"\n30 PRINT "C"\n')
+        self.assertEqual(out.splitlines(), ['A', 'BC'], msg=err)
+
+    def test_mini_glued_apostrophe_is_still_print_newline(self):
+        out, err = _run('10 PRINT "A"\'"B"\n20 PRINT "C"\'\'\n30 PRINT "D"\n')
+        self.assertEqual(out, 'A\nB\nC\n\n\nD\n', msg=err)
+
+    def test_mini_bbc_style_print_apostrophes_survive(self):
+        # Unhinted BBCSDL programs (animal.txt) run as mini.
+        out, err = _run(
+            '10 PRINT \' "Animals:"\n'
+            '20 A$ = "Y" : IF A$="Y" THEN PRINT "Why not?"\'\' ELSE PRINT "NO"\n'
+            '30 G1$ = "a" : G2$ = "b" : PRINT G1$ \' G2$\n'
+            '40 PRINT \'"R" : PRINT "S" \'"T"\n'
+            '50 PRINT "END"\n'
+        )
+        self.assertEqual(
+            out, '\nAnimals:\nWhy not?\n\n\na\nb\n\nR\nS\nT\nEND\n', msg=err,
+        )
+
+    def test_mini_whole_line_comment(self):
+        out, err = _run('10 \' whole line: PRINT "NO"\n20 PRINT "YES"\n')
+        self.assertEqual(out.split(), ['YES'], msg=err)
+
+    def test_bbc_apostrophe_is_not_a_comment(self):
+        out, err = _run('10 X = 1 \' note\n20 PRINT "AFTER"\n', 'bbc')
+        self.assertIn('?', out + err)
+        self.assertNotIn('AFTER', out)
+
+    def test_bbc_whole_line_apostrophe_is_not_a_comment(self):
+        out, err = _run('10 \' just a note\n20 PRINT "AFTER"\n', 'bbc')
+        self.assertIn('?', out + err)
+        self.assertNotIn('AFTER', out)
+
+    def test_bbc_apostrophe_dialect_hint_still_applies(self):
+        out, err = _run('10 \' dialect: bbc\n20 PRINT "OK"\n', 'bbc')
+        self.assertEqual(out.strip(), 'OK', msg=err)
+
+    def test_bbc_print_apostrophe_newlines(self):
+        out, err = _run('10 PRINT "A" \' "B"\n', 'bbc')
+        self.assertEqual(out, 'A\nB\n', msg=err)
+
+
 class LoadLegacyEncodingTests(unittest.TestCase):
     """Old BBC / Windows sources are Latin-1 / CP1252, not UTF-8."""
 

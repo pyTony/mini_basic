@@ -769,19 +769,26 @@ class RuntimeProgramMixin:
         return True
 
     def _strip_tail_apostrophe_comment(self, statement: str) -> str:
-        """QBasic/BBC: ``X=1 ' comment`` — ``'`` starts a tail comment.
+        return self._split_tail_apostrophe_comment(statement)[0]
 
-        Leave PRINT (apostrophe is newline), DATA, REM, and ``\"a\"'\"b\"`` glue.
+    def _split_tail_apostrophe_comment(self, statement: str) -> Tuple[str, bool]:
+        """mini/QBasic: ``X=1 ' comment`` — ``'`` starts a tail comment.
+
+        Returns (code, cut). bbc: ``'`` is never a comment (only the PRINT /
+        INPUT newline), so nothing is cut. In PRINT, only a ``'`` with a space
+        on both sides is a comment; glued ``"a"'"b"`` / ``''`` are newlines.
+        DATA and REM payloads are left alone.
         """
         text = statement
-        if not text or "'" not in text:
-            return text
+        if not text or "'" not in text or self.config.dialect == 'bbc':
+            return text, False
         if self._line_skips_expr_canonicalize(text):
-            return text
+            return text, False
         cmd, _rest = self._parse_command(text)
-        if cmd in ('PRINT', 'PRINT#', 'DATA', 'REM'):
-            return text
+        if cmd in ('DATA', 'REM'):
+            return text, False
         in_string = False
+        seen_print = False  # PRINT keyword before this ' (also IF … THEN PRINT)
         index = 0
         while index < len(text):
             ch = text[index]
@@ -789,24 +796,54 @@ class RuntimeProgramMixin:
                 in_string = not in_string
                 index += 1
                 continue
-            if not in_string and ch == "'":
+            if in_string:
+                index += 1
+                continue
+            word_start = index == 0 or not (text[index - 1].isalnum() or text[index - 1] == '_')
+            if word_start and text[index:index + 3].upper() == 'REM' and not (
+                text[index + 3:index + 4].isalnum()
+            ):
+                return text, False  # REM WON'T — payload, not a comment start
+            if word_start and text[index:index + 5].upper() == 'PRINT':
+                seen_print = True  # also crunched PRINTTAB(…) and THEN PRINT
+            if ch == "'":
                 prev = text[:index].rstrip()
                 nxt = text[index + 1 :].lstrip()
-                if prev.endswith('"') and nxt.startswith('"'):
+                spaced = (
+                    index > 0 and text[index - 1].isspace()
+                    and index + 1 < len(text) and text[index + 1].isspace()
+                )
+                if seen_print and (
+                    not spaced
+                    or not nxt
+                    or nxt[0] in '"\';,~0123456789'
+                    or re.match(r'(?:TAB|SPC)\s*\(', nxt, re.IGNORECASE)
+                    # one print item (greek2$, FNarabic(a$)) = BBC newline;
+                    # several words (' show it) = comment
+                    or re.fullmatch(
+                        r'[A-Za-z_][A-Za-z0-9_]*[$%!#&]?\s*(?:\(.*\))?\s*(?:[;,\'].*)?',
+                        nxt,
+                    )
+                ):
+                    index += 1  # PRINT newline item, not a comment
+                    continue
+                if not seen_print and prev.endswith('"') and nxt.startswith('"'):
                     index += 1
                     continue
-                return text[:index].rstrip()
+                return text[:index].rstrip(), True
             index += 1
-        return text
+        return text, False
 
     def _parse_line_statements(self, line: str) -> List[Tuple[Optional[str], str]]:
         statements: List[Tuple[Optional[str], str]] = []
         for part in self._split_colon_statements(line):
             label, text = self._extract_label_prefix(part)
             if text and text != ';':
-                text = self._strip_tail_apostrophe_comment(text)
+                text, cut = self._split_tail_apostrophe_comment(text)
                 if text:
                     statements.append((label, self._escape_doubled_quotes(text)))
+                if cut:
+                    break  # X = 1 ' note: PRINT — the rest is comment text
         return statements
 
     def _escape_doubled_quotes(self, text: str) -> str:
