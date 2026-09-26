@@ -2073,7 +2073,11 @@ class RuntimeExecutionMixin:
         self._last_emitted_fg_colour = None
         self._ensure_display()
         if self._display_enabled():
-            self._display.set_colour(code)
+            # A background in 136..143 that was just redefined with
+            # COLOR n,r,g,b (piechart's sky) is a custom palette pick,
+            # not a request for the classic flashing background.
+            no_flash = code >= 128 and (code - 128) in self._bbc_custom_colours
+            self._display.set_colour(code, no_flash=no_flash)
 
     def _vdu_text_bounds(self) -> Tuple[int, int, int, int]:
         """Return (left, bottom, right, top) inclusive text window in char cells."""
@@ -5106,7 +5110,9 @@ class RuntimeExecutionMixin:
                     self._ensure_display()
                     if self._display_enabled():
                         self._display.set_colour(fg)
-                        self._display.set_colour(bg + 128)
+                        self._display.set_colour(
+                            bg + 128, no_flash=bg in self._bbc_custom_colours
+                        )
                 elif len(args) == 1:
                     self._apply_bbc_colour_code(self._eval_numeric(args[0]))
                 else:
