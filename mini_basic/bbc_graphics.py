@@ -371,6 +371,8 @@ class BBCGraphics:
             self._triangle_outline(code, tx, ty)
         elif op == 0x60:
             self._rectangle(code, tx, ty)
+        elif op == 0x70:
+            self._parallelogram(code, tx, ty)
         elif op == 0x90:
             self._circle(code, tx, ty, filled=False)
         elif op == 0x98:
@@ -678,6 +680,21 @@ class BBCGraphics:
         self._bresenham_line(x0, y0, x1, y1, gcol)
         self._bresenham_line(x1, y1, x2, y2, gcol)
         self._bresenham_line(x2, y2, x0, y0, gcol)
+
+    def _parallelogram(self, code: int, x2: int, y2: int) -> None:
+        """PLOT 112-119: fill parallelogram; fourth vertex is P0 - P1 + P2."""
+        if len(self.stack) < 2:
+            return
+        x0, y0 = self.stack[-2]
+        x1, y1 = self.stack[-1]
+        gcol, _ = self._plot_subcolour(code & 7)
+        pts = [
+            self._to_screen(x0, y0),
+            self._to_screen(x1, y1),
+            self._to_screen(x2, y2),
+            self._to_screen(x0 - x1 + x2, y0 - y1 + y2),
+        ]
+        self._fill_convex_screen(pts, gcol)
 
     def _rectangle(self, code: int, x1: int, y1: int) -> None:
         if len(self.stack) < 1:
@@ -1047,8 +1064,16 @@ class BBCGraphics:
     ) -> None:
         if len(pts) != 3:
             return
-        ordered = sorted(pts, key=lambda p: p[1])
-        (x_a, y_a), (x_b, y_b), (x_c, y_c) = ordered
+        self._fill_convex_screen(pts, gcol)
+
+    def _fill_convex_screen(
+        self,
+        pts: Sequence[Tuple[int, int]],
+        gcol: GColState,
+    ) -> None:
+        """Scanline-fill a convex polygon whose vertices are given in edge order."""
+        if len(pts) < 3:
+            return
 
         def edge_x(y: int, x1i: int, y1i: int, x2i: int, y2i: int) -> List[float]:
             y_min = min(y1i, y2i)
@@ -1060,15 +1085,15 @@ class BBCGraphics:
             t = (y - y1i) / (y2i - y1i)
             return [x1i + t * (x2i - x1i)]
 
-        y_start = int(y_a)
-        y_end = int(y_c)
+        edges = [
+            (pts[i][0], pts[i][1], pts[i - 1][0], pts[i - 1][1])
+            for i in range(len(pts))
+        ]
+        y_start = int(min(p[1] for p in pts))
+        y_end = int(max(p[1] for p in pts))
         for y in range(y_start, y_end + 1):
             xs: List[float] = []
-            for xa, ya, xb, yb in (
-                (x_a, y_a, x_b, y_b),
-                (x_b, y_b, x_c, y_c),
-                (x_c, y_c, x_a, y_a),
-            ):
+            for xa, ya, xb, yb in edges:
                 xs.extend(edge_x(y, xa, ya, xb, yb))
             if len(xs) < 2:
                 continue
