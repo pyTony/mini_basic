@@ -183,11 +183,25 @@ class BBCGraphics:
             ]
         return self.rgb_pixels
 
-    def clear_graphics(self, bg_colour: int | None = None) -> None:
+    def clear_graphics(
+        self, bg_colour: int | None = None, bg_rgb: Optional[RGB] = None,
+    ) -> None:
         """CLG / VDU 16 — fill graphics window (or full screen) with GCOL background.
 
         welcome.bbc draws the red frame by CLG red in a large VDU 24 window, then
         CLG gray in a smaller window — must not wipe the outer border.
+
+        ``bg_rgb``, when given, is the custom COLOUR n,r,g,b RGB currently
+        assigned to the background's palette index. It gets baked into
+        rgb_pixels for the whole cleared region, the same way a fill or
+        outline captures its own truecolour at draw time — otherwise the
+        cleared background shares its palette slot with every later
+        CIRCLE FILL that reuses the same index (surks.bbc draws both
+        background and spheres via COLOUR 1), and reassigning that index's
+        RGB for the next shape would retroactively recolour the background
+        wherever a later dirty-rect patch happens to repaint it. The display
+        applies rgb_pixels by scanning the region it is about to redraw
+        (not via rgb_dirty), so rgb_dirty itself does not need every pixel.
         """
         self._clip_disc = None
         bg = self.gcol_bg[1] if bg_colour is None else int(bg_colour)
@@ -199,7 +213,12 @@ class BBCGraphics:
                 fill = [bg_b] * self.width
                 for y, row in enumerate(self.pixels):
                     row[:] = fill
-            self.rgb_pixels = None
+            if bg_rgb is not None:
+                self.rgb_pixels = [
+                    [bg_rgb for _ in range(self.width)] for _ in range(self.height)
+                ]
+            else:
+                self.rgb_pixels = None
             self.rgb_dirty.clear()
             self.mark_full_dirty()
             self.plot_count = 0
@@ -221,8 +240,23 @@ class BBCGraphics:
         sy1 = min(self.height - 1, max(sys_))
         if sx0 > sx1 or sy0 > sy1:
             return
+        if bg_rgb is not None and self.rgb_pixels is None:
+            self.rgb_pixels = [
+                [None for _ in range(self.width)] for _ in range(self.height)
+            ]
+        fill_row = [bg_rgb] * (sx1 - sx0 + 1)
         if self.pixels_is_numpy:
             self.pixels[sy0 : sy1 + 1, sx0 : sx1 + 1] = bg_b
+            if self.rgb_pixels is not None:
+                # Viewport CLG only wiped the palette framebuffer here, never
+                # the truecolour overlay — a custom-RGB fill's colour (e.g.
+                # CIRCLE FILL after COLOUR n,r,g,b) stayed in rgb_pixels and
+                # ghosted through every later frame's CLG (surks.bbc: old
+                # spheres' colours bleeding into the next scene's background).
+                # Baking bg_rgb in (rather than leaving None) also protects
+                # this region from later reuse of the same palette index.
+                for sy in range(sy0, sy1 + 1):
+                    self.rgb_pixels[sy][sx0 : sx1 + 1] = fill_row
         else:
             for sy in range(sy0, sy1 + 1):
                 row = self.pixels[sy]
@@ -230,8 +264,9 @@ class BBCGraphics:
                 for sx in range(sx0, sx1 + 1):
                     row[sx] = bg_b
                     if rgb_row is not None:
-                        rgb_row[sx] = None
-        # Drop rgb_dirty points inside the cleared rect
+                        rgb_row[sx] = bg_rgb
+        # Drop rgb_dirty points inside the cleared rect (render no longer
+        # reads rgb_dirty for correctness, only kept in sync for bookkeeping).
         if self.rgb_dirty:
             self.rgb_dirty = {
                 (sx, sy)
@@ -479,6 +514,80 @@ class BBCGraphics:
             self._put_screen_pixel(left, sy, gcol)
             if right != left:
                 self._put_screen_pixel(right, sy, gcol)
+
+    def draw_ellipse(
+        self, x: int, y: int, a: int, b: int, angle: float = 0.0, filled: bool = False,
+    ) -> None:
+        """ELLIPSE [FILL] x,y,a,b[,angle] — centre (x,y), semi-axes a,b in OS units.
+
+        ``angle`` is radians, measured anticlockwise from the x-axis (BBC BASIC
+        convention). Geometry is tested in OS space via ``from_screen`` so it
+        stays correct when x_scale != y_scale.
+        """
+        x, y = int(x), int(y)
+        a, b = abs(int(a)), abs(int(b))
+        gcol = self.gcol_fg
+        if a == 0 or b == 0:
+            self._put_pixel(x, y, gcol)
+            return
+        cos_a = math.cos(angle)
+        sin_a = math.sin(angle)
+        half_w = math.sqrt((a * cos_a) ** 2 + (b * sin_a) ** 2)
+        half_h = math.sqrt((a * sin_a) ** 2 + (b * cos_a) ** 2)
+        corners = (
+            self._to_screen(x - half_w, y - half_h),
+            self._to_screen(x + half_w, y - half_h),
+            self._to_screen(x - half_w, y + half_h),
+            self._to_screen(x + half_w, y + half_h),
+        )
+        sxs = [c[0] for c in corners]
+        sys_ = [c[1] for c in corners]
+        left = max(0, min(sxs))
+        right = min(self.width - 1, max(sxs))
+        top = max(0, min(sys_))
+        bottom = min(self.height - 1, max(sys_))
+        if left > right or top > bottom:
+            return
+
+        if filled:
+            inv_a2 = 1.0 / float(a * a)
+            inv_b2 = 1.0 / float(b * b)
+            for sy in range(top, bottom + 1):
+                span_start = None
+                for sx in range(left, right + 1):
+                    ox, oy = self.from_screen(sx, sy)
+                    dx, dy = ox - x, oy - y
+                    u = dx * cos_a + dy * sin_a
+                    v = -dx * sin_a + dy * cos_a
+                    if (u * u) * inv_a2 + (v * v) * inv_b2 <= 1.0:
+                        if span_start is None:
+                            span_start = sx
+                    elif span_start is not None:
+                        self._fill_hspan_screen(span_start, sx - 1, sy, gcol)
+                        span_start = None
+                if span_start is not None:
+                    self._fill_hspan_screen(span_start, right, sy, gcol)
+            return
+
+        # Outline: sample the perimeter and join samples with Bresenham lines
+        # so large ellipses (many screen pixels per OS unit) have no gaps.
+        perimeter_est = math.pi * (3 * (a + b) - math.sqrt((3 * a + b) * (a + 3 * b)))
+        steps = max(72, int(perimeter_est / max(1, min(self.x_scale, self.y_scale))))
+        prev_x = prev_y = None
+        first_x = first_y = None
+        for i in range(steps):
+            theta = 2.0 * math.pi * i / steps
+            ex = a * math.cos(theta)
+            ey = b * math.sin(theta)
+            px = x + ex * cos_a - ey * sin_a
+            py = y + ex * sin_a + ey * cos_a
+            if prev_x is None:
+                first_x, first_y = px, py
+            else:
+                self._bresenham_line(prev_x, prev_y, px, py, gcol)
+            prev_x, prev_y = px, py
+        if prev_x is not None:
+            self._bresenham_line(prev_x, prev_y, first_x, first_y, gcol)
 
     def _copy_block(self, left: int, top: int, right: int, bottom: int):
         rows = []
@@ -790,6 +899,18 @@ class BBCGraphics:
         y0 = max(0, scy - sry)
         x1 = min(self.width - 1, scx + srx)
         y1 = min(self.height - 1, scy + sry)
+        trgb = self._truecolour_rgb
+        if trgb is not None and colour != 0:
+            # COLOUR n,r,g,b + GCOL 0,n truecolour fills (surks.bbc): the
+            # palette write above alone would render every filled circle in
+            # whatever the static default palette entry n is, not the custom
+            # RGB just set — mirror _fill_hspan_screen's overlay here too.
+            rgb_pixels = self._ensure_rgb_pixels()
+            ys, xs = np.nonzero(mask[y0 : y1 + 1, x0 : x1 + 1])
+            for dy, dx in zip(ys.tolist(), xs.tolist()):
+                sx, sy = x0 + dx, y0 + dy
+                rgb_pixels[sy][sx] = trgb
+                self.rgb_dirty.add((sx, sy))
         self._mark_pixel_dirty(x0, y0)
         self._mark_pixel_dirty(x1, y1)
         self.plot_count += int(mask.sum())

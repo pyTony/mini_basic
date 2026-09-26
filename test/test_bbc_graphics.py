@@ -119,6 +119,22 @@ class BBCGraphicsTests(unittest.TestCase):
         self.assertEqual(gfx.rgb_pixels[0][7], (10, 20, 30))
         self.assertIn((7, 0), gfx.rgb_dirty)
 
+    def test_filled_circle_carries_truecolour_numpy_fast_path(self):
+        # CIRCLE FILL with GCOL 0,n and a COLOUR n,r,g,b truecolour override
+        # goes through _fill_disc_numpy (the numpy mask fast path) whenever
+        # numpy is available, since gcol mode is 0. That path used to write
+        # only the palette index, silently dropping the truecolour overlay
+        # (surks.bbc: every filled circle rendered as the static default
+        # palette colour instead of its custom RGB).
+        gfx = BBCGraphics(64, 64)
+        self.assertTrue(gfx.pixels_is_numpy)
+        gfx.set_truecolour((10, 20, 30))
+        gfx.gcol(0, 1)
+        gfx.move_absolute(32, 32)
+        gfx.plot_code(156, 32 + 10, 32)  # PLOT 156: filled circle, radius 10
+        self.assertEqual(gfx.rgb_pixels[32][32], (10, 20, 30))
+        self.assertIn((32, 32), gfx.rgb_dirty)
+
     def test_plot_181_filled_triangle_absolute(self):
         gfx = BBCGraphics(320, 256, x_scale=4, y_scale=4)
         gfx.gcol(0, 1)

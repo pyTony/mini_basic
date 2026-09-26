@@ -15,7 +15,7 @@ DEFERRED_ROWS: List[DeferredRow] = [
     ('OS integration', 'SYS Windows API calls', 'foreign function interface'),
     ('OS integration', 'INSTALL libraries', 'tokenised library load'),
     ('Structures', 'DIM struct{} / TYPE', 'user-defined record types'),
-    ('Structures', 'structure arrays and tags', 'RETURN struct from FN'),
+    ('Structures', 'RETURN struct from FN', 'pass/return whole struct values'),
     ('Pointers', '? ! $ $$ indirection', 'byte/word/string pointers'),
     (
         'Sound',

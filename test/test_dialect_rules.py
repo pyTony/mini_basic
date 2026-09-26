@@ -213,15 +213,27 @@ def test_break_rejected_on_bbc_allowed_on_mini() -> None:
     assert ok_mini, out_mini
 
 
-def test_exit_for_is_mini_sdl_only() -> None:
+def test_exit_for_allowed_on_bbc_and_mini() -> None:
+    # EXIT FOR/WHILE/REPEAT is genuine BBC BASIC for Windows / BBCSDL syntax
+    # (bbcbasic.co.uk keyword reference), not a mini-only SDL extension —
+    # unlike BREAK/CONTINUE, which really are mini-only. See the BBCSDL
+    # corpus under test/corpus/bbcsdl/, which uses it pervasively.
     ok_bbc, out_bbc, _ = _load_text(
         'bbc', '10 FOR I=1 TO 3\n20 EXIT FOR\n30 NEXT\n40 END\n', strict=True
     )
-    assert not ok_bbc, out_bbc
+    assert ok_bbc, out_bbc
     ok_mini, out_mini, _ = _load_text(
         'mini', '10 FOR I=1 TO 3\n20 EXIT FOR\n30 NEXT\n40 END\n', strict=True
     )
     assert ok_mini, out_mini
+
+
+def test_exit_for_rejected_on_mits_commodore_tiny() -> None:
+    for dialect in ('mits', 'commodore', 'tiny'):
+        ok, out, _ = _load_text(
+            dialect, '10 FOR I=1 TO 3\n20 EXIT FOR\n30 NEXT\n40 END\n', strict=True
+        )
+        assert not ok, (dialect, out)
 
 
 def test_on_close_is_mini_sdl_only() -> None:
@@ -315,7 +327,7 @@ def test_dialect_allows_table() -> None:
     checks = {
         'WHILE': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
         'CASE': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
-        'EXIT': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
+        'EXIT': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
         'BREAK': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
         'on_close': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
         'inkey_scan': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},

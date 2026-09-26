@@ -78,7 +78,7 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 | IF/ENDIF / ELSEIF | − | − | − | + | + |
 | WHILE / ENDWHILE (BBC V) | − | − | − | + | + |
 | REPEAT / UNTIL | − | − | − | + | + |
-| EXIT FOR (SDL) | − | − | − | − | + |
+| EXIT FOR / WHILE / REPEAT | − | − | − | + | + |
 | ON CLOSE / INKEY(−n) (SDL) | − | − | − | − | + |
 | PROC / DEF PROC | − | − | − | + | + |
 | BREAK / CONTINUE | − | − | − | − | + |
@@ -90,8 +90,8 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 **Relation summary**
 
 - **mits / commodore / tiny** ≈ classic **line-number + GOTO** teaching/museum dialects.  
-- **bbc** ≈ traditional BBC (Beeb + BASIC V: PROC, CASE, WHILE/ENDWHILE, INSTR).  
-- **mini** = **bbc + SDL/desktop extras** (EXIT FOR, ON CLOSE, INKEY(−n), COLOUR fg,bg, BREAK/CONTINUE, ARG, ANSI).
+- **bbc** ≈ BBCSDL/BB4W-oriented BBC BASIC (PROC, CASE, WHILE/ENDWHILE, INSTR, EXIT FOR/WHILE/REPEAT).  
+- **mini** = **bbc + desktop extras** (ON CLOSE, INKEY(−n), COLOUR fg,bg, BREAK/CONTINUE, ARG, ANSI).
 - **Case mode (all dialects):** when case-sensitive (default for mini/bbc; `CASE ON`
   elsewhere), **statement keywords are uppercase only** (`PRINT`, `COLOUR`, `FOR`).
   Mixed-case `Colour&` / `print` are not commands. Exception: **mini** is not strict

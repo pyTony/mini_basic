@@ -1797,6 +1797,30 @@ class RuntimeExecutionMixin:
             if self.stack[index].kind == target_kind:
                 frame = self.stack[index]
                 del self.stack[index:]
+                # EXIT can fire from inside an unclosed IF/CASE block (e.g.
+                # IF cond THEN ... EXIT FOR ... ENDIF): jumping straight to
+                # frame.exit_line skips that block's own ENDIF/ENDCASE, so
+                # its IfFrame/CaseFrame would otherwise stay on the stack
+                # and get popped by a later, unrelated ENDIF/ENDCASE
+                # (surks.bbc: circle{(I%)}.r% collision check -> spurious
+                # "NEXT without FOR"). Discard any such block opened at or
+                # after the loop's own header line.
+                loop_start = (
+                    getattr(frame, 'for_line', None)
+                    or getattr(frame, 'while_line', None)
+                    or getattr(frame, 'repeat_line', None)
+                )
+                if loop_start:
+                    while (
+                        self.if_stack
+                        and self.if_stack[-1].layout.branch_starts[0] >= loop_start
+                    ):
+                        self.if_stack.pop()
+                    while (
+                        self.case_stack
+                        and self.case_stack[-1].layout.branch_starts[0] >= loop_start
+                    ):
+                        self.case_stack.pop()
                 return frame.exit_line if frame.exit_line != -1 else -1
         self._emit_error(f'? EXIT {kind.strip().upper()} outside loop')
         return None
@@ -5061,6 +5085,33 @@ class RuntimeExecutionMixin:
             except Exception as exc:
                 self._runtime_error(
                     self._error_message('? CIRCLE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'ELLIPSE':
+            if not self._graphics_plot_enabled():
+                return None
+            try:
+                # ELLIPSE [FILL] x,y,a,b[,angle] — centre, semi-axes (OS units),
+                # optional rotation angle in radians.
+                rest_strip = rest.strip()
+                fill_match = re.match(r'^FILL\s+(.+)$', rest_strip, re.IGNORECASE)
+                args = self._split_args(fill_match.group(1) if fill_match else rest_strip)
+                if len(args) not in (4, 5):
+                    raise ValueError('ELLIPSE needs x,y,a,b[,angle]')
+                x = int(self._eval_numeric(args[0]))
+                y = int(self._eval_numeric(args[1]))
+                a = int(self._eval_numeric(args[2]))
+                b = int(self._eval_numeric(args[3]))
+                angle = float(self._eval_numeric(args[4])) if len(args) == 5 else 0.0
+                self._ensure_display()
+                if self._display_enabled():
+                    self._display.draw_ellipse(x, y, a, b, angle, bool(fill_match))
+                    self._sync_graphics()
+            except ProgramExit:
+                raise
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? ELLIPSE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         if cmd == 'MODE':
