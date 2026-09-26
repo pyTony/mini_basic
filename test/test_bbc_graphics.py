@@ -78,6 +78,47 @@ class BBCGraphicsTests(unittest.TestCase):
         self.assertEqual(gfx.point_colour(17, 17), 0)
         self.assertGreaterEqual(gfx.plot_count, 64)
 
+    def _rows(self, gfx):
+        return [''.join(str(int(v)) for v in row) for row in gfx.pixels]
+
+    def test_rectangle_outline(self):
+        """RECTANGLE x,y,w,h draws only the border (disco.bbc line 990)."""
+        gfx = BBCGraphics(8, 8, x_scale=2, y_scale=2)
+        gfx.gcol(0, 2)
+        gfx.draw_rectangle(8, 8, 6, 6)
+        self.assertEqual(self._rows(gfx)[:5], [
+            '00002222', '00002002', '00002002', '00002222', '00000000',
+        ])
+
+    def test_rectangle_swap_copy_move(self):
+        """RECTANGLE SWAP / plain / FILL … TO x,y (disco.bbc lines 520-550)."""
+        gfx = BBCGraphics(8, 8, x_scale=2, y_scale=2)
+        gfx.gcol(0, 1)
+        gfx.fill_rectangle(0, 0, 5, 5)
+        gfx.gcol(0, 2)
+        gfx.draw_rectangle(8, 8, 6, 6)
+        gfx.transfer_rectangle(0, 0, 5, 5, 10, 10, 'swap')
+        self.assertEqual(self._rows(gfx), [
+            '00002111', '00002111', '00002111', '00002222',
+            '00000000', '22200000', '00200000', '00200000',
+        ])
+        gfx.gcol(0, 130)  # background 2 fills the vacated source
+        gfx.transfer_rectangle(10, 10, 5, 5, 0, 0, 'move')
+        self.assertEqual(self._rows(gfx)[:3], ['00002222'] * 3)
+        self.assertEqual(self._rows(gfx)[5:], ['11100000'] * 3)
+        gfx.transfer_rectangle(0, 0, 1, 1, 14, 14, 'copy')
+        self.assertEqual(gfx.point_colour(14, 14), 1)
+        self.assertEqual(gfx.point_colour(0, 0), 1)
+
+    def test_rectangle_copy_carries_truecolour(self):
+        gfx = BBCGraphics(8, 8, x_scale=2, y_scale=2)
+        gfx.set_truecolour((10, 20, 30))
+        gfx.gcol(0, 3)
+        gfx.fill_rectangle(0, 0, 1, 1)
+        gfx.transfer_rectangle(0, 0, 1, 1, 14, 14, 'copy')
+        self.assertEqual(gfx.rgb_pixels[0][7], (10, 20, 30))
+        self.assertIn((7, 0), gfx.rgb_dirty)
+
     def test_plot_181_filled_triangle_absolute(self):
         gfx = BBCGraphics(320, 256, x_scale=4, y_scale=4)
         gfx.gcol(0, 1)
@@ -143,6 +184,26 @@ class BBCGraphicsTests(unittest.TestCase):
                 if not pixel_inside_disc_ellipse(sx, sy, scx, scy, srx, sry):
                     outside += 1
         self.assertEqual(outside, 0)
+
+    def test_plot_113_relative_parallelogram_fills_diamond(self):
+        """illusion.bbc diamonds: MOVE; MOVE BY 20,20; PLOT 113,20,-20."""
+        gfx = BBCGraphics(640, 512, x_scale=2, y_scale=2)
+        gfx.gcol(0, 1)
+        gfx.move_absolute(80, 100)
+        gfx.move_relative(20, 20)
+        gfx.plot_code(113, 20, -20)
+        on = lambda x, y: gfx.pixels[gfx._to_screen(x, y)[1]][gfx._to_screen(x, y)[0]] == 1
+        # Centre and the computed fourth vertex (100,80) are filled.
+        self.assertTrue(on(100, 100))
+        self.assertTrue(on(100, 84))
+        # Diamond, not bounding square: corners stay empty.
+        self.assertFalse(on(84, 116))
+        self.assertFalse(on(116, 84))
+        filled = sum(1 for row in gfx.pixels for colour in row if colour == 1)
+        # ~200 px for a 20-px-diagonal diamond, well under the 441-px square.
+        self.assertGreater(filled, 150)
+        self.assertLess(filled, 300)
+        self.assertEqual((gfx.cursor_x, gfx.cursor_y), (120, 100))
 
     def test_filled_triangle_flat_base(self):
         gfx = BBCGraphics(320, 256, x_scale=4, y_scale=4)

@@ -371,6 +371,8 @@ class BBCGraphics:
             self._triangle_outline(code, tx, ty)
         elif op == 0x60:
             self._rectangle(code, tx, ty)
+        elif op == 0x70:
+            self._parallelogram(code, tx, ty)
         elif op == 0x90:
             self._circle(code, tx, ty, filled=False)
         elif op == 0x98:
@@ -454,6 +456,97 @@ class BBCGraphics:
         self._mark_pixel_dirty(x0, sy)
         self._mark_pixel_dirty(x1, sy)
         self.plot_count += n
+
+    def _os_rect_to_screen(
+        self, x: int, y: int, width: int, height: int,
+    ) -> Tuple[int, int, int, int]:
+        """Inclusive OS rect (x..x+width, y..y+height) → unclamped screen bounds."""
+        sx0, sy0 = self._to_screen(int(x), int(y))
+        sx1, sy1 = self._to_screen(int(x) + int(width), int(y) + int(height))
+        return min(sx0, sx1), min(sy0, sy1), max(sx0, sx1), max(sy0, sy1)
+
+    def draw_rectangle(self, x: int, y: int, width: int, height: int) -> None:
+        """RECTANGLE x,y,w,h — outline in the current foreground GCOL."""
+        left, top, right, bottom = self._os_rect_to_screen(x, y, width, height)
+        gcol = self.gcol_fg
+        for sx in range(left, right + 1):
+            self._put_screen_pixel(sx, top, gcol)
+            if bottom != top:
+                self._put_screen_pixel(sx, bottom, gcol)
+        for sy in range(top + 1, bottom):
+            self._put_screen_pixel(left, sy, gcol)
+            if right != left:
+                self._put_screen_pixel(right, sy, gcol)
+
+    def _copy_block(self, left: int, top: int, right: int, bottom: int):
+        rows = []
+        for sy in range(top, bottom + 1):
+            row = self.pixels[sy][left:right + 1]
+            rgb = None
+            if self.rgb_pixels is not None:
+                rgb = list(self.rgb_pixels[sy][left:right + 1])
+            rows.append((row.copy() if hasattr(row, 'copy') else list(row), rgb))
+        return rows
+
+    def _paste_block(self, left: int, top: int, rows) -> None:
+        for dy, (row, rgb) in enumerate(rows):
+            sy = top + dy
+            self.pixels[sy][left:left + len(row)] = row
+            if rgb is not None or self.rgb_pixels is not None:
+                rgb_row = self._ensure_rgb_pixels()[sy]
+                for dx in range(len(row)):
+                    value = rgb[dx] if rgb is not None else None
+                    rgb_row[left + dx] = value
+                    if value is None:
+                        self.rgb_dirty.discard((left + dx, sy))
+                    else:
+                        self.rgb_dirty.add((left + dx, sy))
+        if rows:
+            self._mark_pixel_dirty(left, top)
+            self._mark_pixel_dirty(left + len(rows[0][0]) - 1, top + len(rows) - 1)
+            self.plot_count += len(rows) * len(rows[0][0])
+
+    def transfer_rectangle(
+        self,
+        x: int,
+        y: int,
+        width: int,
+        height: int,
+        dest_x: int,
+        dest_y: int,
+        mode: str = 'copy',
+    ) -> None:
+        """RECTANGLE [FILL|SWAP] x,y,w,h TO dx,dy — copy, move or swap a block.
+
+        ``move`` (RECTANGLE FILL … TO) clears the source to the background
+        colour before pasting; ``swap`` exchanges source and destination.
+        """
+        left, top, right, bottom = self._os_rect_to_screen(x, y, width, height)
+        dsx, dsy = self._to_screen(int(dest_x), int(dest_y))
+        # Source bottom-left (left, bottom) lands on the destination point.
+        off_x = dsx - left
+        off_y = dsy - bottom
+        # Clip so both source and destination stay inside the framebuffer.
+        left = max(left, 0, -off_x)
+        top = max(top, 0, -off_y)
+        right = min(right, self.width - 1, self.width - 1 - off_x)
+        bottom = min(bottom, self.height - 1, self.height - 1 - off_y)
+        if left > right or top > bottom:
+            return
+        src = self._copy_block(left, top, right, bottom)
+        if mode == 'swap':
+            dst = self._copy_block(left + off_x, top + off_y, right + off_x, bottom + off_y)
+            self._paste_block(left, top, dst)
+        elif mode == 'move':
+            bg = int(self.gcol_bg[1]) & 0xFF
+            width_px = right - left + 1
+            blank = [(
+                self._np.full(width_px, bg, dtype=self._np.uint8)
+                if self.pixels_is_numpy else [bg] * width_px,
+                None,
+            ) for _ in range(top, bottom + 1)]
+            self._paste_block(left, top, blank)
+        self._paste_block(left + off_x, top + off_y, src)
 
     def _put_screen_pixel(self, sx: int, sy: int, gcol: GColState) -> None:
         if not (0 <= sx < self.width and 0 <= sy < self.height):
@@ -587,6 +680,21 @@ class BBCGraphics:
         self._bresenham_line(x0, y0, x1, y1, gcol)
         self._bresenham_line(x1, y1, x2, y2, gcol)
         self._bresenham_line(x2, y2, x0, y0, gcol)
+
+    def _parallelogram(self, code: int, x2: int, y2: int) -> None:
+        """PLOT 112-119: fill parallelogram; fourth vertex is P0 - P1 + P2."""
+        if len(self.stack) < 2:
+            return
+        x0, y0 = self.stack[-2]
+        x1, y1 = self.stack[-1]
+        gcol, _ = self._plot_subcolour(code & 7)
+        pts = [
+            self._to_screen(x0, y0),
+            self._to_screen(x1, y1),
+            self._to_screen(x2, y2),
+            self._to_screen(x0 - x1 + x2, y0 - y1 + y2),
+        ]
+        self._fill_convex_screen(pts, gcol)
 
     def _rectangle(self, code: int, x1: int, y1: int) -> None:
         if len(self.stack) < 1:
@@ -956,8 +1064,16 @@ class BBCGraphics:
     ) -> None:
         if len(pts) != 3:
             return
-        ordered = sorted(pts, key=lambda p: p[1])
-        (x_a, y_a), (x_b, y_b), (x_c, y_c) = ordered
+        self._fill_convex_screen(pts, gcol)
+
+    def _fill_convex_screen(
+        self,
+        pts: Sequence[Tuple[int, int]],
+        gcol: GColState,
+    ) -> None:
+        """Scanline-fill a convex polygon whose vertices are given in edge order."""
+        if len(pts) < 3:
+            return
 
         def edge_x(y: int, x1i: int, y1i: int, x2i: int, y2i: int) -> List[float]:
             y_min = min(y1i, y2i)
@@ -969,15 +1085,15 @@ class BBCGraphics:
             t = (y - y1i) / (y2i - y1i)
             return [x1i + t * (x2i - x1i)]
 
-        y_start = int(y_a)
-        y_end = int(y_c)
+        edges = [
+            (pts[i][0], pts[i][1], pts[i - 1][0], pts[i - 1][1])
+            for i in range(len(pts))
+        ]
+        y_start = int(min(p[1] for p in pts))
+        y_end = int(max(p[1] for p in pts))
         for y in range(y_start, y_end + 1):
             xs: List[float] = []
-            for xa, ya, xb, yb in (
-                (x_a, y_a, x_b, y_b),
-                (x_b, y_b, x_c, y_c),
-                (x_c, y_c, x_a, y_a),
-            ):
+            for xa, ya, xb, yb in edges:
                 xs.extend(edge_x(y, xa, ya, xb, yb))
             if len(xs) < 2:
                 continue

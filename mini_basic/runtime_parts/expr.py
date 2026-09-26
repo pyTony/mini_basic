@@ -279,7 +279,7 @@ class RuntimeExprMixin:
             flags=id_flags,
         )
         return re.sub(
-            rf'\b({self._VAR_BASE_PATTERN})\b(?![%$!#])',
+            rf'\b({self._VAR_BASE_PATTERN})\b(?![%$!#&])',
             repl,
             expr,
             flags=id_flags,
@@ -3110,7 +3110,28 @@ class RuntimeExprMixin:
             return f'({s})'
         return s
 
+    _RE_BYTE_VAR_HINT = re.compile(r'(?<=[A-Za-z0-9_])&')
+
+    def _substitute_byte_vars(self, expr: str) -> str:
+        """BBCSDL byte variables: ``r1&`` reads its stored value AND 255.
+
+        Runs before hex literals so ``r1&`` is not read as ``r1`` + ``&…``.
+        disco.bbc: r& = r1& + f * (r2& - r1&)
+        """
+        return re.sub(
+            rf'(?<![@A-Za-z0-9_.])({self._VAR_BASE_PATTERN})&(?![A-Za-z0-9_(])',
+            lambda m: self._embed_subst_number(
+                int(self.int_variables.get(
+                    self._normalize_identifier(m.group(1)) + '&', 0
+                )) & 0xFF
+            ),
+            expr,
+            flags=self._identifier_re_flags(),
+        )
+
     def _substitute_variables(self, expr: str) -> str:
+        if '&' in expr and self._RE_BYTE_VAR_HINT.search(expr):
+            expr = self._substitute_byte_vars(expr)
         if '&' in expr or '%' in expr:
             expr = self._substitute_bbc_hex_literals(expr)
         # Always run for π (Commodore) and SQR5 etc.
@@ -3658,7 +3679,7 @@ class RuntimeExprMixin:
         expr = self._expand_bbc_indirection(expr)
         expr = self._unglue_monadic_expr(expr)
         # Compiled eval does not subst NAME%%; FNgetbmp's ``= p%%`` became 0.
-        if '%%' in expr:
+        if '%%' in expr or ('&' in expr and self._RE_BYTE_VAR_HINT.search(expr)):
             return self._eval_numeric_slow(expr)
         if self.config.use_compiled_exprs:
             cached = self._compiled_expr_cache.get((expr, False))

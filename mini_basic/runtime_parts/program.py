@@ -1043,6 +1043,7 @@ class RuntimeProgramMixin:
         self._assign_parse_cache = {}
         self._stmt_fast_runners = {}
         self._while_assign_accel = {}
+        self._if_parse_cache = {}
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()
@@ -1996,8 +1997,9 @@ class RuntimeProgramMixin:
         if token.endswith('%'):
             return self._validate_var_base(token[:-1]), 'int'
         # BBCSDL byte scalar/array type suffix
+        # Storage key keeps the suffix so a& and a% do not collide.
         if token.endswith('&'):
-            return self._validate_var_base(token[:-1]), 'int'
+            return self._validate_var_base(token[:-1]) + '&', 'int'
         if token.endswith('!') or token.endswith('#'):
             return self._validate_var_base(token[:-1]), 'float'
         base = self._validate_var_base(token)

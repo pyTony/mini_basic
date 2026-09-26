@@ -373,6 +373,15 @@ class RuntimeGraphicsMixin:
                 backend = 'terminal'
         if hasattr(self._display, 'fps_limit'):
             self._display.fps_limit = max(0, int(self.config.display_fps_limit))
+        # X seen by pump_events() only flips _open (surface kept, unlike
+        # mark_closed): stop the program here instead of reopening the window.
+        if (
+            self._display_live
+            and self._display is not None
+            and getattr(self._display, '_open', True) is False
+            and getattr(self._display, '_screen', None) is not None
+        ):
+            self._invoke_on_close_and_exit()
         # Reopen after user closed the window (or first open).
         if self._display is not None:
             setattr(self._display, '_refresh_enabled', self._refresh_enabled)

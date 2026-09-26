@@ -27,6 +27,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from ..util import session as _session
 from .strplan import init_string_plan_state
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
@@ -221,6 +222,8 @@ class RuntimeCoreMixin:
         init_string_plan_state(self)
         self._stmt_fast_runners: Dict[str, object] = {}
         self._while_assign_accel: Dict[int, object] = {}
+        # Single-line IF text -> (then_part, else_part, condition, then_code).
+        self._if_parse_cache: Dict[Tuple[str, str], Tuple[str, Optional[str], str, str]] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
         self._ansi_bg_cache: Dict[int, str] = {}
         self._ansi_reset_text: Optional[str] = None
@@ -678,11 +681,16 @@ class RuntimeCoreMixin:
         self._clear_string_plan_caches()
         self._stmt_fast_runners.clear()
         self._while_assign_accel.clear()
+        self._if_parse_cache.clear()
 
     def _bigint_enabled(self) -> bool:
         return bool(self.config.bigint_enabled)
 
     def _register_numeric_var(self, base: str, kind: VarKind) -> None:
+        # BBCSDL byte vars (key 'a&') are read by _substitute_variables,
+        # which masks them to 0..255.
+        if base.endswith('&'):
+            return
         # BBCSDL 64-bit ints use storage keys like 'a%%' (suffix included).
         is_i64 = base.endswith('%%')
         name_root = base[:-2] if is_i64 else base
@@ -690,9 +698,9 @@ class RuntimeCoreMixin:
         if sig_len > 0:
             # for limited sig, the pattern should match any longer name that
             # normalizes to this base (e.g. ABCD normalizes to AB)
-            match_pat = r'\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#])'
+            match_pat = r'\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
         else:
-            match_pat = r'\b' + re.escape(name_root) + r'\b(?![%$!#])'
+            match_pat = r'\b' + re.escape(name_root) + r'\b(?![%$!#&])'
         if kind == 'int':
             existing_patterns = {
                 pattern.pattern
@@ -840,9 +848,7 @@ class RuntimeCoreMixin:
         """Abort RUN if Ctrl+C or ESC was pressed in the launching terminal."""
         if not getattr(self, '_run_interrupt_watch', False):
             return
-        from mini_basic.util.session import terminal_interrupt_pending
-
-        kind = terminal_interrupt_pending()
+        kind = _session.terminal_interrupt_pending()
         if kind is None:
             return
         raise KeyboardInterrupt

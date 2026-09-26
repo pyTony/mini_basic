@@ -1873,6 +1873,10 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), "yes")
 
+    @unittest.skipUnless(
+        os.name == 'nt',
+        'backslash path joining is a Windows-only resolve_path behaviour',
+    )
     def test_resolve_path_relative_and_absolute(self):
         interp = self.make_interp()
         interp.working_dir = r'C:\Projects\basic'
