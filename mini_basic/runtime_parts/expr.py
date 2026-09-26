@@ -3002,6 +3002,45 @@ class RuntimeExprMixin:
             value = self._bbc_mem_i(addr, 0, 1 if match.group(3) == '?' else 4)
             text = text[:start] + str(value) + text[end:]
 
+    def _normalize_struct_array_index_refs(self, text: str) -> str:
+        """Rewrite NAME{(idxexpr)} to NAME{(N)}, evaluating idxexpr to an
+        integer. Struct-array element keys (in struct_members) must be built
+        from the index's runtime VALUE, not its source text, so a write via
+        one variable (circle{(N%)}.r%) and a read via another holding the
+        same value (circle{(I%)}.r%) agree on the same key."""
+        if '{(' not in text:
+            return text
+        pattern = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\{\(')
+        out = []
+        i = 0
+        while True:
+            m = pattern.search(text, i)
+            if not m:
+                out.append(text[i:])
+                break
+            open_paren = m.end() - 1
+            try:
+                close_paren = self._match_paren(text, open_paren)
+            except ValueError:
+                out.append(text[i:m.end()])
+                i = m.end()
+                continue
+            if close_paren + 1 >= len(text) or text[close_paren + 1] != '}':
+                out.append(text[i:m.end()])
+                i = m.end()
+                continue
+            idx_expr = text[open_paren + 1 : close_paren]
+            out.append(text[i : open_paren + 1])
+            try:
+                idx_val = int(self._eval_numeric(idx_expr))
+            except Exception:
+                out.append(idx_expr)
+            else:
+                out.append(str(idx_val))
+            out.append(')}')
+            i = close_paren + 2
+        return ''.join(out)
+
     def _dim_structure(self, decl: str) -> None:
         """Support BBCSDL record structure variables: DIM name{member1, member2%, sub{...}, arr(3)}"""
         decl = decl.strip()
@@ -3239,6 +3278,10 @@ class RuntimeExprMixin:
         # BBCSDL structure record members: support pt.x%  obj.name$  s.foo  (numeric ones for expr eval)
         # Use direct replace for dotted keys (plain \b patterns don't reliably cross dots + suffix)
         if self.struct_members:
+            if '{(' in expr:
+                # circle{(I%)}.r%: match struct_members keys (which are keyed
+                # by evaluated index, see _assign) rather than index source text.
+                expr = self._normalize_struct_array_index_refs(expr)
             for key, val in list(self.struct_members.items()):
                 if '.' not in key:
                     continue
@@ -4190,6 +4233,11 @@ class RuntimeExprMixin:
         return self._eval_numeric(expr.strip())
 
     def _assign(self, var: str, expr: str):
+        if '{(' in var:
+            # Struct-array element lvalue, e.g. circle{(N%)}.r% = 7: key the
+            # storage by the index's evaluated value, not its source text,
+            # so a later read via a different index variable can find it.
+            var = self._normalize_struct_array_index_refs(var)
         memory_vars = {
             'PAGE': 'bbc_page',
             'LOMEM': 'bbc_lomem',

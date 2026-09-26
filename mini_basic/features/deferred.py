@@ -15,12 +15,7 @@ DEFERRED_ROWS: List[DeferredRow] = [
     ('OS integration', 'SYS Windows API calls', 'foreign function interface'),
     ('OS integration', 'INSTALL libraries', 'tokenised library load'),
     ('Structures', 'DIM struct{} / TYPE', 'user-defined record types'),
-    (
-        'Structures',
-        'struct-array element read (tags)',
-        'circle{(I%)}.r% read fails; write circle{(0)}.r%=v is silently '
-        'tolerated. RETURN struct from FN. See examples/graphics/surks.bbc',
-    ),
+    ('Structures', 'RETURN struct from FN', 'pass/return whole struct values'),
     ('Pointers', '? ! $ $$ indirection', 'byte/word/string pointers'),
     (
         'Sound',

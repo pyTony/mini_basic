@@ -698,9 +698,9 @@ class RuntimeCoreMixin:
         if sig_len > 0:
             # for limited sig, the pattern should match any longer name that
             # normalizes to this base (e.g. ABCD normalizes to AB)
-            match_pat = r'\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
         else:
-            match_pat = r'\b' + re.escape(name_root) + r'\b(?![%$!#&])'
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])'
         if kind == 'int':
             existing_patterns = {
                 pattern.pattern
@@ -710,19 +710,25 @@ class RuntimeCoreMixin:
             id_flags = self._identifier_re_flags()
             if is_i64:
                 # Match a%% before a% (longer suffix first via sort by key length).
+                # (?<!\.) so a struct member's own a%% (circle{(I%)}.a%%) is
+                # left for the struct_members substitution, not clobbered by
+                # a same-named bare variable's value.
                 patterns = [
                     re.compile(
-                        r'\b' + re.escape(name_root) + r'\s*%%(?!\d)(?!\()',
+                        r'(?<!\.)\b' + re.escape(name_root) + r'\s*%%(?!\d)(?!\()',
                         id_flags,
                     )
                 ]
             else:
                 # (?!%) so a%% is not partially matched as a% + %.
-                # (?<![@A-Za-z0-9_]) not bare \b: word-boundary after @ would
-                # match ``vdu%`` inside BBCSDL ``@vdu%!220`` (piechart MOVE).
+                # (?<![@A-Za-z0-9_.]) not bare \b: word-boundary after @ would
+                # match ``vdu%`` inside BBCSDL ``@vdu%!220`` (piechart MOVE);
+                # excluding a preceding . keeps a struct-array element read
+                # like circle{(I%)}.r% from having its own .r% clobbered by
+                # an unrelated bare variable r% of the same name (surks.bbc).
                 patterns = [
                     re.compile(
-                        r'(?<![@A-Za-z0-9_])'
+                        r'(?<![@A-Za-z0-9_.])'
                         + re.escape(name_root)
                         + r'\s*%(?!%)(?!\d)(?!\()',
                         id_flags,
@@ -936,7 +942,7 @@ class RuntimeCoreMixin:
             if kind != 'int' or len(letter) != 1:
                 continue
             pattern = re.compile(
-                r'\b' + re.escape(letter) + r'\b(?![%$!#])',
+                r'(?<!\.)\b' + re.escape(letter) + r'\b(?![%$!#])',
                 id_flags,
             )
             key = (pattern.pattern, letter)
@@ -1382,6 +1388,8 @@ class RuntimeCoreMixin:
                 '',
             )
         # BBCSDL struct string member e.g. obj.name$   (full key 'obj.name$' in struct_members)
+        if '{(' in expr:
+            expr = self._normalize_struct_array_index_refs(expr)
         dmatch = re.match(r'^(.+\..+)\$$', expr)
         if dmatch:
             key = dmatch.group(1) + '$'

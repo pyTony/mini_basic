@@ -631,6 +631,10 @@ class RuntimeProgramMixin:
                 elif re.match(r'\.[A-Za-z_]', statement[end:end + 2]):
                     # Structure member: mode.w% = 640 is not the MODE statement.
                     folded = False
+                elif nxt == '{':
+                    # Struct / struct-array variable: circle{(0)}.r% = 7 is not
+                    # the CIRCLE statement (which is never followed by '{').
+                    folded = False
                 elif stmt_start and upper in self._MINI_FOLD_STMT_WORDS:
                     # print = 5 / for(3) = 1 are variables, not statements.
                     folded = not (nxt == '=' or (nxt == '(' and upper not in (

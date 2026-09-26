@@ -1045,9 +1045,12 @@ class SurksMiniSmokeTests(unittest.TestCase):
 
 
 class StructArrayFieldTests(unittest.TestCase):
-    """DIM struct{} / struct-array element access — working cases and the
-    known-broken indexed read (surks.bbc's circle{(I%)}.r%; tracked in
-    mini_basic/features/deferred.py and docs/LANGUAGE_FEATURES_1.00.md).
+    """DIM struct{} / struct-array element access, including indexed
+    reads/writes (surks.bbc's circle{(I%)}.r%). Struct-array element keys
+    are built from the index's evaluated value (see
+    _normalize_struct_array_index_refs in mini_basic/runtime_parts/expr.py),
+    so a write via one index variable and a read via another holding the
+    same value must agree on the same element.
     """
 
     def test_flat_struct_numeric_and_string_fields_read_write(self):
@@ -1076,9 +1079,7 @@ class StructArrayFieldTests(unittest.TestCase):
 
     def test_struct_array_element_read_by_variable_index(self):
         # circle{(I%)}.r% — reading a struct-array element's field back by a
-        # variable index. This is what breaks surks.bbc past the ELLIPSE fix
-        # (examples/graphics/surks_mini.bbc works around it with parallel
-        # arrays). Flip to a plain assertEqual once this is implemented.
+        # variable index (same variable used for the write).
         out, err = _run(
             '10 DIM circle{(4) x%, y%, r%, t%}\n'
             '20 circle{(0)}.r% = 7\n'
@@ -1086,13 +1087,25 @@ class StructArrayFieldTests(unittest.TestCase):
             '40 R% = circle{(I%)}.r%\n'
             '50 PRINT R%\n',
         )
-        broken = (out.split() != ['7']) or bool(err)
-        if broken:
-            pytest.xfail(
-                'struct-array element read by variable index not implemented: '
-                + (err or out)
-            )
-        self.assertEqual(out.split(), ['7'])
+        self.assertEqual(out.split(), ['7'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_element_write_and_read_use_different_index_vars(self):
+        # circle{(N%)}.r% = 7 written via N%, then read back via a
+        # differently-named variable I% holding the same value. This is the
+        # exact pattern that broke examples/graphics/surks.bbc (a circle
+        # collision-check loop writes with one loop variable and reads back
+        # with another) until struct-array keys were built from the index's
+        # evaluated value instead of its source text.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 N% = 0\n'
+            '30 circle{(N%)}.r% = 7\n'
+            '40 I% = 0\n'
+            '50 PRINT circle{(I%)}.r%\n',
+        )
+        self.assertEqual(out.split(), ['7'], msg=err)
+        self.assertEqual(err, '')
 
 
 class SwirlStructSysTests(unittest.TestCase):
