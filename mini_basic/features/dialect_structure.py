@@ -17,7 +17,7 @@ def dialect_structure_rows() -> List[MatrixRow]:
         ('IF/ENDIF / ELSEIF', '-', '-', '-', '+', '+'),
         ('WHILE / ENDWHILE (BBC V)', '-', '-', '-', '+', '+'),
         ('REPEAT / UNTIL', '-', '-', '-', '+', '+'),
-        ('EXIT FOR/WHILE/REPEAT (SDL)', '-', '-', '-', '-', '+'),
+        ('EXIT FOR/WHILE/REPEAT', '-', '-', '-', '+', '+'),
         ('ON CLOSE (SDL)', '-', '-', '-', '-', '+'),
         ('COLOUR fg,bg two-arg (SDL)', '-', '-', '-', '-', '+'),
         ('INKEY(-n) scan (SDL)', '-', '-', '-', '-', '+'),

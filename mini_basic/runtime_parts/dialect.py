@@ -121,10 +121,14 @@ class RuntimeDialectMixin:
         if feature == 'inkey_scan':
             # Negative INKEY (key scan, INKEY(-256) id) is standard BBC BASIC.
             return dialect in ('mini', 'bbc')
+        if feature == 'EXIT':
+            # EXIT FOR/WHILE/REPEAT is genuine BBC BASIC for Windows / BBCSDL
+            # syntax (bbcbasic.co.uk keyword reference), not a mini-only
+            # extension — unlike BREAK/CONTINUE, which really are mini-only.
+            return dialect in ('mini', 'bbc')
         if feature in (
             'on_close',
             'colour_two_arg',
-            'EXIT',
         ):
             return dialect == 'mini'
         if feature == 'INSTR':
