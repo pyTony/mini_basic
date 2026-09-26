@@ -214,6 +214,8 @@ class RuntimeCoreMixin:
         self._run_repeat_until: Dict[int, Tuple[int, str]] = {}
         self._var_subst_int_entries: List[Tuple[re.Pattern, str]] = []
         self._var_subst_float_entries: List[Tuple[re.Pattern, str]] = []
+        self._registered_int_vars: set = set()
+        self._registered_float_vars: set = set()
         self._compiled_expr_cache: Dict[Tuple[str, bool], CompiledExpr] = {}
         # __aget__ ids for compiled numeric array reads: id → (base, kind).
         self._compiled_array_keys: List[tuple] = []
@@ -677,6 +679,8 @@ class RuntimeCoreMixin:
         self._run_repeat_until.clear()
         self._var_subst_int_entries.clear()
         self._var_subst_float_entries.clear()
+        self._registered_int_vars.clear()
+        self._registered_float_vars.clear()
         self._compiled_expr_cache.clear()
         self._clear_string_plan_caches()
         self._stmt_fast_runners.clear()
@@ -702,6 +706,12 @@ class RuntimeCoreMixin:
         else:
             match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])'
         if kind == 'int':
+            if base in self._registered_int_vars:
+                # Already fully processed for this base (see the end of this
+                # branch) — a LET reassigning the same variable is the
+                # overwhelmingly common case once a loop is running, so skip
+                # rebuilding/recompiling patterns and rescanning the list.
+                return
             existing_patterns = {
                 pattern.pattern
                 for pattern, var in self._var_subst_int_entries
@@ -736,14 +746,26 @@ class RuntimeCoreMixin:
                 ]
                 if name_root and self.default_var_types.get(name_root[0].upper()) == 'int':
                     patterns.append(re.compile(match_pat, id_flags))
+            added = False
             for pattern in patterns:
                 if pattern.pattern not in existing_patterns:
                     self._var_subst_int_entries.append((pattern, base))
-            # Longer keys (a%%) before shorter (a) so substitution order is safe.
-            self._var_subst_int_entries.sort(key=lambda item: len(item[1]), reverse=True)
+                    added = True
+            if added:
+                # Longer keys (a%%) before shorter (a) so substitution order
+                # is safe. Re-sorting the whole list on every LET — even
+                # when the variable was already registered, which is most
+                # calls once a loop is running — dominated runtime
+                # (surks.bbc's collision-check loop reassigns the same
+                # handful of int vars thousands of times).
+                self._var_subst_int_entries.sort(key=lambda item: len(item[1]), reverse=True)
+            self._registered_int_vars.add(base)
             return
         if kind == 'float':
+            if base in self._registered_float_vars:
+                return
             if any(var == base for _, var in self._var_subst_float_entries):
+                self._registered_float_vars.add(base)
                 return
             self._var_subst_float_entries.append(
                 (
@@ -752,6 +774,7 @@ class RuntimeCoreMixin:
                 )
             )
             self._var_subst_float_entries.sort(key=lambda item: len(item[1]), reverse=True)
+            self._registered_float_vars.add(base)
 
     @staticmethod
     def _int_slot(name: str) -> str:
@@ -933,6 +956,10 @@ class RuntimeCoreMixin:
 
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""
+        # default_var_types just changed, which _register_numeric_var's
+        # bare-letter pattern depends on — drop its "already registered"
+        # cache so already-seen vars are reconsidered under the new types.
+        self._registered_int_vars.clear()
         id_flags = self._identifier_re_flags()
         existing = {
             (pattern.pattern, var)
@@ -2581,6 +2608,8 @@ class RuntimeCoreMixin:
         self._run_while_wend = {}
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
+        self._registered_int_vars = set()
+        self._registered_float_vars = set()
         self._compiled_expr_cache = {}
         self._clear_string_plan_caches()
         if announce:

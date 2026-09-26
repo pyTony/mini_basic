@@ -1044,6 +1044,8 @@ class RuntimeProgramMixin:
                             self._run_repeat_until[line_num] = (until_line, until_cond)
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
+        self._registered_int_vars = set()
+        self._registered_float_vars = set()
         self._compiled_expr_cache = {}
         self._parse_command_cache = {}
         self._clear_string_plan_caches()
