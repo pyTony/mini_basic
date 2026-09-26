@@ -16,6 +16,7 @@ import struct
 import sys
 import time
 
+from ..expr.patterns import VAR_BASE_PATTERN as _VAR_BASE_PATTERN
 from ..config import DEFAULT_CONFIG, InterpreterConfig, SYSTEM_VAR_SPEC
 from ..dialect_hint import DialectHint, parse_comment_dialect_line, split_dialect_hints
 from ..constants import (
@@ -2784,7 +2785,7 @@ class RuntimeExprMixin:
             raise ValueError('invalid DIM syntax')
         for decl in decls:
             d = decl.strip()
-            if self._dim_heap_ext(d):
+            if self._dim_heap_ext(d) or self._dim_heap_block(d):
                 continue
             if '{' in d:
                 self._dim_structure(d)
@@ -2803,7 +2804,56 @@ class RuntimeExprMixin:
         return name + '%%' if suffix == '%%' else name
 
     def _bbc_ptr_value(self, base: str, suffix: str) -> int:
+        if not suffix:
+            # Plain numeric pointer (BBC DIM p 8 stores the address in p).
+            return int(self._eval_numeric(base))
         return int(self.int_variables.get(self._bbc_ptr_key(base, suffix), 0))
+
+    def _bbc_set_ptr(self, base: str, suffix: str, addr: int) -> None:
+        if suffix:
+            self.int_variables[self._bbc_ptr_key(base, suffix)] = addr
+        else:
+            self._assign(base, str(addr))
+
+    def _bbc_mem_store(self, addr: int, width: int, value: int) -> None:
+        block = self._bbc_mem_block(addr)
+        if block is None:
+            raise ValueError(f'bad pointer {addr}')
+        base = next(s for s in self._bbc_heap if self._bbc_heap[s] is block)
+        pos = addr - base
+        if pos < 0 or pos + width > len(block):
+            raise ValueError('pointer out of range')
+        if width == 1:
+            block[pos] = int(value) & 0xFF
+        else:
+            block[pos : pos + 4] = (int(value) & 0xFFFFFFFF).to_bytes(4, 'little')
+
+    _BBC_INDIR_LVALUE_RE = re.compile(
+        rf'^\s*(?:([?!])\s*({_VAR_BASE_PATTERN}%?|\(.+\))'
+        rf'|({_VAR_BASE_PATTERN})(%%|%)?\s*([?!])\s*(-?\d+|{_VAR_BASE_PATTERN}%?|\(.+\)))'
+        rf'\s*=(?![=<>])(.*)$'
+    )
+
+    def _try_bbc_indirection_assign(self, line: str) -> bool:
+        """BBC ?addr=v, !addr=v, p?n=v, p%!n=v — byte/word stores into DIM blocks."""
+        if self.config.dialect not in ('bbc', 'mini') or (
+            '?' not in line and '!' not in line
+        ):
+            return False
+        match = self._BBC_INDIR_LVALUE_RE.match(line)
+        # Unary ?x= is PRINT shorthand outside bbc.
+        if match is None or (match.group(1) and self.config.dialect != 'bbc'):
+            return False
+        if match.group(1):
+            op = match.group(1)
+            addr = int(self._eval_numeric(match.group(2)))
+        else:
+            op = match.group(5)
+            addr = self._bbc_ptr_value(match.group(3), match.group(4) or '')
+            addr += int(self._eval_numeric(match.group(6)))
+        value = int(self._eval_numeric(match.group(7).strip()))
+        self._bbc_mem_store(addr, 1 if op == '?' else 4, value)
+        return True
 
     def _bbc_mem_block(self, addr: int) -> Optional[bytearray]:
         if addr in self._bbc_heap:
@@ -2848,6 +2898,22 @@ class RuntimeExprMixin:
         size = int(self._eval_numeric(size_expr))
         addr = self._bbc_alloc(size)
         self.int_variables[self._bbc_ptr_key(match.group(1), match.group(2))] = addr
+        return True
+
+    def _dim_heap_block(self, decl: str) -> bool:
+        """BBC DIM p n / DIM p% n — reserve n+1 bytes and store the address."""
+        if self.config.dialect not in ('bbc', 'mini'):
+            return False
+        match = re.match(
+            rf'^({self._VAR_BASE_PATTERN})(%%|%)?\s+([^(\s].*)$', decl.strip()
+        )
+        if not match or match.group(3).upper().startswith(('EXT', 'LOCAL')):
+            return False
+        size = int(self._eval_numeric(match.group(3).strip()))
+        if size < -1:
+            raise ValueError('bad DIM')
+        addr = self._bbc_alloc(size + 1)
+        self._bbc_set_ptr(match.group(1), match.group(2) or '', addr)
         return True
 
     def _expand_bbc_indirection(self, expr: str) -> str:
@@ -2897,7 +2963,44 @@ class RuntimeExprMixin:
             expr,
             flags=flags,
         )
+        if self.config.dialect in ('bbc', 'mini'):
+            expr = self._map_outside_strings(expr, self._expand_bbc_plain_indirection)
         return expr
+
+    def _expand_bbc_plain_indirection(self, text: str) -> str:
+        """DIM p 8 pointers: p?1, p!4, p%?i% and (bbc) unary ?p, !p, ?(p+1)."""
+        if '?' not in text and '!' not in text:
+            return text
+        name = self._VAR_BASE_PATTERN
+        text = re.sub(
+            rf'(?<![\w%])({name})(%%|%)?\s*([?!])\s*(-?\d+|{name}%?)',
+            lambda m: str(
+                self._bbc_mem_i(
+                    self._bbc_ptr_value(m.group(1), m.group(2) or ''),
+                    int(self._eval_numeric(m.group(4))),
+                    1 if m.group(3) == '?' else 4,
+                )
+            ),
+            text,
+        )
+        if self.config.dialect != 'bbc':
+            return text
+        unary = re.compile(rf'(^|[^\w%)\s])(\s*)([?!])\s*({name}%?|\()')
+        while True:
+            match = unary.search(text)
+            if match is None:
+                return text
+            start = match.start(3)
+            if match.group(4) == '(':
+                close = self._match_paren(text, match.end(4) - 1)
+                if close is None or close < 0:
+                    return text
+                operand, end = text[match.end(4) : close], close + 1
+            else:
+                operand, end = match.group(4), match.end(4)
+            addr = int(self._eval_numeric(operand))
+            value = self._bbc_mem_i(addr, 0, 1 if match.group(3) == '?' else 4)
+            text = text[:start] + str(value) + text[end:]
 
     def _dim_structure(self, decl: str) -> None:
         """Support BBCSDL record structure variables: DIM name{member1, member2%, sub{...}, arr(3)}"""

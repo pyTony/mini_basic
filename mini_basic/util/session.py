@@ -58,16 +58,16 @@ def terminal_interrupt_pending() -> Optional[str]:
     hundreds of thousands of times per second.
     """
     global _last_interrupt_poll_mono
+    # Clock first: isatty() is a syscall, and this runs for every BASIC line.
+    now = time.monotonic()
+    if (now - _last_interrupt_poll_mono) < _INTERRUPT_POLL_INTERVAL_S:
+        return None
+    _last_interrupt_poll_mono = now
     try:
         if not sys.stdin.isatty():
             return None
     except Exception:
         return None
-
-    now = time.monotonic()
-    if (now - _last_interrupt_poll_mono) < _INTERRUPT_POLL_INTERVAL_S:
-        return None
-    _last_interrupt_poll_mono = now
 
     if sys.platform == 'win32':
         return _windows_interrupt_pending()

@@ -185,6 +185,26 @@ class BBCGraphicsTests(unittest.TestCase):
                     outside += 1
         self.assertEqual(outside, 0)
 
+    def test_plot_113_relative_parallelogram_fills_diamond(self):
+        """illusion.bbc diamonds: MOVE; MOVE BY 20,20; PLOT 113,20,-20."""
+        gfx = BBCGraphics(640, 512, x_scale=2, y_scale=2)
+        gfx.gcol(0, 1)
+        gfx.move_absolute(80, 100)
+        gfx.move_relative(20, 20)
+        gfx.plot_code(113, 20, -20)
+        on = lambda x, y: gfx.pixels[gfx._to_screen(x, y)[1]][gfx._to_screen(x, y)[0]] == 1
+        # Centre and the computed fourth vertex (100,80) are filled.
+        self.assertTrue(on(100, 100))
+        self.assertTrue(on(100, 84))
+        # Diamond, not bounding square: corners stay empty.
+        self.assertFalse(on(84, 116))
+        self.assertFalse(on(116, 84))
+        filled = sum(1 for row in gfx.pixels for colour in row if colour == 1)
+        # ~200 px for a 20-px-diagonal diamond, well under the 441-px square.
+        self.assertGreater(filled, 150)
+        self.assertLess(filled, 300)
+        self.assertEqual((gfx.cursor_x, gfx.cursor_y), (120, 100))
+
     def test_filled_triangle_flat_base(self):
         gfx = BBCGraphics(320, 256, x_scale=4, y_scale=4)
         gfx.gcol(0, 1)
