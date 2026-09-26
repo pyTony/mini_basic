@@ -4872,6 +4872,8 @@ class RuntimeExecutionMixin:
         if cmd == 'LET' or '=' in line:
             if '=' in line:
                 try:
+                    if self._try_bbc_indirection_assign(line):
+                        return None
                     var, op, expr = self._parse_assignment_statement(line)
                     if (
                         op == '='
