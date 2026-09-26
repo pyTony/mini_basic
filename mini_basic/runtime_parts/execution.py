@@ -107,6 +107,12 @@ from .stmt_simple import MISSING, dispatch_simple_stmt
 _ACCEL_FORBIDDEN_LHS = frozenset({
     'TIME', 'PAGE', 'LOMEM', 'HIMEM', 'PI', 'ERR', 'ERL',
 })
+_RE_IF_BREAK = re.compile(
+    rf'^BREAK(?:\s+({_VAR_BASE_PATTERN}))?\s*$', re.IGNORECASE,
+)
+_RE_IF_CONTINUE = re.compile(
+    rf'^CONTINUE(?:\s+({_VAR_BASE_PATTERN}))?\s*$', re.IGNORECASE,
+)
 # Statements that keep WHILE on the interpreter path (PRINT, nested control, …).
 _WHILE_ACCEL_BLOCKING_CMDS = frozenset({
     'WHILE', 'REPEAT', 'FOR', 'IF', 'ELSE', 'ELSEIF', 'ENDIF',
@@ -4626,43 +4632,31 @@ class RuntimeExecutionMixin:
                         self._error_message('? IF error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
                     return None
 
-            try:
-                then_part, else_part = self._split_if_else_parts(rest_strip)
-            except ValueError:
-                detail = self._if_error_detail(rest_strip)
-                self._runtime_error(
-                    f'? {detail}',
-                    line_num,
-                    stmt_index,
-                    stmt_count=stmt_count,
-                    statement=line,
-                )
-                return None
-
-            try:
-                condition, then_code = self._split_bbc_compact_if_then(then_part)
-                self.dprint('[IF]', 'cond', repr(condition))
-                self.dprint('[IF]', 'then', repr(then_code))
-            except ValueError:
-                detail = self._if_error_detail(rest_strip)
-                self._runtime_error(
-                    f'? {detail}',
-                    line_num,
-                    stmt_index,
-                    stmt_count=stmt_count,
-                    statement=line,
-                )
-                return None
-            break_match = re.match(
-                rf'^BREAK(?:\s+({self._VAR_BASE_PATTERN}))?\s*$',
-                then_code,
-                re.IGNORECASE,
-            )
-            continue_match = re.match(
-                rf'^CONTINUE(?:\s+({self._VAR_BASE_PATTERN}))?\s*$',
-                then_code,
-                re.IGNORECASE,
-            )
+            # The split depends only on the text and dialect: parse each
+            # single-line IF once per run, not on every pass through a loop.
+            if_key = (self.config.dialect, rest_strip)
+            parsed_if = self._if_parse_cache.get(if_key)
+            if parsed_if is None:
+                try:
+                    then_part, else_part = self._split_if_else_parts(rest_strip)
+                    condition, then_code = self._split_bbc_compact_if_then(then_part)
+                except ValueError:
+                    detail = self._if_error_detail(rest_strip)
+                    self._runtime_error(
+                        f'? {detail}',
+                        line_num,
+                        stmt_index,
+                        stmt_count=stmt_count,
+                        statement=line,
+                    )
+                    return None
+                parsed_if = (then_part, else_part, condition, then_code)
+                self._if_parse_cache[if_key] = parsed_if
+            then_part, else_part, condition, then_code = parsed_if
+            self.dprint('[IF]', 'cond', repr(condition))
+            self.dprint('[IF]', 'then', repr(then_code))
+            break_match = _RE_IF_BREAK.match(then_code)
+            continue_match = _RE_IF_CONTINUE.match(then_code)
             if break_match or continue_match:
                 if not self._dialect_allows('BREAK' if break_match else 'CONTINUE'):
                     self._runtime_error('? IF error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
