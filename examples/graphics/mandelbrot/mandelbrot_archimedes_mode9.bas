@@ -16,7 +16,6 @@
 160 ST% = 4
 170 REM OS units: scale 2 = > ST% screen pixels need BW% = ST%*2
 180 BW% = ST% * 2: BH% = ST% * 2
-190 *REFRESH OFF
 200 FOR PY% = 0 TO NY% - ST% STEP ST%
 210     CY = YMIN + (PY% / (NY% - 1)) * (YMAX - YMIN)
 220     FOR PX% = 0 TO NX% - ST% STEP ST%
@@ -35,9 +34,7 @@
 350             RECTANGLE FILL PX% * 2, PY% * 2, BW%, BH%
 360         ENDIF
 370     NEXT PX%
-380     *REFRESH
 390 NEXT PY%
-400 *REFRESH ON
 410 T = TIME
 420 PRINT TAB(0,31);"Done "; T / 100;"s"
 430 END
