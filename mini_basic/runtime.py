@@ -1006,9 +1006,13 @@ def _list_bas_file(
     return 0
 
 
-def _run_bas_file(interp: BASICInterpreter, path: str) -> int:
+def _run_bas_file(interp: BASICInterpreter, path: str, *, trace: bool = False) -> int:
     if _load_bas_file(interp, path) != 0:
         return 1
+    # load() resets trace state via new(), so a CLI --trace request must be
+    # (re)applied after loading, not before (mirrors typing TRACE ON after LOAD).
+    if trace:
+        interp.trace_enabled = True
     # Loaded: is printed on stderr. On Windows the console cursor can stay on
     # that line, so the first PRINT TAB pads beside the path (bacarrat title).
     try:
@@ -1454,7 +1458,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             status = (
                 _run_command_script(interp, target)
                 if kind == 'commands'
-                else _run_bas_file(interp, target)
+                else _run_bas_file(interp, target, trace=trace)
             )
         except BasicRuntimeError:
             # Shouldn't normally reach here (run() catches), but be safe
