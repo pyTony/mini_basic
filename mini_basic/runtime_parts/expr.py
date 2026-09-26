@@ -3795,18 +3795,18 @@ class RuntimeExprMixin:
         return expr
 
     def _unglue_inkey_digits(self, expr: str) -> str:
-        """INKEY1 / INKEY2 → INKEY(1) (welcome pack D%=INKEY1).
+        """INKEY1 / INKEY2 → INKEY(1); INKEY-99 → INKEY(-99) (BBCSDL listings).
 
         Must run before expand_dynamic_calls / compiled eval; normalize_operators
         alone is too late (expand sees bare INKEY1 and leaves name INKEY).
         """
         if self._identifiers_case_sensitive():
             return re.sub(
-                r'(?<![A-Za-z0-9_])INKEY(\d+)\b',
+                r'(?<![A-Za-z0-9_])INKEY(-?\d+)\b',
                 r'INKEY(\1)',
                 expr,
             )
-        return re.sub(r'\bINKEY(\d+)\b', r'INKEY(\1)', expr, flags=re.IGNORECASE)
+        return re.sub(r'\bINKEY(-?\d+)\b', r'INKEY(\1)', expr, flags=re.IGNORECASE)
 
     def _unglue_asc_string_literal(self, expr: str) -> str:
         """ASC\"B\" → ASC(\"B\") (welcome PRINT CHR$(ASC\"B\"-(I%=M2)))."""
