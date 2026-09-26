@@ -98,7 +98,8 @@
   OFF                          hide text cursor       yes    yes     VDU 23,1,0
   COLOR RGB                    physical colour        yes    partial  wheel PROCbow
   @ispal% guard                0=high color           stub=0   yes     test_ispal_percent_stub
-  ELLIPSE / FLOOD              BB4W graphics          missing   no      deferred until CIRCLE stable
+  ELLIPSE [FILL] x,y,a,b[,angle] BB4W graphics          yes    yes     test_ellipse_statement
+  FLOOD                        flood fill             missing   no      not yet implemented
 
 === Array / matrix ops ===
   Feature                      BB4W / dialect spec    mini   tested  notes
@@ -143,7 +144,7 @@
   OS integration       SYS Windows API calls            foreign function interface
   OS integration       INSTALL libraries                tokenised library load
   Structures           DIM struct{} / TYPE              user-defined record types
-  Structures           structure arrays and tags        RETURN struct from FN
+  Structures           struct-array element read (tags) circle{(I%)}.r% read fails; write circle{(0)}.r%=v is silently tolerated. RETURN struct from FN. See examples/graphics/surks.bbc
   Pointers             ? ! $ $$ indirection             byte/word/string pointers
   Sound                Real SOUND / ENVELOPE / ADVAL audio multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait
   Teletext remainder   MODE 7 double-height / conceal / boxed extend existing teletext renderer

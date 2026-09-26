@@ -1016,6 +1016,34 @@ class EllipseGeometryTests(unittest.TestCase):
         self.assertLess(abs(count - expected) / expected, 0.15)
 
 
+class SurksMiniSmokeTests(unittest.TestCase):
+    """examples/graphics/surks_mini.bbc: mini_basic-compatible fork of surks.bbc
+    (original uses a struct-array element read, circle{(I%)}.r%, which
+    mini_basic doesn't support yet — see docs/LANGUAGE_FEATURES_1.00.md).
+    """
+
+    def test_runs_without_runtime_error(self):
+        import threading
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.load('examples/graphics/surks_mini.bbc', announce=False)
+
+        errors = []
+
+        def patched(msg, *args, **kwargs):
+            errors.append((msg, kwargs.get('statement')))
+            raise SystemExit(1)
+
+        interp._runtime_error = patched
+
+        thread = threading.Thread(target=interp.run, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+        self.assertEqual(errors, [])
+
+
 class SwirlStructSysTests(unittest.TestCase):
     """swirl.bbc: DIM mode{}, SYS SDL calls, ABSSIN glue, PLOT 165 arcs."""
 
