@@ -222,6 +222,7 @@ class RuntimeCoreMixin:
         self._stmt_fast_runners: Dict[str, object] = {}
         self._while_assign_accel: Dict[int, object] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
+        self._inkey_scan_held: Optional[Tuple[str, float]] = None
         self._ansi_bg_cache: Dict[int, str] = {}
         self._ansi_reset_text: Optional[str] = None
         self._print_line_parts: List[str] = []

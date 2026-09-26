@@ -109,11 +109,11 @@ class BBCDialectSDLTests(unittest.TestCase):
         ])
         self.assertIn('? BREAK error', out)
 
-    def test_inkey_negative_scan_returns_minus_one_when_idle(self):
+    def test_inkey_negative_scan_is_false_when_idle(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
-        self.assertEqual(interp._inkey_bbc_negative_scan(-99), -1.0)
+        self.assertEqual(interp._inkey_bbc_key_down(-99), 0.0)
         # -256 is not a key: it is the platform id (BBCSDL 's').
-        self.assertEqual(interp._inkey_bbc_negative_scan(-256), 115.0)
+        self.assertEqual(interp._inkey_bbc_key_down(-256), 115.0)
 
     def test_inkey_negative_in_expression(self):
         out, _ = self._run_bbc(
@@ -123,7 +123,7 @@ class BBCDialectSDLTests(unittest.TestCase):
             ],
             dialect='mini',
         )
-        self.assertEqual(out, '-1 115')
+        self.assertEqual(out, '0 115')
 
     def test_modulo_keyword_in_expressions(self):
         out, _ = self._run_bbc([
