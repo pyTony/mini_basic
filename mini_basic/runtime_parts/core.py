@@ -1956,7 +1956,8 @@ class RuntimeCoreMixin:
         return True
 
     def _boolean_relop_at(self, expr: str, index: int) -> Optional[str]:
-        for op in ('<>', '>=', '<=', '=', '<', '>'):
+        # == is BB4W / BBCSDL equality (disco.bbc: INKEY(-256) == &57).
+        for op in ('<>', '>=', '<=', '==', '=', '<', '>'):
             if not expr.startswith(op, index):
                 continue
             if op == '=':

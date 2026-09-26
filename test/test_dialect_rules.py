@@ -285,7 +285,7 @@ def test_dialect_allows_table() -> None:
         'EXIT': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
         'BREAK': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
         'on_close': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
-        'inkey_scan': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
+        'inkey_scan': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
         'INSTR': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
         'unnumbered_program': {
             'mits': False,

@@ -840,3 +840,27 @@ class LoadLegacyEncodingTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class InkeyPlatformIdTests(unittest.TestCase):
+    """INKEY(-256) is the platform id; negative INKEY is standard BBC BASIC."""
+
+    def test_inkey_minus_256_is_bbcsdl_id(self):
+        for dialect in ('bbc', 'mini'):
+            out, err = _run(
+                '10 BB4W% = (INKEY(-256) == &57)\n'
+                '20 PRINT BB4W%;" ";INKEY(-256)\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['0', '115'], msg=(dialect, err))
+
+    def test_double_equals_is_equality(self):
+        for dialect in ('bbc', 'mini'):
+            out, err = _run(
+                '10 X% = (3 == 3) : PRINT X%\n'
+                '20 IF 3 == 3 THEN PRINT "y"\n'
+                '30 IF 2 == 3 THEN PRINT "n" ELSE PRINT "e"\n'
+                '40 PRINT (3 == &57)\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['-1', 'y', 'e', '0'], msg=(dialect, err))

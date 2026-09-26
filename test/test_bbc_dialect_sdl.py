@@ -111,17 +111,19 @@ class BBCDialectSDLTests(unittest.TestCase):
 
     def test_inkey_negative_scan_returns_minus_one_when_idle(self):
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
-        self.assertEqual(interp._inkey_bbc_negative_scan(-256), -1.0)
+        self.assertEqual(interp._inkey_bbc_negative_scan(-99), -1.0)
+        # -256 is not a key: it is the platform id (BBCSDL 's').
+        self.assertEqual(interp._inkey_bbc_negative_scan(-256), 115.0)
 
     def test_inkey_negative_in_expression(self):
         out, _ = self._run_bbc(
             [
-                (10, 'PRINT INKEY(-256)'),
+                (10, 'PRINT INKEY(-99);" ";INKEY(-256)'),
                 (20, 'END'),
             ],
             dialect='mini',
         )
-        self.assertEqual(out, '-1')
+        self.assertEqual(out, '-1 115')
 
     def test_modulo_keyword_in_expressions(self):
         out, _ = self._run_bbc([

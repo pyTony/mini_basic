@@ -1002,6 +1002,8 @@ class RuntimeGraphicsMixin:
 
     def _inkey_bbc_negative_scan(self, scan_code: int) -> float:
         """BBC INKEY(n) for n < 0: immediate keyboard scan (non-blocking)."""
+        if scan_code == -256:
+            return float(0x73)  # platform id: BBCSDL 's' (BB4W 'W' = &57)
         if self._display_enabled():
             if hasattr(self._display, 'pump_events'):
                 self._display.pump_events()
