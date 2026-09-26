@@ -101,6 +101,32 @@ from .helpers import (
     _apply_pygame_display_defaults,
 )
 
+# BBC BASIC negative-INKEY key numbers -> pygame key constant names.
+_BBC_NEGATIVE_INKEY_KEYS = {
+    -1: ('K_LSHIFT', 'K_RSHIFT'),
+    -2: ('K_LCTRL', 'K_RCTRL'),
+    -3: ('K_LALT', 'K_RALT'),
+    -26: ('K_LEFT',),
+    -122: ('K_RIGHT',),
+    -58: ('K_UP',),
+    -42: ('K_DOWN',),
+    -74: ('K_RETURN', 'K_KP_ENTER'),
+    -99: ('K_SPACE',),
+    -113: ('K_ESCAPE',),
+    -90: ('K_BACKSPACE', 'K_DELETE'),
+    -97: ('K_TAB',),
+}
+for _ch, _code in zip(
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    (-66, -101, -83, -51, -35, -68, -84, -85, -38, -70, -71, -87, -102,
+     -86, -55, -56, -17, -52, -82, -36, -54, -100, -34, -67, -69, -98),
+):
+    _BBC_NEGATIVE_INKEY_KEYS[_code] = ('K_' + _ch.lower(),)
+for _ch, _code in zip('0123456789', (-40, -49, -50, -18, -19, -20, -53, -37, -22, -39)):
+    _BBC_NEGATIVE_INKEY_KEYS[_code] = ('K_' + _ch,)
+del _ch, _code
+
+
 class RuntimeGraphicsMixin:
     """Mixin providing graphics-related BASICInterpreter methods."""
 
@@ -1034,25 +1060,28 @@ class RuntimeGraphicsMixin:
         return float(ord(text[0])) if text else -1.0
 
     def _inkey_bbc_negative_scan(self, scan_code: int) -> float:
-        """BBC INKEY(n) for n < 0: immediate keyboard scan (non-blocking)."""
+        """BBC INKEY(-n): TRUE (-1) while that key is held, else FALSE (0).
+
+        INKEY(-256) is the platform id, not a key scan."""
         if scan_code == -256:
             return float(0x73)  # platform id: BBCSDL 's' (BB4W 'W' = &57)
-        if self._display_enabled():
-            if hasattr(self._display, 'pump_events'):
-                self._display.pump_events()
-            pygame_mod = getattr(self._display, '_pygame', None)
-            if pygame_mod is not None and pygame_mod.get_init():
-                pygame_mod.event.pump()
-                pressed = pygame_mod.key.get_pressed()
-                if pressed[pygame_mod.K_ESCAPE]:
-                    return 27.0
-                for key_code in range(32, 127):
-                    if pressed[key_code]:
-                        return float(key_code)
-        text = self._inkey_value()
-        if text:
-            return float(ord(text[0]))
-        return -1.0
+        if not self._display_enabled():
+            return 0.0
+        if hasattr(self._display, 'pump_events'):
+            self._display.pump_events()
+        pygame_mod = getattr(self._display, '_pygame', None)
+        if pygame_mod is None or not pygame_mod.get_init():
+            return 0.0
+        names = _BBC_NEGATIVE_INKEY_KEYS.get(scan_code)
+        if names is None:
+            return 0.0
+        pygame_mod.event.pump()
+        pressed = pygame_mod.key.get_pressed()
+        for name in names:
+            code = getattr(pygame_mod, name, None)
+            if code is not None and pressed[code]:
+                return -1.0
+        return 0.0
 
     def _inkey_code_wait(self, timeout_cs: float) -> float:
         if timeout_cs < 0:

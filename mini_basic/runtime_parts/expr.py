@@ -2174,9 +2174,10 @@ class RuntimeExprMixin:
             inner = expr[m.start() + 3 : paren_end + 1]
             expr = expr[: m.start()] + f'VAL({inner})' + expr[paren_end + 1 :]
 
-        # Boundary after the name so POS is not a prefix of pos_space%.
+        # Boundary after the name so POS is not a prefix of pos_space%; no
+        # leading '.' so a struct member like Ball{(1)}.Pos.x is not POS.
         func_re = re.compile(
-            rf'(?<![A-Za-z0-9_])({_NUMERIC_BUILTIN_FUNC_RE}|EVAL|NOT)(?![A-Za-z0-9_$])',
+            rf'(?<![A-Za-z0-9_.])({_NUMERIC_BUILTIN_FUNC_RE}|EVAL|NOT)(?![A-Za-z0-9_$])',
             re.IGNORECASE,
         )
         while func_re.search(expr):
@@ -3047,18 +3048,24 @@ class RuntimeExprMixin:
     # every struct_members key against it; a match that isn't an actual key
     # is left untouched by _struct_member_ref_repl.
     _STRUCT_MEMBER_REF_RE = re.compile(
-        r'[A-Za-z_][A-Za-z0-9_]*(?:\{\(\d+\)\})?\.[A-Za-z_][A-Za-z0-9_]*(?:\$\$|\$|%%|%)?'
+        r'[A-Za-z_][A-Za-z0-9_]*(?:\{\(\d+\)\})?(?:\.[A-Za-z_][A-Za-z0-9_]*)+(?:\$\$|\$|%%|%|&)?'
     )
 
     def _struct_member_ref_repl(self, m: re.Match) -> str:
         key = m.group(0)
         if key not in self.struct_members:
+            # '&' may be a following hex literal/operator rather than a byte suffix
+            if key.endswith('&') and key[:-1] in self.struct_members:
+                return self._struct_member_ref_repl_key(key[:-1]) + '&'
             return key
+        return self._struct_member_ref_repl_key(key)
+
+    def _struct_member_ref_repl_key(self, key: str) -> str:
         if key.endswith('$') or key.endswith('$$'):
             # string members not substituted here (handled in PRINT/string contexts)
             return key
         val = self.struct_members[key]
-        if key.endswith('%') or key.endswith('%%'):
+        if key.endswith('%') or key.endswith('&'):
             return str(int(val) if isinstance(val, (int, float)) else val)
         v = float(val) if not isinstance(val, str) else 0.0
         return str(int(v)) if v == int(v) else str(v)
@@ -3083,6 +3090,49 @@ class RuntimeExprMixin:
             )
             cache[cache_key] = pat
         return pat
+
+    def _parse_struct_member_decls(self, body: str) -> Dict[str, VarKind]:
+        """Parse a struct member-list body (the text inside { }), returning a
+        flat dict of dotted member key -> kind. Nested sub-structures such as
+        'Pos{x,y}' recurse and produce dotted keys like 'Pos.x', 'Pos.y'."""
+        result: Dict[str, VarKind] = {}
+        raw_members = self._split_at_depth(body, ',', skip_empty=True)
+        for raw in raw_members:
+            mem = raw.strip()
+            if not mem:
+                continue
+            if '{' in mem:
+                # nested sub-structure: subname{members...}
+                brace_idx = mem.index('{')
+                subname = mem[:brace_idx].strip()
+                sub_body = mem[brace_idx + 1:]
+                if sub_body.endswith('}'):
+                    sub_body = sub_body[:-1]
+                if not subname:
+                    continue
+                for sub_mkey, sub_kind in self._parse_struct_member_decls(sub_body).items():
+                    result[f"{subname}.{sub_mkey}"] = sub_kind
+                continue
+            if '(' in mem:
+                # array member inside struct e.g. arr(5) ; treat as special, skip scalar init
+                continue
+            # parse member like foo  foo%  bar$  baz%%
+            mm = re.match(r'^(' + self._VAR_BASE_PATTERN + r')(%%|%|&|\$\$|\$|!|#)?$', mem)
+            if mm:
+                mbase = mm.group(1)
+                msuf = mm.group(2) or ''
+                mkey = mbase + msuf  # e.g. 'x%' or 'name$'
+                if msuf in ('$', '$$'):
+                    k: VarKind = 'str'
+                elif msuf in ('%', '%%', '&'):
+                    k = 'int'
+                else:
+                    k = 'float'
+                result[mkey] = k
+            else:
+                # bare name without suffix
+                result[mem] = 'float'
+        return result
 
     def _dim_structure(self, decl: str) -> None:
         """Support BBCSDL record structure variables: DIM name{member1, member2%, sub{...}, arr(3)}"""
@@ -3112,44 +3162,18 @@ class RuntimeExprMixin:
         size_expr = size_match.group(1) if size_match else None
         if size_match:
             body = size_match.group(2).strip()
-        # split members, but for nested {} we keep simple split (sufficient for flat + note subs)
-        raw_members = self._split_at_depth(body, ',', skip_empty=True)
-        member_kinds: Dict[str, VarKind] = {}
+        # split members; nested sub-structures (e.g. Pos{x,y}) are recursed
+        # into dotted member keys like 'Pos.x' so the rest of this function's
+        # key-construction logic (sname.mkey / sname{(idx)}.mkey) needs no
+        # further changes to support them.
+        member_kinds = self._parse_struct_member_decls(body)
         init_values: Dict[str, object] = {}
-        for raw in raw_members:
-            mem = raw.strip()
-            if not mem or '{' in mem:
-                # nested sub-structure or complex: record name for reference but no init value here
-                # allow later assignment to sub members like s.sub.m
-                if mem:
-                    # store a placeholder for the sub name e.g. 'sub{}' or just skip init
-                    subname = mem.split('{')[0].strip()
-                    # we don't allocate flat for sub, access via dotted full key will create on assign
-                    pass
-                continue
-            if '(' in mem:
-                # array member inside struct e.g. arr(5) ; treat as special, skip scalar init
-                continue
-            # parse member like foo  foo%  bar$  baz%%
-            mm = re.match(r'^(' + self._VAR_BASE_PATTERN + r')(%%|%|\$\$|\$|!|#)?$', mem)
-            if mm:
-                mbase = mm.group(1)
-                msuf = mm.group(2) or ''
-                mkey = mbase + msuf  # e.g. 'x%' or 'name$'
-                if msuf in ('$', '$$'):
-                    k: VarKind = 'str'
-                    init_values[mkey] = ''
-                elif msuf in ('%', '%%'):
-                    k = 'int'
-                    init_values[mkey] = 0
-                else:
-                    k = 'float'
-                    init_values[mkey] = 0.0
-                member_kinds[mkey] = k
+        for mkey, k in member_kinds.items():
+            if k == 'str':
+                init_values[mkey] = ''
+            elif k == 'int':
+                init_values[mkey] = 0
             else:
-                # bare name without suffix
-                mkey = mem
-                member_kinds[mkey] = 'float'
                 init_values[mkey] = 0.0
         self.struct_defs[sname] = member_kinds
         # merge inits into struct_members using dotted? No: here we store bare for the top struct? Wait
@@ -4305,12 +4329,50 @@ class RuntimeExprMixin:
             return self._coerce_int_storage(self._eval_numeric(expr.strip()))
         return self._eval_numeric(expr.strip())
 
+    _RE_WHOLE_STRUCT_REF = re.compile(
+        r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(\{\(\d+\)\}|\{\})\s*$'
+    )
+
+    def _try_whole_struct_assign(self, var: str, expr: str) -> bool:
+        """Copy a whole struct (or struct-array element) record:
+        Ball{(i%)} = Ball{(i%+1)} or a{} = b{}. Returns False if not that form."""
+        dst = self._RE_WHOLE_STRUCT_REF.match(var)
+        if dst is None:
+            return False
+        src_text = expr.strip()
+        if '{(' in src_text:
+            src_text = self._normalize_struct_array_index_refs(src_text)
+        src = self._RE_WHOLE_STRUCT_REF.match(src_text)
+        if src is None:
+            return False
+
+        def prefix(name: str, sel: str) -> str:
+            name = self._normalize_identifier(name)
+            return f"{name}." if sel == '{}' else f"{name}{sel}."
+
+        src_prefix = prefix(src.group(1), src.group(2))
+        dst_prefix = prefix(dst.group(1), dst.group(2))
+        if src_prefix == dst_prefix:
+            return True
+        src_name = self._normalize_identifier(src.group(1))
+        members = self.struct_defs.get(src_name)
+        if members is None:
+            raise ValueError(f'unknown structure {src.group(1)}')
+        for mkey, kind in members.items():
+            default: object = '' if kind == 'str' else (0 if kind == 'int' else 0.0)
+            self.struct_members[dst_prefix + mkey] = self.struct_members.get(
+                src_prefix + mkey, default
+            )
+        return True
+
     def _assign(self, var: str, expr: str):
         if '{(' in var:
             # Struct-array element lvalue, e.g. circle{(N%)}.r% = 7: key the
             # storage by the index's evaluated value, not its source text,
             # so a later read via a different index variable can find it.
             var = self._normalize_struct_array_index_refs(var)
+        if '{' in var and self._try_whole_struct_assign(var, expr):
+            return
         memory_vars = {
             'PAGE': 'bbc_page',
             'LOMEM': 'bbc_lomem',
@@ -4374,6 +4436,8 @@ class RuntimeExprMixin:
                 val = str(self._eval_assignment_expr(expr, kind='str'))
             elif kind == 'int':
                 val = self._coerce_int_storage(self._eval_assignment_expr(expr, kind='int'))
+                if base.endswith('&'):
+                    val = int(val) & 0xFF
             else:
                 val = float(self._eval_assignment_expr(expr, kind='float'))
             self.struct_members[base] = val
