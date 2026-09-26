@@ -147,10 +147,11 @@ class RuntimeExprMixin:
             self.config.strict_dialect = saved_strict
 
     def _coerce_int_storage(self, value: object) -> object:
-        """Store as BBC integer: round half away from zero (not C trunc toward 0).
+        """Store as integer: bbc/mini truncate toward zero (A% = 3.7 → 3, -3.7 → -3);
+        MS-family dialects round like MBASIC CINT.
 
-        jclock uses X%(I%) += spring*delta; truncating small steps stalls particles
-        and leaves the date ring looking spiral vs SDL.
+        BBC BASIC and BBC SDL both truncate. jclock's spiral date ring came
+        from the slow SIN/RAD path (low frame rate), not from truncation.
         """
         if not self._bigint_enabled():
             return float(value)
@@ -160,7 +161,9 @@ class RuntimeExprMixin:
             return 0
         if x != x or x in (float('inf'), float('-inf')):  # NaN/inf
             return 0
-        # Round half away from zero (common Acorn-style).
+        if self.config.dialect in ('bbc', 'mini'):
+            return int(x)  # truncates toward zero
+        # MS BASIC rounds when storing into an integer variable (CINT).
         if x >= 0:
             return int(x + 0.5)
         return int(x - 0.5)
@@ -246,7 +249,7 @@ class RuntimeExprMixin:
 
         def repl(match: re.Match) -> str:
             name = match.group(1)
-            if name.startswith('__ib_') or name == '__basic_time__':
+            if name.startswith('__ib_') or name == '__basic_time__' or name in _SAFE_EVAL_GLOBALS:
                 return match.group(0)
             if name.upper() in _EXPR_RESERVED_WORDS:
                 return match.group(0)
@@ -314,6 +317,71 @@ class RuntimeExprMixin:
             index += 1
         return False
 
+    def _recompile_array_exprs(self) -> None:
+        """After DIM, retry compiling cached expressions that read arrays.
+
+        RUN warms the cache before any DIM runs, so X%(I%) was not yet an
+        array and the expression stayed on the slow path for the whole run.
+        Objects are updated in place: per-statement fast paths hold them.
+        """
+        for key, compiled in list(self._compiled_expr_cache.items()):
+            if not compiled.has_array or compiled.use_fallback:
+                continue
+            del self._compiled_expr_cache[key]
+            fresh = self._get_compiled_expr(key[0], is_condition=key[1])
+            if not fresh.has_array and not fresh.use_fallback:
+                for slot in (
+                    'code', 'float_vars', 'int_vars', 'system_vars', 'needs_time',
+                    'has_array', 'needs_int_coerce',
+                ):
+                    setattr(compiled, slot, getattr(fresh, slot))
+                compiled._ns_cache = None
+            self._compiled_expr_cache[key] = compiled
+
+    def _compiled_array_get(self, array_id: int, *indices: object) -> object:
+        """Runtime side of ``__aget__`` in compiled expressions."""
+        base, kind = self._compiled_array_keys[array_id]
+        return self._array_get(base, kind, [int(index) for index in indices])
+
+    def _rewrite_array_reads_for_compile(self, expr: str) -> Optional[str]:
+        """Numeric array reads → ``__aget__(id, …)``; None if any ref is unsure."""
+        out: List[str] = []
+        pos = 0
+        while True:
+            match = self._RE_ARRAY_HEAD.search(expr, pos)
+            if not match:
+                out.append(expr[pos:])
+                return ''.join(out)
+            name, suffix = match.group(1), match.group(2) or ''
+            open_idx = match.end() - 1
+            kind = self._array_kind_from_suffix(suffix)
+            if kind == 'str' or suffix == '%%':
+                return None
+            key = self._resolve_array_key(name, kind)
+            if key not in self.array_storage:
+                if not suffix and (
+                    name if self._identifiers_case_sensitive() else name.upper()
+                ) in self._PURE_MATH_NAMES:
+                    out.append(expr[pos:open_idx + 1])  # SIN( … compiled later
+                    pos = open_idx + 1
+                    continue
+                return None  # FN / builtin / not yet DIMmed: keep the slow path
+            close_idx = self._match_paren(expr, open_idx)
+            if close_idx < 0:
+                return None
+            inner = self._rewrite_array_reads_for_compile(expr[open_idx + 1:close_idx])
+            if inner is None or not inner.strip():
+                return None
+            ident = (name, kind)  # _array_get resolves aliases itself
+            array_id = self._compiled_array_ids.get(ident)
+            if array_id is None:
+                array_id = len(self._compiled_array_keys)
+                self._compiled_array_keys.append(ident)
+                self._compiled_array_ids[ident] = array_id
+            out.append(expr[pos:match.start()])
+            out.append(f'__aget__({array_id}, {inner})')
+            pos = close_idx + 1
+
     def _get_compiled_expr(self, source: str, is_condition: bool = False) -> CompiledExpr:
         # Outer parens: CONT = (ZX*ZX+ZY*ZY < 4) must compile as a comparison,
         # not fall back to _eval_numeric (regex ladder) every WHILE iteration.
@@ -329,35 +397,46 @@ class RuntimeExprMixin:
             return compiled
 
         try:
-            compiled.has_array = '(' in stripped and self._expr_has_array_ref(stripped)
-            compiled.needs_int_coerce = self._expr_is_pure_bitwise(stripped)
-            if self._boolean_literal_value(stripped) is not None:
+            # SIN(T) / RAD(T) are compiled calls, not array reads.
+            compiled.has_array = '(' in stripped and self._expr_has_array_ref(
+                self._compile_pure_math_calls(stripped, strip=True)
+            )
+            work = stripped
+            if compiled.has_array and '"' not in stripped:
+                # X%(I%) → __aget__(id, I%): numeric array reads stay compiled
+                # (jclock: X%(I%) += (…-X%(I%)…) was ~10x slower on the slow path).
+                rewritten = self._rewrite_array_reads_for_compile(stripped)
+                if rewritten is not None:
+                    work = rewritten
+                    compiled.has_array = False
+            compiled.needs_int_coerce = self._expr_is_pure_bitwise(work)
+            if self._boolean_literal_value(work) is not None:
                 raise ValueError('boolean literal')
-            if self._expr_has_chained_comparison(stripped):
+            if self._expr_has_chained_comparison(work):
                 # Python would chain 3 > 2 > 1 as (3 > 2 and 2 > 1).
                 raise ValueError('chained comparison')
-            if self._expr_has_boolean_syntax(stripped):
-                if self._expr_is_pure_bitwise(stripped):
+            if self._expr_has_boolean_syntax(work):
+                if self._expr_is_pure_bitwise(work):
                     expr, needs_time, float_vars, int_vars, system_vars = (
                         self._prepare_expr_for_compile(
-                            stripped, is_condition, allow_bitwise=True,
+                            work, is_condition, allow_bitwise=True,
                         )
                     )
                 elif (
-                    self._expr_has_logical_boolean_ops(stripped)
-                    or self._expr_has_xor_eqv_imp_eor(stripped)
+                    self._expr_has_logical_boolean_ops(work)
+                    or self._expr_has_xor_eqv_imp_eor(work)
                 ):
                     # CONT AND (I% < N), A < B AND B < C — comparisons → -1/0 + &/|
                     expr, needs_time, float_vars, int_vars, system_vars = (
-                        self._prepare_mixed_boolean_for_compile(stripped)
+                        self._prepare_mixed_boolean_for_compile(work)
                     )
                 else:
                     expr, needs_time, float_vars, int_vars, system_vars = (
-                        self._prepare_simple_comparison_for_compile(stripped)
+                        self._prepare_simple_comparison_for_compile(work)
                     )
             else:
                 expr, needs_time, float_vars, int_vars, system_vars = (
-                    self._prepare_expr_for_compile(stripped, is_condition)
+                    self._prepare_expr_for_compile(work, is_condition)
                 )
             code = compile_safe(expr)
         except Exception:
@@ -2602,6 +2681,7 @@ class RuntimeExprMixin:
             raise ValueError('array already dimensioned')
         # A and A() are separate names in BASIC: DIM must not clear scalar A.
         self.array_storage[key] = self._allocate_array_storage(dims, kind)
+        self._recompile_array_exprs()
 
     def _erase_arrays(self, rest: str) -> None:
         """MS BASIC ERASE — undimension arrays so DIM can reuse the name."""

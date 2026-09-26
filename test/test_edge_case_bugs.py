@@ -565,5 +565,84 @@ class BasicErrorWordingTests(unittest.TestCase):
             self._assert_basic_error(line, expected)
 
 
+class IntegerAssignTruncatesTests(unittest.TestCase):
+    """BBC BASIC and BBC SDL truncate toward zero when storing into A%."""
+
+    def test_real_to_integer_variable_truncates(self):
+        for dialect in ('bbc', 'mini'):
+            out, err = _run(
+                '10 A% = 3.7 : B% = -3.7 : C% = 7 / 2\n'
+                '20 DIM X%(2) : X%(1) = 2.9 : X%(1) += 0.9\n'
+                '30 PRINT A%\n40 PRINT B%\n50 PRINT C%\n60 PRINT X%(1)\n',
+                dialect,
+            )
+            # X%(1) = 2.9 → 2; += 0.9 → 2.9 → 2 (small steps stall, as in BBC).
+            self.assertEqual(out.split(), ['3', '-3', '3', '2'], msg=(dialect, err))
+
+    def test_ms_dialects_still_round(self):
+        out, err = _run('10 A% = 3.7 : B% = -3.7\n20 PRINT A%\n30 PRINT B%\n', 'mits')
+        self.assertEqual(out.split(), ['4', '-4'], msg=err)
+
+
+class CompiledMathBuiltinTests(unittest.TestCase):
+    """SIN/COS/RAD/... stay on the compiled fast path (jclock spring loop)."""
+
+    def _interp(self):
+        return BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+
+    def test_math_builtins_compile(self):
+        interp = self._interp()
+        for expr in (
+            '320 + R*SIN(RAD(T)) - X - 250',
+            'ABS(X) + SQR(Y) + COS(T) + TAN(T) + ATN(T) + DEG(T) + EXP(T)',
+        ):
+            compiled = interp._get_compiled_expr(expr, is_condition=False)
+            self.assertFalse(compiled.use_fallback, msg=expr)
+            self.assertIsNotNone(compiled.code, msg=expr)
+
+    def test_compiled_values_match(self):
+        out, err = _run(
+            '10 T = 30 : R = 300 : Y = 16 : X = -2.5\n'
+            '20 PRINT 320 + R*SIN(RAD(T)) - 250\n'
+            '30 PRINT ABS(X) + SQR(Y)\n'
+            '40 PRINT DEG(ATN(1))\n',
+            'bbc',
+        )
+        self.assertEqual(out.split(), ['220', '6.5', '45'], msg=err)
+
+    def test_array_reads_compile_after_dim_even_if_warmed_before(self):
+        interp = self._interp()
+        expr = '(X%+R*SIN(RAD(T))-X%(I%)-250)/(1+T/60)'
+        early = interp._get_compiled_expr(expr)  # RUN warm-up: no DIM yet
+        self.assertTrue(early.has_array)
+        interp._dim_array('X%(50)')
+        self.assertFalse(early.has_array)  # same object, now compiled
+        self.assertFalse(early.use_fallback)
+        interp.int_variables.update({'X': 320, 'I': 3})
+        interp.variables.update({'R': 300.0, 'T': 30.0})
+        interp._array_set('X', 'int', [3], 10)
+        expected = (320 + 300 * 0.5 - 10 - 250) / (1 + 30 / 60)
+        self.assertAlmostEqual(early.eval_numeric(interp), expected, places=9)
+
+    def test_compiled_array_read_matches_slow_path_and_errors(self):
+        out, err = _run(
+            '10 DIM A(3), B%(2, 2)\n'
+            '20 A(2) = 1.5 : B%(1, 2) = 7 : I = 2\n'
+            '30 PRINT A(I) * 2 + B%(1, I)\n'
+            '40 PRINT A(B%(1,2) - 5)\n'
+            '50 PRINT A(9)\n',
+            'bbc',
+        )
+        lines = [line for line in out.splitlines() if not line.startswith('?')]
+        self.assertEqual(lines, ['10', '1.5'], msg=err)
+        self.assertIn('subscript', (out + err).lower())
+
+    def test_sqr_negative_is_still_an_error(self):
+        out, err = _run('10 Y = -4 : PRINT SQR(Y)\n', 'bbc')
+        self.assertIn('illegal function call', (out + err).lower())
+
+
 if __name__ == '__main__':
     unittest.main()

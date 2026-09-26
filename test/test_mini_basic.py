@@ -1313,14 +1313,14 @@ class MiniBASICTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             interp.eval_expr("10 % 3")
 
-    def test_integer_rounds_on_assign(self):
-        """BBC integer assign: round half away from zero (not C trunc toward 0)."""
+    def test_integer_truncates_on_assign(self):
+        """BBC / BBC SDL integer assign truncates toward zero (9.9 → 9)."""
         lines = [
             (10, "N% = 9.9"),
             (20, "PRINT N%"),
             (30, "END"),
         ]
-        self.assertEqual(self.run_program(lines), "10")
+        self.assertEqual(self.run_program(lines), "9")
         lines2 = [
             (10, "N% = 9.4"),
             (20, "PRINT N%"),
@@ -4574,7 +4574,7 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(buf.getvalue().strip(), '10.03')
 
     def test_compound_let_all_operators(self):
-        # A%: 10-3=7, *2=14, /4=3.5 → rounds to 4 (BBC int assign, not trunc to 3)
+        # A%: 10-3=7, *2=14, /4=3.5 → truncates to 3 (BBC int assign)
         lines = [
             (10, 'A%=10'),
             (20, 'A% -= 3'),
@@ -4588,7 +4588,7 @@ class MiniBASICTests(unittest.TestCase):
             (100, 'PRINT A%; B$; N%(0)'),
             (110, 'END'),
         ]
-        self.assertEqual(self.run_program(lines), '4abcd12')
+        self.assertEqual(self.run_program(lines), '3abcd12')
 
     def test_split_at_depth_basic(self):
         interp = self.make_interp()

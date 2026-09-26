@@ -43,6 +43,18 @@ SAFE_EVAL_GLOBALS = {
     'int': int,
     '__basic_mod__': _basic_mod,
     '__basic_idiv__': _basic_idiv,
+    # Pure math builtins for the compiled fast path (same as the slow path).
+    '__m_sin__': math.sin,
+    '__m_cos__': math.cos,
+    '__m_tan__': math.tan,
+    '__m_atn__': math.atan,
+    '__m_rad__': math.radians,
+    '__m_deg__': math.degrees,
+    '__m_sqr__': math.sqrt,
+    '__m_exp__': math.exp,
+    '__m_abs__': abs,
+    # Placeholder: each CompiledExpr namespace binds the interpreter's reader.
+    '__aget__': None,
 }
 """Restricted globals dict for CompiledExpr eval()."""
 

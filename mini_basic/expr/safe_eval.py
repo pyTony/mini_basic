@@ -96,10 +96,24 @@ def _strip_leading_zeros(source: str) -> str:
     )
 
 
+# Text that could hold a forbidden node: attribute (.name), [ ] { } literals,
+# lambda / comprehension / walrus / f-string / await / yield.
+_RE_MAYBE_UNSAFE = re.compile(
+    r'''\.\s*[A-Za-z_]|[\[\]{}]|\b(?:lambda|for|await|yield)\b|:=|\b[fF][rR]?["']'''
+)
+
+
 @lru_cache(maxsize=4096)
 def compile_safe(source: str) -> CodeType:
     """Parse, validate and compile *source*; SyntaxError / ValueError on failure."""
     source = _strip_leading_zeros(source)
+    # Hot path: the slow evaluator embeds variable values, so most sources are
+    # new strings. Skip the AST walk when nothing can need checking or rewriting.
+    if (
+        '%' not in source and '//' not in source and '**' not in source
+        and not _RE_MAYBE_UNSAFE.search(source)
+    ):
+        return compile(source, '<string>', 'eval')
     tree = ast.parse(source, filename='<string>', mode='eval')
     check_expression_tree(tree)
     tree = ast.fix_missing_locations(_BasicSemantics(source).visit(tree))

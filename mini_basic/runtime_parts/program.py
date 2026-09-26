@@ -888,6 +888,28 @@ class RuntimeProgramMixin:
         self._build_user_procedures()
         self._definitions_dirty = False
 
+    _PURE_MATH_NAMES = frozenset(
+        ('SIN', 'COS', 'TAN', 'ATN', 'RAD', 'DEG', 'SQR', 'EXP', 'ABS')
+    )
+    _RE_PURE_MATH_CALL = re.compile(
+        r'(?<![A-Za-z0-9_$%@])(SIN|COS|TAN|ATN|RAD|DEG|SQR|EXP|ABS)(?=\s*\()'
+    )
+
+    def _compile_pure_math_calls(self, expr: str, *, strip: bool = False) -> str:
+        """SIN(…) → __m_sin__(…) so math builtins do not force the slow path.
+
+        Only functions with one meaning in every dialect (not LOG / INT / SGN).
+        ``strip=True`` drops the names instead (array-reference detection).
+        """
+        if '(' not in expr:
+            return expr
+        pattern = self._RE_PURE_MATH_CALL
+        if not self._identifiers_case_sensitive():
+            pattern = re.compile(pattern.pattern, re.IGNORECASE)
+        if strip:
+            return pattern.sub('', expr)
+        return pattern.sub(lambda m: f'__m_{m.group(1).lower()}__', expr)
+
     def _prepare_expr_for_compile(
         self,
         expr: str,
@@ -897,6 +919,7 @@ class RuntimeProgramMixin:
     ) -> Tuple[str, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
         if self._RE_FN_CALL.search(expr):
             raise ValueError('dynamic call in expression')
+        expr = self._compile_pure_math_calls(expr)
         if self._RE_FUNC_CALL.search(expr):
             raise ValueError('dynamic builtin in expression')
         if self._RE_NUMERIC_FUNC_CALL.search(expr):

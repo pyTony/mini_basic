@@ -213,6 +213,9 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries: List[Tuple[re.Pattern, str]] = []
         self._var_subst_float_entries: List[Tuple[re.Pattern, str]] = []
         self._compiled_expr_cache: Dict[Tuple[str, bool], CompiledExpr] = {}
+        # __aget__ ids for compiled numeric array reads: id → (base, kind).
+        self._compiled_array_keys: List[tuple] = []
+        self._compiled_array_ids: Dict[tuple, int] = {}
         self._parse_command_cache: Dict[str, Tuple[str, str]] = {}
         self._stmt_fast_runners: Dict[str, object] = {}
         self._while_assign_accel: Dict[int, object] = {}
