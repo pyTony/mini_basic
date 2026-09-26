@@ -614,6 +614,8 @@ class RuntimeProgramMixin:
             )
         else:
             statement = self._normalize_two_word_closers(statement)
+            if self.config.dialect in ('mits', 'commodore', 'tiny'):
+                statement = self._space_crunched_ms_statements(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
             statement = self._space_glued_to_step(statement)
@@ -1328,6 +1330,79 @@ class RuntimeProgramMixin:
     def _normalize_hash_file_commands(cls, line: str) -> str:
         """BBC file I/O: PRINT #ch  INPUT #ch  CLOSE #ch  ->  PRINT#ch etc."""
         return cls._RE_HASH_FILE_CMD.sub(r'\1#', line.strip())
+
+    _MS_CRUNCH_STMT_WORDS = tuple(sorted((
+        'PRINT', 'INPUT', 'GOTO', 'GOSUB', 'RETURN', 'IF', 'FOR', 'NEXT', 'LET',
+        'DIM', 'READ', 'DATA', 'RESTORE', 'END', 'STOP', 'ON', 'REM', 'DEF',
+        'POKE', 'CLEAR', 'CLR', 'RANDOMIZE', 'CONT', 'WAIT', 'OUT', 'GET',
+        'SWAP', 'WHILE', 'WEND', 'CLS', 'CALL', 'ERASE', 'WRITE', 'RESUME',
+        'SYS', 'DEFINT', 'DEFSNG', 'DEFDBL', 'DEFSTR', 'TRON', 'TROFF',
+        # Whole words so they are not split as END IF / DEF PROC.
+        'ENDIF', 'ENDPROC', 'ENDWHILE', 'ENDCASE', 'ENDSELECT', 'ENDFUNCTION',
+        'DEFPROC', 'ENDSUB',
+    ), key=len, reverse=True))
+    _MS_CRUNCH_INNER_WORDS = ('THEN', 'ELSE', 'GOTO', 'GOSUB')
+
+    def _space_crunched_ms_statements(self, text: str) -> str:
+        """MS / Commodore ignore spaces: ``PRINTA`` → ``PRINT A``, ``IFA=0THEN50``.
+
+        Splits a keyword glued to what follows only at statement start (and
+        after THEN/ELSE), plus THEN/ELSE/GOTO/GOSUB inside IF and ON. Unlike
+        the real tokenizer it never splits mid-expression names (SCORE ≠ SC OR E).
+        REM and DATA payloads and strings are copied unchanged.
+        """
+        out: List[str] = []
+        index = 0
+        length = len(text)
+        stmt_start = True
+        inner = False  # inside IF / ON: THEN, ELSE, GOTO, GOSUB may be glued
+        while index < length:
+            ch = text[index]
+            if ch == '"':
+                end = text.find('"', index + 1)
+                end = length if end < 0 else end + 1
+                out.append(text[index:end])
+                index = end
+                stmt_start = False
+                continue
+            if ch == ':':
+                out.append(ch)
+                index += 1
+                stmt_start, inner = True, False
+                continue
+            if ch.isspace():
+                out.append(ch)
+                index += 1
+                continue
+            upper = text[index:index + 9].upper()
+            if stmt_start:
+                stmt_start = False
+                word = next((w for w in self._MS_CRUNCH_STMT_WORDS if upper.startswith(w)), None)
+                if word is not None:
+                    out.append(text[index:index + len(word)])
+                    index += len(word)
+                    if word in ('REM', 'DATA'):
+                        out.append(text[index:])
+                        break
+                    if index < length and text[index].isalnum() and word != 'DEFPROC':
+                        out.append(' ')
+                    inner = word in ('IF', 'ON')
+                    continue
+            elif inner:
+                word = next((w for w in self._MS_CRUNCH_INNER_WORDS if upper.startswith(w)), None)
+                if word is not None:
+                    if out and not out[-1][-1:].isspace():
+                        out.append(' ')
+                    out.append(text[index:index + len(word)])
+                    index += len(word)
+                    if index < length and not text[index].isspace():
+                        out.append(' ')
+                    if word in ('THEN', 'ELSE'):
+                        stmt_start = True
+                    continue
+            out.append(ch)
+            index += 1
+        return ''.join(out)
 
     @staticmethod
     def _space_glued_to_step(text: str, *, ignore_case: bool = True) -> str:

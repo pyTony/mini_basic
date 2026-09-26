@@ -470,5 +470,35 @@ class TabColumnTests(unittest.TestCase):
         self.assertEqual(out.splitlines(), [' *****'], msg=err)
 
 
+class CrunchedMsCodeTests(unittest.TestCase):
+    """MS / Commodore BASIC ignore spaces: PRINTA is PRINT A."""
+
+    def test_crunched_statements(self):
+        for dialect in ('mits', 'commodore'):
+            out, err = _run(
+                '10 A=2:PRINTA\n'
+                '20 PRINT"X";A\n'
+                '30 GOTO50\n'
+                '40 PRINT"NO"\n'
+                '50 IFA=2THEN70\n'
+                '60 PRINT"NO2"\n'
+                '70 IFA<>2THENPRINT"NO3"\n'
+                '80 FORI=1TO3:PRINTI;:NEXTI\n'
+                '90 GOSUB200:END\n'
+                '200 PRINT"SUB":RETURN\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['2', 'X2', '123SUB'], msg=(dialect, err))
+
+    def test_crunched_on_goto_and_rem_payload(self):
+        out, err = _run(
+            '10 K=2:ONKGOTO100,200\n'
+            '100 PRINT"ONE":END\n'
+            '200 PRINT"TWO":REMPRINTNOT\n',
+            'mits',
+        )
+        self.assertEqual(out.split(), ['TWO'], msg=err)
+
+
 if __name__ == '__main__':
     unittest.main()
