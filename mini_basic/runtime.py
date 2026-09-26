@@ -102,8 +102,9 @@ from .runtime_parts.execution import RuntimeExecutionMixin
 from .runtime_parts.io import RuntimeIoMixin
 from .runtime_parts.graphics import RuntimeGraphicsMixin
 from .runtime_parts.dialect import RuntimeDialectMixin
+from .runtime_parts.strplan import RuntimeStrPlanMixin
 
-class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, RuntimeDefsMixin, RuntimeExecutionMixin, RuntimeIoMixin, RuntimeGraphicsMixin, RuntimeDialectMixin):
+class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, RuntimeDefsMixin, RuntimeExecutionMixin, RuntimeIoMixin, RuntimeGraphicsMixin, RuntimeDialectMixin, RuntimeStrPlanMixin):
     """BBC/mini BASIC interpreter (mixin composition)."""
 
     _VAR_MAX_LEN = 255
@@ -116,11 +117,11 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
     _RE_COND_NE = _RE_COND_NE
     _RE_COND_EQ = _RE_COND_EQ
     _RE_PARSE_CMD = re.compile(
-        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
+        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|TIMING|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
         re.IGNORECASE,
     )
     _RE_PARSE_CMD_BBC = re.compile(
-        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
+        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|TIMING|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
     )
     _RE_PROC_CALL = _RE_PROC_CALL
     _RE_DEF_PROC = _RE_DEF_PROC
@@ -151,9 +152,9 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
     })
     _UNIMPLEMENTED_COMMANDS = {
-        # Platform-bound / OS / machine language commands are not implemented in this interpreter.
+        # Platform-bound / OS / machine language commands are out of scope for 1.00.
         # Per user guidance: document and do not directly test them in core Phase-1 (non-graphics).
-        # They report ? Unimplemented: instead of silent fail.
+        # They report ? Out of scope: instead of silent fail.
         # See test_unknown_syntax.py for coverage of error reporting (non-platform ones prioritized).
         'SYS': 'SYS (RISC OS / OS call)',
         'CALL': 'CALL (machine-code subroutine)',
@@ -195,7 +196,7 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'PROC': 'ENDPROC',
     }
     _BBC_BARE_STRING_ARG_FUNCS = frozenset({'LEN', 'VAL'})
-    _BBC_BARE_NO_ARG_FUNCS = frozenset({'PI', 'POS', 'VPOS', 'GET', 'INKEY'})
+    _BBC_BARE_NO_ARG_FUNCS = frozenset({'PI', 'POS', 'VPOS', 'GET', 'INKEY', 'TIMER'})
     _FILE_CHANNEL_HASH_FUNCS = frozenset({'EOF', 'LOF', 'LOC', 'PTR', 'EXT'})
     _RE_BAD_PERCENT_MOD = re.compile(
         r'(?:\d|\))\s*%'
@@ -213,14 +214,14 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'BREAK', 'CONTINUE', 'EXIT', 'PROC', 'ENDPROC',
         'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
         'GOTO', 'GOSUB', 'RESUME', 'RETURN',
-        'DATA', 'DEF', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
+        'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
         'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE', 'CIRCLE', 'MOUSE',
         'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW',
         'ORIGIN', 'PLOT', 'SPRITEDEF', 'SPRITE', 'STOP', 'OSCLI', 'CHAIN', 'RUN', 'WAIT',
-        'KILL', 'ERASE', 'LINE', 'TRACE', 'LVAR', 'SWAP',
+        'KILL', 'ERASE', 'LINE', 'TRACE', 'TIMING', 'LVAR', 'SWAP',
     )
     _GLUABLE_AFTER_KEYWORDS = frozenset([
-        'FOR', 'LET', 'DIM', 'READ', 'INPUT', 'LOCAL', 'DEF', 'PROC', 'FN',
+        'FOR', 'LET', 'DIM', 'READ', 'INPUT', 'LOCAL', 'DEF', 'FUNCTION', 'PROC', 'FN',
         'GOTO', 'GOSUB', 'RESUME', 'RETURN', 'RESTORE', 'ON', 'DATA',
         'NEXT', 'UNTIL', 'WEND', 'REPEAT',
     ])
@@ -837,8 +838,8 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
     )
     if sys.platform == 'win32' and sys.stdin.isatty() and not readline_ok:
         print(
-            'Note: install pyreadline3 for smoother Windows line editing '
-            '(pip install -r requirements-repl.txt)'
+            'Note: CPython on Windows: pip install -r requirements-repl.txt '
+            '(pyreadline3). PyPy already ships readline; skip pyreadline3.'
         )
     repl_history: List[str] = []
 
@@ -969,9 +970,9 @@ def _script_file_kind(path: str) -> str:
     # .txt and extensionless: sniff for REPL session vs pure program
     if ext in ('.txt', ''):
         try:
-            with open(path, 'r', encoding='utf-8') as handle:
-                sample = handle.readlines()
-        except OSError:
+            with open(path, 'rb') as handle:
+                sample = BASICInterpreter._decode_program_text(handle.read()).splitlines(True)
+        except (OSError, UnicodeDecodeError):
             return 'program'
         return 'commands' if _looks_like_repl_command_script(sample) else 'program'
     return 'program'
@@ -1063,9 +1064,9 @@ def _run_command_script(interp: BASICInterpreter, path: str) -> int:
         print(f'File not found: {resolved}')
         return 1
     try:
-        with open(resolved, 'r', encoding='utf-8') as handle:
-            lines = handle.readlines()
-    except OSError as exc:
+        with open(resolved, 'rb') as handle:
+            lines = BASICInterpreter._decode_program_text(handle.read()).splitlines(True)
+    except (OSError, UnicodeDecodeError) as exc:
         print(f'Load failed: cannot read command script {resolved} ({type(exc).__name__}: {exc})')
         return 1
 

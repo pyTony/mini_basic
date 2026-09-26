@@ -120,7 +120,7 @@ Tokenized `.bbc` load already converts binary → text **once**. That path is cl
 | Unify LIST/SAVE formatters | **Done** (`format/save_case.py`) |
 | Case-sensitive trig glue | **Done** (P0) — model upper keywords vs lower idents |
 | True tokenized in-memory RUN | **Out of scope** (detokenize on load only) |
-| Strip runtime unglue | **Phase 2 started** — monadic family uses fast-reject on eval |
+| Strip runtime unglue | **Phase 2 in progress** — runtime copies stay (EVAL / FN text never passes entry) but return early when nothing is left: monadic (2a), operators (2c), bbc line glue (2b), `ASC"x"` and bare `CHR$65`/`STR$~` expansion (2d, 2026-09). Status table: `DISPATCH_MAP.md` §6 |
 
 ### Phase 1 contract (2026-08-09)
 

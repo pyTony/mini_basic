@@ -14,6 +14,25 @@ import re
 
 from ..constants import NUMERIC_BUILTIN_FUNC_RE
 
+def ident_prefix_len(text: str) -> int:
+    """Length of the leading VAR_BASE_PATTERN name in *text* (0 if none).
+
+    Plain-string twin of ``re.match(VAR_BASE_PATTERN, text)``: ASCII letter or
+    ``_``, then ASCII letters, digits or ``_``.
+    """
+    end = 0
+    for ch in text:
+        if not ch.isascii() or not (ch.isalpha() or ch == '_' or (end and ch.isdigit())):
+            break
+        end += 1
+    return end
+
+
+def is_var_base(name: str) -> bool:
+    """``re.fullmatch(VAR_BASE_PATTERN, name)`` without re."""
+    return name.isascii() and name.isidentifier()
+
+
 # Variable names: letter followed by letters, digits, or underscore.
 # BBCSDL / BB4W allow leading underscore (flier: DIM _BOX(4,2)).
 VAR_BASE_PATTERN = r'[_A-Za-z][A-Za-z0-9_]*'

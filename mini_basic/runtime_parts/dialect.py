@@ -118,9 +118,11 @@ class RuntimeDialectMixin:
             return True
         if feature == 'unnumbered_program':
             return dialect not in self._NUMBERED_GOTO_DIALECTS
+        if feature == 'inkey_scan':
+            # Negative INKEY (key scan, INKEY(-256) id) is standard BBC BASIC.
+            return dialect in ('mini', 'bbc')
         if feature in (
             'on_close',
-            'inkey_scan',
             'colour_two_arg',
             'EXIT',
         ):

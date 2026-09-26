@@ -27,7 +27,10 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from ..expr.safe_eval import compile_safe, safe_eval
+from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
+    is_var_base,
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
     RE_COND_NE as _RE_COND_NE,
@@ -72,6 +75,7 @@ from ..type_system import (
     FieldBuffer,
     FileChannel,
     FnReturn,
+    FnMemoMiss,
     CaseBlockLayout,
     CaseFrame,
     IfBlockLayout,
@@ -86,6 +90,8 @@ from ..type_system import (
     VarKind,
 )
 from typing import Callable, Dict, List, Optional, Set, TextIO, Tuple
+
+_FN_MEMO_MISS = object()
 
 _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
@@ -103,6 +109,21 @@ from .helpers import (
     _apply_pygame_display_defaults,
 )
 
+_RE_STR_TILDE_BARE = re.compile(r'STR\$\s*~\s*(?!\()', re.IGNORECASE)
+_RE_STR_TILDE_CALL = re.compile(r'STR\$\s*~\s*\(', re.IGNORECASE)
+# Bare-argument string calls: CHR$65 / CHR$ N → CHR$(65) (built once, not per call).
+_RE_BARE_STRING_FUNCS = tuple(
+    (name, re.compile(rf'(?<![A-Za-z0-9_]){re.escape(name)}\s*(?!\()', re.IGNORECASE))
+    for name in ('CHR$', 'STR$', 'HEX$', 'OCT$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$')
+)
+
+
+# Operator words that may precede ``(`` without being an array: A AND (B).
+_OPERATOR_WORDS = frozenset(
+    ('AND', 'OR', 'EOR', 'XOR', 'NOT', 'MOD', 'DIV', 'EQV', 'IMP')
+)
+
+
 class RuntimeExprMixin:
     """Mixin providing expr-related BASICInterpreter methods."""
 
@@ -119,6 +140,7 @@ class RuntimeExprMixin:
         spec = bbc_mode_spec(mode)
         if spec is None:
             return
+        self._bbc_custom_colours.clear()
         self._apply_text_dimensions(spec.text_cols, spec.text_rows)
         if spec.gfx_width > 0:
             self.config.graphics_width = spec.gfx_width
@@ -141,10 +163,11 @@ class RuntimeExprMixin:
             self.config.strict_dialect = saved_strict
 
     def _coerce_int_storage(self, value: object) -> object:
-        """Store as BBC integer: round half away from zero (not C trunc toward 0).
+        """Store as integer: bbc/mini truncate toward zero (A% = 3.7 → 3, -3.7 → -3);
+        MS-family dialects round like MBASIC CINT.
 
-        jclock uses X%(I%) += spring*delta; truncating small steps stalls particles
-        and leaves the date ring looking spiral vs SDL.
+        BBC BASIC and BBC SDL both truncate. jclock's spiral date ring came
+        from the slow SIN/RAD path (low frame rate), not from truncation.
         """
         if not self._bigint_enabled():
             return float(value)
@@ -154,7 +177,9 @@ class RuntimeExprMixin:
             return 0
         if x != x or x in (float('inf'), float('-inf')):  # NaN/inf
             return 0
-        # Round half away from zero (common Acorn-style).
+        if self.config.dialect in ('bbc', 'mini'):
+            return int(x)  # truncates toward zero
+        # MS BASIC rounds when storing into an integer variable (CINT).
         if x >= 0:
             return int(x + 0.5)
         return int(x - 0.5)
@@ -240,7 +265,7 @@ class RuntimeExprMixin:
 
         def repl(match: re.Match) -> str:
             name = match.group(1)
-            if name.startswith('__ib_') or name == '__basic_time__':
+            if name.startswith('__ib_') or name == '__basic_time__' or name in _SAFE_EVAL_GLOBALS:
                 return match.group(0)
             if name.upper() in _EXPR_RESERVED_WORDS:
                 return match.group(0)
@@ -259,47 +284,190 @@ class RuntimeExprMixin:
             flags=id_flags,
         )
 
+    _RE_LOGICAL_WORD = re.compile(
+        r'(?<![A-Za-z0-9_$%])(?:AND|OR|NOT|XOR|EOR|EQV|IMP)(?![A-Za-z0-9_$%])',
+        re.IGNORECASE,
+    )
+
+    def _expr_has_chained_comparison(self, expr: str) -> bool:
+        """True if two relational operators share one operand run (A < B < C)."""
+        if expr.count('<') + expr.count('>') + expr.count('=') < 2:
+            return False
+        depth = 0
+        in_string = False
+        count = 0
+        index = 0
+        length = len(expr)
+        while index < length:
+            ch = expr[index]
+            if ch == '"':
+                in_string = not in_string
+                index += 1
+                continue
+            if in_string:
+                index += 1
+                continue
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif depth == 0:
+                if ch in '<>' and expr.startswith(ch * 2, index):
+                    # << >> >>> shifts, not comparisons
+                    while index < length and expr[index] == ch:
+                        index += 1
+                    continue
+                op = self._boolean_relop_at(expr, index)
+                if op is not None:
+                    count += 1
+                    if count > 1:
+                        return True
+                    index += len(op)
+                    continue
+                if ch.isalpha():
+                    match = self._RE_LOGICAL_WORD.match(expr, index)
+                    if match and (index == 0 or not (expr[index - 1].isalnum() or expr[index - 1] in '_$%')):
+                        count = 0
+                        index = match.end()
+                        continue
+            index += 1
+        return False
+
+    def _recompile_array_exprs(self) -> None:
+        """After DIM, retry compiling cached expressions that read arrays.
+
+        RUN warms the cache before any DIM runs, so X%(I%) was not yet an
+        array and the expression stayed on the slow path for the whole run.
+        Objects are updated in place: per-statement fast paths hold them.
+        """
+        for key, compiled in list(self._compiled_expr_cache.items()):
+            if not compiled.has_array or compiled.use_fallback:
+                continue
+            del self._compiled_expr_cache[key]
+            fresh = self._get_compiled_expr(key[0], is_condition=key[1])
+            if not fresh.has_array and not fresh.use_fallback:
+                for slot in (
+                    'code', 'float_vars', 'int_vars', 'system_vars', 'needs_time',
+                    'has_array', 'needs_int_coerce',
+                ):
+                    setattr(compiled, slot, getattr(fresh, slot))
+                compiled._ns_cache = None
+            self._compiled_expr_cache[key] = compiled
+
+    def _compiled_array_get(self, array_id: int, *indices: object) -> object:
+        """Runtime side of ``__aget__`` in compiled expressions."""
+        base, kind = self._compiled_array_keys[array_id]
+        return self._array_get(base, kind, [int(index) for index in indices])
+
+    def _rewrite_array_reads_for_compile(self, expr: str) -> Optional[str]:
+        """Numeric array reads → ``__aget__(id, …)``; None if any ref is unsure."""
+        out: List[str] = []
+        pos = 0
+        while True:
+            match = self._RE_ARRAY_HEAD.search(expr, pos)
+            if not match:
+                out.append(expr[pos:])
+                return ''.join(out)
+            name, suffix = match.group(1), match.group(2) or ''
+            open_idx = match.end() - 1
+            if name == '__sfn__' and not suffix:
+                open_idx = match.end() - 1  # planned string call (strplan.py)
+                out.append(expr[pos:open_idx + 1])
+                pos = open_idx + 1
+                continue
+            kind = self._array_kind_from_suffix(suffix)
+            if kind == 'str' or suffix == '%%':
+                return None
+            key = self._resolve_array_key(name, kind)
+            if key not in self.array_storage:
+                word = name if self._identifiers_case_sensitive() else name.upper()
+                if not suffix and (
+                    word in self._PURE_MATH_NAMES or word in _OPERATOR_WORDS
+                ):
+                    # SIN( … compiled later; AND ( / OR ( are operators.
+                    out.append(expr[pos:open_idx + 1])
+                    pos = open_idx + 1
+                    continue
+                return None  # FN / builtin / not yet DIMmed: keep the slow path
+            close_idx = self._match_paren(expr, open_idx)
+            if close_idx < 0:
+                return None
+            inner = self._rewrite_array_reads_for_compile(expr[open_idx + 1:close_idx])
+            if inner is None or not inner.strip():
+                return None
+            ident = (name, kind)  # _array_get resolves aliases itself
+            array_id = self._compiled_array_ids.get(ident)
+            if array_id is None:
+                array_id = len(self._compiled_array_keys)
+                self._compiled_array_keys.append(ident)
+                self._compiled_array_ids[ident] = array_id
+            out.append(expr[pos:match.start()])
+            out.append(f'__aget__({array_id}, {inner})')
+            pos = close_idx + 1
+
     def _get_compiled_expr(self, source: str, is_condition: bool = False) -> CompiledExpr:
-        key = (source.strip(), is_condition)
+        # Outer parens: CONT = (ZX*ZX+ZY*ZY < 4) must compile as a comparison,
+        # not fall back to _eval_numeric (regex ladder) every WHILE iteration.
+        stripped = self._strip_outer_parens(source)
+        key = (stripped, is_condition)
         cached = self._compiled_expr_cache.get(key)
         if cached is not None:
             return cached
 
-        compiled = CompiledExpr(source=source, is_condition=is_condition)
-        if not source.strip():
+        compiled = CompiledExpr(source=stripped, is_condition=is_condition)
+        if not stripped:
             self._compiled_expr_cache[key] = compiled
             return compiled
 
         try:
-            stripped = source.strip()
-            compiled.has_array = '(' in stripped and self._expr_has_array_ref(stripped)
-            compiled.needs_int_coerce = self._expr_is_pure_bitwise(stripped)
-            if self._boolean_literal_value(stripped) is not None:
+            work = stripped
+            if '$' in stripped or '"' in stripped:
+                # LEN(A$)+1 → __sfn__(0)+1: string builtins stay compiled.
+                rewritten = self._rewrite_string_calls_for_compile(stripped)
+                if rewritten is not None:
+                    work = rewritten
+            # SIN(T) / RAD(T) are compiled calls, not array reads.
+            probe = work.replace('__sfn__(', '(')
+            compiled.has_array = '(' in probe and self._expr_has_array_ref(
+                self._compile_pure_math_calls(probe, strip=True)
+            )
+            if compiled.has_array and '"' not in work:
+                # X%(I%) → __aget__(id, I%): numeric array reads stay compiled
+                # (jclock: X%(I%) += (…-X%(I%)…) was ~10x slower on the slow path).
+                rewritten = self._rewrite_array_reads_for_compile(work)
+                if rewritten is not None:
+                    work = rewritten
+                    compiled.has_array = False
+            compiled.needs_int_coerce = self._expr_is_pure_bitwise(work)
+            if self._boolean_literal_value(work) is not None:
                 raise ValueError('boolean literal')
-            if self._expr_has_boolean_syntax(stripped):
-                if self._expr_is_pure_bitwise(stripped):
+            if self._expr_has_chained_comparison(work):
+                # Python would chain 3 > 2 > 1 as (3 > 2 and 2 > 1).
+                raise ValueError('chained comparison')
+            if self._expr_has_boolean_syntax(work):
+                if self._expr_is_pure_bitwise(work):
                     expr, needs_time, float_vars, int_vars, system_vars = (
                         self._prepare_expr_for_compile(
-                            stripped, is_condition, allow_bitwise=True,
+                            work, is_condition, allow_bitwise=True,
                         )
                     )
                 elif (
-                    self._expr_has_logical_boolean_ops(stripped)
-                    or self._expr_has_xor_eqv_imp_eor(stripped)
+                    self._expr_has_logical_boolean_ops(work)
+                    or self._expr_has_xor_eqv_imp_eor(work)
                 ):
                     # CONT AND (I% < N), A < B AND B < C — comparisons → -1/0 + &/|
                     expr, needs_time, float_vars, int_vars, system_vars = (
-                        self._prepare_mixed_boolean_for_compile(stripped)
+                        self._prepare_mixed_boolean_for_compile(work)
                     )
                 else:
                     expr, needs_time, float_vars, int_vars, system_vars = (
-                        self._prepare_simple_comparison_for_compile(stripped)
+                        self._prepare_simple_comparison_for_compile(work)
                     )
             else:
                 expr, needs_time, float_vars, int_vars, system_vars = (
-                    self._prepare_expr_for_compile(stripped, is_condition)
+                    self._prepare_expr_for_compile(work, is_condition)
                 )
-            code = compile(expr, '<basic>', 'eval')
+            code = compile_safe(expr)
         except Exception:
             compiled.use_fallback = True
         else:
@@ -356,19 +524,24 @@ class RuntimeExprMixin:
                 ):
                     return False
 
-        if self.config.dialect != 'mini':
+        # Forced --dialect: ANSI colour is a load error; otherwise the
+        # mini-only note below tells the user to switch dialect.
+        if self.config.dialect != 'mini' and self.config.dialect_locked:
             ansi = self._ansi_colour_funcs_used(parsed_lines)
             if ansi:
                 names = ', '.join(ansi)
                 self._emit_error(
                     f'? ANSI colour ({names}) requires dialect mini'
                 )
-                if self.config.dialect_locked:
-                    self._emit_error(
-                        f'  omit --dialect {self.config.dialect} '
-                        f'(this program is mini, not bbc)'
-                    )
+                self._emit_error(
+                    f'  omit --dialect {self.config.dialect} '
+                    f'(this program is mini, not bbc)'
+                )
                 return False
+
+        mini_used = self._collect_mini_only_features(parsed_lines)
+        if announce and self.config.dialect != 'mini' and mini_used:
+            self._announce_mini_dialect_mismatch(mini_used)
 
         seen: Set[str] = set()
         for _, statement, _ in parsed_lines:
@@ -382,10 +555,11 @@ class RuntimeExprMixin:
                 ):
                     return False
 
-        if announce and self.config.dialect == 'bbc':
+        if announce and self.config.dialect == 'bbc' and not mini_used:
             # mini is the intentional default for both numbered and unnumbered
             # sources; do not nag "consider --dialect …". SAVE of unnumbered
             # loads defaults to PRETTY so the file stays unnumbered.
+            # Skip SDL spelling notes when the listing is mini-only (BREAK/FG$).
             self._announce_bbc_sdl_keyword_hints(parsed_lines)
         return True
 
@@ -487,7 +661,7 @@ class RuntimeExprMixin:
             if msg.startswith('invalid syntax'):
                 if re.search(r'[+\-*/^%]$', text):
                     return f'incomplete expression `{text}`'
-                return msg
+                return basic_error_wording(msg)
             # Improve informativeness: turn Python NameError for unknown names/funcs into consistent message
             if msg.startswith("name '") and " is not defined" in msg:
                 import re as _re
@@ -498,7 +672,7 @@ class RuntimeExprMixin:
                         return f'no function {name}'
                     return f'name {name} is not defined'
             if msg:
-                return msg
+                return basic_error_wording(msg)
         fn_match = self._RE_FN_CALL.search(text)
         if fn_match:
             suffix = fn_match.group(2) or ''
@@ -520,6 +694,9 @@ class RuntimeExprMixin:
         return len(self._split_bbc_juxtaposed_string_parts(expr)) > 1
 
     def _eval_string_expr(self, expr: str) -> str:
+        plan = self._get_string_plan(expr)
+        if plan is not None:
+            return plan()
         expr = expr.strip()
         if self._print_item_has_string_concat(expr):
             expanded = self._expand_dynamic_calls(expr)
@@ -612,8 +789,9 @@ class RuntimeExprMixin:
         # that have type suffixes like result% , and binary literals %1010.
         # e.g. STR$~X , STR$~ result% , STR$~ %10101010 , PRINT STR$~N
         # Turn into STR$~(arg) so the parenthesized handler below can expand it.
-        str_tilde_bare = re.compile(r'STR\$\s*~\s*(?!\()', re.IGNORECASE)
-        while str_tilde_bare.search(expr):
+        has_tilde = '~' in expr  # both STR$~ passes need it; skip them otherwise
+        str_tilde_bare = _RE_STR_TILDE_BARE
+        while has_tilde and str_tilde_bare.search(expr):
             m = str_tilde_bare.search(expr)
             if not m:
                 break
@@ -662,8 +840,8 @@ class RuntimeExprMixin:
 
         # Special case for BBC STR$~ (hex) before general func matching
         # so it works even if the main RE_FUNC_CALL regex isn't updated.
-        str_tilde_pat = re.compile(r'STR\$\s*~\s*\(', re.IGNORECASE)
-        while str_tilde_pat.search(expr):
+        str_tilde_pat = _RE_STR_TILDE_CALL
+        while has_tilde and str_tilde_pat.search(expr):
             m = str_tilde_pat.search(expr)
             if not m:
                 break
@@ -684,11 +862,9 @@ class RuntimeExprMixin:
         # Convert to CHR$(65) form so the parenthesized call logic below can
         # expand it. Only do this when the "arg" does not look like the start of
         # another call (to avoid breaking CHR$ASC( without outer parens).
-        for f in ('CHR$', 'STR$', 'HEX$', 'OCT$', 'BIN$', 'LEFT$', 'RIGHT$', 'MID$'):
-            pat = re.compile(
-                rf'(?<![A-Za-z0-9_]){re.escape(f)}\s*(?!\()',
-                re.IGNORECASE,
-            )
+        for f, pat in _RE_BARE_STRING_FUNCS:
+            if '$' not in expr or f not in expr.upper():
+                continue  # the usual case: no such call to rewrite
             while pat.search(expr):
                 m = pat.search(expr)
                 if not m:
@@ -899,7 +1075,7 @@ class RuntimeExprMixin:
     def _validate_var_base(self, name: str) -> str:
         # Leading _ allowed for BBCSDL user names (_BOX, _LINE, …). Known
         # mini_basic system vars remain reserved via _canonical_system_var_name.
-        if not name or not re.fullmatch(self._VAR_BASE_PATTERN, name):
+        if not name or not is_var_base(name):
             raise ValueError('invalid variable name')
         if len(name) > self._VAR_MAX_LEN:
             raise ValueError('variable name too long')
@@ -909,12 +1085,18 @@ class RuntimeExprMixin:
         return self._array_aliases.get((base, kind), (base, kind))
 
     def _ensure_implicit_array(self, base: str, kind: VarKind, rank: int) -> None:
-        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis)."""
+        """MS BASIC: first use of A(i) without DIM is DIM A(10) (per axis).
+
+        BBC / mini require DIM (or a real function). ``PRINT ZZZ(1)`` must not
+        become a silent 0 via an implicit array.
+        """
         if rank < 1:
             raise ValueError('unknown array')
         key = self._resolve_array_key(base, kind)
         if key in self.array_storage:
             return
+        if self.config.dialect not in self._NUMBERED_GOTO_DIALECTS:
+            raise ValueError('unknown array')
         self._store_array(base, kind, [10] * rank)
 
     def _get_array_storage_entry(self, base: str, kind: VarKind) -> ArrayStorage:
@@ -1168,6 +1350,24 @@ class RuntimeExprMixin:
             expr = match.group(1).strip()
             if expr:
                 candidates.append(expr)
+        # QBasic: FNACK = expr  /  THEN FNACK = N+1
+        for match in re.finditer(
+            rf'(?:THEN|ELSE)\s+(?:FN_?)?{self._VAR_BASE_PATTERN}\s*=\s*(.+?)(?=\s*:|\s+ELSE\b|\s*$)',
+            stripped,
+            flags=re.IGNORECASE,
+        ):
+            expr = match.group(1).strip()
+            if expr:
+                candidates.append(expr)
+        qb = re.match(
+            rf'^(?:FN_?)?{self._VAR_BASE_PATTERN}\s*=\s*(.+)$',
+            stripped,
+            flags=re.IGNORECASE,
+        )
+        if qb:
+            candidates.append(qb.group(1).strip())
+        if re.search(r'\bEXIT\s+FUNCTION\b', stripped, flags=re.IGNORECASE):
+            candidates.append('0')
         return candidates
 
     def _apply_inferred_fn_return_kind(
@@ -1202,7 +1402,8 @@ class RuntimeExprMixin:
             return 0.0
         # Support &hex and %binary literals like in expressions
         text = self._substitute_bbc_hex_literals(text)
-        match = re.match(r'^[ \t]*([+-])?(\d+\.?\d*|\.\d+)', text)
+        # Optional exponent: VAL("1E3") is 1000; a bare "1E" stays 1.
+        match = re.match(r'^[ \t]*([+-])?((?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?)', text)
         if not match:
             return 0.0
         sign = -1.0 if match.group(1) == '-' else 1.0
@@ -1235,13 +1436,18 @@ class RuntimeExprMixin:
             if arg is None:
                 raise ValueError('EVAL requires an argument')
             s = self._eval_string_arg(arg)
+            # EVAL text never passed statement parse: "" is one quote (BASIC V).
+            s = self._escape_doubled_quotes(s)
             # Substitute hex/binary literals etc inside the EVAL'd string
             s = self._substitute_bbc_hex_literals(s)
             s = self._substitute_bbc_numeric_constants(s)
             s = self._substitute_bbc_memory_vars(s)
             if re.search(r'(?<![A-Za-z0-9_])@%\b', s):
                 s = re.sub(r'(?<![A-Za-z0-9_])@%\b', str(self.bbc_at_percent), s)
-            # EVAL can return number or string
+            # EVAL can return number or string; its first operand decides
+            # (a string literal would otherwise evaluate to 0 as a number).
+            if self._expr_static_kind(s) == 'str':
+                return self._eval_string_expr(s)
             try:
                 return self._eval_numeric(s)
             except Exception:
@@ -1262,6 +1468,11 @@ class RuntimeExprMixin:
             if arg is not None and arg.strip():
                 raise ValueError('GET takes no arguments')
             return float(self._read_get_char())
+        if func == 'TIMER':
+            if arg is not None and arg.strip():
+                raise ValueError('TIMER takes no arguments')
+            # QBasic TIMER: seconds since midnight-ish; BBC TIME is centiseconds.
+            return float(self._get_time()) / 100.0
         if func == 'INKEY':
             if arg is None or not arg.strip():
                 return self._inkey_code()
@@ -1486,7 +1697,7 @@ class RuntimeExprMixin:
         prepared = self._normalize_operators(prepared)
         prepared = re.sub(r'(\d+)\.0\b', r'\1', prepared)
         try:
-            result = eval(prepared, _SAFE_EVAL_GLOBALS, {})
+            result = safe_eval(prepared)
         except Exception:
             return self._eval_numeric_without_fn(expr)
         if isinstance(result, bool):
@@ -1511,7 +1722,7 @@ class RuntimeExprMixin:
             raise ValueError(f'unexpanded FN call in {expr!r}')
         expr = self._substitute_array_references(expr)
         expr = self._normalize_operators(expr)
-        result = eval(expr, _SAFE_EVAL_GLOBALS, {})
+        result = safe_eval(expr)
         if isinstance(result, bool):
             return -1 if result else 0
         if isinstance(result, float) and math.isfinite(result) and result == int(result) and abs(result) < 1e16:
@@ -1549,6 +1760,24 @@ class RuntimeExprMixin:
         finally:
             self._fn_direct_eval = False
 
+    def _fn_memo_canon(self, value: object) -> object:
+        if isinstance(value, bool):
+            return int(value)
+        if isinstance(value, float):
+            if math.isfinite(value) and value == int(value) and abs(value) < 1e16:
+                return int(value)
+            return value
+        if isinstance(value, (int, str)):
+            return value
+        return repr(value)
+
+    def _fn_memo_key(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+    ) -> Tuple[str, tuple]:
+        return (fn.name, tuple(self._fn_memo_canon(value) for _, _, value in bindings))
+
     def _eval_user_function(self, fn: UserFunction, args: List[str]) -> object:
         if len(args) != len(fn.params):
             raise ValueError('wrong number of arguments')
@@ -1572,6 +1801,175 @@ class RuntimeExprMixin:
                 ))
             else:
                 bindings.append((param_name, param_kind, self._eval_numeric(arg_expr)))
+        memoable = (not array_aliases) and self._fn_is_memoable(fn)
+        if memoable:
+            key = self._fn_memo_key(fn, bindings)
+            cached = self._fn_memo.get(key, _FN_MEMO_MISS)
+            if cached is not _FN_MEMO_MISS:
+                if self._trace_call('FN', fn.name):
+                    raise ProgramStop()
+                return cached
+            if self._fn_trampoline_depth:
+                raise FnMemoMiss(fn, bindings, self._fn_direct_eval)
+            return self._fn_trampoline_eval(fn, bindings, key)
+        return self._eval_user_function_bound(fn, bindings, array_aliases)
+
+    def _fn_trampoline_eval(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        key: Tuple[str, tuple],
+    ) -> object:
+        stack: List[Tuple[UserFunction, list, tuple, bool]] = [
+            (fn, bindings, key, self._fn_direct_eval),
+        ]
+        self._fn_trampoline_depth += 1
+        try:
+            while stack:
+                cur_fn, cur_bind, cur_key, direct = stack[-1]
+                cached = self._fn_memo.get(cur_key, _FN_MEMO_MISS)
+                if cached is not _FN_MEMO_MISS:
+                    stack.pop()
+                    continue
+                self._fn_captured_miss = None
+                saved_direct = self._fn_direct_eval
+                self._fn_direct_eval = direct
+                steps = self._fn_memo_steps.get(cur_fn.name)
+                try:
+                    if steps is not None:
+                        result = self._eval_memoable_fn_steps(cur_fn, cur_bind, steps)
+                    else:
+                        result = self._eval_user_function_bound(cur_fn, cur_bind, {})
+                except FnMemoMiss as miss:
+                    self._fn_captured_miss = (
+                        miss.fn,
+                        miss.bindings,
+                        miss.direct_eval,
+                    )
+                    result = _FN_MEMO_MISS
+                finally:
+                    self._fn_direct_eval = saved_direct
+                miss = self._fn_captured_miss
+                if miss is not None:
+                    mfn, mbind, mdir = miss
+                    miss_key = self._fn_memo_key(mfn, mbind)
+                    if self._fn_memo.get(miss_key, _FN_MEMO_MISS) is _FN_MEMO_MISS:
+                        stack.append((mfn, mbind, miss_key, mdir))
+                    continue
+                self._fn_memo[cur_key] = result
+                stack.pop()
+            return self._fn_memo[key]
+        finally:
+            self._fn_trampoline_depth -= 1
+            self._fn_captured_miss = None
+
+    def _eval_fn_memo_ast(self, node: tuple, env: Dict[str, object]) -> object:
+        kind = node[0]
+        if kind == 'const':
+            return node[1]
+        if kind == 'param':
+            value = env.get(node[1])
+            if value is None:
+                value = env.get(str(node[1]).upper())
+            return 0 if value is None else value
+        if kind == 'neg':
+            inner = self._eval_fn_memo_ast(node[1], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            return -inner
+        if kind in ('add', 'sub', 'mul', 'div'):
+            left = self._eval_fn_memo_ast(node[1], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            right = self._eval_fn_memo_ast(node[2], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            if kind == 'add':
+                return left + right
+            if kind == 'sub':
+                return left - right
+            if kind == 'mul':
+                return left * right
+            if right == 0:
+                raise ValueError('division by zero')
+            return left / right
+        if kind == 'cmp':
+            left = self._eval_fn_memo_ast(node[2], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            right = self._eval_fn_memo_ast(node[3], env)
+            if self._fn_captured_miss is not None:
+                return 0
+            op = node[1]
+            if op == '=':
+                return left == right
+            if op == '<>':
+                return left != right
+            if op == '<':
+                return left < right
+            if op == '>':
+                return left > right
+            if op == '<=':
+                return left <= right
+            return left >= right
+        if kind == 'call':
+            args = []
+            for arg_node in node[2]:
+                value = self._eval_fn_memo_ast(arg_node, env)
+                if self._fn_captured_miss is not None:
+                    return 0
+                args.append(value)
+            callee = self._lookup_user_function(node[1])
+            if callee is None:
+                raise ValueError(f'unknown function FN{node[1]}')
+            bindings = [
+                (param_name, param_kind, arg)
+                for (param_name, param_kind), arg in zip(callee.params, args)
+            ]
+            key = self._fn_memo_key(callee, bindings)
+            cached = self._fn_memo.get(key, _FN_MEMO_MISS)
+            if cached is not _FN_MEMO_MISS:
+                return cached
+            self._fn_captured_miss = (callee, bindings, True)
+            return 0
+        raise ValueError('bad FN memo AST')
+
+    def _eval_memoable_fn_steps(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        steps: list,
+    ) -> object:
+        if self._trace_call('FN', fn.name):
+            raise ProgramStop()
+        env: Dict[str, object] = {}
+        for name, _kind, value in bindings:
+            env[name] = value
+            env[str(name).upper()] = value
+        for step in steps:
+            kind = step[0]
+            if kind == 'if_ret':
+                flag = self._eval_fn_memo_ast(step[1], env)
+                if self._fn_captured_miss is not None:
+                    return _FN_MEMO_MISS
+                if flag:
+                    value = self._eval_fn_memo_ast(step[2], env)
+                    if self._fn_captured_miss is not None:
+                        return _FN_MEMO_MISS
+                    return self._coerce_fn_return(fn, value)
+                continue
+            value = self._eval_fn_memo_ast(step[1], env)
+            if self._fn_captured_miss is not None:
+                return _FN_MEMO_MISS
+            return self._coerce_fn_return(fn, value)
+        raise ValueError('? DEF FN missing return')
+
+    def _eval_user_function_bound(
+        self,
+        fn: UserFunction,
+        bindings: List[Tuple[str, VarKind, object]],
+        array_aliases: Dict[Tuple[str, VarKind], Tuple[str, VarKind]],
+    ) -> object:
         saved = self._apply_fn_param_bindings(bindings)
         saved_array_aliases = dict(self._array_aliases)
         self._array_aliases.update(array_aliases)
@@ -1604,12 +2002,54 @@ class RuntimeExprMixin:
             self._restore_fn_param_bindings(saved)
             self._array_aliases = saved_array_aliases
 
+    def _active_fn_result_value(self, name: Optional[str] = None) -> Optional[object]:
+        """QBasic/Pascal: bare FNname inside DEF FN is the return variable."""
+        if not self._in_fn_body or self._active_fn is None:
+            return None
+        token = self._active_fn.name if name is None else name
+        if not self._is_qb_fn_result_assign(token):
+            return None
+        pending = getattr(self, '_fn_qb_return', None)
+        return 0 if pending is None else pending
+
+    def _substitute_active_fn_result(self, expr: str) -> str:
+        if not self._in_fn_body or self._active_fn is None:
+            return expr
+        if not expr:
+            return expr
+        value = self._active_fn_result_value()
+        if value is None:
+            return expr
+        fname = re.escape(str(self._active_fn.name))
+        pattern = (
+            rf'(?<![A-Za-z0-9_])(?:FN_?)?{fname}(?![A-Za-z0-9_%$])(?!\s*\()'
+        )
+        return re.sub(
+            pattern,
+            self._embed_subst_number(value),
+            expr,
+            flags=re.IGNORECASE,
+        )
+
     def _expand_fn_calls(self, expr: str) -> str:
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         # BBC: FNgetbmp  (no ()) for a no-arg FN. Do not touch FNfoo(.
+        # Inside DEF FNcalc, bare FNCALC is the return var — not FNCALC().
+        def _bare_fn_to_call(match: re.Match) -> str:
+            full = match.group(1)
+            inner = match.group(2)
+            if self._in_fn_body and (
+                self._is_qb_fn_result_assign(full)
+                or (inner is not None and self._is_qb_fn_result_assign(inner))
+            ):
+                return full
+            return f'{full}()'
+
         expr = re.sub(
             rf'(?<![A-Za-z0-9_])(FN_?\s*{_PROC_FN_NAME_PATTERN}(?:%|\$)?)'
             rf'(?![A-Za-z0-9_%$])(?!\s*\()',
-            r'\1()',
+            _bare_fn_to_call,
             expr,
             flags=re.IGNORECASE,
         )
@@ -1655,6 +2095,8 @@ class RuntimeExprMixin:
                 raise ValueError(f'unknown function FN{name}')
             args = self._split_args(arg) if arg.strip() else []
             value = self._eval_user_function_for_expand(fn, args)
+            if self._fn_captured_miss is not None:
+                return expr
             if fn.return_kind == 'str':
                 repl = json.dumps(str(value))
             elif isinstance(value, str) and self._RE_FN_CALL.search(value):
@@ -1692,6 +2134,9 @@ class RuntimeExprMixin:
             return '-1' if value else '0'
         if isinstance(value, int):
             return str(value)
+        if isinstance(value, str):
+            # EVAL("...") of a string; spaced so it never glues to a "" pair.
+            return ' ' + json.dumps(value) + ' '
         if isinstance(value, float):
             if not math.isfinite(value):
                 # Python eval: float('inf') etc. not available in safe eval; use large.
@@ -2316,13 +2761,9 @@ class RuntimeExprMixin:
         key = (base, kind)
         if key in self.array_storage:
             raise ValueError('array already dimensioned')
+        # A and A() are separate names in BASIC: DIM must not clear scalar A.
         self.array_storage[key] = self._allocate_array_storage(dims, kind)
-        if kind == 'float':
-            self.variables.pop(base, None)
-        elif kind == 'int':
-            self.int_variables.pop(base, None)
-        else:
-            self.str_variables.pop(base, None)
+        self._recompile_array_exprs()
 
     def _erase_arrays(self, rest: str) -> None:
         """MS BASIC ERASE — undimension arrays so DIM can reuse the name."""
@@ -2769,6 +3210,10 @@ class RuntimeExprMixin:
         fragment = fragment.strip()
         if len(fragment) >= 2 and fragment[0] == '"':
             return True
+        # The first operand decides: 1+ASC(MID$(A$,2,1)) is numeric.
+        kind = self._expr_static_kind(fragment)
+        if kind is not None:
+            return kind == 'str'
         upper = fragment.upper()
         for func in ('INSTR', 'LEN', 'ASC', 'VAL', 'VPOS', 'POS', 'RND', 'INT'):
             if upper.startswith(func + '(') or upper.startswith(func + ' ('):
@@ -2844,7 +3289,7 @@ class RuntimeExprMixin:
         expr = self._substitute_array_references(expr)
         expr = self._substitute_variables(expr)
         expr = self._normalize_operators(expr)
-        result = eval(expr, _SAFE_EVAL_GLOBALS, {})
+        result = safe_eval(expr)
         if isinstance(result, bool):
             return -1 if result else 0
         if isinstance(result, float) and math.isfinite(result) and result == int(result) and abs(result) < 1e16:
@@ -3090,6 +3535,8 @@ class RuntimeExprMixin:
 
     def _unglue_asc_string_literal(self, expr: str) -> str:
         """ASC\"B\" → ASC(\"B\") (welcome PRINT CHR$(ASC\"B\"-(I%=M2)))."""
+        if '"' not in expr or 'ASC' not in expr.upper():
+            return expr  # already done at entry (canonicalize); EVAL text may still need it
         return re.sub(
             r'(?<![A-Za-z0-9_])ASC\s*("(?:[^"]|"")*")',
             r'ASC(\1)',
@@ -3098,9 +3545,13 @@ class RuntimeExprMixin:
         )
 
     def _eval_numeric(self, expr: str) -> object:
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         expr = self._strip_outer_parens(expr)
         if not expr:
             return 0.0
+        # @vdu%!220 before generic p%!n heap indirection (unset vdu% is pointer 0).
+        expr = self._substitute_bbcsdl_special_vars(expr)
         expr = self._expand_bbc_indirection(expr)
         expr = self._unglue_monadic_expr(expr)
         # Compiled eval does not subst NAME%%; FNgetbmp's ``= p%%`` became 0.
@@ -3149,6 +3600,8 @@ class RuntimeExprMixin:
 
     def _eval_condition(self, expr: str) -> bool:
         expr = expr.strip()
+        if self._in_fn_body:
+            expr = self._substitute_active_fn_result(expr)
         if not expr:
             return False
         expr = self._unglue_monadic_expr(expr)
@@ -3327,6 +3780,7 @@ class RuntimeExprMixin:
             try:
                 self._assign_input_value(var_token, raw)
             except ValueError:
+                indices = self._eval_array_indices(indices_expr)
                 if kind == 'int':
                     self._array_set(
                         base, kind, indices, self._coerce_int_storage(0),

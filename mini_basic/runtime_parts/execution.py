@@ -103,6 +103,22 @@ from .helpers import (
 )
 from .stmt_simple import MISSING, dispatch_simple_stmt
 
+# LHS names that must not use the compiled assignment kernel (system / protected).
+_ACCEL_FORBIDDEN_LHS = frozenset({
+    'TIME', 'PAGE', 'LOMEM', 'HIMEM', 'PI', 'ERR', 'ERL',
+})
+# Statements that keep WHILE on the interpreter path (PRINT, nested control, …).
+_WHILE_ACCEL_BLOCKING_CMDS = frozenset({
+    'WHILE', 'REPEAT', 'FOR', 'IF', 'ELSE', 'ELSEIF', 'ENDIF',
+    'GOTO', 'GOSUB', 'PROC', 'ENDPROC', 'EXIT', 'NEXT', 'UNTIL',
+    'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE', 'BREAK', 'CONTINUE',
+    'ON', 'DEF', 'LOCAL', 'DIM', 'READ', 'RESTORE', 'DATA',
+    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END',
+    'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
+    'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
+    'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP',
+})
+
 class RuntimeExecutionMixin:
     """Mixin providing execution-related BASICInterpreter methods."""
 
@@ -202,10 +218,7 @@ class RuntimeExecutionMixin:
                 return None
             target_token = targets[index - 1]
             if kind.upper() == 'GOSUB':
-                if stmt_index + 1 < stmt_count:
-                    self.gosub_stack.append((line_num, stmt_index + 1))
-                else:
-                    self.gosub_stack.append((self._next_line_num(line_num, line_nums), 0))
+                self._push_gosub_return(line_num, stmt_index, stmt_count, line_nums)
             return self.resolve_jump_target(target_token)
         except Exception as exc:
             self._emit_error(self._error_message('? ON GOTO/GOSUB error', exc))
@@ -250,13 +263,33 @@ class RuntimeExecutionMixin:
                 return code
         return 5
 
-    def _push_error_gosub_return(self, line_num: int, stmt_index: int) -> None:
-        if stmt_index + 1 < self._exec_stmt_count:
-            self.gosub_stack.append((line_num, stmt_index + 1))
-        elif self._exec_line_nums:
-            self.gosub_stack.append((self._next_line_num(line_num, self._exec_line_nums), 0))
+    def _push_gosub_return(
+        self,
+        line_num: int,
+        stmt_index: int,
+        stmt_count: int,
+        line_nums: List[int],
+    ) -> None:
+        # Entry: (line, stmt, IF-clause parts or None, loop-stack depth).
+        depth = len(self.stack)
+        if stmt_index + 1 >= stmt_count:
+            self.gosub_stack.append((self._next_line_num(line_num, line_nums), 0, None, depth))
+        elif self._inline_exec_depth and self._active_stmt_parts is not None:
+            # stmt_index counts IF-clause statements, not the line's statements.
+            self.gosub_stack.append((line_num, stmt_index + 1, self._active_stmt_parts, depth))
         else:
-            self.gosub_stack.append((line_num, stmt_index + 1))
+            self.gosub_stack.append((line_num, stmt_index + 1, None, depth))
+
+    def _push_error_gosub_return(self, line_num: int, stmt_index: int) -> None:
+        depth = len(self.stack)
+        if stmt_index + 1 < self._exec_stmt_count:
+            self.gosub_stack.append((line_num, stmt_index + 1, None, depth))
+        elif self._exec_line_nums:
+            self.gosub_stack.append(
+                (self._next_line_num(line_num, self._exec_line_nums), 0, None, depth)
+            )
+        else:
+            self.gosub_stack.append((line_num, stmt_index + 1, None, depth))
 
     def _runtime_error(
         self,
@@ -460,6 +493,10 @@ class RuntimeExecutionMixin:
 
                 if cmd == 'OTHERWISE' and case_depth == 1:
                     spec, inline = self._parse_otherwise_spec(rest)
+                    if not spec.upper().startswith('IF '):
+                        # ``OTHERWISE PRINT "X" : Y``: all of it is the body.
+                        spec = ''
+                        inline = rest.strip().lstrip(':').strip() or None
                     otherwise_index = len(branch_starts)
                     branch_starts.append(line_num)
                     branch_specs.append(spec or 'OTHERWISE')
@@ -563,10 +600,19 @@ class RuntimeExecutionMixin:
             for part in self._split_colon_statements(code)
         ]
         parts = [(label, text) for label, text in parts if text]
+        return self._execute_inline_parts(parts, line_num, line_nums)
+
+    def _execute_inline_parts(
+        self,
+        parts: List[Tuple[Optional[str], str]],
+        line_num: int,
+        line_nums: List[int],
+    ) -> Optional[int]:
         saved_line = self._active_line_num
         saved_parts = self._active_stmt_parts
         self._active_line_num = line_num
         self._active_stmt_parts = parts
+        self._inline_exec_depth += 1
         try:
             while True:
                 target = self._execute_statement_parts(line_num, parts, line_nums)
@@ -579,6 +625,7 @@ class RuntimeExecutionMixin:
                 return self.error_trap_line
             raise
         finally:
+            self._inline_exec_depth -= 1
             self._active_line_num = saved_line
             self._active_stmt_parts = saved_parts
 
@@ -944,6 +991,12 @@ class RuntimeExecutionMixin:
                 vname, vkind = self._parse_var_token(var_tok)
                 if vkind == 'str':
                     return None
+                lhs_key = var_tok.strip().upper()
+                if lhs_key == '@%' or vname.upper() in _ACCEL_FORBIDDEN_LHS:
+                    return None
+                # _bigint / _save_case / _epsilon etc. must go through _assign.
+                if self._canonical_system_var_name(var_tok.strip()):
+                    return None
                 ce = self._get_compiled_expr(expr_src, is_condition=False)
                 if ce.use_fallback and self._expr_is_pure_bitwise(expr_src):
                     # force recompile attempt already done; allow slow eval wrapper
@@ -1091,6 +1144,220 @@ class RuntimeExecutionMixin:
                 return None
         return runners
 
+    def _try_fast_numeric_assignment(self, line: str) -> bool:
+        """Run a compiled scalar LET when the line is only ``var = expr``.
+
+        Skips the ON ERROR / OPEN / SWAP regex ladder in ``_execute_statement``.
+        Returns True if the assignment ran (or is known not to be a simple LET).
+        False means the caller should keep the slow dispatch path.
+        """
+        cache = self._stmt_fast_runners
+        cached = cache.get(line)
+        if cached is False:
+            return False
+        if not self.config.use_compiled_exprs:
+            cache[line] = False
+            return False
+        if cached is None:
+            cmd, rest = self._parse_command(line)
+            if cmd not in ('', 'LET'):
+                cache[line] = False
+                return False
+            if self._in_fn_body:
+                try:
+                    var, op, _expr = self._parse_assignment_statement(
+                        rest if cmd == 'LET' else line
+                    )
+                except Exception:
+                    var, op = '', ''
+                if op == '=' and self._is_qb_fn_result_assign(var):
+                    cache[line] = False
+                    return False
+            text = rest if cmd == 'LET' else line
+            runners = self._compile_accelerate_body([('LET', text)])
+            if not runners or len(runners) != 1:
+                cache[line] = False
+                return False
+            cached = runners[0]
+            cache[line] = cached
+        try:
+            cached()
+        except BasicRuntimeError:
+            raise
+        except Exception:
+            # Div0 / overflow / etc. must use _assign so ON ERROR / ERR work.
+            return False
+        return True
+
+    def _try_accelerate_while_assign_body(
+        self,
+        line_num: int,
+        rest: str,
+        line_nums: List[int],
+        stmt_index: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+    ) -> Optional[int]:
+        """Run a WHILE whose body is only numeric assignments in Python.
+
+        Mandelbrot inner loops are WHILE + four LETs; interpreting each
+        statement through ``_execute_statement`` dominates BBCSDL (~14×).
+        Returns the line after WEND/ENDWHILE, or None to use the interpreter.
+        """
+        if not self.config.use_compiled_exprs:
+            return None
+        if self.error_trap_line:
+            return None
+        cached = self._while_assign_accel.get(line_num)
+        if cached is False:
+            return None
+        if cached is not None:
+            cond_src, runners, exit_line, resume = cached
+            return self._run_accelerated_while(cond_src, runners, exit_line, resume)
+
+        collected = self._collect_while_assign_body(
+            line_num, line_nums, stmt_index, stmt_parts,
+        )
+        if collected is None:
+            self._while_assign_accel[line_num] = False
+            return None
+        body_stmts, exit_line, resume = collected
+        runners = self._compile_accelerate_body(body_stmts)
+        if not runners:
+            self._while_assign_accel[line_num] = False
+            return None
+        cond_src = rest.strip()
+        if not cond_src:
+            self._while_assign_accel[line_num] = False
+            return None
+        self._while_assign_accel[line_num] = (cond_src, runners, exit_line, resume)
+        return self._run_accelerated_while(cond_src, runners, exit_line, resume)
+
+    def _run_accelerated_while(
+        self,
+        cond_src: str,
+        runners: List[callable],
+        exit_line: int,
+        resume: Optional[Tuple[int, int]],
+    ) -> int:
+        ce = self._get_compiled_expr(cond_src, is_condition=True)
+        compiled = ce.code is not None and not ce.use_fallback
+        n = 0
+        while True:
+            if compiled:
+                if not ce.eval_condition(self):
+                    break
+            elif not self._eval_condition(cond_src):
+                break
+            for run in runners:
+                run()
+            n += 1
+            if n & 8191 == 0:
+                self._check_user_interrupt()
+        if resume is not None:
+            self.resume_at = resume
+            return resume[0]
+        return exit_line if exit_line != -1 else -1
+
+    def _collect_while_assign_body(
+        self,
+        line_num: int,
+        line_nums: List[int],
+        stmt_index: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+    ) -> Optional[Tuple[List[Tuple[str, str]], int, Optional[Tuple[int, int]]]]:
+        parts = stmt_parts if stmt_parts is not None else self._stmt_parts_for_line(line_num)
+        wend_stmt_idx = -1
+        if parts:
+            for idx_w in range(stmt_index + 1, len(parts)):
+                _, next_text = parts[idx_w]
+                next_cmd, _ = self._parse_command(next_text)
+                if next_cmd in ('WEND', 'ENDWHILE'):
+                    wend_stmt_idx = idx_w
+                    break
+                if next_cmd in ('WHILE', 'REPEAT', 'FOR'):
+                    break
+
+        body: List[Tuple[str, str]] = []
+
+        def add_stmt(text: str) -> bool:
+            if not text or text == ';':
+                return True
+            cmd, crest = self._parse_command(text)
+            if cmd in ('REM',):
+                return True
+            if cmd in _WHILE_ACCEL_BLOCKING_CMDS:
+                return False
+            if cmd in ('WEND', 'ENDWHILE'):
+                return False
+            if cmd in ('', 'LET'):
+                payload = crest if cmd == 'LET' else text
+                if '=' not in payload or '(' in payload.split('=', 1)[0]:
+                    return False
+                body.append(('LET', payload))
+                return True
+            if not cmd and '=' in text:
+                if '(' in text.split('=', 1)[0]:
+                    return False
+                body.append(('LET', text))
+                return True
+            return False
+
+        if wend_stmt_idx >= 0:
+            for idx in range(stmt_index + 1, wend_stmt_idx):
+                _, text = parts[idx]
+                if not add_stmt(text):
+                    return None
+            if not body:
+                return None
+            after = wend_stmt_idx + 1
+            if after < len(parts):
+                resume = (line_num, after)
+                return body, line_num, resume
+            exit_line = self._next_line_num(line_num, line_nums)
+            return body, exit_line, None
+
+        if parts:
+            for idx in range(stmt_index + 1, len(parts)):
+                _, text = parts[idx]
+                cmd, _ = self._parse_command(text)
+                if cmd in ('WEND', 'ENDWHILE'):
+                    return None
+                if not add_stmt(text):
+                    return None
+
+        wend_line = self._run_while_wend.get(line_num)
+        if wend_line is None:
+            wend_line = self._find_matching_wend(line_num, line_nums)
+        if wend_line == -1:
+            return None
+
+        idx = self._line_index(line_num, line_nums)
+        wend_idx = self._line_index(wend_line, line_nums)
+        scan = idx + 1
+        while scan < wend_idx:
+            ln = line_nums[scan]
+            for _, text in self._stmt_parts_for_line(ln):
+                if not add_stmt(text):
+                    return None
+            scan += 1
+
+        wend_parts = self._stmt_parts_for_line(wend_line)
+        wend_on_line = 0
+        for i, (_, text) in enumerate(wend_parts):
+            cmd, _ = self._parse_command(text)
+            if cmd in ('WEND', 'ENDWHILE'):
+                wend_on_line = i
+                break
+            if not add_stmt(text):
+                return None
+        if not body:
+            return None
+        after = wend_on_line + 1
+        if after < len(wend_parts):
+            return body, wend_line, (wend_line, after)
+        exit_line = self._next_line_num(wend_line, line_nums)
+        return body, exit_line, None
+
     def _find_last_fn_body_return_expr(
         self,
         body_start: int,
@@ -1211,7 +1478,7 @@ class RuntimeExecutionMixin:
                 cmd, rest = self._parse_command(text)
                 if depth == 0 and self._is_def_fn_or_proc_header(cmd, rest):
                     return None
-                if cmd == 'END' and rest.strip().upper() in ('DEF', 'FN'):
+                if cmd == 'END' and rest.strip().upper() in ('DEF', 'FN', 'FUNCTION'):
                     if depth == 0:
                         return line_num
                     continue
@@ -1320,6 +1587,16 @@ class RuntimeExecutionMixin:
             self.resume_at = saved_resume_at
             self._in_proc_body = False
 
+    def _is_qb_fn_result_assign(self, var: str) -> bool:
+        """QBasic ``FNACK = expr`` / ``ACK = expr`` inside DEF FNACK."""
+        fn = self._active_fn
+        if fn is None:
+            return False
+        token = self._normalize_identifier(var.strip().rstrip('%$!#'))
+        fname = str(fn.name)
+        low = token.lower()
+        return low in (fname.lower(), 'fn' + fname.lower(), 'fn_' + fname.lower())
+
     def _handle_exit(self, kind: str) -> Optional[int]:
         kind_map = {
             'FOR': 'for',
@@ -1328,6 +1605,9 @@ class RuntimeExecutionMixin:
         }
         target_kind = kind_map.get(kind.strip().upper())
         if target_kind is None:
+            if kind.strip().upper() == 'FUNCTION' and self._in_fn_body:
+                pending = getattr(self, '_fn_qb_return', None)
+                raise FnReturn(0 if pending is None else pending)
             self._emit_error('? EXIT error')
             return None
         for index in range(len(self.stack) - 1, -1, -1):
@@ -1365,6 +1645,7 @@ class RuntimeExecutionMixin:
         self._in_fn_body = True
         self._active_fn = fn
         self._fn_local_error_return = None
+        self._fn_qb_return = None
         full_line_nums = sorted(self.program)
         body_line_nums = [
             line_num for line_num in full_line_nums
@@ -1407,10 +1688,16 @@ class RuntimeExecutionMixin:
                             self._eval_numeric(self._fn_local_error_return),
                         )
                     if target not in body_line_index:
+                        # Structured IF/WHILE/FOR exit onto END DEF (body_end).
+                        if target == fn.body_end or target == -1:
+                            break
                         raise ValueError('DEF FN jump outside body')
                     idx = body_line_index[target]
                 else:
                     idx += 1
+            pending = getattr(self, '_fn_qb_return', None)
+            if pending is not None:
+                return self._coerce_fn_return(fn, pending)
             raise ValueError('? DEF FN missing return')
         finally:
             self._restore_local_bindings()
@@ -1420,6 +1707,7 @@ class RuntimeExecutionMixin:
             self._in_fn_body = saved_in_fn_body
             self._active_fn = saved_active_fn
             self._fn_local_error_return = saved_fn_err
+            self._fn_qb_return = None
             self.error_trap_line = saved_error_trap_line
             self.error_trap_gosub = saved_error_trap_gosub
 
@@ -1661,6 +1949,26 @@ class RuntimeExecutionMixin:
                     # else closed an inner/ additional, continue searching for ours
         return -1
 
+    def _wend_stmt_index(self, wend_line: int, while_line: int, while_stmt: int) -> int:
+        """Statement index of the WEND that closes the WHILE at (while_line, while_stmt)."""
+        depth = 0
+        for line_num in sorted(self.program):
+            if line_num < while_line or line_num > wend_line:
+                continue
+            parts = self._run_stmts.get(line_num) if self._run_stmts else None
+            if parts is None:
+                parts = self._parse_line_statements(self.program[line_num])
+            start = while_stmt + 1 if line_num == while_line else 0
+            for index in range(start, len(parts)):
+                cmd, _ = self._parse_command(parts[index][1])
+                if cmd in ('WHILE', 'REPEAT'):
+                    depth += 1
+                elif cmd in ('WEND', 'UNTIL'):
+                    if depth == 0 and cmd == 'WEND':
+                        return index if line_num == wend_line else -1
+                    depth = max(0, depth - 1)
+        return -1
+
     def _find_matching_wend(self, while_line: int, line_nums: List[int]) -> int:
         start_idx = self._line_index(while_line, line_nums)
         depth = 0
@@ -1794,10 +2102,11 @@ class RuntimeExecutionMixin:
             self._display.goto(self.text_row, self.text_col)
 
     def _vdu_reset_colours(self) -> None:
-        """VDU 20: default white-on-black text colours."""
+        """VDU 20: default white-on-black text colours and default palette."""
         self.text_fg_colour = 7
         self.text_bg_colour = 0
         self._last_emitted_fg_colour = None
+        self._bbc_custom_colours.clear()
         self._ensure_display()
         if not self._display_enabled():
             return
@@ -2469,20 +2778,24 @@ class RuntimeExecutionMixin:
                         px, py = sx + i, sy + j
                         if 0 <= px < gfx.width and 0 <= py < gfx.height:
                             r, g, b = (int(arr[i, j, 0]), int(arr[i, j, 1]), int(arr[i, j, 2]))
-                            # nearest palette index
+                            # Nearest index using the live palette (custom COLOR n,r,g,b).
+                            # Default BBC 15 is white; piechart sky (15) must map to 15, not 7.
                             best, best_d = 0, 1 << 30
+                            pixel_rgb = getattr(disp, '_pixel_rgb', None)
                             from ..display import colour_to_rgb
 
                             for ci in range(16):
-                                cr, cg, cb = colour_to_rgb(ci)
+                                if callable(pixel_rgb):
+                                    cr, cg, cb = pixel_rgb(ci)
+                                else:
+                                    cr, cg, cb = colour_to_rgb(ci)
                                 d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2
                                 if d < best_d:
                                     best_d, best = d, ci
                             gfx.pixels[py][px] = best
-                            if hasattr(gfx, '_ensure_rgb_pixels'):
-                                gfx._ensure_rgb_pixels()[py][px] = (r, g, b)
-                            elif getattr(gfx, 'rgb_pixels', None) is not None:
-                                gfx.rgb_pixels[py][px] = (r, g, b)
+                            layer = gfx._ensure_rgb_pixels() if hasattr(gfx, '_ensure_rgb_pixels') else getattr(gfx, 'rgb_pixels', None)
+                            if layer is not None:
+                                layer[py][px] = (r, g, b)
                                 if hasattr(gfx, 'rgb_dirty'):
                                     gfx.rgb_dirty.add((px, py))
             except Exception:
@@ -2720,7 +3033,7 @@ class RuntimeExecutionMixin:
                 self._gfx_stub_warned = warned
             if name not in warned:
                 warned.add(name)
-                self._emit_error(f'? Not implemented: PROC/CALL {name} (stub)')
+                self._emit_error(f'? Out of scope: PROC/CALL {name} (stub)')
         except Exception as exc:
             self._emit_error(self._error_message(f'? Graphics stub error ({name})', exc))
 
@@ -2749,45 +3062,31 @@ class RuntimeExecutionMixin:
             self._gfx_stub_warned = warned
         if name not in warned:
             warned.add(name)
-            self._emit_error(f'? Not implemented: FN/CALL {name} (stub, returns 0)')
+            self._emit_error(f'? Out of scope: FN/CALL {name} (stub, returns 0)')
         return 0
 
-    def _execute_statement(
+    # First words whose statement forms are matched by the anchored regexes in
+    # _execute_keyword_prefixed. Other statements skip that ladder entirely
+    # (about 25 regex matches, ~10 us per statement).
+    _KEYWORD_PREFIXED_HEADS = frozenset({
+        'ON', 'OPTION', 'RANDOMIZE', 'CONT', 'REPORT', 'SWAP', 'OPEN',
+        'FIELD', 'GET', 'PUT', 'LSET', 'RSET', 'CLOSE', 'LINE',
+    })
+
+    def _execute_keyword_prefixed(
         self,
+        line: str,
         line_num: int,
-        statement: str,
         line_nums: List[int],
-        stmt_index: int = 0,
-        stmt_count: int = 1,
-        stmt_label: Optional[str] = None,
-        stmt_parts: Optional[List[Tuple[Optional[str], str]]] = None,
-    ) -> Optional[int]:
-        self._exec_line_nums = line_nums
-        self._exec_stmt_count = stmt_count
-        self._active_stmt_index = stmt_index
-        line = statement.strip()
-        self._active_statement = line
-        cmd = ''
-        rest = ''
-        if not line or line == ';':
-            return None
-        self.dprint('[EXEC]', repr(line))
+        stmt_index: int,
+        stmt_count: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+    ) -> object:
+        """ON …, OPTION BASE, RANDOMIZE, CONT, REPORT, SWAP, OPEN, FIELD, GET,
+        PUT, LSET, RSET, CLOSE (not CLOSE#), LINE INPUT[#], ON … GOTO/GOSUB.
 
-        stripped = line.lstrip()
-        if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
-            hint = parse_comment_dialect_line(line)
-            if hint is not None:
-                self._apply_dialect_hint(hint, announce=False)
-            return None
-
-        if line.startswith('*'):
-            try:
-                self._execute_star_command(line[1:])
-            except Exception as exc:
-                self._runtime_error(
-                    self._error_message('? OSCLI error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
-            return None
-
+        Returns MISSING when the line is none of these forms.
+        """
         if re.match(r'^ON\s+MOUSE\b', line, re.IGNORECASE):
             # ON MOUSE handler registration — not yet emulated; accept and ignore.
             return None
@@ -3070,17 +3369,93 @@ class RuntimeExecutionMixin:
                 stmt_count,
             )
 
-        if self._in_fn_body:
-            ret_match = re.match(r'^=\s*(.+)$', line)
-            if ret_match:
-                raise FnReturn(self._eval_fn_return_expression(ret_match.group(1).strip()))
+        return MISSING
+
+    def _execute_statement(
+        self,
+        line_num: int,
+        statement: str,
+        line_nums: List[int],
+        stmt_index: int = 0,
+        stmt_count: int = 1,
+        stmt_label: Optional[str] = None,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]] = None,
+    ) -> Optional[int]:
+        self._exec_line_nums = line_nums
+        self._exec_stmt_count = stmt_count
+        self._active_stmt_index = stmt_index
+        line = statement.strip()
+        cmd = ''
+        rest = ''
+        if not line or line == ';':
+            return None
+        stripped = line.lstrip()
+        if stripped.startswith("'") or (
+            stripped[:3].upper() == 'REM'
+            and not (stripped[3:4].isalnum() or stripped[3:4] == '_')
+        ):
+            hint = parse_comment_dialect_line(line)
+            if hint is not None:
+                self._apply_dialect_hint(hint, announce=False)
+                return None
+            # bbc: ' is not a REM synonym (only the PRINT/INPUT newline), so a
+            # line starting with ' falls through to "Unknown statement".
+            if not (stripped.startswith("'") and self.config.dialect == 'bbc'):
+                return None
+        # QBasic tail comment: T1 = TIMER ' Start …  (not in bbc).
+        line = self._strip_tail_apostrophe_comment(line)
+        if not line:
+            return None
+        self._active_statement = line
+        self.dprint('[EXEC]', repr(line))
+
+        if line.startswith('*'):
+            try:
+                self._execute_star_command(line[1:])
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? OSCLI error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if '=' in line and self._try_fast_numeric_assignment(line):
+            return None
+
+        head_end = 0
+        while head_end < len(line) and line[head_end].isalpha():
+            head_end += 1
+        if line[:head_end].upper() in self._KEYWORD_PREFIXED_HEADS:
+            prefixed = self._execute_keyword_prefixed(
+                line, line_num, line_nums, stmt_index, stmt_count, stmt_parts,
+            )
+            if prefixed is not MISSING:
+                return prefixed
+
+        # BBC FN return statement: = expr
+        if self._in_fn_body and line.startswith('=') and line[1:].strip():
+            try:
+                value = self._eval_fn_return_expression(line[1:].strip())
+            except (FnReturn, BasicRuntimeError):
+                raise
+            except Exception as exc:
+                if not self._error_trap_enabled():
+                    raise
+                # ``= ATN(Y/X)`` with ON ERROR LOCAL = …: trap, don't report.
+                self._runtime_error(
+                    self._error_message('? Expression error', exc),
+                    line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
+            raise FnReturn(value)
 
         # Early stubs for common BBCSDL idioms that appear in advanced demos (torus2d etc.)
         # These prevent cascades of "unknown/syntax" errors for library setup and platform calls.
-        stripped_line = line.strip()
-        if re.match(r'^\s*@lib\$', stripped_line, re.IGNORECASE):
+        upper_line = line.upper()
+        if upper_line.startswith('@LIB$'):
             return None
-        if 'SDL_SetWindowResizable' in stripped_line.upper() or re.match(r'^IF\s+@platform%', stripped_line, re.IGNORECASE):
+        if 'SDL_SETWINDOWRESIZABLE' in upper_line or (
+            upper_line.startswith('IF')
+            and upper_line[2:3].isspace()
+            and upper_line[2:].lstrip().startswith('@PLATFORM%')
+        ):
             return None
 
         cmd, rest = self._parse_command(line)
@@ -3088,7 +3463,7 @@ class RuntimeExecutionMixin:
 
         if cmd in self._NOT_IMPLEMENTED_STATEMENTS:
             detail = self._NOT_IMPLEMENTED_STATEMENTS[cmd]
-            self._runtime_error(f'? Not implemented: {detail}', line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            self._runtime_error(f'? Out of scope: {detail}', line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         # Simple independent statements (REM, CLS, STOP, WAIT, …) — dict dispatch
@@ -3138,21 +3513,24 @@ class RuntimeExecutionMixin:
                     self._flush_program_output()
                 return None
 
-            content = rest
+            # A trailing ' is a newline item, not a newline suppressor: on ARM
+            # BBC BASIC V, PRINT "A"'' gives A, two blank lines, then the prompt.
+            # Only a final ; or , suppresses the end-of-PRINT newline.
+            content = rest.rstrip()
             trailing_sep = ''
-            content, suppress_newline = self._strip_bbc_print_newline_suffix(content)
             if content.endswith(';') or content.endswith(','):
                 trailing_sep = content[-1]
                 content = content[:-1].rstrip()
-            elif suppress_newline:
-                trailing_sep = ';'
             text, newline, self.print_column = self._render_print_content(
                 content,
                 trailing_sep,
                 self.print_column,
             )
-            if suppress_newline and self._display_enabled():
-                newline = True
+            if newline and content.endswith("'") and text.endswith('\n'):
+                # _print_program_text skips the final newline after text that
+                # already ends in one; here the ' newline and the end-of-PRINT
+                # newline are both real.
+                text += '\n'
             self._print_program_text(text, newline=newline)
             if newline:
                 self.print_column = 0
@@ -3323,7 +3701,12 @@ class RuntimeExecutionMixin:
                 else:
                     values = self._split_input_line_values(line)
                     while len(values) < len(var_tokens):
-                        values.append('')
+                        # INPUT A, B answered "1": ask ?? for the rest (MS/BBC).
+                        more = self._read_program_input('?? ')
+                        self._sync_print_column_after_input(more)
+                        values.extend(self._split_input_line_values(more))
+                # "quoted, text" is one item without its quotes.
+                values = [self._unquote_input_item(value) for value in values]
                 try:
                     for var_token, raw in zip(var_tokens, values):
                         self._assign_input_value(var_token, raw)
@@ -3421,6 +3804,11 @@ class RuntimeExecutionMixin:
 
         if cmd == 'WHILE':
             try:
+                accelerated = self._try_accelerate_while_assign_body(
+                    line_num, rest, line_nums, stmt_index, stmt_parts,
+                )
+                if accelerated is not None:
+                    return accelerated
                 condition = rest.strip()
                 # Same-line form: WHILE cond: body: WEND  (colon-split like REPEAT/FOR)
                 wend_stmt_idx = -1
@@ -3449,9 +3837,16 @@ class RuntimeExecutionMixin:
                             'check for a typo such as WHILE END'
                         )
                     exit_line = self._next_line_num(wend_line, line_nums)
-                    idx = self._line_index(line_num, line_nums)
-                    body_line = line_nums[idx + 1] if idx + 1 < len(line_nums) else line_num
-                    body_stmt = 0
+                    if stmt_parts and any(
+                        text for _, text in stmt_parts[stmt_index + 1:]
+                    ):
+                        # WHILE c : J = 0  — the body starts on this line.
+                        body_line = line_num
+                        body_stmt = stmt_index + 1
+                    else:
+                        idx = self._line_index(line_num, line_nums)
+                        body_line = line_nums[idx + 1] if idx + 1 < len(line_nums) else line_num
+                        body_stmt = 0
                 # Detect re-entry from WEND (frame still on stack, we jumped back to re-eval condition)
                 active_frame = None
                 if self.stack and self.stack[-1].kind == 'while' and getattr(self.stack[-1], 'while_line', None) == line_num:
@@ -3468,10 +3863,18 @@ class RuntimeExecutionMixin:
                             return line_num
                         self.resume_at = (line_num, len(stmt_parts) if stmt_parts else 0)
                         return line_num
+                    wend_idx = self._wend_stmt_index(wend_line, line_num, stmt_index)
+                    wend_parts = self._run_stmts.get(wend_line) if self._run_stmts else None
+                    if wend_parts is None and wend_line in self.program:
+                        wend_parts = self._parse_line_statements(self.program[wend_line])
+                    if wend_idx >= 0 and wend_parts and wend_idx + 1 < len(wend_parts):
+                        # WEND : PRINT "END" — carry on after WEND on its line.
+                        self.resume_at = (wend_line, wend_idx + 1)
+                        return wend_line
                     return exit_line if exit_line != -1 else -1
                 if active_frame:
                     # Re-entry via WEND jump-back: condition still true, do not push again
-                    if getattr(active_frame, 'inline', False):
+                    if getattr(active_frame, 'inline', False) or active_frame.body_line == line_num:
                         self.resume_at = (line_num, getattr(active_frame, 'body_stmt', stmt_index + 1))
                         return line_num
                     return active_frame.body_line
@@ -3487,9 +3890,10 @@ class RuntimeExecutionMixin:
                     inline=inline,
                     body_stmt=body_stmt,
                     next_stmt=wend_stmt_idx,
+                    while_stmt=stmt_index,
                 ))
-                if inline:
-                    # Fall through colon body to WEND on this line
+                if inline or body_line == line_num:
+                    # Fall through colon body (to WEND, or on to the next line)
                     return None
                 return body_line
             except Exception as exc:
@@ -3638,16 +4042,18 @@ class RuntimeExecutionMixin:
                 return -1
             frame = self.stack[-1]
             if self._eval_condition(frame.condition):
-                # Jump back to WHILE (re-eval condition / re-run body)
-                if getattr(frame, 'inline', False):
-                    self.resume_at = (frame.while_line, 0)
-                    return frame.while_line
+                # Jump back to the WHILE statement itself (not statement 0:
+                # I = 0 : WHILE I < 3 must not re-run I = 0 every pass).
+                self.resume_at = (frame.while_line, frame.while_stmt)
                 return frame.while_line
             self.stack.pop()
             # Inline: fall through any stmts after WEND on this line
             return None
 
         if cmd == 'EXIT':
+            if rest.strip().upper() == 'FUNCTION' and self._in_fn_body:
+                pending = getattr(self, '_fn_qb_return', None)
+                raise FnReturn(0 if pending is None else pending)
             if not self._dialect_allows('EXIT'):
                 self._runtime_error(
                     '? EXIT FOR/WHILE/REPEAT is a mini (SDL) extension',
@@ -3885,10 +4291,7 @@ class RuntimeExecutionMixin:
         if cmd == 'GOSUB':
             try:
                 target = self.resolve_jump_target(rest.strip())
-                if stmt_index + 1 < stmt_count:
-                    self.gosub_stack.append((line_num, stmt_index + 1))
-                else:
-                    self.gosub_stack.append((self._next_line_num(line_num, line_nums), 0))
+                self._push_gosub_return(line_num, stmt_index, stmt_count, line_nums)
                 return target
             except Exception as exc:
                 self._runtime_error(
@@ -3902,7 +4305,16 @@ class RuntimeExecutionMixin:
             if not self.gosub_stack:
                 self._runtime_error('? RETURN without GOSUB', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
-            ret_line, ret_stmt = self.gosub_stack.pop()
+            ret_line, ret_stmt, inline_parts, loop_depth = self.gosub_stack.pop()
+            # MS BASIC: RETURN discards FOR/WHILE loops opened by the subroutine.
+            del self.stack[loop_depth:]
+            if inline_parts is not None:
+                # GOSUB ran inside an IF THEN/ELSE clause: finish that clause,
+                # then carry on after the line (the clause owns the line tail).
+                target = self._execute_inline_parts(inline_parts[ret_stmt:], ret_line, line_nums)
+                if target is not None:
+                    return target
+                return self._next_line_num(ret_line, line_nums)
             if ret_line == -1:
                 return -1
             self.resume_at = (ret_line, ret_stmt)
@@ -4138,7 +4550,7 @@ class RuntimeExecutionMixin:
             self.dprint('[IF]', 'eval_condition')
             if self._eval_condition(condition):
                 then_inline = self._if_branch_inline_code(
-                    then_code,
+                    self._then_code_with_nested_else(then_code, else_part),
                     stmt_parts,
                     stmt_index,
                     append_trailing=else_part is None,
@@ -4263,6 +4675,13 @@ class RuntimeExecutionMixin:
             if '=' in line:
                 try:
                     var, op, expr = self._parse_assignment_statement(line)
+                    if (
+                        op == '='
+                        and self._in_fn_body
+                        and self._is_qb_fn_result_assign(var)
+                    ):
+                        self._fn_qb_return = self._eval_fn_return_expression(expr)
+                        return None
                     if op == '=':
                         self._assign(var, expr)
                     else:
@@ -4271,7 +4690,7 @@ class RuntimeExecutionMixin:
                     raise
                 except ValueError as exc:
                     self._runtime_error(
-                        f'? Syntax error: {exc}',
+                        f'? Syntax error: {self._format_exc_detail(exc)}',
                         line_num,
                         stmt_index,
                         stmt_count=stmt_count,
@@ -4750,8 +5169,9 @@ class RuntimeExecutionMixin:
                 continue
             if re.match(r'^CONT\s*$', statement, re.IGNORECASE):
                 return True
-            cmd, _ = self._parse_command(statement)
-            if cmd or '=' in statement:
+            folded = self._fold_immediate_statement_keyword(statement)
+            cmd, _ = self._parse_command(folded)
+            if cmd or '=' in folded:
                 return True
         return False
 

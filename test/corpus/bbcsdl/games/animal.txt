@@ -1,7 +1,6 @@
       ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
       
-      REM @% width 0: STR$ must not pad tree indices (was &90A → corrupt \"N?\" nodes)
-      CLS:@%=0:WIDTH 0:PRINT TAB(15)"ANIMAL"
+      CLS:@%=&90A:WIDTH 0:PRINT TAB(15)"ANIMAL"
       PRINT "Creative Computing Morristown New Jersey"''
       REM by Nathan Teichholtz & Steve North
       REM from an original idea by Arthur Luehrmann.
@@ -14,8 +13,7 @@
       :
       X=OPENIN(@usr$+"animal.dat")
       IF X=0 X=OPENIN(@dir$+"animal.dat")
-      IF X<>0 PROCread
-      IF A$(0)="" OR LEFT$(A$(1),2)<>"\Q" THEN FOR I=0 TO 3:READ A$(I):NEXT I
+      IF X<>0 PROCread ELSE FOR I=0 TO 3:READ A$(I):NEXT I
       :
       REM ***
       REM MAIN CONTROL SECTION
@@ -34,13 +32,11 @@
       REM NEW ANIMAL
       REM ***
       DEF PROCnew
-      PRINT ''
-      PRINT "Sorry, I guessed ";FNart(MID$(A$(K),3));"."
-      INPUT "What animal were you thinking of? ",V$
+      INPUT "OK, I give up."'"Tell me what animal you were thinking"'"of ",V$
       V$=FNstrip(FNconvlc(V$))
-      PRINT "What question distinguishes "+FNart(V$)+" from "+FNart(MID$(A$(K),3))+"?"
-      INPUT "Type your question: ",X$
-      X$=FNcapital(X$)
+      PRINT "Please tell me a question that would"'"distinguish ";
+      PRINT FNart(V$);" from ";FNart(MID$(A$(K),3))
+      INPUT X$:X$=FNcapital(X$)
       IF RIGHT$(X$,1)="?" THEN X$=LEFT$(X$,LEN(X$)-1)
       A$=FNquery("For "+FNart(V$)+" the answer would be ")
       IF A$="Y" THEN B$="N"
@@ -57,17 +53,10 @@
       REM ***
       DEF PROCquestion
       Q$=A$(K)
-      REM Only walk question nodes (\Q...); animal leaves (\A...) are handled by the main loop.
-      IF LEFT$(Q$,2)<>"\Q" THEN ENDPROC
       C$=FNquery(MID$(Q$,3,INSTR(Q$,"\",3)-3))
-      REM Branch tags in the tree are uppercase \Y / \N (INSTR is case-sensitive).
-      IF C$="y" THEN C$="Y"
-      IF C$="n" THEN C$="N"
       T$="\"+C$
       X=INSTR(Q$,T$,3)
-      IF X=0 THEN ENDPROC
       Y=INSTR(Q$,"\",X+1)
-      IF Y=0 THEN ENDPROC
       K=VAL(MID$(Q$,X+2,Y-X-2))
       ENDPROC
       ;
@@ -95,12 +84,12 @@
       REM ***
       DEF PROCexit
       REM ON ERROR OFF
-      PRINT "Animals I already know are:"
+      PRINT ' "Animals I already know are:"
       X=0:I=0
       REPEAT I=I+1
         IF LEFT$(A$(I),2)="\A" THEN PROCprint
       UNTIL A$(I)="" OR I=MAX
-      PRINT "Room for ";INT((MAX-I)/3);" more."
+      PRINT ' "Room for ";INT((MAX-I)/3);" more."
       :
       IF FNquery("Do you want to save these on disk")="Y" THEN
         REM ***
@@ -110,11 +99,8 @@
         REPEAT PRINT# X,A$(Z):Z=Z+1
         UNTIL A$(Z)="" OR Z=MAX+1
         CLOSE #X
-        PRINT "Animal data saved."
       ENDIF
-      PRINT "Close the game window to exit."
       REPEAT WAIT 1 : UNTIL FALSE
-      ENDPROC
       ;
       DATA 4,\QDoes it fly\N2\Y3\,\Agoldfish,\Asparrow,
       ;
@@ -157,14 +143,7 @@
       ;
       DEF FNquery(prompt$)
       LOCAL A$
-      IF prompt$="" THEN prompt$="(Y/N) "
-      IF INSTR(prompt$,"(Y/N)")=0 AND RIGHT$(prompt$,1)<>"?" THEN prompt$=prompt$+" (Y/N)"
       REPEAT
-        REM Newline before each ask so a bare "?" is never the only visible cue.
-        PRINT
-        PRINT prompt$;:INPUT A$
-        A$=LEFT$(FNcapital(A$),1)
-        IF A$="y" THEN A$="Y"
-        IF A$="n" THEN A$="N"
+        PRINT prompt$;:INPUT A$:A$=LEFT$(FNcapital(A$),1)
       UNTIL A$="Y" OR A$="N"
       =A$

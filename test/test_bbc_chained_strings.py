@@ -32,6 +32,9 @@ class BbcChainedStringTests(unittest.TestCase):
     def test_adjacent_double_quoted_literals_decode(self) -> None:
         self.assertEqual(
             self.interp._decode_bbc_adjacent_string_literals('"Hello"" WORLD"'),
+            # Internal decoder of *expanded* text, where STR$(1)"x" became
+            # "1""x": adjacent literals join. Source "" never reaches it
+            # (_escape_doubled_quotes turns it into "+CHR$(34)+" first).
             'Hello WORLD',
         )
 
@@ -42,6 +45,10 @@ class BbcChainedStringTests(unittest.TestCase):
         )
         self.assertEqual(
             self.interp._eval_string_expr('"Hello"" WORLD"'),
+            'Hello" WORLD',
+        )
+        self.assertEqual(
+            self.interp._eval_string_expr('"Hello" " WORLD"'),
             'Hello WORLD',
         )
 
@@ -49,7 +56,10 @@ class BbcChainedStringTests(unittest.TestCase):
         cases = {
             '"Hello"+STR$(10)': 'Hello10',
             '"Hello"STR$(10)': 'Hello10',
-            '"Hello"" WORLD"': 'Hello WORLD',
+            '"Hello"" WORLD"': 'Hello" WORLD',
+            '"Hello" " WORLD"': 'Hello WORLD',
+            '"A""B"': 'A"B',
+            '""""': '"',
         }
         for content, expected in cases.items():
             with self.subTest(content=content):

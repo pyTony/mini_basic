@@ -85,12 +85,66 @@ def test_soccerball_present_not_blanked_by_colour_bg_text_grid():
     surf = disp._canvas
     assert surf is not None
     # Yellow ball (GCOL 3) at centre; green (COLOUR 130) in corner
+    from mini_basic.display import BBC_PALETTE
+
     w, h = surf.get_width(), surf.get_height()
     centre = surf.get_at((w // 2, h // 2))[:3]
     corner = surf.get_at((10, 10))[:3]
     assert centre != corner, (centre, corner)
-    assert centre[0] > 100 and centre[1] > 100  # yellow-ish
-    assert corner[1] > corner[0]  # green-ish
+    assert centre == BBC_PALETTE[3], centre  # yellow, not leftover cyan
+    assert corner == BBC_PALETTE[2], corner  # muted green, not neon
+
+
+def test_mode_clears_leftover_custom_palette():
+    """COLOR 3,cyan then MODE 9 / GCOL 3 must paint default yellow, not cyan.
+
+    REPL leftover COLOR n,r,g,b used to survive MODE/RUN (PyPy FPS ball).
+    """
+    from mini_basic.display import BBC_PALETTE, ensure_no_pygame_leftovers
+
+    interp = BASICInterpreter(
+        InterpreterConfig(
+            dialect='bbc',
+            display='pygame',
+            display_locked=True,
+            hold_display_open=False,
+        ),
+    )
+    interp._shutdown_display = lambda **k: None  # type: ignore[method-assign]
+    with redirect_stdout(StringIO()), redirect_stderr(StringIO()), patch('time.sleep'):
+        for n, s in (
+            (10, 'MODE 9'),
+            (20, 'COLOR 2,0,255,0'),
+            (30, 'COLOR 3,0,255,255'),
+            (40, 'END'),
+        ):
+            interp.program[n] = s
+        interp.run()
+        # Same interpreter, soccerball-style listing (no COLOR n,r,g,b)
+        interp.program.clear()
+        for n, s in (
+            (10, 'MODE 9: OFF'),
+            (20, 'ORIGIN 640,512: COLOUR 130'),
+            (30, '*REFRESH OFF'),
+            (40, 'CLS'),
+            (50, 'GCOL 3: CIRCLE FILL 0, 0, 432'),
+            (60, '*REFRESH'),
+            (70, 'END'),
+        ):
+            interp.program[n] = s
+        interp.run()
+    disp = interp._display
+    assert disp is not None
+    disp.present(force=True)
+    surf = disp._canvas
+    assert surf is not None
+    w, h = surf.get_width(), surf.get_height()
+    centre = surf.get_at((w // 2, h // 2))[:3]
+    corner = surf.get_at((10, 10))[:3]
+    assert centre == BBC_PALETTE[3], centre
+    assert corner == BBC_PALETTE[2], corner
+    assert disp._palette_rgb == {}
+    ensure_no_pygame_leftovers()
 
 
 def test_wheel_bbc_one_frame_refresh():

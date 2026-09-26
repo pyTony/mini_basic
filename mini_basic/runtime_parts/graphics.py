@@ -503,6 +503,22 @@ class RuntimeGraphicsMixin:
             return
         self._enable_pygame_display(announce=announce)
 
+    def _revert_auto_pygame_display(self) -> None:
+        """Text-only program after a graphics RUN: close pygame, back to terminal.
+
+        LOAD/NEW does not reset ``config.display``, so compute-only Mandelbrot
+        kept the previous MODE 9 window.
+        """
+        if self.config.display_locked:
+            return
+        if self._display_backend_name() != 'pygame':
+            return
+        self.config.hold_display_open = False
+        self._shutdown_display(hold=False)
+        self._display = None
+        self._display_live = False
+        self.config.display = 'terminal'
+
     def _keep_ansi_on_terminal(
         self,
         parsed_lines: List[Tuple[int, str, int]],
@@ -789,7 +805,7 @@ class RuntimeGraphicsMixin:
         if re.fullmatch(r'[-+]?(?:INF|INFINITY)', expr, re.IGNORECASE):
             return '-INF' if expr.startswith('-') else 'INF'
         if re.fullmatch(r'[-+]?\d+', expr):
-            return expr
+            return str(int(expr))  # PRINT 010 / PRINT +5 print 10 / 5
         # String variables / $ expressions must not go through arith (A$ is not Python).
         if '$' in expr or self._fragment_is_string_expr(expr):
             try:
@@ -1010,6 +1026,8 @@ class RuntimeGraphicsMixin:
 
     def _inkey_bbc_negative_scan(self, scan_code: int) -> float:
         """BBC INKEY(n) for n < 0: immediate keyboard scan (non-blocking)."""
+        if scan_code == -256:
+            return float(0x73)  # platform id: BBCSDL 's' (BB4W 'W' = &57)
         if self._display_enabled():
             if hasattr(self._display, 'pump_events'):
                 self._display.pump_events()

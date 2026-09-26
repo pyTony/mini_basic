@@ -3,7 +3,7 @@
    10 REM POEM/Now Press Return
    12 REM Program by Andrew Chapman and Jerry Temple-Fry (NETHERHALL SCHOOL) and Richard G Warner
    14 REM For BBC Model A Microcomputer 16K Minimum
-   16 REM "Now Press Return" by Roger McGough (Copyright ï¿½ Roger McGough 1981) is
+   16 REM "Now Press Return" by Roger McGough (Copyright © Roger McGough 1981) is
    18 REM reproduced by permission of PFD (www.pfd.co.uk) on behalf of Roger McGough
    50 @vdu%?74 AND= &7F : MODE7
    60 CLS:REM ON ERROR GOTO 800

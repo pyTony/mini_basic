@@ -205,6 +205,36 @@ class RuntimeIoMixin:
                 pygame_mod.key.stop_text_input()
         return ''.join(buffer)
 
+    def _read_cooked_stdin_line(self, prompt: str = '') -> str:
+        """Read a line without pyrepl/readline rewriting the current row.
+
+        Program INPUT prints the prompt first, then reads. PyPy's ``readline``
+        (pyrepl) replaces ``input()`` and redraws from column 0, so the first
+        typed character overwrites the prompt (``3nter M...``). On a real TTY
+        use ``stdin.readline()`` so the console echoes after the prompt.
+        Tests patch ``input()`` and are not a TTY — keep ``input()`` there.
+        """
+        sys.stdout.flush()
+        tty = False
+        try:
+            tty = (
+                self._program_stdout is None
+                and sys.stdin.isatty()
+                and sys.stdout.isatty()
+            )
+        except Exception:
+            tty = False
+        if tty:
+            if prompt:
+                sys.stdout.write(str(prompt))
+                sys.stdout.flush()
+            line = sys.stdin.readline()
+            if line == '':
+                raise EOFError
+            return line.rstrip('\n\r')
+        line = input(prompt)
+        return line.rstrip('\n\r')
+
     def _read_terminal_line_windows(self) -> str:
         import msvcrt
 
@@ -264,8 +294,8 @@ class RuntimeIoMixin:
     def _read_terminal_line_while_pumping_display(self) -> str:
         """Read stdin on the main thread while pumping display events if needed.
 
-        Pure terminal (no pygame): use line-buffered ``input()`` so repeated
-        digits and long numbers are not mangled by char-by-char getwch paths.
+        Pure terminal (no pygame): line-buffered stdin so repeated digits
+        are not mangled by char-by-char getwch, without pyrepl ``input()``.
         Pygame tee mode still needs the msvcrt/select pump loops.
         """
         if self._program_stdout is not None:
@@ -275,7 +305,7 @@ class RuntimeIoMixin:
             sys.stdout.flush()
             self._pump_display_for_input()
             try:
-                return input().rstrip('\n\r')
+                return self._read_cooked_stdin_line('')
             except EOFError:
                 raise ProgramExit()
             except KeyboardInterrupt:
@@ -294,7 +324,7 @@ class RuntimeIoMixin:
                 pass
         sys.stdout.flush()
         self._pump_display_for_input()
-        return input().rstrip('\n\r')
+        return self._read_cooked_stdin_line('')
 
     def _read_program_input(self, prompt: str = '? ') -> str:
         self._flush_program_output()
@@ -344,7 +374,7 @@ class RuntimeIoMixin:
             return line
         self._flush_program_output()
         try:
-            line = input(prompt)
+            line = self._read_cooked_stdin_line(prompt)
         except EOFError:
             raise ProgramExit()
         except KeyboardInterrupt:
@@ -1026,7 +1056,11 @@ class RuntimeIoMixin:
             # Normalize +0 → bare E like many BASICs: 1.23E+10 → 1.23E10 optional;
             # keep Python-style E+ for clarity unless bare E preferred.
             return text
-        return str(value)
+        # bbc: @%=&90A default is G9 (PRINT PI → 3.14159265). Others: 15
+        # significant digits, so 0.1+0.2 prints 0.3, not float64 noise.
+        if self.config.dialect == 'bbc' and not self.bbc_at_percent:
+            return f'{value:.9g}'
+        return f'{value:.15g}'
 
     def _split_implicit_print_items(self, item: str) -> List[str]:
         """MBASIC implicit PRINT items: TAB/SPC glued without ; or ,.
@@ -1112,32 +1146,56 @@ class RuntimeIoMixin:
             items.append((item, ''))
         return self._expand_implicit_print_items(items)
 
-    def _strip_bbc_print_newline_suffix(self, content: str) -> Tuple[str, bool]:
-        """BBC trailing apostrophe suppresses PRINT newline (e.g. TEXT'' )."""
-        stripped = content.rstrip()
-        suppress = False
-        while stripped.endswith("'"):
-            stripped = stripped[:-1].rstrip()
-            suppress = True
-        return stripped, suppress
-
     def _decode_print_string_item(self, item: str) -> str:
         return self._decode_bbc_adjacent_string_literals(item.strip())
 
     def _is_string_print_item(self, item: str) -> bool:
         item = item.strip()
-        if item.startswith('"') or '"' in item:
-            # Support BBC-style juxtaposition: 1"foo""bar"X$  or  "a" "b" total
-            # even if item starts with number/var before first "
-            return True
-        return '$' in item
+        if '"' not in item and '$' not in item:
+            return False
+        # Support BBC-style juxtaposition: 1"foo""bar"X$  or  "a" "b" total
+        # even if item starts with number/var before first ". LEN(A$)+1 is
+        # still a number.
+        return not self._is_numeric_arith_item(item)
+
+    def _print_item_has_top_level_relop(self, item: str) -> bool:
+        """True for = <> < > <= >= outside strings and parentheses."""
+        depth = 0
+        in_string = False
+        index = 0
+        length = len(item)
+        while index < length:
+            ch = item[index]
+            if ch == '"':
+                in_string = not in_string
+            elif not in_string:
+                if ch == '(':
+                    depth += 1
+                elif ch == ')':
+                    depth -= 1
+                elif depth == 0 and ch in '<>=':
+                    if ch in '<>' and item.startswith(ch * 2, index):
+                        while index < length and item[index] == ch:
+                            index += 1  # << >> >>> shifts
+                        continue
+                    return True
+            index += 1
+        return False
 
     def _print_item_has_string_concat(self, item: str) -> bool:
+        # Top level only: INSTR("A"+B$, C$) is numeric, not a concat.
         in_string = False
+        depth = 0
         for ch in item:
             if ch == '"':
                 in_string = not in_string
-            elif ch == '+' and not in_string:
+            elif in_string:
+                continue
+            elif ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth = max(0, depth - 1)
+            elif ch == '+' and depth == 0:
                 return True
         return False
 
@@ -1275,19 +1333,17 @@ class RuntimeIoMixin:
                 row = int(self._eval_numeric(args[1]))
                 return self._ansi_goto(row, col)
             column = int(self._eval_numeric(args[0]))
-            target = max(0, column - 1)
+            # BBC TAB(n) is column n counting from 0; MS TAB(n) counts from 1.
+            target = max(0, column if self.config.dialect == 'bbc' else column - 1)
             # Always emit spaces. Display-enabled TAB used to goto() and
             # return ''; the whole PRINT was then written from that cursor
             # (bacarrat: "BANKERPLAYER" starting at column 20).
-            parts: List[str] = []
+            # The caller emits this through _print_emit, which advances
+            # print_column / text_col (and ends the line on '\n') itself.
+            # Counting the pad here too put PRINT TAB(5);"X";TAB(10);"Y" at XY.
             if self.print_column > target:
-                parts.append('\n')
-                self._print_finish_line()
-            pad = max(0, target - self.print_column)
-            self.print_column += pad
-            self.text_col += pad
-            parts.append(' ' * pad)
-            return ''.join(parts)
+                return '\n' + ' ' * target
+            return ' ' * (target - self.print_column)
         return None
 
     def _render_print_using(self, format_expr: str, value_exprs: List[str]) -> str:
@@ -1330,6 +1386,8 @@ class RuntimeIoMixin:
         trailing_sep: str,
         print_column: int,
     ) -> Tuple[str, bool, int]:
+        # Statement parse already escaped "" (A""B); direct callers may not have.
+        content = self._escape_doubled_quotes(content)
         saved_column = self.print_column
         self.print_column = print_column
         try:
@@ -1340,6 +1398,9 @@ class RuntimeIoMixin:
                 self._is_string_print_item(item) for item, _ in items
             )
             hex_mode = False
+            # BBC with default @%: numbers right-justified until a ; item.
+            bbc_fields = self.config.dialect == 'bbc' and not self.bbc_at_percent
+            bbc_justify = bbc_fields
             for index, (item, sep) in enumerate(items):
                 prev_sep = items[index - 1][1] if index > 0 else ''
                 if index > 0 and prev_sep == ',':
@@ -1367,17 +1428,32 @@ class RuntimeIoMixin:
                         continue
 
                 special = self._try_render_print_special(item)
+                is_numeric = False
                 if special is not None:
                     text = special
                 else:
                     if self._is_string_print_item(item_strip):
-                        try:
-                            text = self._eval_string_expr(item_strip)
-                        except Exception:
-                            text = self.eval_print_value(item)
+                        if self._print_item_has_top_level_relop(item_strip):
+                            # "A"<"B" / A$="Q": a comparison is numeric (-1 / 0).
+                            is_numeric = True
+                            try:
+                                text = self._format_number(self._eval_numeric(item_strip))
+                            except Exception as exc:
+                                text = self._report_expression_error(item_strip, exc)
+                        else:
+                            try:
+                                text = self._eval_string_expr(item_strip)
+                            except Exception as exc:
+                                if self._print_item_has_string_concat(item_strip):
+                                    # "A" + 1: type mismatch, not a silent "A".
+                                    text = self._report_expression_error(item_strip, exc)
+                                else:
+                                    text = self.eval_print_value(item)
                     elif hex_mode:
+                        is_numeric = True
                         text = self._bbc_hex_string(self._eval_numeric(item_strip))
                     else:
+                        is_numeric = True
                         text = self.eval_print_value(item)
 
                 use_number_field = (
@@ -1389,7 +1465,16 @@ class RuntimeIoMixin:
                 if use_number_field:
                     output.append(self._print_emit_number_field(text))
                 else:
+                    if bbc_justify and is_numeric and not text.startswith('?'):
+                        # BBC @%=&90A: right-justify in the 10-column field
+                        # until a ; (checked on ARM BBC BASIC V: PRINT A%).
+                        text = text.rjust(10)
                     output.append(self._print_emit(text))
+                if bbc_fields:
+                    if sep == ';':
+                        bbc_justify = False
+                    elif sep == ',':
+                        bbc_justify = True
 
                 if sep == "'":
                     output.append('\n')
@@ -1681,6 +1766,13 @@ class RuntimeIoMixin:
     def _split_input_line_values(self, line: str) -> List[str]:
         return self._split_at_depth(line, ',')
 
+    @staticmethod
+    def _unquote_input_item(value: str) -> str:
+        stripped = value.strip()
+        if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+            return stripped[1:-1]
+        return value
+
     def _read_lvalue(self, token: str) -> Tuple[str, str, VarKind, Optional[List[int]], object]:
         parsed = self._parse_array_lvalue(token)
         if parsed is not None:
@@ -1922,6 +2014,22 @@ class RuntimeIoMixin:
             raise ValueError(f'file not found ({filename})')
         os.remove(path)
 
+    @staticmethod
+    def _decode_program_text(data: bytes) -> str:
+        """UTF-8, else CP1252 / Latin-1 (older BBC and Windows sources).
+
+        NUL bytes mean binary, not text: keep the UnicodeDecodeError then.
+        """
+        try:
+            return data.decode('utf-8')
+        except UnicodeDecodeError:
+            if b'\x00' in data:
+                raise
+        try:
+            return data.decode('cp1252')
+        except UnicodeDecodeError:
+            return data.decode('latin-1')
+
     def load(self, filename, *, announce: bool = True) -> bool:
         """Load a BASIC program from disk.
 
@@ -1975,7 +2083,7 @@ class RuntimeIoMixin:
             if detect_bbc_binary_format(data):
                 raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
             else:
-                raw_lines = data.decode('utf-8').splitlines(keepends=True)
+                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
         except UnicodeDecodeError as exc:
             self._emit_error(
                 f'Load failed: {path} is not UTF-8 text or a tokenized BBC BASIC program '
@@ -2040,6 +2148,9 @@ class RuntimeIoMixin:
         if announce:
             print(f'Loaded: {path}', file=self._get_error_stream())
         self._apply_dialect_hints_from_parsed_lines(parsed_lines, announce=announce)
+        uses_gfx = self._program_statements_use_graphics(parsed_lines)
         self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+        if not uses_gfx:
+            self._revert_auto_pygame_display()
         return True
 

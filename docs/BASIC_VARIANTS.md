@@ -94,7 +94,9 @@ Source of truth: `dialect_structure_rows()` → `01_dialect_structure.txt` · RE
 - **mini** = **bbc + SDL/desktop extras** (EXIT FOR, ON CLOSE, INKEY(−n), COLOUR fg,bg, BREAK/CONTINUE, ARG, ANSI).
 - **Case mode (all dialects):** when case-sensitive (default for mini/bbc; `CASE ON`
   elsewhere), **statement keywords are uppercase only** (`PRINT`, `COLOUR`, `FOR`).
-  Mixed-case `Colour&` / `print` are not commands. Fold mode (`CASE OFF`) restores
+  Mixed-case `Colour&` / `print` are not commands. Exception: **mini** is not strict
+  and uppercases lowercase keywords at entry (`print`, `for … to … step`, `then`,
+  `len(`); identifiers stay case-sensitive. Fold mode (`CASE OFF`) restores
   freedom of case for keywords (`print`/`PRINT`). Which commands exist is still
   dialect-gated.
 
@@ -127,7 +129,7 @@ Source: `bbc_family_rows()` → `01b_bbc_family.txt`.
 | Tokenized program files | + | + | + | + | + | Formats differ; mini **detokenizes** only |
 | Line numbers required | + | − | − | − | ~ | Beeb classic; ROS/BB4W text unnumbered OK |
 | SOUND / ENVELOPE | + | ~ | + | + | ~ | mini: stubs (silent / wait) |
-| SYS / rich OS | ~ | + | + | + | ~ | mini: OSCLI subset (REFRESH/GSAVE/DISPLAY); `SYS` unimplemented |
+| SYS / rich OS | ~ | + | + | + | ~ | mini: OSCLI subset (REFRESH/GSAVE/DISPLAY); `SYS` out of scope (1.00) |
 | INSTALL libraries | − | ~ | + | + | ~ | Deferred depth |
 
 Full table and notes: always prefer the generated file over this excerpt.

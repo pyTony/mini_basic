@@ -68,12 +68,18 @@ def test_default_case_mode(dialect: str) -> None:
         assert not interp._identifiers_case_sensitive()
 
 
-@pytest.mark.parametrize('dialect', BBC_FAMILY)
-def test_case_on_rejects_lowercase_print(dialect: str) -> None:
-    out, interp = _run_lines(dialect, [(10, 'print 1'), (20, 'END')])
+def test_case_on_bbc_rejects_lowercase_print() -> None:
+    out, interp = _run_lines('bbc', [(10, 'print 1'), (20, 'END')])
     assert interp._identifiers_case_sensitive()
     assert '?' in out or '1' not in out.splitlines()[0] if out else True
     assert '1\n' not in out
+
+
+def test_case_on_mini_accepts_lowercase_keywords() -> None:
+    # mini is not strict about keyword case; identifiers stay case-sensitive.
+    out, interp = _run_lines('mini', [(10, 'print 1'), (20, 'END')])
+    assert interp._identifiers_case_sensitive()
+    assert '1' in out
 
 
 @pytest.mark.parametrize('dialect', NUMBERED_GOTO)
@@ -141,6 +147,63 @@ def test_while_allowed_on_bbc_family(dialect: str) -> None:
         dialect, '10 WHILE FALSE\n20 ENDWHILE\n30 END\n', strict=True
     )
     assert ok, out
+
+
+def test_load_warns_mini_only_when_dialect_is_not_mini() -> None:
+    ok, out, _ = _load_text(
+        'bbc', '10 PRINT FG$(1);"x";RESET$()\n20 END\n', strict=False,
+    )
+    assert ok, out
+    lower = out.lower()
+    assert 'mini-only' in lower
+    assert 'fg$' in lower
+    assert 'bbc' in lower
+    assert 'dialect: mini' in lower or 'rem dialect' in lower
+
+
+def test_load_mini_does_not_warn_mini_only() -> None:
+    ok, out, _ = _load_text(
+        'mini', '10 PRINT FG$(1);"x";RESET$()\n20 END\n', strict=False,
+    )
+    assert ok, out
+    assert 'mini-only' not in out.lower()
+
+
+def test_load_bbc_while_is_not_mini_only_warning() -> None:
+    ok, out, _ = _load_text(
+        'bbc', '10 WHILE FALSE\n20 ENDWHILE\n30 END\n', strict=False,
+    )
+    assert ok, out
+    assert 'mini-only' not in out.lower()
+
+
+def test_load_hint_switches_to_mini_skips_mismatch_note() -> None:
+    ok, out, interp = _load_text(
+        'bbc',
+        '1 REM dialect: mini\n10 BREAK\n20 END\n',
+        strict=False,
+    )
+    assert ok, out
+    assert interp.config.dialect == 'mini'
+    assert 'mini-only' not in out.lower()
+
+
+def test_locked_bbc_ignores_mini_hint_and_warns() -> None:
+    interp = _interp('bbc', strict=False)
+    interp.config.dialect_locked = True
+    text = '1 REM dialect: mini\n10 BREAK\n20 END\n'
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, 'p.bas')
+        with open(path, 'w', encoding='utf-8') as handle:
+            handle.write(text)
+        buf = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+            ok = interp.load(path, announce=True)
+    out = buf.getvalue()
+    assert ok, out
+    assert interp.config.dialect == 'bbc'
+    assert 'mini-only' in out.lower()
+    assert 'BREAK' in out
 
 
 def test_break_rejected_on_bbc_allowed_on_mini() -> None:
@@ -255,7 +318,7 @@ def test_dialect_allows_table() -> None:
         'EXIT': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
         'BREAK': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
         'on_close': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
-        'inkey_scan': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': False, 'mini': True},
+        'inkey_scan': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
         'INSTR': {'mits': False, 'commodore': False, 'tiny': False, 'bbc': True, 'mini': True},
         'unnumbered_program': {
             'mits': False,

@@ -27,6 +27,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from .strplan import init_string_plan_state
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
@@ -144,6 +145,7 @@ class RuntimeCoreMixin:
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
         self.trace_enabled = False
+        self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
         self.trace_proc = False
         self.trace_step = False
@@ -157,7 +159,9 @@ class RuntimeCoreMixin:
         self._mouse_y = 0
         self._mouse_buttons = 0
         self._bbc_custom_colours: Dict[int, Tuple[int, int, int]] = {}
-        self.gosub_stack: List[Tuple[int, int]] = []
+        self.gosub_stack: List[tuple] = []
+        # >0 while an IF THEN/ELSE clause runs as its own statement list.
+        self._inline_exec_depth = 0
         self.resume_at: Optional[Tuple[int, int]] = None
         self.error_trap_line: int = 0
         self.error_trap_gosub: bool = False
@@ -210,7 +214,13 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries: List[Tuple[re.Pattern, str]] = []
         self._var_subst_float_entries: List[Tuple[re.Pattern, str]] = []
         self._compiled_expr_cache: Dict[Tuple[str, bool], CompiledExpr] = {}
+        # __aget__ ids for compiled numeric array reads: id → (base, kind).
+        self._compiled_array_keys: List[tuple] = []
+        self._compiled_array_ids: Dict[tuple, int] = {}
         self._parse_command_cache: Dict[str, Tuple[str, str]] = {}
+        init_string_plan_state(self)
+        self._stmt_fast_runners: Dict[str, object] = {}
+        self._while_assign_accel: Dict[int, object] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
         self._ansi_bg_cache: Dict[int, str] = {}
         self._ansi_reset_text: Optional[str] = None
@@ -244,6 +254,12 @@ class RuntimeCoreMixin:
         self.data_pointer: int = 0
         self.user_functions: Dict[str, UserFunction] = {}
         self.user_procedures: Dict[str, UserProcedure] = {}
+        self._fn_memo: Dict[Tuple[str, tuple], object] = {}
+        self._fn_memoable: Dict[str, bool] = {}
+        self._fn_memo_steps: Dict[str, list] = {}
+        self._fn_trampoline_depth = 0
+        self._fn_miss_capture = False
+        self._fn_captured_miss = None
         self.proc_stack: List[List[Tuple[str, VarKind, object, bool]]] = []
         # Pygame stubs for BBCSDL gfxlib etc.
         self._gfx_next_texture_id: int = 1
@@ -384,6 +400,9 @@ class RuntimeCoreMixin:
         return int(table.get(int(offset), 0))
 
     def _substitute_bbcsdl_special_vars(self, expr: str) -> str:
+        # Hot numeric eval (WHILE LET fallback) has no @vars; skip the regex ladder.
+        if '@' not in expr:
+            return expr
         width = self.config.graphics_width or 1280
         height = self.config.graphics_height or 1024
         # @vdu%!n indirection before bare @vdu%
@@ -571,7 +590,7 @@ class RuntimeCoreMixin:
                     index += 1
                     continue
                 if part:
-                    parts.append(part)
+                    parts.extend(self._split_repeat_until(part))
                 current = []
                 after_then = False
                 index += 1
@@ -580,8 +599,41 @@ class RuntimeCoreMixin:
             index += 1
         part = ''.join(current).strip()
         if part:
-            parts.append(part)
+            parts.extend(self._split_repeat_until(part))
         return parts
+
+    _RE_REPEAT_HEAD = re.compile(r'^REPEAT\b')
+    _RE_UNTIL_WORD = re.compile(r'UNTIL\b')
+
+    def _split_repeat_until(self, part: str) -> List[str]:
+        """BBC: UNTIL starts a new statement without a colon.
+
+        disco.bbc: ``REPEAT i2%=RND(15) UNTIL i2%<>i1%`` →
+        ``REPEAT i2%=RND(15)`` / ``UNTIL i2%<>i1%``.
+        Only a top-level UNTIL (outside strings and brackets) splits.
+        """
+        if 'UNTIL' not in part or not self._RE_REPEAT_HEAD.match(part):
+            return [part]
+        depth = 0
+        in_string = False
+        for index in range(6, len(part)):
+            ch = part[index]
+            if ch == '"':
+                in_string = not in_string
+            elif in_string:
+                continue
+            elif ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif (
+                depth == 0
+                and ch == 'U'
+                and not (part[index - 1].isalnum() or part[index - 1] == '_')
+                and self._RE_UNTIL_WORD.match(part, index)
+            ):
+                return [part[:index].strip(), part[index:].strip()]
+        return [part]
 
     def _split_statement_indent(self, statement: str) -> Tuple[int, str]:
         match = re.match(r'^([ \t]*)(.*)$', statement)
@@ -623,6 +675,9 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries.clear()
         self._var_subst_float_entries.clear()
         self._compiled_expr_cache.clear()
+        self._clear_string_plan_caches()
+        self._stmt_fast_runners.clear()
+        self._while_assign_accel.clear()
 
     def _bigint_enabled(self) -> bool:
         return bool(self.config.bigint_enabled)
@@ -850,6 +905,20 @@ class RuntimeCoreMixin:
         if len(legacy) > 4:
             print(f'  …and {len(legacy) - 4} more')
 
+    def _announce_mini_dialect_mismatch(self, features: List[str]) -> None:
+        """LOAD note: listing uses mini-only syntax under another dialect."""
+        if not features:
+            return
+        shown = ', '.join(features[:8])
+        extra = ''
+        if len(features) > 8:
+            extra = f' (+{len(features) - 8} more)'
+        print(
+            f'Note: program uses mini-only {shown}{extra} '
+            f'(dialect is {self.config.dialect}, not mini). '
+            f'Use --dialect mini or add `1 REM dialect: mini`.'
+        )
+
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""
         id_flags = self._identifier_re_flags()
@@ -887,7 +956,7 @@ class RuntimeCoreMixin:
         keyword = self._statement_keyword(line)
         if keyword in self._UNIMPLEMENTED_COMMANDS:
             detail = self._UNIMPLEMENTED_COMMANDS[keyword]
-            return f'? Unimplemented: {detail}'
+            return f'? Out of scope: {detail}'
         # Crunched BBC forms (PRINTTAB, DEFPROC…) only expand in --dialect bbc.
         if (
             getattr(self.config, 'dialect', None) != 'bbc'
@@ -919,6 +988,12 @@ class RuntimeCoreMixin:
         return not text[then_at + 4:].strip()
 
     def _split_if_else_parts(self, rest: str) -> Tuple[str, Optional[str]]:
+        """Split at the first ELSE; the ELSE part keeps any later ELSEs.
+
+        BBC single-line IF: a false condition runs from the first ELSE on, so
+        ``ELSE IF c THEN a ELSE b`` chains work. A true THEN part holding a
+        nested IF gets the tail back (see ``_then_code_with_nested_else``).
+        """
         parts: List[str] = []
         current: List[str] = []
         in_string = False
@@ -936,22 +1011,25 @@ class RuntimeCoreMixin:
                 before = text[max(0, index - 1):index]
                 after = text[index + 4:index + 5]
                 if (not before or not before[-1].isalnum()) and (not after or not after.isalnum()):
-                    parts.append(''.join(current).strip())
-                    current = []
-                    index += 4
-                    continue
+                    return ''.join(current).strip(), text[index + 4:].strip()
             if ch == '(' and not in_string:
                 depth += 1
             elif ch == ')' and not in_string:
                 depth -= 1
             current.append(ch)
             index += 1
-        parts.append(''.join(current).strip())
-        if len(parts) == 1:
-            return parts[0], None
-        if len(parts) == 2:
-            return parts[0], parts[1]
-        raise ValueError('invalid IF syntax')
+        return ''.join(current).strip(), None
+
+    _RE_NESTED_IF_WORD = re.compile(r'(?<![A-Za-z0-9_$%])IF(?![A-Za-z0-9_$%])')
+
+    def _then_code_with_nested_else(self, then_code: str, else_part: Optional[str]) -> str:
+        """IF a THEN IF b THEN x ELSE y: when a is true the ELSE belongs to IF b."""
+        if else_part is None:
+            return then_code
+        outside = re.sub(r'"[^"]*"', '""', then_code)
+        if not self._RE_NESTED_IF_WORD.search(outside):
+            return then_code
+        return f'{then_code} ELSE {else_part}'
 
     def _extract_branch_condition(self, rest: str) -> str:
         text = rest.strip()
@@ -1205,6 +1283,8 @@ class RuntimeCoreMixin:
             part = expr[start:index].strip()
             if part:
                 parts.append(part)
+            if index < len(expr) and expr[index] == '+':
+                index += 1  # stopped at a top-level +: step past it (was a hang)
         return parts or [expr]
 
     def _resolve_juxtaposed_string_part(self, part: str) -> str:
@@ -1214,7 +1294,35 @@ class RuntimeCoreMixin:
         return self.eval_print_value(self._expand_dynamic_calls(part))
 
     def _split_string_concat(self, expr: str) -> List[str]:
-        parts = self._split_at_depth(expr, '+', skip_empty=True)
+        if '\\"' not in expr:
+            parts = self._split_at_depth(expr, '+', skip_empty=True)
+            return parts or ['']
+        # CHR$(34) is embedded as "\"" — skip literals via _closing_quote_index
+        # so the + after it still splits ("X"+CHR$(34)+"Y" lost its "Y").
+        parts: List[str] = []
+        start = 0
+        depth = 0
+        index = 0
+        n = len(expr)
+        while index < n:
+            ch = expr[index]
+            if ch == '"':
+                end = self._closing_quote_index(expr, index)
+                index = n if end < 0 else end + 1
+                continue
+            if ch in '({':
+                depth += 1
+            elif ch in ')}':
+                depth = max(0, depth - 1)
+            elif ch == '+' and depth == 0:
+                part = expr[start:index].strip()
+                if part:
+                    parts.append(part)
+                start = index + 1
+            index += 1
+        part = expr[start:].strip()
+        if part:
+            parts.append(part)
         return parts or ['']
 
     def _resolve_string_atom(self, expr: str) -> str:
@@ -1224,10 +1332,13 @@ class RuntimeCoreMixin:
         return self._resolve_string_value(expr)
 
     def _resolve_string_value(self, expr: str) -> str:
+        plan = self._get_string_plan(expr)
+        if plan is not None:
+            return plan()
         expr = expr.strip()
         if self._looks_like_full_string_expr(expr):
             return self._eval_string_expr(expr)
-        expr = self._expand_dynamic_calls(expr)
+        expr = self._expand_dynamic_calls(expr).strip()
         upper = expr.upper()
         if upper == 'REPORT$':
             return self.error_message
@@ -1554,6 +1665,9 @@ class RuntimeCoreMixin:
         if key == '_optimization_level':
             self.config.__post_init__()
             self._compiled_expr_cache.clear()
+            self._clear_string_plan_caches()
+            self._stmt_fast_runners.clear()
+            self._while_assign_accel.clear()
 
     def _system_vars_in_expr(self, expr: str) -> Tuple[str, ...]:
         found: List[str] = []
@@ -1592,7 +1706,10 @@ class RuntimeCoreMixin:
             return False
         if self._identifiers_case_sensitive() and token != token.upper():
             return False
-        return token.upper() in self._STMT_KEYWORDS
+        upper = token.upper()
+        # Keyword-prefixed forms (CLOSE, CONT, REPORT, …) are dispatched before
+        # _parse_command; without this, ``CLOSE :`` was read as a label.
+        return upper in self._STMT_KEYWORDS or upper in self._KEYWORD_PREFIXED_HEADS
 
     def set_case_sensitivity(
         self,
@@ -1884,7 +2001,8 @@ class RuntimeCoreMixin:
         return True
 
     def _boolean_relop_at(self, expr: str, index: int) -> Optional[str]:
-        for op in ('<>', '>=', '<=', '=', '<', '>'):
+        # == is BB4W / BBCSDL equality (disco.bbc: INKEY(-256) == &57).
+        for op in ('<>', '>=', '<=', '==', '=', '<', '>'):
             if not expr.startswith(op, index):
                 continue
             if op == '=':
@@ -2156,6 +2274,8 @@ class RuntimeCoreMixin:
         self.if_stack.clear()
         self.gosub_stack.clear()
         self.proc_stack.clear()
+        self._fn_memo.clear()
+        self._fn_trampoline_depth = 0
         self.resume_at = None
         self.error_trap_line = 0
         self.error_trap_gosub = False
@@ -2186,6 +2306,10 @@ class RuntimeCoreMixin:
         self._last_present_time = 0.0
         self._clear_stop_state()
         self._run_aborted = False
+        self._bbc_custom_colours.clear()
+        reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
+        if callable(reset_pal):
+            reset_pal()
 
     def run(self):
         if not self.program:
@@ -2205,6 +2329,8 @@ class RuntimeCoreMixin:
         self._apply_program_refresh_off_at_start()
 
         self._run_interrupt_watch = True
+        timing = bool(getattr(self, 'timing_enabled', False))
+        t0 = time.perf_counter() if timing else None
         try:
             self._run_program_loop(0)
         except KeyboardInterrupt:
@@ -2220,6 +2346,14 @@ class RuntimeCoreMixin:
             self._run_interrupt_watch = False
             self._trace_finish_line()
             self._flush_program_output()
+            if t0 is not None and getattr(self, 'timing_enabled', False):
+                elapsed = time.perf_counter() - t0
+                try:
+                    stream = self._get_error_stream()
+                    stream.write(f'Time: {elapsed:.3f} s\n')
+                    stream.flush()
+                except Exception:
+                    pass
             if not self.stopped:
                 self._close_file_channels()
             hold = self.config.hold_display_open and not getattr(self, '_run_aborted', False)
@@ -2385,6 +2519,12 @@ class RuntimeCoreMixin:
         self.data_pointer = 0
         self.user_functions.clear()
         self.user_procedures.clear()
+        self._fn_memo.clear()
+        self._fn_memoable.clear()
+        self._fn_memo_steps.clear()
+        self._fn_trampoline_depth = 0
+        self._fn_miss_capture = False
+        self._fn_captured_miss = None
         self._definitions_dirty = True
         self.proc_stack.clear()
         self._rnd_last = 0.0
@@ -2415,6 +2555,10 @@ class RuntimeCoreMixin:
         if clear_loaded_filename:
             self.loaded_filename = None
         self._program_source_numbered = None
+        self._bbc_custom_colours.clear()
+        reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
+        if callable(reset_pal):
+            reset_pal()
         self._invalidate_program_caches()
         self._run_line_nums = []
         self._run_line_index = {}
@@ -2424,6 +2568,7 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
+        self._clear_string_plan_caches()
         if announce:
             print('Program cleared.', file=self._get_error_stream())
 

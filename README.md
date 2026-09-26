@@ -56,8 +56,8 @@ interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
 
 | Dialect | Notes |
 |---------|--------|
-| `mini` | Default; case-sensitive identifiers |
-| `bbc` | BBC-style; case-sensitive identifiers; keywords upper-only in strict paths |
+| `mini` | Default; case-sensitive identifiers; keywords in any case (`for i = 1 to 3` works) |
+| `bbc` | BBC-style; case-sensitive identifiers; keywords uppercase only |
 | `mits` / `commodore` / `tiny` | Classic-style case-folding |
 
 Product conventions that trip people up:

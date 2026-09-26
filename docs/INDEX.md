@@ -34,6 +34,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 | [PLAN_1.00_AND_VDU.md](PLAN_1.00_AND_VDU.md) | 1.00 plan and VDU notes |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialect / BBC-family comparison (links matrices) |
 | [BBC_TOKENIZE_VS_UNGLUE.md](BBC_TOKENIZE_VS_UNGLUE.md) | Real BBC tokens vs mini eval-time unglue |
+| [DISPATCH_MAP.md](DISPATCH_MAP.md) | Where each statement is handled: entry canonicalize, RUN loop, `_execute_statement` stages, caches |
 | [../mini_basic/README.md](../mini_basic/README.md) | Package layout (import map, modules) |
 
 ## Packaging and install

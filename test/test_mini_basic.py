@@ -296,7 +296,8 @@ class MiniBASICTests(unittest.TestCase):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 interp.run()
-            self.assertEqual(buf.getvalue().strip(), '1\n2\n3', msg=dialect)
+            lines = [line.strip() for line in buf.getvalue().strip().splitlines()]
+            self.assertEqual(lines, ['1', '2', '3'], msg=dialect)
 
     def test_immediate_time_for_next_print_chain(self):
         interp = self.make_interp()
@@ -1314,14 +1315,14 @@ class MiniBASICTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             interp.eval_expr("10 % 3")
 
-    def test_integer_rounds_on_assign(self):
-        """BBC integer assign: round half away from zero (not C trunc toward 0)."""
+    def test_integer_truncates_on_assign(self):
+        """BBC / BBC SDL integer assign truncates toward zero (9.9 → 9)."""
         lines = [
             (10, "N% = 9.9"),
             (20, "PRINT N%"),
             (30, "END"),
         ]
-        self.assertEqual(self.run_program(lines), "10")
+        self.assertEqual(self.run_program(lines), "9")
         lines2 = [
             (10, "N% = 9.4"),
             (20, "PRINT N%"),
@@ -2219,7 +2220,8 @@ class MiniBASICTests(unittest.TestCase):
             with redirect_stdout(buf):
                 interp.run()
             self.assertEqual(interp.error_line_num, 0, buf.getvalue())
-            data = open(path, 'rb').read()
+            with open(path, 'rb') as handle:
+                data = handle.read()
             self.assertEqual(data, bytes([0x04, 0x03, 0x02, 0x01]))
 
     def run_program_lines(self, interp, lines):
@@ -2378,14 +2380,16 @@ class MiniBASICTests(unittest.TestCase):
             with redirect_stdout(buf):
                 interp.save('out.bas')  # default standard → auto pretty
             self.assertIn('pretty', buf.getvalue().lower())
-            text = open(os.path.join(tmp, 'out.bas'), encoding='utf-8').read()
+            with open(os.path.join(tmp, 'out.bas'), encoding='utf-8') as handle:
+                text = handle.read()
             self.assertTrue(
                 all(not re.match(r'^\s*\d+\s', ln) for ln in text.splitlines() if ln.strip()),
             )
             self.assertIn('FOR I = 1 TO 2', text)
             with redirect_stdout(io.StringIO()):
                 interp.save('numbered.bas', 'numbered')
-            num_text = open(os.path.join(tmp, 'numbered.bas'), encoding='utf-8').read()
+            with open(os.path.join(tmp, 'numbered.bas'), encoding='utf-8') as handle:
+                num_text = handle.read()
             self.assertRegex(num_text, r'(?m)^\s*10\s')
 
     def test_load_unnumbered_with_goto(self):
@@ -2568,7 +2572,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "10\n20\n")
+        self.assertEqual(buf.getvalue(), "        10\n        20\n")  # BBC @% field
         self.assertTrue(interp._identifiers_case_sensitive())
 
     @pytest.mark.mits
@@ -2847,7 +2851,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "120\n")
+        self.assertEqual(buf.getvalue(), "       120\n")  # BBC @% field
 
     def test_multiline_def_fn_end_if_and_end_def(self):
         """Case-sensitive mini: keywords uppercase; END IF / END DEF closers."""
@@ -4337,7 +4341,7 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('8x8', out)
         self.assertIn('2x4', out)
         self.assertIn('implemented', out)
-        self.assertIn('under construction', out)
+        self.assertIn('out of scope', out)
         self.assertIn('MODE 7   teletext', out)
         self.assertIn('Column guide', out)
 
@@ -4480,7 +4484,8 @@ class MiniBASICTests(unittest.TestCase):
     def test_div_integer_division(self):
         interp = self.make_interp()
         self.assertEqual(interp.eval_expr('17 DIV 5'), 3.0)
-        self.assertEqual(interp.eval_expr('-17 DIV 5'), -4.0)
+        # BBC/MS BASIC truncate toward zero (not Python's floor).
+        self.assertEqual(interp.eval_expr('-17 DIV 5'), -3.0)
 
     def test_report_after_trapped_error(self):
         lines = [
@@ -4571,7 +4576,7 @@ class MiniBASICTests(unittest.TestCase):
         self.assertEqual(buf.getvalue().strip(), '10.03')
 
     def test_compound_let_all_operators(self):
-        # A%: 10-3=7, *2=14, /4=3.5 → rounds to 4 (BBC int assign, not trunc to 3)
+        # A%: 10-3=7, *2=14, /4=3.5 → truncates to 3 (BBC int assign)
         lines = [
             (10, 'A%=10'),
             (20, 'A% -= 3'),
@@ -4585,7 +4590,7 @@ class MiniBASICTests(unittest.TestCase):
             (100, 'PRINT A%; B$; N%(0)'),
             (110, 'END'),
         ]
-        self.assertEqual(self.run_program(lines), '4abcd12')
+        self.assertEqual(self.run_program(lines), '3abcd12')
 
     def test_split_at_depth_basic(self):
         interp = self.make_interp()

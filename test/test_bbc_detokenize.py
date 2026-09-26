@@ -143,5 +143,29 @@ class BBCTokenizedLoadTests(unittest.TestCase):
         self.assertEqual(float(interp.variables.get('C', 0)), 3.0)
 
 
+class TokenizedIntegerTruncationTests(unittest.TestCase):
+    """Tokenized program ``a%=3.7 : PRINT a%`` (both lines numbered 0)."""
+
+    PROGRAM = b'\n\x00\x00a%=3.7\r\x08\x00\x00\xf1 a%\r\x04\x00\x00\r\x00\xff\xff'
+
+    def test_integer_assignment_truncates(self):
+        import io
+        import tempfile
+        from contextlib import redirect_stderr, redirect_stdout
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'rounding.bbc')
+            with open(path, 'wb') as handle:
+                handle.write(self.PROGRAM)
+            interp = BASICInterpreter(
+                InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+            )
+            interp.load(path, announce=False)
+            out, err = io.StringIO(), io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                interp.run()
+        self.assertEqual(out.getvalue().split(), ['3'], msg=err.getvalue())
+
+
 if __name__ == '__main__':
     unittest.main()

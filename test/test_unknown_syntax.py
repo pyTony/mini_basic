@@ -103,7 +103,7 @@ class UnknownSyntaxTests(unittest.TestCase):
     def test_unimplemented_bbc_commands_are_specific(self) -> None:
         # Test informativeness of error messages for (some) unimplemented.
         # Platform-bound commands (OS, machine lang like CALL/USR/SYS/INSTALL) are documented in
-        # runtime.py _UNIMPLEMENTED_COMMANDS and should error with ? Unimplemented: (no silent fail).
+        # runtime.py _UNIMPLEMENTED_COMMANDS and should error with ? Out of scope: (no silent fail).
         # We prioritize non-platform for Phase-1 core tests; see comments in runtime.py.
         # These tests cover error reporting corner cases.
         cases = {
@@ -114,7 +114,7 @@ class UnknownSyntaxTests(unittest.TestCase):
         for stmt, detail in cases.items():
             with self.subTest(stmt=stmt):
                 out = self._imm(stmt)
-                self.assertIn('? Unimplemented:', out, out)
+                self.assertIn('? Out of scope:', out, out)
                 self.assertIn(detail, out, out)
 
     def test_unknown_fn_reports_name(self) -> None:

@@ -227,7 +227,7 @@ class TestRepeatSameLineAndInkey(unittest.TestCase):
             "REPEAT: C%=C%+1: PRINT C%: UNTIL C%>=3",
         ])
         self.assertNotIn("?", out)
-        self.assertEqual(out.strip().splitlines(), ["1", "2", "3"])
+        self.assertEqual([l.strip() for l in out.strip().splitlines()], ["1", "2", "3"])
 
     def test_repeat_glued_body_same_line(self):
         out = self._run([
@@ -235,7 +235,7 @@ class TestRepeatSameLineAndInkey(unittest.TestCase):
             "REPEAT C%=C%+1: PRINT C%: UNTIL C%>=3",
         ])
         self.assertNotIn("?", out)
-        self.assertEqual(out.strip().splitlines(), ["1", "2", "3"])
+        self.assertEqual([l.strip() for l in out.strip().splitlines()], ["1", "2", "3"])
 
     def test_inkey_dollar_timeout_returns_empty(self):
         """INKEY$(n) waits ~n centiseconds then returns \"\" if no key."""

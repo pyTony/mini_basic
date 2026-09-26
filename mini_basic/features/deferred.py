@@ -22,9 +22,8 @@ DEFERRED_ROWS: List[DeferredRow] = [
         'Real SOUND / ENVELOPE / ADVAL audio',
         'multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait',
     ),
-    # MODE 7 teletext: partial impl in display.py (_write_teletext, mosaics).
-    # Remaining: full SAA5050 parity (double-height 140/141, conceal, boxed, etc.).
-    ('Teletext remainder', 'MODE 7 double-height / conceal / boxed', 'extend existing teletext renderer'),
+    # MODE 7 teletext: double-height + conceal implemented; boxed / full SAA5050 deferred.
+    ('Teletext remainder', 'MODE 7 boxed / full SAA5050 remainder', 'extend existing teletext renderer'),
     ('Physics', 'FN_b2* Box2D bindings', 'corpus physics tier'),
     ('Network', 'URL fetch / Ceefax remote', 'needs HTTP client'),
     ('Compiler', 'BBC BASIC compiler / Crunch', 'not interpreter scope'),

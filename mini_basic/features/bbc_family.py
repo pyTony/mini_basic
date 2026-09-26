@@ -73,7 +73,7 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             '+',
             '~',
-            'mini: OSCLI REFRESH/GSAVE/DISPLAY; SYS unimplemented',
+            'mini: OSCLI REFRESH/GSAVE/DISPLAY; SYS out of scope (1.00)',
         ),
         (
             '@lib$ @dir$ path vars',

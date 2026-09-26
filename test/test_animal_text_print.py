@@ -6,6 +6,7 @@ import os
 import sys
 import unittest
 from unittest import mock
+from contextlib import redirect_stdout
 
 import pytest
 
@@ -31,13 +32,16 @@ def _letters_on_row(display, row: int) -> list[tuple[int, str]]:
 
 class AnimalTextPrintTests(unittest.TestCase):
     def test_trailing_apostrophe_string_print(self) -> None:
-        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
-        content, suppress = interp._strip_bbc_print_newline_suffix(
-            '"Creative Computing"\'\'',
+        # ARM BBC BASIC V: each ' is a newline and the PRINT still ends with one.
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
         )
-        self.assertTrue(suppress)
-        text, _, _ = interp._render_print_content(content, ';', 0)
-        self.assertEqual(text, 'Creative Computing')
+        interp.set_program_line(10, 'PRINT "Creative Computing"\'\'')
+        interp.set_program_line(20, 'PRINT "Play"')
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.run()
+        self.assertEqual(buf.getvalue(), 'Creative Computing\n\n\nPlay\n')
 
     @pytest.mark.graphics
     def test_animal_header_columns_are_consecutive(self) -> None:
@@ -58,11 +62,15 @@ class AnimalTextPrintTests(unittest.TestCase):
         assert display is not None
         self.assertEqual(display.text_cols, 80)
         animal_cols = [col for col, _ in _letters_on_row(display, 0)]
-        self.assertEqual(animal_cols, list(range(14, 20)))
+        # BBC TAB(15) is column 15 counting from 0 (MS dialects use column 14).
+        self.assertEqual(animal_cols, list(range(15, 21)))
         title_letters = _letters_on_row(display, 1)
         self.assertEqual(''.join(ch for _, ch in title_letters[:8]), 'Creative')
         self.assertEqual([c for c, _ in title_letters[:8]], list(range(0, 8)))
-        play_letters = _letters_on_row(display, 2)
+        # PRINT "..."'' leaves two blank lines (rows 2, 3), as on BBC BASIC V.
+        self.assertEqual(_letters_on_row(display, 2), [])
+        self.assertEqual(_letters_on_row(display, 3), [])
+        play_letters = _letters_on_row(display, 4)
         self.assertIn('Play', ''.join(ch for _, ch in play_letters))
         gaps = [b - a for a, b in zip(animal_cols, animal_cols[1:])]
         self.assertTrue(all(gap == 1 for gap in gaps))

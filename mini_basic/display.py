@@ -130,6 +130,10 @@ class DisplayBackend(ABC):
     def clear(self) -> None:
         ...
 
+    def reset_palette(self) -> None:
+        """Restore default BBC logical colours (MODE, VDU 20, RUN)."""
+        return
+
     @abstractmethod
     def set_mode(self, mode: int) -> None:
         ...
@@ -561,6 +565,7 @@ class _TeletextLineState:
     __slots__ = (
         'fg', 'bg', 'flash', 'graphics', 'gfx_fg',
         'separated', 'concealed', 'hold', 'hold_pattern',
+        'double_height',
     )
 
     def __init__(self) -> None:
@@ -573,6 +578,7 @@ class _TeletextLineState:
         self.concealed = False
         self.hold = False
         self.hold_pattern: Optional[int] = None
+        self.double_height = False
 
     def reset(self) -> None:
         self.__init__()
@@ -727,10 +733,18 @@ class PygameDisplay(DisplayBackend):
         *,
         clip_w: Optional[int] = None,
         clip_h: Optional[int] = None,
+        glyph_w: Optional[int] = None,
+        glyph_h: Optional[int] = None,
+        blit_x: Optional[int] = None,
+        blit_y: Optional[int] = None,
     ) -> None:
         assert self._canvas is not None
         cw = clip_w if clip_w is not None else self._effective_cell_width()
         ch_h = clip_h if clip_h is not None else self._effective_cell_height()
+        gw = glyph_w if glyph_w is not None else cw
+        gh = glyph_h if glyph_h is not None else ch_h
+        bx = x if blit_x is None else blit_x
+        by = y if blit_y is None else blit_y
         pygame = self._pygame
         prev_clip = self._canvas.get_clip()
         self._canvas.set_clip(pygame.Rect(x, y, cw, ch_h))
@@ -738,17 +752,17 @@ class PygameDisplay(DisplayBackend):
             code = ord(ch) if ch else 0
             user = self._user_chars.get(code)
             if user is not None:
-                self._blit_user_char(user, colour, x, y, cw, ch_h)
+                self._blit_user_char(user, colour, bx, by, gw, gh)
                 return
             if self._use_mos_font():
                 blit_mos_char(
                     self._canvas,
                     ch,
                     self._pixel_rgb(colour),
-                    x,
-                    y,
-                    cell_w=cw,
-                    cell_h=ch_h,
+                    bx,
+                    by,
+                    cell_w=gw,
+                    cell_h=gh,
                 )
                 return
             self._ensure_text_font()
@@ -757,15 +771,20 @@ class PygameDisplay(DisplayBackend):
             # Fallback for non-standard cell sizes (antialiasing off on graphics).
             aa = not self.is_graphics_mode()
             surf = self._font.render(ch, aa, self._pixel_rgb(colour))
-            gw, gh = surf.get_size()
-            if gw > cw or gh > ch_h:
+            if gh != ch_h or gw != cw:
+                # Double-height / scaled: stretch then rely on clip rect.
+                surf = self._pygame.transform.scale(surf, (gw, gh))
+                self._canvas.blit(surf, (bx, by))
+                return
+            sw, sh = surf.get_size()
+            if sw > cw or sh > ch_h:
                 # Clip to the cell — scaling glyphs makes MODE 1 captions unreadable.
-                sub_w = min(gw, cw)
-                sub_h = min(gh, ch_h)
+                sub_w = min(sw, cw)
+                sub_h = min(sh, ch_h)
                 surf = surf.subsurface((0, 0, sub_w, sub_h))
-                gw, gh = sub_w, sub_h
-            x_off = max(0, (cw - gw) // 2)
-            y_off = max(0, (ch_h - gh) // 2)
+                sw, sh = sub_w, sub_h
+            x_off = max(0, (cw - sw) // 2)
+            y_off = max(0, (ch_h - sh) // 2)
             self._canvas.blit(surf, (x + x_off, y + y_off))
         finally:
             self._canvas.set_clip(prev_clip)
@@ -1153,10 +1172,21 @@ class PygameDisplay(DisplayBackend):
     def set_graphics_print_mode(self, enabled: bool) -> None:
         self._print_at_graphics = bool(enabled)
 
+    def reset_palette(self) -> None:
+        """Drop COLOR n,r,g,b / VDU 19 overrides (MODE and VDU 20)."""
+        self._palette_rgb.clear()
+        self._palette_dirty = True
+        if self._gfx is not None:
+            self._gfx.clear_truecolour()
+
     def reset_text_colours(self) -> None:
-        """BBC MODE/VDU 20 default: white foreground on black background."""
+        """BBC MODE/VDU 20 default: white foreground on black background.
+
+        VDU 20 also restores the default palette (cancels COLOR n,r,g,b).
+        """
         self._fg_colour = 7
         self._bg_colour = 0
+        self.reset_palette()
         if self._gfx is not None:
             self._gfx.gcol_fg = (0, 7)
             self._gfx.gcol_bg = (0, 0)
@@ -1291,9 +1321,21 @@ class PygameDisplay(DisplayBackend):
                 self._cursor_col += 1
                 continue
             if code == 140:
+                state.double_height = False
                 self._cursor_col += 1
                 continue
             if code == 141:
+                state.double_height = True
+                self._cursor_col += 1
+                continue
+            if code == 152:
+                state.concealed = True
+                self._cursor_col += 1
+                continue
+            if code == 153:
+                # Reveal + contiguous graphics (BBC: 153 is contiguous; used as reveal in demos)
+                state.concealed = False
+                state.separated = False
                 self._cursor_col += 1
                 continue
             if code == 154:
@@ -1327,7 +1369,16 @@ class PygameDisplay(DisplayBackend):
                     mosaic = state.hold_pattern
                 elif state.hold:
                     state.hold_pattern = mosaic
-                if not state.concealed:
+                if state.concealed:
+                    self._text[self._cursor_row][self._cursor_col] = (
+                        ' ',
+                        state.gfx_fg,
+                        state.bg,
+                        -1,
+                        False,
+                        state.flash,
+                    )
+                else:
                     self._text[self._cursor_row][self._cursor_col] = (
                         chr(code),
                         state.gfx_fg,
@@ -1339,8 +1390,9 @@ class PygameDisplay(DisplayBackend):
                 self._cursor_col += 1
                 continue
             if 32 <= code < 127 and not state.graphics:
+                display_ch = ' ' if state.concealed else ch
                 self._text[self._cursor_row][self._cursor_col] = (
-                    ch,
+                    display_ch,
                     state.fg,
                     state.bg,
                     -1,
@@ -1692,6 +1744,65 @@ class PygameDisplay(DisplayBackend):
                 if rw > 0 and rh > 0:
                     self._canvas.fill(colour, (rx, ry, rw, rh))
 
+    def _blit_teletext_mosaic_scaled(
+        self,
+        x: int,
+        y: int,
+        pattern: int,
+        fg: int,
+        bg: int,
+        separated: bool,
+        *,
+        cell_w: int,
+        cell_h: int,
+        clip_x: int,
+        clip_y: int,
+        clip_w: int,
+        clip_h: int,
+    ) -> None:
+        """Draw a mosaic into a tall cell, clipped to one screen row (double-height)."""
+        assert self._canvas is not None
+        pygame = self._pygame
+        prev_clip = self._canvas.get_clip()
+        self._canvas.set_clip(pygame.Rect(clip_x, clip_y, clip_w, clip_h))
+        try:
+            fg_rgb = colour_to_rgb(fg)
+            bg_rgb = colour_to_rgb(bg)
+            col_ws = [cell_w // 2 + (1 if i < (cell_w % 2) else 0) for i in range(2)]
+            base = cell_h // 3
+            rem = cell_h % 3
+            row_hs = [base] * 3
+            for k in range(rem):
+                row_hs[[0, 2, 1][k]] += 1
+            gap = 1 if separated else 0
+            for sy in range(3):
+                for sx in range(2):
+                    idx = sy * 2 + sx
+                    filled = teletext_sextant_filled(pattern, idx)
+                    rx = x + sum(col_ws[:sx]) + (gap if sx else 0)
+                    ry = y + sum(row_hs[:sy]) + (gap if sy else 0)
+                    rw = col_ws[sx] - gap
+                    rh = row_hs[sy] - gap
+                    colour = fg_rgb if filled else bg_rgb
+                    if rw > 0 and rh > 0:
+                        self._canvas.fill(colour, (rx, ry, rw, rh))
+        finally:
+            self._canvas.set_clip(prev_clip)
+
+    def _teletext_double_height_half(self, row: int) -> Optional[str]:
+        """Return 'top'/'bottom' when row is double-height, else None.
+
+        BBC convention: PRINT the same 141 line twice — first row is the top
+        half of tall glyphs, the next 141 row is the bottom half.
+        """
+        if row < 0 or row >= len(self._teletext_lines):
+            return None
+        if not self._teletext_lines[row].double_height:
+            return None
+        if row > 0 and self._teletext_lines[row - 1].double_height:
+            return 'bottom'
+        return 'top'
+
     def _blit_teletext_grid(self) -> None:
         assert self._canvas is not None
         self._ensure_text_font()
@@ -1701,6 +1812,7 @@ class PygameDisplay(DisplayBackend):
         cw = self._effective_cell_width()
         ch_h = self._effective_cell_height()
         for row in range(self.text_rows):
+            dh_half = self._teletext_double_height_half(row)
             for col in range(self.text_cols):
                 cell = self._text[row][col]
                 x, y = self._text_cell_origin(row, col)
@@ -1721,11 +1833,29 @@ class PygameDisplay(DisplayBackend):
                 if flash and not flash_on:
                     continue
                 if mosaic >= 0:
-                    self._blit_teletext_mosaic(x, y, mosaic, fg, bg, separated)
+                    if dh_half is None:
+                        self._blit_teletext_mosaic(x, y, mosaic, fg, bg, separated)
+                    else:
+                        # Draw mosaic at 2x height; clip shows top or bottom half.
+                        blit_y = y if dh_half == 'top' else y - ch_h
+                        self._blit_teletext_mosaic_scaled(
+                            x, blit_y, mosaic, fg, bg, separated,
+                            cell_w=cw, cell_h=ch_h * 2,
+                            clip_x=x, clip_y=y, clip_w=cw, clip_h=ch_h,
+                        )
                     continue
                 if ch == ' ':
                     continue
-                self._blit_glyph(ch, fg, x, y, clip_w=cw, clip_h=ch_h)
+                if dh_half is None:
+                    self._blit_glyph(ch, fg, x, y, clip_w=cw, clip_h=ch_h)
+                else:
+                    blit_y = y if dh_half == 'top' else y - ch_h
+                    self._blit_glyph(
+                        ch, fg, x, y,
+                        clip_w=cw, clip_h=ch_h,
+                        glyph_w=cw, glyph_h=ch_h * 2,
+                        blit_x=x, blit_y=blit_y,
+                    )
 
     @staticmethod
     def _contrasting_text_fg(fg: int, bg: int) -> int:

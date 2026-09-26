@@ -78,9 +78,16 @@ class CompiledExpr:
         self._ns_cache: Optional[Dict[str, float]] = None
 
     def _namespace(self, interp: BASICInterpreter) -> Dict[str, float]:
+        # Keep this path identical to the WHILE-kernel hot loop. Extra getattr
+        # / FN-result branches here stop PyPy tracing (Mandelbrot ~6× slower).
+        if interp._in_fn_body and interp._active_fn is not None:
+            return self._namespace_in_fn(interp)
         namespace = self._ns_cache
         if namespace is None:
-            namespace = {}
+            namespace = {
+                '__aget__': interp._compiled_array_get,
+                '__sfn__': interp._compiled_str_call,
+            }
             self._ns_cache = namespace
         if self.needs_time:
             namespace['__basic_time__'] = interp._get_time()
@@ -90,6 +97,35 @@ class CompiledExpr:
             # Classic BASIC: an unset numeric is 0 (N=N+1, PRINT X, …).
             namespace[name] = interp.variables.get(name, 0.0)
         for name in self.int_vars:
+            namespace[int_slot(name)] = interp.int_variables.get(name, 0)
+        for name in self.system_vars:
+            namespace[name] = interp._get_system_var(name)
+        return namespace
+
+    def _namespace_in_fn(self, interp: BASICInterpreter) -> Dict[str, float]:
+        """Same slots as `_namespace`, plus QBasic FN-name-as-return-var."""
+        namespace = self._ns_cache
+        if namespace is None:
+            namespace = {
+                '__aget__': interp._compiled_array_get,
+                '__sfn__': interp._compiled_str_call,
+            }
+            self._ns_cache = namespace
+        if self.needs_time:
+            namespace['__basic_time__'] = interp._get_time()
+        for name in self.float_vars:
+            if name in SAFE_EVAL_GLOBALS:
+                continue
+            fn_ret = interp._active_fn_result_value(name)
+            if fn_ret is not None:
+                namespace[name] = fn_ret
+                continue
+            namespace[name] = interp.variables.get(name, 0.0)
+        for name in self.int_vars:
+            fn_ret = interp._active_fn_result_value(name)
+            if fn_ret is not None:
+                namespace[int_slot(name)] = fn_ret
+                continue
             namespace[int_slot(name)] = interp.int_variables.get(name, 0)
         for name in self.system_vars:
             namespace[name] = interp._get_system_var(name)

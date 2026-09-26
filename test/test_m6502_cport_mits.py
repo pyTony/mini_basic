@@ -88,8 +88,8 @@ _PASS_01_48 = (
 
 # Known gaps (still useful as xfail regression locks)
 _XFAIL_01_48 = {
-    '29_peek_and_poke': 'POKE not implemented',
-    '30_wait': 'POKE/WAIT memory not implemented',
+    '29_peek_and_poke': 'POKE out of scope (not 1.00)',
+    '30_wait': 'POKE/WAIT memory out of scope (not 1.00)',
 }
 
 

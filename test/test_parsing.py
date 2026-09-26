@@ -124,7 +124,7 @@ class ParsingProgramTests(ParsingHarness):
             (30, 'END'),
         ])
         lines = out.splitlines()
-        self.assertEqual(lines[0], 'Hello, world        42')
+        self.assertEqual(lines[0], 'Hello, world                42')  # BBC field
         self.assertEqual(lines[1], 'One, two, three')
 
     def test_fn_sum_commas_in_arguments(self) -> None:
@@ -134,7 +134,7 @@ class ParsingProgramTests(ParsingHarness):
             (30, 'PRINT FNSUM(FNSUM(1,2), 5)'),
             (40, 'END'),
         ])
-        self.assertEqual(out.splitlines(), ['10', '8'])
+        self.assertEqual([line.strip() for line in out.splitlines()], ['10', '8'])
 
     def test_print_colons_inside_strings(self) -> None:
         out = self.run_program([
@@ -173,7 +173,7 @@ class ParsingProgramTests(ParsingHarness):
             (40, 'IF A=1 AND B=2 THEN PRINT "OK"'),
             (50, 'END'),
         ])
-        self.assertEqual(out.splitlines(), ['21', 'OK'])
+        self.assertEqual([line.strip() for line in out.splitlines()], ['21', 'OK'])
 
     def test_string_concat_plus_inside_literal(self) -> None:
         out = self.run_program([
@@ -207,7 +207,9 @@ class ParsingProgramTests(ParsingHarness):
             (30, 'PRINT A$, X, B$'),
             (40, 'END'),
         ])
-        self.assertEqual(out, 'Hello, world        42        A,B,C')
+        # BBC @%=&90A: , moves to column 20, 42 is right-justified in its
+        # 10-column field, and the cursor is then at a field start.
+        self.assertEqual(out, 'Hello, world                42A,B,C')
 
     def test_on_goto_multiple_targets(self) -> None:
         out = self.run_program([

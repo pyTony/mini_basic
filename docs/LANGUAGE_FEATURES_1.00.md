@@ -109,7 +109,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 
 Anything else (`LOAD`, `MDISPLAY`, `FONT`, `SPOOL`, `CAT`, `…`) is **ignored with no error**. Russell `clock.bbc` needs `DIM … EXT#` plus `OSCLI "LOAD …"` / `MDISPLAY` into a heap; that is why it is not a regular example. Use `basics/Clock.bas` or `jclock`.
 
-`SYS "SDL_…"`, `SYS "OS_…"`, and SYS used as a function all report `? Unimplemented: SYS (RISC OS / OS call)`. Same class as `CALL`, `USR`, and `INSTALL`. `ON SYS` is kept only so the colon tail is not split; the event is not delivered.
+`SYS "SDL_…"`, `SYS "OS_…"`, and SYS used as a function all report `? Out of scope: SYS (RISC OS / OS call)`. Same class as `CALL`, `USR`, and `INSTALL`. `ON SYS` is kept only so the colon tail is not split; the event is not delivered.
 
 ### 3.5 Data
 
@@ -123,7 +123,7 @@ Anything else (`LOAD`, `MDISPLAY`, `FONT`, `SPOOL`, `CAT`, `…`) is **ignored w
 
 | Statement | 1.00 status |
 |-----------|-------------|
-| `MODE` n | Modes 0–7 + BB4W/SDL extended (e.g. 8+); MODE 7 teletext **partial**. |
+| `MODE` n | Modes 0–7 + BB4W/SDL extended (e.g. 8+); MODE 7 teletext **partial** (double-height + conceal yes; boxed/full SAA5050 no). |
 | `GCOL` action, colour | Modes 0–7 including XOR/invert. |
 | `COLOUR` / `COLOR` | Text fg/bg; multi-arg RGB palette; `COLOR n+128` bg index kept (piechart sky). |
 | `MOVE` / `DRAW` / `PLOT` | PLOT codes subset + BB4W extras; absolute/relative. |
@@ -237,7 +237,7 @@ From `mini_basic/features/deferred.py` and project policy:
 | OS FFI | `SYS` Windows API, `INSTALL` token libraries |
 | Low-level | Inline assembler, `CALL`/`USR` machine code |
 | Structures | Full `DIM struct{}` / TYPE as in BB4W |
-| Teletext remainder | Double-height, conceal, boxed, full SAA5050 |
+| Teletext remainder | Boxed / full SAA5050 (double-height + conceal implemented) |
 | Physics / net | Box2D bindings, Ceefax HTTP fetch |
 | Compiler | Crunch / compile-to-native |
 

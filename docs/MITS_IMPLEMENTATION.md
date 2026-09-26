@@ -28,7 +28,7 @@ Run under `--dialect mits`, `display=none`, case fold.
 | **Integer `%`** | 04 | **Pass** — `C%=A%*B%` (int slots survive mits 2-letter fold) |
 | **Implicit zero** | 08 | **Pass** — unset numeric is 0 (`N=N+1`) |
 | **DEF FN spaced** | 21–22 | **Pass** — `DEF FN S(X)=…` and `FN S(I)` |
-| **PEEK/POKE/WAIT** | 29–30 | **Fail** — `POKE` / memory WAIT not implemented |
+| **PEEK/POKE/WAIT** | 29–30 | **Out of scope** — `POKE` / memory WAIT (not regular 1.00) |
 
 **Score (non-interactive ladder):** **46 / 48 pass** under current mits.
 

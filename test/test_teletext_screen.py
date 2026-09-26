@@ -2,8 +2,8 @@
 
 Visual companion: examples/teletext/mode7_test_screen.bas
 
-Current (assert): alpha/gfx colours, mosaics, flash, separated, bg, hold flags.
-Future (xfail until implemented): double-height 140/141, conceal 152.
+Current (assert): alpha/gfx colours, mosaics, flash, separated, bg, hold,
+double-height 140/141, conceal 152 / reveal 153.
 """
 from __future__ import annotations
 
@@ -112,38 +112,39 @@ class TeletextCurrentBehaviourTests(unittest.TestCase):
         self.assertEqual(interp._graphics_mode, 7)
 
 
-class TeletextFutureSaa5050Tests(unittest.TestCase):
-    """Targets for full SAA5050 — xfail until implemented.
+class TeletextDoubleHeightConcealTests(unittest.TestCase):
+    """Double-height CHR$140/141 and conceal CHR$152 / reveal 153."""
 
-    When these pass without xfail, remove the mark and update the demo [F] rows.
-    """
-
-    @pytest.mark.xfail(
-        reason='double-height CHR$141 not implemented (cursor advance only)',
-        strict=False,
-    )
     def test_future_double_height_141_marks_tall_cells(self):
         d = _mode7_display()
         d.write(chr(141) + chr(130) + 'Hi')
-        # Desired: row 0 and/or pairing row carry double-height attribute
         state = d._teletext_lines[0]
-        # Placeholder API: once implemented, expose double_height on line state
         self.assertTrue(
             getattr(state, 'double_height', False),
             'line state should record double-height after CHR$141',
         )
+        d.goto(1, 0)
+        d.write(chr(140) + 'x')
+        self.assertFalse(
+            d._teletext_lines[1].double_height,
+            'CHR$140 should clear double-height on the line',
+        )
 
-    @pytest.mark.xfail(
-        reason='conceal CHR$152 not implemented (text still written)',
-        strict=False,
-    )
     def test_future_conceal_152_hides_following_alpha(self):
         d = _mode7_display()
         d.write(chr(152) + chr(129) + 'SECRET')
-        # Desired: cells after 152 are blank/concealed, not visible 'S'
+        # Colour 129 must not clear conceal — cell after controls is blank
         ch = d._text[0][2][0]
         self.assertIn(ch, (' ', '\0', ''), f'concealed cell should be blank, got {ch!r}')
-
+        # Reveal 153 then visible text
+        d.goto(1, 0)
+        d.write(chr(152) + 'X' + chr(153) + chr(130) + 'OK')
+        # After 152,'X'(blank),153,130,'O' — 'O' visible
+        self.assertEqual(d._text[1][4][0], 'O')
+        # Newline resets conceal — next line not concealed
+        d.write('\n' + 'V')
+        self.assertEqual(d._text[2][0][0], 'V')
+        self.assertFalse(d._teletext_lines[2].concealed)
 
 if __name__ == '__main__':
     unittest.main()

@@ -44,7 +44,8 @@ def test_integer_backslash_div():
 def test_integer_backslash_div_unary_minus():
     """``\\`` before unary minus is integer divide, not a line continuation."""
     interp = _interp()
-    assert interp.eval_expr('10 \\ -3') == -4
+    # MBASIC integer divide truncates toward zero: 10 \ -3 is -3.
+    assert interp.eval_expr('10 \\ -3') == -3
 
 
 def test_mod_before_addition():

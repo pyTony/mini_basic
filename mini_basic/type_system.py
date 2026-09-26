@@ -9,7 +9,7 @@ Key types
 - ``FileChannel``, ``FieldBuffer`` — sequential and random file I/O state
 - ``UserFunction``, ``UserProcedure`` — DEF FN / PROC metadata
 - ``LoopFrame``, ``IfFrame``, ``IfBlockLayout`` — structured control flow
-- Exceptions: ``ProgramExit``, ``FnReturn``, ``ProcReturn``, ``BasicRuntimeError``
+- Exceptions: ``ProgramExit``, ``FnReturn``, ``FnMemoMiss``, ``ProcReturn``, ``BasicRuntimeError``
 """
 from __future__ import annotations
 
@@ -39,6 +39,21 @@ class FnReturn(BaseException):
 
     def __init__(self, value: object):
         self.value = value
+        super().__init__()
+
+
+class FnMemoMiss(BaseException):
+    """Pure DEF FN cache miss while the trampoline is filling the memo table.
+
+    Not a BASIC error: nested FN evaluation raises this instead of recursing
+    on the Python stack. The trampoline computes the missing call, stores the
+    result, and retries the parent body.
+    """
+
+    def __init__(self, fn: 'UserFunction', bindings: list, direct_eval: bool):
+        self.fn = fn
+        self.bindings = bindings
+        self.direct_eval = direct_eval
         super().__init__()
 
 
@@ -200,6 +215,7 @@ class LoopFrame:
         for_line: int = 0,
         body_stmt: int = 0,
         next_stmt: int = 0,
+        while_stmt: int = 0,
     ):
         self.kind = kind
         self.body_line = body_line
@@ -218,3 +234,5 @@ class LoopFrame:
         self.for_line = for_line
         self.body_stmt = body_stmt
         self.next_stmt = next_stmt
+        # Statement index of WHILE on while_line (WEND jumps back here, not to 0).
+        self.while_stmt = while_stmt

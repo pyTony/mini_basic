@@ -76,7 +76,8 @@ class DialectHintTests(unittest.TestCase):
             os.unlink(path)
             with redirect_stdout(io.StringIO()):
                 interp.save(path)
-            text = open(path, encoding='utf-8').read()
+            with open(path, encoding='utf-8') as saved:
+                text = saved.read()
             self.assertTrue(text.startswith('1 REM dialect: bbc\n'), text[:80])
             self.assertNotIn("' dialect:", text)
             self.assertNotRegex(text, r'(?m)^0\s')

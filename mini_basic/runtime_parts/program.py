@@ -27,7 +27,10 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from ..expr.safe_eval import compile_safe, safe_eval
+from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
+    ident_prefix_len,
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
     RE_COND_NE as _RE_COND_NE,
@@ -245,6 +248,19 @@ class RuntimeProgramMixin:
         self._close_trace_file()
         self.trace_file = open(path, 'w', encoding='utf-8', newline='\n')
 
+    def _configure_timing(self, rest: str) -> None:
+        arg = rest.strip()
+        if not arg:
+            raise ValueError('ON or OFF')
+        upper = arg.upper()
+        if upper == 'ON':
+            self.timing_enabled = True
+            return
+        if upper == 'OFF':
+            self.timing_enabled = False
+            return
+        raise ValueError('ON or OFF')
+
     def _configure_trace(self, rest: str) -> None:
         arg = rest.strip()
         if not arg:
@@ -353,6 +369,7 @@ class RuntimeProgramMixin:
         # pygame window that wraps through the title (sine.bbc) and looks
         # like the file name was split. Not a BASIC name.
         detail = re.sub(r'\s*\(<string>, line \d+\)', '', detail).strip()
+        detail = basic_error_wording(detail)
         return detail if detail else type(exc).__name__
 
     def _error_message(self, prefix: str, exc: Optional[BaseException] = None) -> str:
@@ -461,6 +478,174 @@ class RuntimeProgramMixin:
             return None
         return int(match.group(1))
 
+    _MINI_FOLD_STMT_WORDS = frozenset(
+        word for word in (
+            'PRINT', 'INPUT', 'WRITE', 'FOR', 'NEXT', 'WHILE', 'WEND', 'ENDWHILE',
+            'REPEAT', 'UNTIL', 'BREAK', 'CONTINUE', 'EXIT', 'ENDPROC',
+            'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN',
+            'OTHERWISE', 'ENDCASE', 'SELECT', 'GOTO', 'GOSUB', 'RESUME', 'RETURN',
+            'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
+            'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
+            'CIRCLE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
+            'PLOT', 'STOP', 'CHAIN', 'RUN', 'WAIT', 'KILL', 'ERASE', 'LINE',
+            'TRACE', 'SWAP', 'LOCAL', 'RANDOMIZE', 'OPEN', 'CLOSE', 'SOUND',
+            'BEEP', 'LOCATE', 'SUB', 'ERROR', 'OPTION', 'BASE', 'CLEAR', 'TAB',
+        )
+    )
+    # Always keywords wherever they appear (outside strings/comments).
+    _MINI_FOLD_OPERATOR_WORDS = frozenset({
+        'THEN', 'ELSE', 'TO', 'STEP', 'AND', 'OR', 'NOT', 'XOR', 'EOR', 'EQV',
+        'IMP', 'MOD', 'DIV', 'GOTO', 'GOSUB', 'OF', 'USING',
+    })
+    # Words after which a statement keyword may follow (END IF, ON ERROR GOTO).
+    _MINI_FOLD_REOPEN_WORDS = frozenset({
+        'THEN', 'ELSE', 'END', 'EXIT', 'ON', 'LINE', 'SELECT', 'OPTION', 'ERROR',
+    })
+    _RE_MINI_FOLD_WORD = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\$?')
+
+    def _fold_case_insensitive_line(self, statement: str) -> str:
+        """Uppercase a line outside strings, comments and DATA (MS BASIC entry).
+
+        For dialects whose names are case-insensitive (mits / commodore / tiny),
+        so ``print a`` and ``PRINT A`` are the same program. ``REM`` / ``'``
+        tails and ``DATA`` payloads (up to ``:``) keep their case.
+        """
+        if not any(ch.islower() for ch in statement):
+            return statement
+        out: List[str] = []
+        index = 0
+        length = len(statement)
+        stmt_start = True
+        prev_word = ''
+        while index < length:
+            ch = statement[index]
+            if ch == '"':
+                end = statement.find('"', index + 1)
+                end = length if end < 0 else end + 1
+                out.append(statement[index:end])
+                index = end
+                stmt_start = False
+                continue
+            if ch == "'":
+                out.append(statement[index:])
+                break
+            if ch == ':':
+                out.append(ch)
+                index += 1
+                stmt_start = True
+                continue
+            if not (ch.isalpha() or ch == '_'):
+                out.append(ch)
+                index += 1
+                if not ch.isspace():
+                    stmt_start = False
+                continue
+            end = index
+            while end < length and (statement[end].isalnum() or statement[end] == '_'):
+                end += 1
+            upper = statement[index:end].upper()
+            if upper.startswith('REM') and (stmt_start or prev_word in ('THEN', 'ELSE')):
+                out.append('REM' + statement[index + 3:])
+                break
+            out.append(upper)
+            index = end
+            if stmt_start and upper == 'DATA':
+                # Payload up to the next : outside quotes stays as typed.
+                scan = index
+                in_string = False
+                while scan < length and (in_string or statement[scan] != ':'):
+                    if statement[scan] == '"':
+                        in_string = not in_string
+                    scan += 1
+                out.append(statement[index:scan])
+                index = scan
+            stmt_start = False
+            prev_word = upper
+        return ''.join(out)
+
+    def _fold_mini_keywords(self, statement: str) -> str:
+        """Uppercase lowercase/mixed-case keywords in a mini program line.
+
+        Statement words fold only in statement position (not ``print = 5``);
+        builtins only before ``(``. Strings, REM, ``'`` and DATA are untouched.
+        """
+        if not any(ch.islower() for ch in statement):
+            return statement
+        from ..constants import NUMERIC_BUILTIN_FUNCS
+        from ..format.save_case import _STRING_BUILTINS
+
+        funcs = {name.upper() for name in (*NUMERIC_BUILTIN_FUNCS, *_STRING_BUILTINS)}
+        funcs.update({'TAB', 'SPC', 'SPACE$', 'UCASE$', 'LCASE$'})
+        out: List[str] = []
+        index = 0
+        length = len(statement)
+        stmt_start = True
+        while index < length:
+            ch = statement[index]
+            if ch == '"':
+                end = statement.find('"', index + 1)
+                end = length if end < 0 else end + 1
+                out.append(statement[index:end])
+                index = end
+                stmt_start = False
+                continue
+            if ch == "'":
+                out.append(statement[index:])
+                break
+            if ch == ':':
+                out.append(ch)
+                index += 1
+                stmt_start = True
+                continue
+            if ch.isspace():
+                out.append(ch)
+                index += 1
+                continue
+            if ch.isdigit() or ch == '.':
+                # Line numbers / numerals (skip exponent letters: 1e3).
+                match = re.match(r'[0-9.]+(?:[eE][-+]?[0-9]+)?', statement[index:])
+                out.append(match.group(0))
+                index += match.end()
+                stmt_start = stmt_start and out[-1].isdigit() and not ''.join(
+                    out[:-1]
+                ).strip()
+                continue
+            match = self._RE_MINI_FOLD_WORD.match(statement, index)
+            if not match:
+                out.append(ch)
+                index += 1
+                stmt_start = False
+                continue
+            word = match.group(0)
+            upper = word.upper()
+            end = match.end()
+            after = statement[end:].lstrip()
+            nxt = after[:1]
+            folded = False
+            if word != upper:
+                if upper.endswith('$'):
+                    if upper in funcs and nxt == '(':
+                        folded = True
+                elif nxt in ('%', '!', '#', '&') or (nxt == '$'):
+                    folded = False
+                elif stmt_start and upper in self._MINI_FOLD_STMT_WORDS:
+                    # print = 5 / for(3) = 1 are variables, not statements.
+                    folded = not (nxt == '=' or (nxt == '(' and upper not in (
+                        'PRINT', 'IF', 'WHILE', 'UNTIL', 'RETURN', 'ON',
+                    )))
+                elif upper in self._MINI_FOLD_OPERATOR_WORDS:
+                    folded = True
+                elif upper in funcs and nxt == '(':
+                    folded = True
+            out.append(upper if folded else word)
+            index = end
+            effective = upper if (folded or word == upper) else ''
+            if effective in ('REM', 'DATA') and stmt_start:
+                out.append(statement[index:])
+                break
+            stmt_start = effective in self._MINI_FOLD_REOPEN_WORDS
+        return ''.join(out)
+
     def canonicalize_program_line(self, statement: str) -> str:
         """Normalize one program statement at entry (LOAD / EDIT / set_program_line).
 
@@ -475,6 +660,14 @@ class RuntimeProgramMixin:
         from .helpers import _sanitize_basic_source
 
         statement = _sanitize_basic_source(statement)
+        if self.config.dialect == 'mini':
+            # mini is not strict about keyword case (bbc stays uppercase-only).
+            statement = self._fold_mini_keywords(statement)
+        elif self.config.dialect != 'bbc' and not self._identifiers_case_sensitive():
+            # mits / commodore / tiny: case-insensitive names, so fold the line.
+            statement = self._fold_case_insensitive_line(statement)
+        # Rewrites below apply to code only: REM / ' comment text is kept verbatim.
+        statement, comment = self._split_comment_tail(statement)
         # Type suffixes glued (A $ → A$); leave % (modulo / integer suffix).
         statement = re.sub(r'(\w)\s+([!$#]+)', r'\1\2', statement)
         statement = re.sub(r'([!$#]+)\s+(\w)', r'\1\2', statement)
@@ -489,6 +682,8 @@ class RuntimeProgramMixin:
             )
         else:
             statement = self._normalize_two_word_closers(statement)
+            if self.config.dialect in ('mits', 'commodore', 'tiny'):
+                statement = self._space_crunched_ms_statements(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
             statement = self._space_glued_to_step(statement)
@@ -521,7 +716,60 @@ class RuntimeProgramMixin:
             statement = self._map_outside_strings(
                 statement, self._unglue_asc_string_literal,
             )
-        return statement
+        return statement + comment
+
+    def _split_comment_tail(self, statement: str) -> Tuple[str, str]:
+        """Split ``code`` from a trailing ``REM …`` / ``' …`` comment (with its spaces).
+
+        REM counts at a statement start (line start, after ``:``, ``THEN`` or
+        ``ELSE``); uppercase only in bbc. ``'`` uses the runtime's tail-comment
+        rule (never in bbc). Returns ``(statement, '')`` when there is none.
+        """
+        fold = self.config.dialect != 'bbc' and not self._identifiers_case_sensitive()
+        index = 0
+        length = len(statement)
+        stmt_start = True
+        cut = -1
+        while index < length:
+            ch = statement[index]
+            if ch == '"':
+                end = statement.find('"', index + 1)
+                index = length if end < 0 else end + 1
+                stmt_start = False
+                continue
+            if ch == ':':
+                stmt_start = True
+                index += 1
+                continue
+            if ch.isspace():
+                index += 1
+                continue
+            if not (ch.isalpha() or ch == '_'):
+                stmt_start = False
+                index += 1
+                continue
+            end = index
+            while end < length and (statement[end].isalnum() or statement[end] == '_'):
+                end += 1
+            word = statement[index:end]
+            if fold:
+                word = word.upper()
+            if stmt_start and word.startswith('REM'):
+                cut = index
+                break
+            stmt_start = word in ('THEN', 'ELSE')
+            index = end
+        if cut < 0 and "'" in statement and self.config.dialect != 'bbc':
+            if statement.lstrip().startswith("'"):
+                cut = 0
+            else:
+                code, found = self._split_tail_apostrophe_comment(statement)
+                if found:
+                    cut = len(code)
+        if cut < 0:
+            return statement, ''
+        code = statement[:cut].rstrip()
+        return code, statement[len(code):]
 
     def _line_skips_expr_canonicalize(self, statement: str) -> bool:
         """True for full-line comments / DATA where monadic unglue must not run."""
@@ -639,13 +887,108 @@ class RuntimeProgramMixin:
             return self._program_source_numbered
         return True
 
+    def _strip_tail_apostrophe_comment(self, statement: str) -> str:
+        return self._split_tail_apostrophe_comment(statement)[0]
+
+    def _split_tail_apostrophe_comment(self, statement: str) -> Tuple[str, bool]:
+        """mini/QBasic: ``X=1 ' comment`` — ``'`` starts a tail comment.
+
+        Returns (code, cut). bbc: ``'`` is never a comment (only the PRINT /
+        INPUT newline), so nothing is cut. In PRINT, only a ``'`` with a space
+        on both sides is a comment; glued ``"a"'"b"`` / ``''`` are newlines.
+        DATA and REM payloads are left alone.
+        """
+        text = statement
+        if not text or "'" not in text or self.config.dialect == 'bbc':
+            return text, False
+        if self._line_skips_expr_canonicalize(text):
+            return text, False
+        cmd, _rest = self._parse_command(text)
+        if cmd in ('DATA', 'REM'):
+            return text, False
+        in_string = False
+        seen_print = False  # PRINT keyword before this ' (also IF … THEN PRINT)
+        index = 0
+        while index < len(text):
+            ch = text[index]
+            if ch == '"':
+                in_string = not in_string
+                index += 1
+                continue
+            if in_string:
+                index += 1
+                continue
+            word_start = index == 0 or not (text[index - 1].isalnum() or text[index - 1] == '_')
+            if word_start and text[index:index + 3].upper() == 'REM' and not (
+                text[index + 3:index + 4].isalnum()
+            ):
+                return text, False  # REM WON'T — payload, not a comment start
+            if word_start and text[index:index + 5].upper() == 'PRINT':
+                seen_print = True  # also crunched PRINTTAB(…) and THEN PRINT
+            if ch == "'":
+                prev = text[:index].rstrip()
+                nxt = text[index + 1 :].lstrip()
+                spaced = (
+                    index > 0 and text[index - 1].isspace()
+                    and index + 1 < len(text) and text[index + 1].isspace()
+                )
+                if seen_print and (
+                    not spaced
+                    or not nxt
+                    or nxt[0] in '"\';,~0123456789'
+                    or re.match(r'(?:TAB|SPC)\s*\(', nxt, re.IGNORECASE)
+                    # one print item (greek2$, FNarabic(a$)) = BBC newline;
+                    # several words (' show it) = comment
+                    or re.fullmatch(
+                        r'[A-Za-z_][A-Za-z0-9_]*[$%!#&]?\s*(?:\(.*\))?\s*(?:[;,\'].*)?',
+                        nxt,
+                    )
+                ):
+                    index += 1  # PRINT newline item, not a comment
+                    continue
+                if not seen_print and prev.endswith('"') and nxt.startswith('"'):
+                    index += 1
+                    continue
+                return text[:index].rstrip(), True
+            index += 1
+        return text, False
+
     def _parse_line_statements(self, line: str) -> List[Tuple[Optional[str], str]]:
         statements: List[Tuple[Optional[str], str]] = []
         for part in self._split_colon_statements(line):
             label, text = self._extract_label_prefix(part)
             if text and text != ';':
-                statements.append((label, text))
+                text, cut = self._split_tail_apostrophe_comment(text)
+                if text:
+                    statements.append((label, self._escape_doubled_quotes(text)))
+                if cut:
+                    break  # X = 1 ' note: PRINT — the rest is comment text
         return statements
+
+    def _escape_doubled_quotes(self, text: str) -> str:
+        # A doubled quote inside a literal is one quote character: rewrite it
+        # as "+CHR$(34)+" (a backslash escape is ambiguous with paths like
+        # "C:\"). Otherwise Python glues X""Y literals into XY.
+        if '""' not in text:
+            return text
+        cmd, _rest = self._parse_command(text)
+        if cmd in ('REM', 'DATA'):
+            return text
+        out: List[str] = []
+        in_string = False
+        index = 0
+        n = len(text)
+        while index < n:
+            ch = text[index]
+            if ch == '"':
+                if in_string and index + 1 < n and text[index + 1] == '"':
+                    out.append('"+CHR$(34)+"')
+                    index += 2
+                    continue
+                in_string = not in_string
+            out.append(ch)
+            index += 1
+        return ''.join(out)
 
     def _prepare_run(self) -> None:
         self._run_line_nums = sorted(self.program.keys())
@@ -691,13 +1034,38 @@ class RuntimeProgramMixin:
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
         self._parse_command_cache = {}
+        self._clear_string_plan_caches()
         self._assign_parse_cache = {}
+        self._stmt_fast_runners = {}
+        self._while_assign_accel = {}
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()
         self._build_user_functions()
         self._build_user_procedures()
         self._definitions_dirty = False
+
+    _PURE_MATH_NAMES = frozenset(
+        ('SIN', 'COS', 'TAN', 'ATN', 'RAD', 'DEG', 'SQR', 'EXP', 'ABS')
+    )
+    _RE_PURE_MATH_CALL = re.compile(
+        r'(?<![A-Za-z0-9_$%@])(SIN|COS|TAN|ATN|RAD|DEG|SQR|EXP|ABS)(?=\s*\()'
+    )
+
+    def _compile_pure_math_calls(self, expr: str, *, strip: bool = False) -> str:
+        """SIN(…) → __m_sin__(…) so math builtins do not force the slow path.
+
+        Only functions with one meaning in every dialect (not LOG / INT / SGN).
+        ``strip=True`` drops the names instead (array-reference detection).
+        """
+        if '(' not in expr:
+            return expr
+        pattern = self._RE_PURE_MATH_CALL
+        if not self._identifiers_case_sensitive():
+            pattern = re.compile(pattern.pattern, re.IGNORECASE)
+        if strip:
+            return pattern.sub('', expr)
+        return pattern.sub(lambda m: f'__m_{m.group(1).lower()}__', expr)
 
     def _prepare_expr_for_compile(
         self,
@@ -708,6 +1076,7 @@ class RuntimeProgramMixin:
     ) -> Tuple[str, bool, Tuple[str, ...], Tuple[str, ...], Tuple[str, ...]]:
         if self._RE_FN_CALL.search(expr):
             raise ValueError('dynamic call in expression')
+        expr = self._compile_pure_math_calls(expr)
         if self._RE_FUNC_CALL.search(expr):
             raise ValueError('dynamic builtin in expression')
         if self._RE_NUMERIC_FUNC_CALL.search(expr):
@@ -994,6 +1363,8 @@ class RuntimeProgramMixin:
                 if not text:
                     continue
                 cmd, _ = self._parse_command(text)
+                if cmd in ('REM', 'DATA'):
+                    continue
                 if cmd in self._GRAPHICS_CMDS:
                     return True
                 # For bbc dialect, CLS / MODE / VDU / CLG / COLOUR etc. auto-enable pygame
@@ -1010,7 +1381,10 @@ class RuntimeProgramMixin:
             (line_num, statement, self.line_indent.get(line_num, 0))
             for line_num, statement in sorted(self.program.items())
         ]
-        self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+        if self._program_statements_use_graphics(parsed_lines):
+            self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+            return
+        self._revert_auto_pygame_display()
 
     def _current_program_parsed_lines(self) -> List[Tuple[int, str, int]]:
         return [
@@ -1086,15 +1460,133 @@ class RuntimeProgramMixin:
             if re.search(r'\bINSTR\b', upper) and not self._dialect_allows('INSTR'):
                 violations.append('INSTR')
             for func in self._MINI_ONLY_FUNCS:
-                if re.search(rf'\b{re.escape(func)}\b', upper):
+                if self._text_has_mini_only_func(upper, func):
                     if not self._dialect_allows(func):
                         violations.append(func)
         return violations
+
+    @staticmethod
+    def _text_has_mini_only_func(upper_text: str, func: str) -> bool:
+        """Match FG$ / RESET$ — ``\\b`` does not fire after ``$``."""
+        if func.endswith('$'):
+            return re.search(
+                rf'(?<![A-Za-z0-9_]){re.escape(func)}(?![A-Za-z0-9_])',
+                upper_text,
+            ) is not None
+        return re.search(rf'\b{re.escape(func)}\b', upper_text) is not None
+
+    def _collect_mini_only_features(
+        self,
+        parsed_lines: List[Tuple[int, str, int]],
+    ) -> List[str]:
+        """Mini-only commands/functions used in the listing (any dialect)."""
+        found: List[str] = []
+        seen: Set[str] = set()
+
+        def add(name: str) -> None:
+            key = name.upper()
+            if key not in seen:
+                seen.add(key)
+                found.append(name)
+
+        for _, statement, _ in parsed_lines:
+            for part in self._split_colon_statements(statement):
+                _, text = self._extract_label_prefix(part)
+                stripped = text.strip()
+                if not stripped or stripped.startswith("'"):
+                    continue
+                cmd, rest = self._parse_command(text)
+                if cmd == 'REM':
+                    continue
+                if re.match(r'^ON\s+CLOSE\b', stripped, re.IGNORECASE):
+                    add('ON CLOSE')
+                if cmd in self._MINI_ONLY_CMDS:
+                    add(cmd)
+                upper = stripped.upper()
+                for func in self._MINI_ONLY_FUNCS:
+                    if self._text_has_mini_only_func(upper, func):
+                        add(func)
+                if re.search(r'\bINKEY\s*\(\s*-', upper):
+                    add('INKEY(-n)')
+        return found
 
     @classmethod
     def _normalize_hash_file_commands(cls, line: str) -> str:
         """BBC file I/O: PRINT #ch  INPUT #ch  CLOSE #ch  ->  PRINT#ch etc."""
         return cls._RE_HASH_FILE_CMD.sub(r'\1#', line.strip())
+
+    _MS_CRUNCH_STMT_WORDS = tuple(sorted((
+        'PRINT', 'INPUT', 'GOTO', 'GOSUB', 'RETURN', 'IF', 'FOR', 'NEXT', 'LET',
+        'DIM', 'READ', 'DATA', 'RESTORE', 'END', 'STOP', 'ON', 'REM', 'DEF',
+        'POKE', 'CLEAR', 'CLR', 'RANDOMIZE', 'CONT', 'WAIT', 'OUT', 'GET',
+        'SWAP', 'WHILE', 'WEND', 'CLS', 'CALL', 'ERASE', 'WRITE', 'RESUME',
+        'SYS', 'DEFINT', 'DEFSNG', 'DEFDBL', 'DEFSTR', 'TRON', 'TROFF',
+        # Whole words so they are not split as END IF / DEF PROC.
+        'ENDIF', 'ENDPROC', 'ENDWHILE', 'ENDCASE', 'ENDSELECT', 'ENDFUNCTION',
+        'DEFPROC', 'ENDSUB',
+    ), key=len, reverse=True))
+    _MS_CRUNCH_INNER_WORDS = ('THEN', 'ELSE', 'GOTO', 'GOSUB')
+
+    def _space_crunched_ms_statements(self, text: str) -> str:
+        """MS / Commodore ignore spaces: ``PRINTA`` → ``PRINT A``, ``IFA=0THEN50``.
+
+        Splits a keyword glued to what follows only at statement start (and
+        after THEN/ELSE), plus THEN/ELSE/GOTO/GOSUB inside IF and ON. Unlike
+        the real tokenizer it never splits mid-expression names (SCORE ≠ SC OR E).
+        REM and DATA payloads and strings are copied unchanged.
+        """
+        out: List[str] = []
+        index = 0
+        length = len(text)
+        stmt_start = True
+        inner = False  # inside IF / ON: THEN, ELSE, GOTO, GOSUB may be glued
+        while index < length:
+            ch = text[index]
+            if ch == '"':
+                end = text.find('"', index + 1)
+                end = length if end < 0 else end + 1
+                out.append(text[index:end])
+                index = end
+                stmt_start = False
+                continue
+            if ch == ':':
+                out.append(ch)
+                index += 1
+                stmt_start, inner = True, False
+                continue
+            if ch.isspace():
+                out.append(ch)
+                index += 1
+                continue
+            upper = text[index:index + 9].upper()
+            if stmt_start:
+                stmt_start = False
+                word = next((w for w in self._MS_CRUNCH_STMT_WORDS if upper.startswith(w)), None)
+                if word is not None:
+                    out.append(text[index:index + len(word)])
+                    index += len(word)
+                    if word in ('REM', 'DATA'):
+                        out.append(text[index:])
+                        break
+                    if index < length and text[index].isalnum() and word != 'DEFPROC':
+                        out.append(' ')
+                    inner = word in ('IF', 'ON')
+                    continue
+            elif inner:
+                word = next((w for w in self._MS_CRUNCH_INNER_WORDS if upper.startswith(w)), None)
+                if word is not None:
+                    if out and not out[-1][-1:].isspace():
+                        out.append(' ')
+                    out.append(text[index:index + len(word)])
+                    index += len(word)
+                    if index < length and not text[index].isspace():
+                        out.append(' ')
+                    if word in ('THEN', 'ELSE'):
+                        stmt_start = True
+                    continue
+            out.append(ch)
+            index += 1
+        return ''.join(out)
 
     @staticmethod
     def _space_glued_to_step(text: str, *, ignore_case: bool = True) -> str:
@@ -1170,6 +1662,7 @@ class RuntimeProgramMixin:
         line = re.sub(r'\bEND\s+PROC\b', 'ENDPROC', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+CASE\b', 'ENDCASE', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+FN\b', 'END DEF', line, flags=re.IGNORECASE)
+        line = re.sub(r'\bEND\s+FUNCTION\b', 'END DEF', line, flags=re.IGNORECASE)
         line = re.sub(r'\bEND\s+DEF\b', 'END DEF', line, flags=re.IGNORECASE)
         if fold_endwhile:
             line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
@@ -1226,16 +1719,17 @@ class RuntimeProgramMixin:
                 while j < n and text[j] != '"':
                     j += 1
                 chunk = text[i:j]
+                # BBC keywords are uppercase only (mode7 is a variable), and
+                # @name is a BBCSDL system variable (@vdu%), never a keyword.
                 # Digits/parens only — ORIGIN0, SOUND1 (never "Original")
                 for kw in (
                     'ORIGIN', 'SOUND', 'ENVELOPE', 'CLG', 'CLS', 'RESTORE',
                     'UNTIL', 'COLOUR', 'COLOR',
                 ):
                     chunk = re.sub(
-                        rf'\b{kw}(?=[0-9(])',
+                        rf'(?<!@)\b{kw}(?=[0-9(])',
                         rf'{kw} ',
                         chunk,
-                        flags=re.IGNORECASE,
                     )
                 # May glue onto idents: MODE5, MOVEI%, FORI%=, GCOL0, PLOT69
                 for kw in (
@@ -1243,10 +1737,9 @@ class RuntimeProgramMixin:
                     'FOR', 'NEXT', 'PRINT', 'INPUT',
                 ):
                     chunk = re.sub(
-                        rf'\b{kw}(?=[0-9A-Za-z$%(])',
+                        rf'(?<!@)\b{kw}(?=[0-9A-Za-z$%(])',
                         rf'{kw} ',
                         chunk,
-                        flags=re.IGNORECASE,
                     )
                 # PROC calls: PROCSWOOSH( — protect ENDPROC
                 chunk = re.sub(
@@ -1271,7 +1764,7 @@ class RuntimeProgramMixin:
         text = line.strip()
         core = re.split(r'\s+REM(?:\s|$)', text, maxsplit=1, flags=re.IGNORECASE)[0].rstrip()
         match = re.match(
-            r'^END\s+(IF|WHILE|PROC|FN|DEF|CASE)\s*$',
+            r'^END\s+(IF|WHILE|PROC|FN|FUNCTION|DEF|CASE)\s*$',
             core,
             re.IGNORECASE,
         )
@@ -1282,6 +1775,7 @@ class RuntimeProgramMixin:
             'WHILE': 'WEND',
             'PROC': 'ENDPROC',
             'FN': 'END DEF',
+            'FUNCTION': 'END DEF',
             'DEF': 'END DEF',
             'CASE': 'ENDCASE',
         }
@@ -1293,6 +1787,10 @@ class RuntimeProgramMixin:
         if cached is not None:
             return cached
         line = self._normalize_hash_file_commands(line.strip())
+        # QBasic FUNCTION ... is DEF ... (FUNCTION= stays an assignment;
+        # END FUNCTION / EXIT FUNCTION are two-word forms starting END/EXIT).
+        line = re.sub(r'^FUNCTION(?=\s)', 'DEF', line, flags=re.IGNORECASE)
+        line = re.sub(r'^FUNCTION(?=FN)', 'DEF ', line, flags=re.IGNORECASE)
         line = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', line, flags=re.IGNORECASE)
         line = re.sub(r'\bCIRCLEFILL\b', 'CIRCLE FILL', line, flags=re.IGNORECASE)
         if self.config.dialect == 'bbc':
@@ -1393,10 +1891,11 @@ class RuntimeProgramMixin:
         if not name:
             return name
         # Parse base name + optional type suffix ($ % ! #)
-        m = re.match(rf'^({self._VAR_BASE_PATTERN})([%$!#]?)', name)
-        if not m:
+        end = ident_prefix_len(name)
+        if not end:
             return name
-        base, suffix = m.groups()
+        base = name[:end]
+        suffix = name[end] if end < len(name) and name[end] in '%$!#' else ''
         sig_len = self._var_significant_length()
         if self._identifiers_case_sensitive():
             norm_base = base
@@ -1520,21 +2019,22 @@ class RuntimeProgramMixin:
         return base, self._array_kind_from_suffix(match.group(2))
 
     def _parse_array_lvalue(self, token: str) -> Optional[Tuple[str, VarKind, str]]:
+        # NAME[suffix] ( indices )  — whole token, no re.
         token = token.strip()
-        match = re.match(
-            rf'^({self._VAR_BASE_PATTERN})([%$!#&]?)\s*\((.*)\)\s*$',
-            token,
-        )
-        if not match:
+        end = ident_prefix_len(token)
+        if not end or not token.endswith(')'):
             return None
-        base = self._validate_var_base(match.group(1))
-        suffix = match.group(2)
+        suffix = token[end] if end < len(token) and token[end] in '%$!#&' else ''
+        after = token[end + len(suffix):].lstrip()
+        if not after.startswith('('):
+            return None
+        base = self._validate_var_base(token[:end])
         kind: VarKind = 'float'
         if suffix == '$':
             kind = 'str'
         elif suffix in ('%', '&'):
             kind = 'int'
-        return base, kind, match.group(3).strip()
+        return base, kind, after[1:-1].strip()
 
     def _parse_data_item(self, token: str) -> DataItem:
         # BBC DATA keeps trailing spaces in unquoted strings (e.g. article "a ").
@@ -1553,7 +2053,7 @@ class RuntimeProgramMixin:
             return DataItem('str', token)
         normalized = self._normalize_operators(token)
         try:
-            return DataItem('float', float(eval(normalized, _SAFE_EVAL_GLOBALS, {})))
+            return DataItem('float', float(safe_eval(normalized)))
         except Exception:
             return DataItem('str', token)
 
@@ -1629,7 +2129,13 @@ class RuntimeProgramMixin:
                     break
                 end_line = self._find_matching_end_def(line_num, line_nums)
                 if end_line is None:
-                    equals_return = self._find_def_fn_equals_return(line_num, line_nums)
+                    # DEF FNa(Y) : ON ERROR LOCAL = 7 — a one-expression body
+                    # would skip that header preamble; use the multiline path.
+                    has_preamble = text is not stmt_parts[-1][1]
+                    equals_return = (
+                        None if has_preamble
+                        else self._find_def_fn_equals_return(line_num, line_nums)
+                    )
                     if equals_return is not None:
                         equals_line, expr = equals_return
                         fn.body = expr
@@ -1752,6 +2258,8 @@ class RuntimeProgramMixin:
         self.user_procedures = procedures
         functions, _ = self._scan_user_functions(line_nums)
         self.user_functions = functions
+        self._rebuild_fn_memoable()
+        self._fn_memo.clear()
         self._definitions_dirty = False
 
     def _build_user_functions(self) -> None:
@@ -1764,6 +2272,8 @@ class RuntimeProgramMixin:
         self.user_functions = functions
         self._finalize_fn_return_kinds()
         self._warn_def_fn_missing_returns()
+        self._rebuild_fn_memoable()
+        self._fn_memo.clear()
         self._fn_skip_lines = skip_lines
         if self._fn_skip_lines:
             self._run_line_nums = [
@@ -1958,7 +2468,21 @@ class RuntimeProgramMixin:
             raise ValueError('expected expression')
         right_kind, right_value = self._eval_comparison_operand(right_fragment)
         index = right_end
-        return self._compare_mixed_values(op, left_kind, left_value, right_kind, right_value), index
+        value = self._compare_mixed_values(op, left_kind, left_value, right_kind, right_value)
+        # BASIC chains left to right: 3 > 2 > 1 is (3 > 2) > 1 = -1 > 1 = 0.
+        while True:
+            index = self._boolean_skip_ws(expr, index)
+            op = self._boolean_relop_at(expr, index)
+            if op is None:
+                return value, index
+            index += len(op)
+            right_end = self._boolean_find_arith_end(expr, index)
+            right_fragment = expr[index:right_end].strip()
+            if not right_fragment:
+                raise ValueError('expected expression')
+            right_kind, right_value = self._eval_comparison_operand(right_fragment)
+            index = right_end
+            value = self._compare_mixed_values(op, 'num', value, right_kind, right_value)
 
     def _boolean_parse_not(self, expr: str, index: int) -> Tuple[float, int]:
         index = self._boolean_skip_ws(expr, index)
