@@ -884,3 +884,20 @@ class ColonlessUntilTests(unittest.TestCase):
             )
             self.assertEqual(out.split(), ['4', '7', 'UNTILUNTIL', '3'], msg=(dialect, err))
             self.assertNotIn('UNTIL', err, msg=dialect)
+
+
+class ByteVariableTests(unittest.TestCase):
+    """BBCSDL byte variables (NAME&) in expressions (disco.bbc line 950)."""
+
+    def test_byte_vars_read_in_expressions(self):
+        out, err = _run(
+            '10 r1&=10 : r2&=250 : f=0.5\n'
+            '20 r& = r1& + f * (r2& - r1&)\n'
+            '30 PRINT r&;" ";(r2&-r1&)\n'
+            '40 x&=300 : y&=-1 : PRINT x&;" ";y&\n'
+            '50 a%=7 : a&=3 : a=1.5 : PRINT a%;" ";a&;" ";a\n'
+            '60 b&=5 : b&+=1 : PRINT b& AND &FF;" ";&10+b&\n',
+            'bbc',
+        )
+        self.assertEqual(out.split(), ['130', '240', '44', '255', '7', '3', '1.5', '6', '22'], msg=err)
+        self.assertEqual(err, '')
