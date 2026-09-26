@@ -3041,6 +3041,49 @@ class RuntimeExprMixin:
             i = close_paren + 2
         return ''.join(out)
 
+    # Candidate dotted struct-member token: NAME[{(N)}].MEMBER[suffix].
+    # Used only on the case-sensitive fast path in _substitute_variables to
+    # find substitution candidates by scanning expr once instead of testing
+    # every struct_members key against it; a match that isn't an actual key
+    # is left untouched by _struct_member_ref_repl.
+    _STRUCT_MEMBER_REF_RE = re.compile(
+        r'[A-Za-z_][A-Za-z0-9_]*(?:\{\(\d+\)\})?\.[A-Za-z_][A-Za-z0-9_]*(?:\$\$|\$|%%|%)?'
+    )
+
+    def _struct_member_ref_repl(self, m: re.Match) -> str:
+        key = m.group(0)
+        if key not in self.struct_members:
+            return key
+        if key.endswith('$') or key.endswith('$$'):
+            # string members not substituted here (handled in PRINT/string contexts)
+            return key
+        val = self.struct_members[key]
+        if key.endswith('%') or key.endswith('%%'):
+            return str(int(val) if isinstance(val, (int, float)) else val)
+        v = float(val) if not isinstance(val, str) else 0.0
+        return str(int(v)) if v == int(v) else str(v)
+
+    def _struct_subst_pattern(self, key: str):
+        """Compiled regex matching struct member ``key`` as a whole token,
+        cached per key: struct_members can hold hundreds of entries per
+        struct array once DIM name{(n) members} pre-allocates every index,
+        and recompiling this pattern for each one on every expression
+        evaluation dominated runtime (surks.bbc collision checks)."""
+        flags = self._identifier_re_flags()
+        cache = getattr(self, '_struct_subst_pattern_cache', None)
+        if cache is None:
+            cache = {}
+            self._struct_subst_pattern_cache = cache
+        cache_key = (key, flags)
+        pat = cache.get(cache_key)
+        if pat is None:
+            pat = re.compile(
+                r'(?<![A-Za-z0-9_])' + re.escape(key) + r'(?![A-Za-z0-9_])',
+                flags,
+            )
+            cache[cache_key] = pat
+        return pat
+
     def _dim_structure(self, decl: str) -> None:
         """Support BBCSDL record structure variables: DIM name{member1, member2%, sub{...}, arr(3)}"""
         decl = decl.strip()
@@ -3295,31 +3338,42 @@ class RuntimeExprMixin:
                 flags=id_flags,
             )
         # BBCSDL structure record members: support pt.x%  obj.name$  s.foo  (numeric ones for expr eval)
-        # Use direct replace for dotted keys (plain \b patterns don't reliably cross dots + suffix)
         if self.struct_members:
             if '{(' in expr:
                 # circle{(I%)}.r%: match struct_members keys (which are keyed
                 # by evaluated index, see _assign) rather than index source text.
                 expr = self._normalize_struct_array_index_refs(expr)
-            for key, val in list(self.struct_members.items()):
-                if '.' not in key:
-                    continue
-                if key.endswith('$') or key.endswith('$$'):
-                    # string members not substituted here (handled in PRINT/string contexts)
-                    continue
-                # numeric: key may be 'pt.x%' or 'pt.z' 
-                # build pattern that matches the literal key (escaped) optionally followed by nothing
-                # tolerate minor space around . or before suffix but prefer glued as normalized
-                pat = re.compile(
-                    r'(?<![A-Za-z0-9_])' + re.escape(key) + r'(?![A-Za-z0-9_])',
-                    self._identifier_re_flags(),
-                )
-                if key.endswith('%') or key.endswith('%%'):
-                    vstr = str(int(val) if isinstance(val, (int, float)) else val)
+            if '.' in expr:
+                if self._identifiers_case_sensitive():
+                    # DIM name{(n) members} now pre-populates every index
+                    # (see _dim_structure), so struct_members can hold
+                    # thousands of entries per struct array; looping over
+                    # every entry to test-and-substitute it against expr
+                    # (even with a cheap substring pre-filter) is
+                    # O(len(struct_members)) per expression evaluation and
+                    # dominated runtime (surks.bbc: seconds per collision
+                    # check). Identifiers are case-sensitive here, so scan
+                    # expr once for candidate dotted-member tokens and look
+                    # each one up directly in the dict instead.
+                    expr = self._STRUCT_MEMBER_REF_RE.sub(
+                        self._struct_member_ref_repl, expr
+                    )
                 else:
-                    v = float(val) if not isinstance(val, str) else 0.0
-                    vstr = str(int(v)) if v == int(v) else str(v)
-                expr = pat.sub(vstr, expr)
+                    for key, val in list(self.struct_members.items()):
+                        if '.' not in key:
+                            continue
+                        if key.endswith('$') or key.endswith('$$'):
+                            # string members not substituted here (handled in PRINT/string contexts)
+                            continue
+                        if key not in expr:
+                            continue
+                        pat = self._struct_subst_pattern(key)
+                        if key.endswith('%') or key.endswith('%%'):
+                            vstr = str(int(val) if isinstance(val, (int, float)) else val)
+                        else:
+                            v = float(val) if not isinstance(val, str) else 0.0
+                            vstr = str(int(v)) if v == int(v) else str(v)
+                        expr = pat.sub(vstr, expr)
 
         # Ensure bitwise for numeric (BBC-style AND/OR/XOR/NOT on integer values)
         # after all substitutions. This makes expressions like "x% AND y%" do & not logical and.
