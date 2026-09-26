@@ -500,5 +500,40 @@ class CrunchedMsCodeTests(unittest.TestCase):
         self.assertEqual(out.split(), ['TWO'], msg=err)
 
 
+def _run_with_input(src: str, replies: list, dialect: str = 'mini') -> tuple[str, str]:
+    from unittest.mock import patch
+
+    with patch('builtins.input', side_effect=list(replies)):
+        return _run(src, dialect)
+
+
+class InputReplyTests(unittest.TestCase):
+    def test_quoted_reply_drops_quotes(self):
+        for dialect in ('mini', 'mits'):
+            out, err = _run_with_input(
+                '10 INPUT N$\n20 PRINT "["; N$; "]"\n',
+                ['"quoted, text"'],
+                dialect,
+            )
+            self.assertIn('[quoted, text]', out, msg=(dialect, err))
+
+    def test_quoted_item_in_list(self):
+        out, err = _run_with_input(
+            '10 INPUT A$, B\n20 PRINT A$; "|"; B\n',
+            ['"x, y", 5'],
+        )
+        self.assertIn('x, y|5', out, msg=err)
+
+    def test_missing_values_continue_on_next_line(self):
+        for dialect in ('mini', 'mits'):
+            out, err = _run_with_input(
+                '10 INPUT A, B\n20 PRINT A + B\n',
+                ['1', '2'],
+                dialect,
+            )
+            self.assertIn('3', out.splitlines()[-1], msg=(dialect, out, err))
+            self.assertNotIn('Enter a number', out + err, msg=dialect)
+
+
 if __name__ == '__main__':
     unittest.main()

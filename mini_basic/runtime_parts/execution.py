@@ -3646,7 +3646,12 @@ class RuntimeExecutionMixin:
                 else:
                     values = self._split_input_line_values(line)
                     while len(values) < len(var_tokens):
-                        values.append('')
+                        # INPUT A, B answered "1": ask ?? for the rest (MS/BBC).
+                        more = self._read_program_input('?? ')
+                        self._sync_print_column_after_input(more)
+                        values.extend(self._split_input_line_values(more))
+                # "quoted, text" is one item without its quotes.
+                values = [self._unquote_input_item(value) for value in values]
                 try:
                     for var_token, raw in zip(var_tokens, values):
                         self._assign_input_value(var_token, raw)

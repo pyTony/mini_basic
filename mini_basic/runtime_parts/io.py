@@ -1754,6 +1754,13 @@ class RuntimeIoMixin:
     def _split_input_line_values(self, line: str) -> List[str]:
         return self._split_at_depth(line, ',')
 
+    @staticmethod
+    def _unquote_input_item(value: str) -> str:
+        stripped = value.strip()
+        if len(stripped) >= 2 and stripped[0] == '"' and stripped[-1] == '"':
+            return stripped[1:-1]
+        return value
+
     def _read_lvalue(self, token: str) -> Tuple[str, str, VarKind, Optional[List[int]], object]:
         parsed = self._parse_array_lvalue(token)
         if parsed is not None:
