@@ -183,11 +183,25 @@ class BBCGraphics:
             ]
         return self.rgb_pixels
 
-    def clear_graphics(self, bg_colour: int | None = None) -> None:
+    def clear_graphics(
+        self, bg_colour: int | None = None, bg_rgb: Optional[RGB] = None,
+    ) -> None:
         """CLG / VDU 16 — fill graphics window (or full screen) with GCOL background.
 
         welcome.bbc draws the red frame by CLG red in a large VDU 24 window, then
         CLG gray in a smaller window — must not wipe the outer border.
+
+        ``bg_rgb``, when given, is the custom COLOUR n,r,g,b RGB currently
+        assigned to the background's palette index. It gets baked into
+        rgb_pixels for the whole cleared region, the same way a fill or
+        outline captures its own truecolour at draw time — otherwise the
+        cleared background shares its palette slot with every later
+        CIRCLE FILL that reuses the same index (surks.bbc draws both
+        background and spheres via COLOUR 1), and reassigning that index's
+        RGB for the next shape would retroactively recolour the background
+        wherever a later dirty-rect patch happens to repaint it. The display
+        applies rgb_pixels by scanning the region it is about to redraw
+        (not via rgb_dirty), so rgb_dirty itself does not need every pixel.
         """
         self._clip_disc = None
         bg = self.gcol_bg[1] if bg_colour is None else int(bg_colour)
@@ -199,7 +213,12 @@ class BBCGraphics:
                 fill = [bg_b] * self.width
                 for y, row in enumerate(self.pixels):
                     row[:] = fill
-            self.rgb_pixels = None
+            if bg_rgb is not None:
+                self.rgb_pixels = [
+                    [bg_rgb for _ in range(self.width)] for _ in range(self.height)
+                ]
+            else:
+                self.rgb_pixels = None
             self.rgb_dirty.clear()
             self.mark_full_dirty()
             self.plot_count = 0
@@ -221,8 +240,23 @@ class BBCGraphics:
         sy1 = min(self.height - 1, max(sys_))
         if sx0 > sx1 or sy0 > sy1:
             return
+        if bg_rgb is not None and self.rgb_pixels is None:
+            self.rgb_pixels = [
+                [None for _ in range(self.width)] for _ in range(self.height)
+            ]
+        fill_row = [bg_rgb] * (sx1 - sx0 + 1)
         if self.pixels_is_numpy:
             self.pixels[sy0 : sy1 + 1, sx0 : sx1 + 1] = bg_b
+            if self.rgb_pixels is not None:
+                # Viewport CLG only wiped the palette framebuffer here, never
+                # the truecolour overlay — a custom-RGB fill's colour (e.g.
+                # CIRCLE FILL after COLOUR n,r,g,b) stayed in rgb_pixels and
+                # ghosted through every later frame's CLG (surks.bbc: old
+                # spheres' colours bleeding into the next scene's background).
+                # Baking bg_rgb in (rather than leaving None) also protects
+                # this region from later reuse of the same palette index.
+                for sy in range(sy0, sy1 + 1):
+                    self.rgb_pixels[sy][sx0 : sx1 + 1] = fill_row
         else:
             for sy in range(sy0, sy1 + 1):
                 row = self.pixels[sy]
@@ -230,8 +264,9 @@ class BBCGraphics:
                 for sx in range(sx0, sx1 + 1):
                     row[sx] = bg_b
                     if rgb_row is not None:
-                        rgb_row[sx] = None
-        # Drop rgb_dirty points inside the cleared rect
+                        rgb_row[sx] = bg_rgb
+        # Drop rgb_dirty points inside the cleared rect (render no longer
+        # reads rgb_dirty for correctness, only kept in sync for bookkeeping).
         if self.rgb_dirty:
             self.rgb_dirty = {
                 (sx, sy)

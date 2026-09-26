@@ -1186,7 +1186,8 @@ class PygameDisplay(DisplayBackend):
         self._sprite_placements = []
 
         if self._gfx is not None:
-            self._gfx.clear_graphics(self._bg_colour)
+            bg_rgb = self._palette_rgb.get(int(self._bg_colour))
+            self._gfx.clear_graphics(self._bg_colour, bg_rgb=bg_rgb)
         self._graphics_print_layers = []
 
         self._dirty = True
@@ -1692,7 +1693,12 @@ class PygameDisplay(DisplayBackend):
         # Do not clear VDU 5 print layers here — CLG does not erase prior
         # graphics-cursor text on a real Beeb; welcome keeps DISC SYSTEM.
         if self._gfx is not None:
-            self._gfx.clear_graphics()
+            # Bake in the background's custom RGB (if COLOUR n,r,g,b set one)
+            # so the cleared region survives a later COLOUR reassigning the
+            # same palette index to a foreground shape (surks.bbc: CLG and
+            # every CIRCLE FILL share palette index 1).
+            bg_rgb = self._palette_rgb.get(int(self._gfx.gcol_bg[1]))
+            self._gfx.clear_graphics(bg_rgb=bg_rgb)
         self.mark_compose_full()
 
     def set_graphics_viewport(self, x1: int, y1: int, x2: int, y2: int) -> None:
@@ -2021,14 +2027,20 @@ class PygameDisplay(DisplayBackend):
                     y1 = min(h - 1, y1 + 1)
                     patch = idx[y0 : y1 + 1, x0 : x1 + 1]
                     rgb = palette[patch]
-                    if rgb_layer is not None and self._gfx.rgb_dirty:
-                        # rgb_dirty entries are (sx, sy) screen coords (see bbc_graphics).
-                        for sx, sy in list(self._gfx.rgb_dirty):
-                            if y0 <= sy <= y1 and x0 <= sx <= x1:
-                                if 0 <= sy < h and 0 <= sx < w:
-                                    val = rgb_layer[sy][sx]
-                                    if val is not None:
-                                        rgb[sy - y0, sx - x0] = val
+                    if rgb_layer is not None:
+                        # Scan the (small) patch box directly rather than the
+                        # global rgb_dirty set: CLG can now bake a custom
+                        # background RGB into every pixel it clears (see
+                        # BBCGraphics.clear_graphics), so rgb_dirty can hold
+                        # every screen pixel — iterating it per patch would
+                        # cost O(screen size) on every present() instead of
+                        # O(patch size).
+                        for sy in range(y0, y1 + 1):
+                            row = rgb_layer[sy]
+                            for sx in range(x0, x1 + 1):
+                                val = row[sx]
+                                if val is not None:
+                                    rgb[sy - y0, sx - x0] = val
                     if rgb.size:
                         surf = pygame.surfarray.make_surface(
                             np.transpose(rgb, (1, 0, 2))
@@ -2049,10 +2061,12 @@ class PygameDisplay(DisplayBackend):
                 rgb = palette[idx]
                 t2 = time.monotonic()
                 if rgb_layer is not None:
-                    # rgb_dirty entries are (sx, sy) screen coords (see bbc_graphics).
-                    for sx, sy in self._gfx.rgb_dirty:
-                        if 0 <= sy < h and 0 <= sx < w:
-                            val = rgb_layer[sy][sx]
+                    # Scan rgb_layer directly (see the patch branch above for
+                    # why this no longer goes through rgb_dirty).
+                    for sy in range(min(h, len(rgb_layer))):
+                        row = rgb_layer[sy]
+                        for sx in range(min(w, len(row))):
+                            val = row[sx]
                             if val is not None:
                                 rgb[sy, sx] = val
                 surf = pygame.surfarray.make_surface(np.transpose(rgb, (1, 0, 2)))
