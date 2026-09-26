@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import math
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
@@ -997,3 +998,34 @@ class PlotArcTests(unittest.TestCase):
         self.assertEqual(gfx.point_colour(32 - 14, 32 + 14), 0)  # 135°
         self.assertEqual(gfx.point_colour(32 + 14, 32 - 14), 0)  # -45°
         self.assertEqual(gfx.point_colour(32, 32), 0)            # centre untouched
+
+
+class PlotArcSeamOverlapTests(unittest.TestCase):
+    """A rotating arc's cut ends must not flicker pixel-by-pixel (swirl.bbc)."""
+
+    def test_arc_seam_pixel_stays_lit_across_tiny_rotation(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        radius = 20
+        for deg in range(0, 360, 3):
+            gfx = BBCGraphics(64, 64)
+            gfx.gcol(0, 1)
+            gfx.line_thickness = 1
+            a0 = math.radians(deg)
+            a1 = a0 + math.pi  # half-circle sweep, like swirl.bbc
+            start_x = 32 + round(radius * math.cos(a0))
+            start_y = 32 + round(radius * math.sin(a0))
+            gfx.move_absolute(32, 32)
+            gfx.move_absolute(start_x, start_y)
+            gfx.plot_code(
+                165,
+                32 + round(1000 * math.cos(a1)),
+                32 + round(1000 * math.sin(a1)),
+            )
+            # The pixel right at the arc's start must always be lit, at any
+            # sub-degree rotation — not on/off depending on rounding.
+            self.assertEqual(
+                gfx.point_colour(start_x, start_y),
+                1,
+                msg=f'deg={deg} start seam not lit',
+            )

@@ -698,6 +698,11 @@ class BBCGraphics:
         half = max(0.5, float(self.line_thickness) / 2.0)
         r_in = max(0.0, radius - half)
         r_out = radius + half
+        # Half a pixel's worth of angle at this radius, so a rotating arc's
+        # cut ends keep covering the same seam pixel from one frame to the
+        # next instead of flickering across the boundary (swirl.bbc: many
+        # thin rings end at almost the same point, near the spiral's tip).
+        eps = math.atan2(0.75, max(radius, 1.0))
         x_lo = max(0, int(math.floor(scx - r_out)))
         x_hi = min(self.width - 1, int(math.ceil(scx + r_out)))
         y_lo = max(0, int(math.floor(scy - r_out)))
@@ -711,7 +716,10 @@ class BBCGraphics:
             dy = scy - ys
             dist = np.hypot(dx, dy)
             ang = np.mod(np.arctan2(dy, dx) - start, 2 * math.pi)
-            mask = (dist >= r_in) & (dist < r_out) & (ang <= sweep)
+            mask = (
+                (dist >= r_in) & (dist < r_out)
+                & ((ang <= sweep + eps) | (ang >= 2 * math.pi - eps))
+            )
             pixels = zip(xs[mask].tolist(), ys[mask].tolist())
         else:
             pixels = []
@@ -722,7 +730,7 @@ class BBCGraphics:
                     dist = math.hypot(dx, dy)
                     if r_in <= dist < r_out:
                         ang = (math.atan2(dy, dx) - start) % (2 * math.pi)
-                        if ang <= sweep:
+                        if ang <= sweep + eps or ang >= 2 * math.pi - eps:
                             pixels.append((sx, sy))
         for sx, sy in pixels:
             self._put_screen_pixel(sx, sy, gcol)
