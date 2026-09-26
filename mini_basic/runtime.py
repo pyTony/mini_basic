@@ -102,8 +102,9 @@ from .runtime_parts.execution import RuntimeExecutionMixin
 from .runtime_parts.io import RuntimeIoMixin
 from .runtime_parts.graphics import RuntimeGraphicsMixin
 from .runtime_parts.dialect import RuntimeDialectMixin
+from .runtime_parts.strplan import RuntimeStrPlanMixin
 
-class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, RuntimeDefsMixin, RuntimeExecutionMixin, RuntimeIoMixin, RuntimeGraphicsMixin, RuntimeDialectMixin):
+class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, RuntimeDefsMixin, RuntimeExecutionMixin, RuntimeIoMixin, RuntimeGraphicsMixin, RuntimeDialectMixin, RuntimeStrPlanMixin):
     """BBC/mini BASIC interpreter (mixin composition)."""
 
     _VAR_MAX_LEN = 255

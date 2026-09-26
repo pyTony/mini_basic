@@ -27,6 +27,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from .strplan import init_string_plan_state
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
     RE_COND_EQ as _RE_COND_EQ,
@@ -217,6 +218,7 @@ class RuntimeCoreMixin:
         self._compiled_array_keys: List[tuple] = []
         self._compiled_array_ids: Dict[tuple, int] = {}
         self._parse_command_cache: Dict[str, Tuple[str, str]] = {}
+        init_string_plan_state(self)
         self._stmt_fast_runners: Dict[str, object] = {}
         self._while_assign_accel: Dict[int, object] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
@@ -640,6 +642,7 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries.clear()
         self._var_subst_float_entries.clear()
         self._compiled_expr_cache.clear()
+        self._clear_string_plan_caches()
         self._stmt_fast_runners.clear()
         self._while_assign_accel.clear()
 
@@ -1235,6 +1238,8 @@ class RuntimeCoreMixin:
             part = expr[start:index].strip()
             if part:
                 parts.append(part)
+            if index < len(expr) and expr[index] == '+':
+                index += 1  # stopped at a top-level +: step past it (was a hang)
         return parts or [expr]
 
     def _resolve_juxtaposed_string_part(self, part: str) -> str:
@@ -1282,6 +1287,9 @@ class RuntimeCoreMixin:
         return self._resolve_string_value(expr)
 
     def _resolve_string_value(self, expr: str) -> str:
+        plan = self._get_string_plan(expr)
+        if plan is not None:
+            return plan()
         expr = expr.strip()
         if self._looks_like_full_string_expr(expr):
             return self._eval_string_expr(expr)
@@ -1612,6 +1620,7 @@ class RuntimeCoreMixin:
         if key == '_optimization_level':
             self.config.__post_init__()
             self._compiled_expr_cache.clear()
+            self._clear_string_plan_caches()
             self._stmt_fast_runners.clear()
             self._while_assign_accel.clear()
 
@@ -2513,6 +2522,7 @@ class RuntimeCoreMixin:
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
+        self._clear_string_plan_caches()
         if announce:
             print('Program cleared.', file=self._get_error_stream())
 

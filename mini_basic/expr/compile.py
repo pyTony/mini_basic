@@ -84,7 +84,10 @@ class CompiledExpr:
             return self._namespace_in_fn(interp)
         namespace = self._ns_cache
         if namespace is None:
-            namespace = {'__aget__': interp._compiled_array_get}
+            namespace = {
+                '__aget__': interp._compiled_array_get,
+                '__sfn__': interp._compiled_str_call,
+            }
             self._ns_cache = namespace
         if self.needs_time:
             namespace['__basic_time__'] = interp._get_time()
@@ -103,7 +106,10 @@ class CompiledExpr:
         """Same slots as `_namespace`, plus QBasic FN-name-as-return-var."""
         namespace = self._ns_cache
         if namespace is None:
-            namespace = {'__aget__': interp._compiled_array_get}
+            namespace = {
+                '__aget__': interp._compiled_array_get,
+                '__sfn__': interp._compiled_str_call,
+            }
             self._ns_cache = namespace
         if self.needs_time:
             namespace['__basic_time__'] = interp._get_time()

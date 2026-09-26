@@ -916,6 +916,7 @@ class RuntimeProgramMixin:
         self._var_subst_float_entries = []
         self._compiled_expr_cache = {}
         self._parse_command_cache = {}
+        self._clear_string_plan_caches()
         self._assign_parse_cache = {}
         self._stmt_fast_runners = {}
         self._while_assign_accel = {}

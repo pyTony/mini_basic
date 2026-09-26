@@ -55,6 +55,8 @@ SAFE_EVAL_GLOBALS = {
     '__m_abs__': abs,
     # Placeholder: each CompiledExpr namespace binds the interpreter's reader.
     '__aget__': None,
+    # Same: numeric builtin of a planned string (strplan.py ``__sfn__``).
+    '__sfn__': None,
 }
 """Restricted globals dict for CompiledExpr eval()."""
 

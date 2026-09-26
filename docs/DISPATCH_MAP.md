@@ -86,13 +86,15 @@ statement containing `=`.
 |------|-------------|------|
 | Number | `expr.py` `_eval_numeric` / `eval_expr` | compiled cache `_get_compiled_expr` → Python code object (`expr/compile.py` `CompiledExpr`), else slow path `_eval_numeric_slow` (text substitution + eval) |
 | Condition | `_eval_condition` | compiled condition, else boolean parser (`program.py` `_boolean_parse_*`, left-to-right chained comparisons) |
-| String | `_eval_string_expr` | concatenation / juxtaposition resolver (not compiled) |
-| PRINT item | `io.py` `_render_print_content` | string items vs numeric (comparisons are numeric) |
+| String | `_eval_string_expr` / `_resolve_string_value` | cached plan (`strplan.py` `_get_string_plan`: `+` chains of literals, `A$`, `A$(i)`, `CHR$ STR$ LEFT$ RIGHT$ MID$ STRING$ SPACE$ UCASE$ LCASE$`), else the text resolver (expand calls to literals, split, resolve; BBC juxtaposition) |
+| Type of an expression | `strplan.py` `_expr_static_kind` | the first operand decides (`LEN(A$)+1` is a number); `None` = unknown, old heuristics |
+| PRINT item | `io.py` `_render_print_content` | string items vs numeric (`_is_string_print_item`; comparisons and `LEN(A$)+1`-style arithmetic are numeric) |
 
 Compiled code: `expr/safe_eval.py` `compile_safe` validates the AST (no attribute access,
 lambdas, comprehensions) and rewrites BASIC semantics (`MOD`/`DIV` truncate, `^`
 left-associative). Math builtins compile to `math.*` (`__m_sin__` …); numeric array reads
-to `__aget__(id, …)`. Variables are read from the live tables on every evaluation; only
+to `__aget__(id, …)`; `LEN/ASC/VAL/INSTR` of a planned string to `__sfn__(id)`
+(`_rewrite_string_calls_for_compile`). Variables are read from the live tables on every evaluation; only
 the parse is cached.
 
 ## 5. Caches and when they are dropped
@@ -102,6 +104,7 @@ the parse is cached.
 | `_run_stmts` | split statements per line | program change, RUN prepare |
 | `_compiled_expr_cache` | `CompiledExpr` per source text | RUN / clear, dialect or CASE change, optimisation level; array readers recompiled on DIM |
 | `_stmt_fast_runners` | fast LET/graphics closures | same as above |
+| `_str_plan_cache`, `_static_kind_cache`, `__sfn__` thunks | string plans / expression kinds per text | with `_compiled_expr_cache` (`_clear_string_plan_caches`) |
 | `_parse_command_cache` | `(cmd, rest)` per statement text (key = text only) | `_prepare_run` only — a dialect / CASE switch in the REPL applies to cached statements at the next RUN |
 | FN memo | results of pure recursive DEF FN | RUN / redefinition |
 
@@ -121,6 +124,12 @@ copy returns early when there is nothing left to rewrite:
 | bare `CHR$65` / `STR$~` expansion (`_expand_builtin_calls`) | yes (no `$` / `~` / name) |
 | FOR `1TO10` spacing (`_normalize_for_rest`) | no — once per FOR execution, cheap |
 | `?` → `PRINT` (`_expand_question_print`) | yes (first char test) |
+
+Expression evaluation (not an entry rewrite, but the same "detect every form each time"
+pattern): numeric expressions were already compiled once. String expressions now use a
+cached plan (§4), and `LEN/ASC/VAL/INSTR` of a string stay inside compiled numeric code.
+Forms the plan does not cover (juxtaposition, `""` literals, `STR$~`, `INKEY$`, FN
+calls, …) still take the text path on every evaluation.
 
 ## 7. Adding a statement
 

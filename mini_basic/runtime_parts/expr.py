@@ -364,6 +364,11 @@ class RuntimeExprMixin:
                 return ''.join(out)
             name, suffix = match.group(1), match.group(2) or ''
             open_idx = match.end() - 1
+            if name == '__sfn__' and not suffix:
+                open_idx = match.end() - 1  # planned string call (strplan.py)
+                out.append(expr[pos:open_idx + 1])
+                pos = open_idx + 1
+                continue
             kind = self._array_kind_from_suffix(suffix)
             if kind == 'str' or suffix == '%%':
                 return None
@@ -407,15 +412,21 @@ class RuntimeExprMixin:
             return compiled
 
         try:
-            # SIN(T) / RAD(T) are compiled calls, not array reads.
-            compiled.has_array = '(' in stripped and self._expr_has_array_ref(
-                self._compile_pure_math_calls(stripped, strip=True)
-            )
             work = stripped
-            if compiled.has_array and '"' not in stripped:
+            if '$' in stripped or '"' in stripped:
+                # LEN(A$)+1 → __sfn__(0)+1: string builtins stay compiled.
+                rewritten = self._rewrite_string_calls_for_compile(stripped)
+                if rewritten is not None:
+                    work = rewritten
+            # SIN(T) / RAD(T) are compiled calls, not array reads.
+            probe = work.replace('__sfn__(', '(')
+            compiled.has_array = '(' in probe and self._expr_has_array_ref(
+                self._compile_pure_math_calls(probe, strip=True)
+            )
+            if compiled.has_array and '"' not in work:
                 # X%(I%) → __aget__(id, I%): numeric array reads stay compiled
                 # (jclock: X%(I%) += (…-X%(I%)…) was ~10x slower on the slow path).
-                rewritten = self._rewrite_array_reads_for_compile(stripped)
+                rewritten = self._rewrite_array_reads_for_compile(work)
                 if rewritten is not None:
                     work = rewritten
                     compiled.has_array = False
@@ -638,6 +649,9 @@ class RuntimeExprMixin:
         return len(self._split_bbc_juxtaposed_string_parts(expr)) > 1
 
     def _eval_string_expr(self, expr: str) -> str:
+        plan = self._get_string_plan(expr)
+        if plan is not None:
+            return plan()
         expr = expr.strip()
         if self._print_item_has_string_concat(expr):
             expanded = self._expand_dynamic_calls(expr)
@@ -3137,6 +3151,10 @@ class RuntimeExprMixin:
         fragment = fragment.strip()
         if len(fragment) >= 2 and fragment[0] == '"':
             return True
+        # The first operand decides: 1+ASC(MID$(A$,2,1)) is numeric.
+        kind = self._expr_static_kind(fragment)
+        if kind is not None:
+            return kind == 'str'
         upper = fragment.upper()
         for func in ('INSTR', 'LEN', 'ASC', 'VAL', 'VPOS', 'POS', 'RND', 'INT'):
             if upper.startswith(func + '(') or upper.startswith(func + ' ('):

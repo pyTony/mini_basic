@@ -1151,11 +1151,12 @@ class RuntimeIoMixin:
 
     def _is_string_print_item(self, item: str) -> bool:
         item = item.strip()
-        if item.startswith('"') or '"' in item:
-            # Support BBC-style juxtaposition: 1"foo""bar"X$  or  "a" "b" total
-            # even if item starts with number/var before first "
-            return True
-        return '$' in item
+        if '"' not in item and '$' not in item:
+            return False
+        # Support BBC-style juxtaposition: 1"foo""bar"X$  or  "a" "b" total
+        # even if item starts with number/var before first ". LEN(A$)+1 is
+        # still a number.
+        return not self._is_numeric_arith_item(item)
 
     def _print_item_has_top_level_relop(self, item: str) -> bool:
         """True for = <> < > <= >= outside strings and parentheses."""
