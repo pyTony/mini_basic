@@ -691,7 +691,12 @@ class RuntimeProgramMixin:
                 statement = re.sub(
                     r'\bWEND\b', 'ENDWHILE', statement, flags=re.IGNORECASE,
                 )
-        statement = self._expand_question_print(statement)
+        # BBC ?addr=v is a byte store, not PRINT shorthand.
+        if not (
+            self.config.dialect == 'bbc'
+            and self._BBC_INDIR_LVALUE_RE.match(statement)
+        ):
+            statement = self._expand_question_print(statement)
         # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):
             statement = self._map_outside_strings(
@@ -1801,7 +1806,12 @@ class RuntimeProgramMixin:
         else:
             line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
             line = self._normalize_two_word_closers(line)
-        line = self._expand_question_print(line)
+        # BBC ?addr=v is a byte store, not PRINT shorthand.
+        if not (
+            self.config.dialect == 'bbc'
+            and self._BBC_INDIR_LVALUE_RE.match(line)
+        ):
+            line = self._expand_question_print(line)
         proc_match = self._RE_PROC_CALL.match(line)
         if proc_match:
             name = proc_match.group(1)
