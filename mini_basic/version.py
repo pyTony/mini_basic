@@ -107,6 +107,25 @@ def format_version_report() -> str:
         )
     except Exception:
         pass
+    lines.extend(['', 'Graphics stack (this Python):'])
+    try:
+        from mini_basic.display import import_pygame, pygame_available
+
+        if pygame_available():
+            pg = import_pygame()
+            ver = getattr(pg, 'version', None)
+            ver_s = getattr(ver, 'ver', None) or getattr(pg, '__version__', '?')
+            lines.append(f'  pygame: {ver_s}')
+        else:
+            lines.append('  pygame: (not installed)')
+    except Exception as exc:
+        lines.append(f'  pygame: (error: {exc})')
+    try:
+        import numpy as np  # type: ignore
+
+        lines.append(f'  numpy: {np.__version__}  [framebuffer accel]')
+    except ImportError:
+        lines.append('  numpy: (not installed — Python-list framebuffer)')
     return '\n'.join(lines)
 
 

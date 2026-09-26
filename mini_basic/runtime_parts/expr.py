@@ -524,6 +524,21 @@ class RuntimeExprMixin:
                 ):
                     return False
 
+        # Forced --dialect: ANSI colour is a load error; otherwise the
+        # mini-only note below tells the user to switch dialect.
+        if self.config.dialect != 'mini' and self.config.dialect_locked:
+            ansi = self._ansi_colour_funcs_used(parsed_lines)
+            if ansi:
+                names = ', '.join(ansi)
+                self._emit_error(
+                    f'? ANSI colour ({names}) requires dialect mini'
+                )
+                self._emit_error(
+                    f'  omit --dialect {self.config.dialect} '
+                    f'(this program is mini, not bbc)'
+                )
+                return False
+
         mini_used = self._collect_mini_only_features(parsed_lines)
         if announce and self.config.dialect != 'mini' and mini_used:
             self._announce_mini_dialect_mismatch(mini_used)
@@ -547,6 +562,28 @@ class RuntimeExprMixin:
             # Skip SDL spelling notes when the listing is mini-only (BREAK/FG$).
             self._announce_bbc_sdl_keyword_hints(parsed_lines)
         return True
+
+    def _ansi_colour_funcs_used(
+        self,
+        parsed_lines: List[Tuple[int, str, int]],
+    ) -> List[str]:
+        """FG$/BG$/RESET$ etc. in executable statements (not comments)."""
+        found: List[str] = []
+        seen: Set[str] = set()
+        for _, statement, _ in parsed_lines:
+            if self._is_comment_statement(statement):
+                continue
+            upper = statement.upper()
+            for func in self._ANSI_COLOUR_FUNCS:
+                if func in seen:
+                    continue
+                if re.search(
+                    rf'(?<![A-Za-z0-9_]){re.escape(func)}(?![A-Za-z0-9_])',
+                    upper,
+                ):
+                    found.append(func)
+                    seen.add(func)
+        return found
 
     def _apply_def_type_statement(
         self,
@@ -1009,6 +1046,12 @@ class RuntimeExprMixin:
         force: bool = False,
     ) -> None:
         if self.config.dialect_locked and not force:
+            if announce and hint.dialect != self.config.dialect:
+                print(
+                    f'Note: --dialect {self.config.dialect} overrides '
+                    f"file hint '{hint.dialect}'",
+                    file=self._get_error_stream(),
+                )
             return
         self.config.dialect = hint.dialect
         if hint.strict:

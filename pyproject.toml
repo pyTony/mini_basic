@@ -49,9 +49,12 @@ dependencies = []
 [project.optional-dependencies]
 # Not part of regular 1.00 — optional second flavor.
 display = ["pygame-ce>=2.5.0"]
+# Numpy uint8 framebuffer + surfarray present; pygame windows work without it.
+accel = ["numpy>=1.26"]
 repl = ["pyreadline3>=3.5.0; platform_system == 'Windows'"]
 all = [
     "pygame-ce>=2.5.0",
+    "numpy>=1.26",
     "pyreadline3>=3.5.0; platform_system == 'Windows'",
 ]
 

@@ -2123,7 +2123,8 @@ class RuntimeIoMixin:
                 print(f'Load aborted: dialect check failed for {path}', file=self._get_error_stream())
             return False
 
-        self.new(announce=announce)
+        # LOAD replaces memory; "Program cleared." is only for the NEW command.
+        self.new(announce=False)
         self._program_source_numbered = source_was_numbered
         for line_num, statement, indent in parsed_lines:
             self.set_program_line(line_num, statement, indent)
@@ -2148,19 +2149,8 @@ class RuntimeIoMixin:
             print(f'Loaded: {path}', file=self._get_error_stream())
         self._apply_dialect_hints_from_parsed_lines(parsed_lines, announce=announce)
         uses_gfx = self._program_statements_use_graphics(parsed_lines)
-        already_gfx = self._display_backend_name() == 'pygame'
-        if uses_gfx:
-            self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
-        else:
+        self._maybe_auto_enable_pygame_display(parsed_lines, announce=announce)
+        if not uses_gfx:
             self._revert_auto_pygame_display()
-        if (
-            announce
-            and already_gfx
-            and uses_gfx
-        ):
-            print(
-                f'Graphics: {os.path.basename(path)} (pygame)',
-                file=self._get_error_stream(),
-            )
         return True
 

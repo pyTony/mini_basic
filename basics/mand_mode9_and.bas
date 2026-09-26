@@ -28,7 +28,7 @@
    270       ZY = 2 * ZX * ZY + CY
    280       ZX = TEMP + CX
    290       I% = I% + 1
-   310     WEND
+   310     ENDWHILE
    320     IF I% < MAXITER% THEN
    330       COL% = (I% MOD 7) + 1
    340       GCOL 0, COL%

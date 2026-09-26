@@ -591,7 +591,7 @@ class RuntimeCoreMixin:
                     index += 1
                     continue
                 if part:
-                    parts.append(part)
+                    parts.extend(self._split_repeat_until(part))
                 current = []
                 after_then = False
                 index += 1
@@ -600,8 +600,41 @@ class RuntimeCoreMixin:
             index += 1
         part = ''.join(current).strip()
         if part:
-            parts.append(part)
+            parts.extend(self._split_repeat_until(part))
         return parts
+
+    _RE_REPEAT_HEAD = re.compile(r'^REPEAT\b')
+    _RE_UNTIL_WORD = re.compile(r'UNTIL\b')
+
+    def _split_repeat_until(self, part: str) -> List[str]:
+        """BBC: UNTIL starts a new statement without a colon.
+
+        disco.bbc: ``REPEAT i2%=RND(15) UNTIL i2%<>i1%`` →
+        ``REPEAT i2%=RND(15)`` / ``UNTIL i2%<>i1%``.
+        Only a top-level UNTIL (outside strings and brackets) splits.
+        """
+        if 'UNTIL' not in part or not self._RE_REPEAT_HEAD.match(part):
+            return [part]
+        depth = 0
+        in_string = False
+        for index in range(6, len(part)):
+            ch = part[index]
+            if ch == '"':
+                in_string = not in_string
+            elif in_string:
+                continue
+            elif ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth -= 1
+            elif (
+                depth == 0
+                and ch == 'U'
+                and not (part[index - 1].isalnum() or part[index - 1] == '_')
+                and self._RE_UNTIL_WORD.match(part, index)
+            ):
+                return [part[:index].strip(), part[index:].strip()]
+        return [part]
 
     def _split_statement_indent(self, statement: str) -> Tuple[int, str]:
         match = re.match(r'^([ \t]*)(.*)$', statement)
@@ -840,6 +873,8 @@ class RuntimeCoreMixin:
             return
         legacy: List[str] = []
         for line_num, statement, _ in parsed_lines:
+            if self._is_comment_statement(statement):
+                continue
             upper = statement.upper()
             if re.search(r'\bEND\s+IF\b', upper):
                 legacy.append(
@@ -907,6 +942,16 @@ class RuntimeCoreMixin:
     @staticmethod
     def _is_rem_only_statement(rest: str) -> bool:
         return bool(re.match(r'^REM(?:\s|$)', rest.strip(), re.IGNORECASE))
+
+    @staticmethod
+    def _is_comment_statement(text: str) -> bool:
+        """True for REM or apostrophe comments (whole statement)."""
+        stripped = text.strip()
+        if not stripped:
+            return False
+        if stripped.startswith("'"):
+            return True
+        return bool(re.match(r'^REM(?:\s|$)', stripped, re.IGNORECASE))
 
     def _unknown_statement_message(self, line: str) -> str:
         keyword = self._statement_keyword(line)

@@ -864,3 +864,23 @@ class InkeyPlatformIdTests(unittest.TestCase):
                 dialect,
             )
             self.assertEqual(out.split(), ['-1', 'y', 'e', '0'], msg=(dialect, err))
+
+
+class ColonlessUntilTests(unittest.TestCase):
+    """BBC: UNTIL starts a new statement without a colon (disco.bbc line 660)."""
+
+    def test_repeat_body_until_on_one_line(self):
+        for dialect in ('bbc', 'mini'):
+            out, err = _run(
+                '10 i1% = 5 : REPEAT i2%=i2%+1 UNTIL i2%<>i1% AND i2%>6\n'
+                '20 REPEAT A%=A%+1 UNTIL A%>3 : PRINT A%;" ";i2%\n'
+                '30 REPEAT UNTIL TRUE\n'
+                '40 REPEAT S$=S$+"UNTIL" UNTIL LEN(S$)>9\n'
+                '50 REPEAT B%=B%+FNu(1) UNTIL(B%>2)\n'
+                '60 PRINT S$;" ";B%\n'
+                '70 END\n'
+                '80 DEF FNu(x)=x\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['4', '7', 'UNTILUNTIL', '3'], msg=(dialect, err))
+            self.assertNotIn('UNTIL', err, msg=dialect)
