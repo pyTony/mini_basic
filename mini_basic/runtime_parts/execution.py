@@ -1196,12 +1196,17 @@ class RuntimeExecutionMixin:
         line_nums: List[int],
         stmt_index: int,
         stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+        stmt_label: str = '',
     ) -> Optional[int]:
         """Run a WHILE whose body is only numeric assignments in Python.
 
         Mandelbrot inner loops are WHILE + four LETs; interpreting each
         statement through ``_execute_statement`` dominates BBCSDL (~14×).
-        Returns the line after WEND/ENDWHILE, or None to use the interpreter.
+        The body may also hold block ``IF cond THEN … ENDIF`` guards with a
+        pure condition (escape test + PRINT + BREAK): the fast loop evaluates
+        the guard and, when it is true, pushes the WHILE frame and resumes the
+        interpreter at the IF line.
+        Returns the line to run next, or None to use the interpreter.
         """
         if not self.config.use_compiled_exprs:
             return None
@@ -1210,27 +1215,191 @@ class RuntimeExecutionMixin:
         cached = self._while_assign_accel.get(line_num)
         if cached is False:
             return None
-        if cached is not None:
-            cond_src, runners, exit_line, resume = cached
+        if cached is None:
+            cached = self._build_while_accel_plan(
+                line_num, rest, line_nums, stmt_index, stmt_parts, stmt_label,
+            )
+            self._while_assign_accel[line_num] = cached
+            if cached is False:
+                return None
+        if cached[0] == 'plain':
+            _, cond_src, runners, exit_line, resume = cached
             return self._run_accelerated_while(cond_src, runners, exit_line, resume)
+        # Guarded plan. Re-entry from WEND after a guard that did not BREAK
+        # leaves our frame on top; the fast loop carries on from here.
+        if (
+            self.stack
+            and self.stack[-1].kind == 'while'
+            and getattr(self.stack[-1], 'while_line', None) == line_num
+        ):
+            self.stack.pop()
+        return self._run_guarded_while(cached, line_nums)
 
+    def _build_while_accel_plan(
+        self,
+        line_num: int,
+        rest: str,
+        line_nums: List[int],
+        stmt_index: int,
+        stmt_parts: Optional[List[Tuple[Optional[str], str]]],
+        stmt_label: str,
+    ):
+        cond_src = rest.strip()
+        if not cond_src:
+            return False
         collected = self._collect_while_assign_body(
             line_num, line_nums, stmt_index, stmt_parts,
         )
         if collected is None:
-            self._while_assign_accel[line_num] = False
-            return None
+            return False
         body_stmts, exit_line, resume = collected
-        runners = self._compile_accelerate_body(body_stmts)
-        if not runners:
-            self._while_assign_accel[line_num] = False
+        if not any(kind == 'GUARD' for kind, _ in body_stmts):
+            runners = self._compile_accelerate_body(body_stmts)
+            if not runners:
+                return False
+            return ('plain', cond_src, runners, exit_line, resume)
+
+        # Segments: (LET runners, guard) pairs; the last guard may be None.
+        segments = []
+        pending: List[Tuple[str, str]] = []
+        n_lets = 0
+        for kind, payload in body_stmts:
+            if kind != 'GUARD':
+                pending.append((kind, payload))
+                continue
+            g_src, g_line = payload
+            ce = self._get_compiled_expr(g_src, is_condition=True)
+            if not self._is_pure_compiled_expr(ce):
+                return False
+            runners = self._compile_accelerate_body(pending) if pending else []
+            if runners is None or (pending and not runners):
+                return False
+            n_lets += len(runners)
+            segments.append((tuple(runners), ce, g_line))
+            pending = []
+        if pending:
+            runners = self._compile_accelerate_body(pending)
+            if not runners:
+                return False
+            n_lets += len(runners)
+            segments.append((tuple(runners), None, -1))
+        if not n_lets:
+            return False
+
+        # Loop frame the interpreter's WHILE handler would push (see
+        # ``cmd == 'WHILE'`` in ``_execute_statement``); guards only occur in
+        # the multi-line form, so WEND is on its own later line.
+        wend_line = self._run_while_wend.get(line_num)
+        if wend_line is None:
+            wend_line = self._find_matching_wend(line_num, line_nums)
+        if wend_line == -1:
+            return False
+        parts = stmt_parts if stmt_parts is not None else self._stmt_parts_for_line(line_num)
+        if parts and any(text for _, text in parts[stmt_index + 1:]):
+            body_line, body_stmt = line_num, stmt_index + 1
+        else:
+            idx = self._line_index(line_num, line_nums)
+            body_line = line_nums[idx + 1] if idx + 1 < len(line_nums) else line_num
+            body_stmt = 0
+        frame_args = dict(
+            body_line=body_line,
+            exit_line=self._next_line_num(wend_line, line_nums),
+            wend_line=wend_line,
+            condition=cond_src,
+            while_line=line_num,
+            label=stmt_label or '',
+            body_stmt=body_stmt,
+            while_stmt=stmt_index,
+        )
+        return ('guarded', cond_src, tuple(segments), exit_line, resume, frame_args)
+
+    def _is_pure_compiled_expr(self, ce: CompiledExpr) -> bool:
+        """True when re-evaluating ``ce`` cannot change state or give a new value.
+
+        Guards are tested in the fast loop and again by the interpreter's IF,
+        so RND, TIME, INKEY, string builtins and system vars are ruled out
+        (they compile to the slow fallback, ``needs_time`` or ``__sfn__``).
+        """
+        if ce.code is None or ce.use_fallback or ce.has_array:
+            return False
+        if ce.needs_time or ce.system_vars:
+            return False
+        return '__sfn__' not in ce.code.co_names
+
+    def _while_accel_guard(
+        self, if_line: int, line_nums: List[int], wend_line: int,
+    ) -> Optional[Tuple[str, int]]:
+        """``(cond, endif_line)`` when ``if_line`` opens a plain block IF.
+
+        The IF and its ENDIF must each be alone on their line, with no ELSE /
+        ELSEIF, and the block must close before the loop's WEND.
+        """
+        parts = [p for p in self._stmt_parts_for_line(if_line) if p[1]]
+        if len(parts) != 1:
             return None
-        cond_src = rest.strip()
+        cmd, rest = self._parse_command(parts[0][1])
+        if cmd != 'IF' or not self._is_structured_if(rest):
+            return None
+        try:
+            layout = self._get_if_block_layout(if_line, line_nums)
+        except Exception:
+            return None
+        if layout is None or len(layout.branch_starts) != 1:
+            return None
+        endif_line = layout.endif_line
+        if not (if_line < endif_line < wend_line):
+            return None
+        endif_parts = [p for p in self._stmt_parts_for_line(endif_line) if p[1]]
+        if len(endif_parts) != 1:
+            return None
+        cond_src = layout.branch_conds[0]
         if not cond_src:
-            self._while_assign_accel[line_num] = False
             return None
-        self._while_assign_accel[line_num] = (cond_src, runners, exit_line, resume)
-        return self._run_accelerated_while(cond_src, runners, exit_line, resume)
+        return cond_src, endif_line
+
+    def _run_guarded_while(self, plan, line_nums: List[int]) -> int:
+        _, cond_src, segments, exit_line, resume, frame_args = plan
+        ce = self._get_compiled_expr(cond_src, is_condition=True)
+        compiled = ce.code is not None and not ce.use_fallback
+        n = 0
+        while True:
+            if compiled:
+                if not ce.eval_condition(self):
+                    break
+            elif not self._eval_condition(cond_src):
+                break
+            for runners, guard, guard_line in segments:
+                for run in runners:
+                    run()
+                if guard is None:
+                    continue
+                try:
+                    hit = guard.eval_condition(self)
+                except Exception:
+                    # Let the interpreter's IF raise it (ON ERROR, messages).
+                    hit = True
+                if hit:
+                    self.stack.append(LoopFrame(
+                        'while',
+                        frame_args['body_line'],
+                        frame_args['exit_line'],
+                        frame_args['wend_line'],
+                        condition=frame_args['condition'],
+                        while_line=frame_args['while_line'],
+                        label=frame_args['label'],
+                        inline=False,
+                        body_stmt=frame_args['body_stmt'],
+                        next_stmt=-1,
+                        while_stmt=frame_args['while_stmt'],
+                    ))
+                    return guard_line
+            n += 1
+            if n & 8191 == 0:
+                self._check_user_interrupt()
+        if resume is not None:
+            self.resume_at = resume
+            return resume[0]
+        return exit_line if exit_line != -1 else -1
 
     def _run_accelerated_while(
         self,
@@ -1336,6 +1505,14 @@ class RuntimeExecutionMixin:
         scan = idx + 1
         while scan < wend_idx:
             ln = line_nums[scan]
+            guard = self._while_accel_guard(ln, line_nums, wend_line)
+            if guard is not None:
+                # Opaque IF … THEN / … / ENDIF block: the fast loop only tests
+                # the condition and hands the true case to the interpreter.
+                cond_src, endif_line = guard
+                body.append(('GUARD', (cond_src, ln)))
+                scan = self._line_index(endif_line, line_nums) + 1
+                continue
             for _, text in self._stmt_parts_for_line(ln):
                 if not add_stmt(text):
                     return None
@@ -3806,6 +3983,7 @@ class RuntimeExecutionMixin:
             try:
                 accelerated = self._try_accelerate_while_assign_body(
                     line_num, rest, line_nums, stmt_index, stmt_parts,
+                    stmt_label=stmt_label or '',
                 )
                 if accelerated is not None:
                     return accelerated
