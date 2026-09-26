@@ -1056,8 +1056,10 @@ class RuntimeIoMixin:
             # Normalize +0 → bare E like many BASICs: 1.23E+10 → 1.23E10 optional;
             # keep Python-style E+ for clarity unless bare E preferred.
             return text
-        # 15 significant digits: 0.1+0.2 prints 0.3, not float64 noise
-        # (0.30000000000000004); still exact enough to read PI back.
+        # bbc: @%=&90A default is G9 (PRINT PI → 3.14159265). Others: 15
+        # significant digits, so 0.1+0.2 prints 0.3, not float64 noise.
+        if self.config.dialect == 'bbc' and not self.bbc_at_percent:
+            return f'{value:.9g}'
         return f'{value:.15g}'
 
     def _split_implicit_print_items(self, item: str) -> List[str]:
@@ -1393,6 +1395,9 @@ class RuntimeIoMixin:
                 self._is_string_print_item(item) for item, _ in items
             )
             hex_mode = False
+            # BBC with default @%: numbers right-justified until a ; item.
+            bbc_fields = self.config.dialect == 'bbc' and not self.bbc_at_percent
+            bbc_justify = bbc_fields
             for index, (item, sep) in enumerate(items):
                 prev_sep = items[index - 1][1] if index > 0 else ''
                 if index > 0 and prev_sep == ',':
@@ -1420,12 +1425,14 @@ class RuntimeIoMixin:
                         continue
 
                 special = self._try_render_print_special(item)
+                is_numeric = False
                 if special is not None:
                     text = special
                 else:
                     if self._is_string_print_item(item_strip):
                         if self._print_item_has_top_level_relop(item_strip):
                             # "A"<"B" / A$="Q": a comparison is numeric (-1 / 0).
+                            is_numeric = True
                             try:
                                 text = self._format_number(self._eval_numeric(item_strip))
                             except Exception as exc:
@@ -1440,8 +1447,10 @@ class RuntimeIoMixin:
                                 else:
                                     text = self.eval_print_value(item)
                     elif hex_mode:
+                        is_numeric = True
                         text = self._bbc_hex_string(self._eval_numeric(item_strip))
                     else:
+                        is_numeric = True
                         text = self.eval_print_value(item)
 
                 use_number_field = (
@@ -1453,7 +1462,16 @@ class RuntimeIoMixin:
                 if use_number_field:
                     output.append(self._print_emit_number_field(text))
                 else:
+                    if bbc_justify and is_numeric and not text.startswith('?'):
+                        # BBC @%=&90A: right-justify in the 10-column field
+                        # until a ; (checked on ARM BBC BASIC V: PRINT A%).
+                        text = text.rjust(10)
                     output.append(self._print_emit(text))
+                if bbc_fields:
+                    if sep == ';':
+                        bbc_justify = False
+                    elif sep == ',':
+                        bbc_justify = True
 
                 if sep == "'":
                     output.append('\n')

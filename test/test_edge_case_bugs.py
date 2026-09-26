@@ -635,7 +635,7 @@ class CompiledMathBuiltinTests(unittest.TestCase):
             '50 PRINT A(9)\n',
             'bbc',
         )
-        lines = [line for line in out.splitlines() if not line.startswith('?')]
+        lines = [line.strip() for line in out.splitlines() if not line.startswith('?')]
         self.assertEqual(lines, ['10', '1.5'], msg=err)
         self.assertIn('subscript', (out + err).lower())
 
@@ -730,6 +730,42 @@ class ApostropheCommentTests(unittest.TestCase):
     def test_bbc_print_apostrophe_newlines(self):
         out, err = _run('10 PRINT "A" \' "B"\n', 'bbc')
         self.assertEqual(out, 'A\nB\n', msg=err)
+
+
+class BbcNumericPrintFieldTests(unittest.TestCase):
+    """@% = &90A default: G9 format, numbers right-justified in 10 columns."""
+
+    def _lines(self, program: str) -> list:
+        out, err = _run(program, 'bbc')
+        self.assertNotIn('?', out + err, msg=out + err)
+        return out.splitlines()
+
+    def test_plain_print_right_justifies(self):
+        # ARM BBC BASIC V: A%=3.7 : PRINT A% → "         3"
+        self.assertEqual(
+            self._lines('10 A% = 3.7 : PRINT A%\n20 PRINT -7\n30 PRINT 3.5\n'),
+            ['         3', '        -7', '       3.5'],
+        )
+
+    def test_semicolon_switches_off_justification(self):
+        self.assertEqual(
+            self._lines('10 PRINT "X";3\n20 PRINT 1;2\n30 PRINT 1;2,3\n'),
+            # , moves to the next 10-column field, then right-justifies in it.
+            ['X3', '         12', '         12' + ' ' * 18 + '3'],
+        )
+
+    def test_nine_significant_digits(self):
+        self.assertEqual(
+            self._lines('10 PRINT 1/3\n20 PRINT PI\n30 PRINT 0.1+0.2\n'),
+            ['0.333333333', '3.14159265', '       0.3'],
+        )
+
+    def test_str_dollar_does_not_pad(self):
+        self.assertEqual(self._lines('10 PRINT STR$(3);"|";STR$(1/3)\n'), ['3|0.333333333'])
+
+    def test_mini_keeps_unpadded_numbers(self):
+        out, err = _run('10 PRINT 3\n20 PRINT 1/3\n')
+        self.assertEqual(out.splitlines(), ['3', '0.333333333333333'], msg=err)
 
 
 class LoadLegacyEncodingTests(unittest.TestCase):

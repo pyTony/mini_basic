@@ -128,7 +128,7 @@ class BBCDialectSDLTests(unittest.TestCase):
             (10, 'PRINT 17 MOD 5'),
             (20, 'END'),
         ])
-        self.assertEqual(out, '2')
+        self.assertEqual(out.strip(), '2')  # BBC right-justifies in @% field
 
     def test_cls_print_auto_enables_pygame_for_bbc(self):
         interp = BASICInterpreter(

@@ -296,7 +296,8 @@ class MiniBASICTests(unittest.TestCase):
             buf = io.StringIO()
             with redirect_stdout(buf):
                 interp.run()
-            self.assertEqual(buf.getvalue().strip(), '1\n2\n3', msg=dialect)
+            lines = [line.strip() for line in buf.getvalue().strip().splitlines()]
+            self.assertEqual(lines, ['1', '2', '3'], msg=dialect)
 
     def test_immediate_time_for_next_print_chain(self):
         interp = self.make_interp()
@@ -2570,7 +2571,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "10\n20\n")
+        self.assertEqual(buf.getvalue(), "        10\n        20\n")  # BBC @% field
         self.assertTrue(interp._identifiers_case_sensitive())
 
     @pytest.mark.mits
@@ -2849,7 +2850,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "120\n")
+        self.assertEqual(buf.getvalue(), "       120\n")  # BBC @% field
 
     def test_multiline_def_fn_end_if_and_end_def(self):
         """Case-sensitive mini: keywords uppercase; END IF / END DEF closers."""
