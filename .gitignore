@@ -145,3 +145,4 @@ status.html
 
 # Fetched third-party MBASIC 5.21 golden tests (not vendored)
 test/corpus/mbasic521/
+BASIC-M6502-CPORT/
