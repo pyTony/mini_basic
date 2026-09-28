@@ -227,6 +227,7 @@ class RuntimeCoreMixin:
         # Single-line IF text -> (then_part, else_part, condition, then_code).
         self._if_parse_cache: Dict[Tuple[str, str], Tuple[str, Optional[str], str, str]] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
+        self._inkey_scan_held: Optional[Tuple[str, float]] = None
         self._ansi_bg_cache: Dict[int, str] = {}
         self._ansi_reset_text: Optional[str] = None
         self._print_line_parts: List[str] = []

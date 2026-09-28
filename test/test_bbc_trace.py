@@ -8,6 +8,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
 from mini_basic import BASICInterpreter, InterpreterConfig
+from mini_basic.runtime import main as runtime_main
 
 import pytest
 
@@ -126,6 +127,22 @@ class BbcTraceTests(unittest.TestCase):
         self.assertIn('Break in 30', out)
         self.assertTrue(interp.stopped)
         self.assertEqual(interp.variables.get('X'), 1.0)
+
+    def test_cli_trace_flag_traces_loaded_program(self) -> None:
+        # Regression: main() set interp.trace_enabled before loading the
+        # target file, but load() calls new() which resets trace state,
+        # so `--trace` silently did nothing (TRACE ON in the REPL, entered
+        # after LOAD, worked fine). Trace must survive the load.
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'prog.bas')
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write('10 PRINT 1\n20 END\n')
+            out = io.StringIO()
+            err = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                runtime_main([path, '--trace', '--quiet'])
+            self.assertIn('[10]', err.getvalue())
+            self.assertIn('[20]', err.getvalue())
 
     def test_lvar_immediate_after_stop(self) -> None:
         interp = _interp()
