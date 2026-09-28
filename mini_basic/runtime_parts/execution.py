@@ -1145,6 +1145,8 @@ class RuntimeExecutionMixin:
                             self._display.move_to(x, y)
                         elif move:
                             self._display.plot_code(4, x, y)
+                        elif self.config.dialect == 'mini':
+                            self._display.draw_relative(x, y)
                         else:
                             self._display.draw_absolute(x, y)
                     return run
@@ -5239,11 +5241,9 @@ class RuntimeExecutionMixin:
                 dy = int(self._eval_numeric(args[1]))
                 self._ensure_display()
                 if self._display_enabled():
-                    if by_match:
-                        # DRAW BY — relative segment (PLOT 1).
+                    if by_match or self.config.dialect == 'mini':
                         self._display.draw_relative(dx, dy)
                     else:
-                        # BB4W DRAW x,y is absolute (PLOT 5).
                         self._display.draw_absolute(dx, dy)
                     self._sync_graphics()
             except ProgramExit:

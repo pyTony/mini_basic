@@ -662,11 +662,6 @@ class BBCGraphics:
     def _put_screen_pixel(self, sx: int, sy: int, gcol: GColState) -> None:
         if not (0 <= sx < self.width and 0 <= sy < self.height):
             return
-        clip = self._clip_disc
-        if clip is not None:
-            scx, scy, srx, sry = clip
-            if not pixel_inside_disc_ellipse(sx, sy, scx, scy, srx, sry):
-                return
         mode, colour = gcol
         old = int(self.pixels[sy][sx])
         new = apply_gcol(old, colour, mode)
@@ -1265,8 +1260,23 @@ class BBCGraphics:
             (pts[i][0], pts[i][1], pts[i - 1][0], pts[i - 1][1])
             for i in range(len(pts))
         ]
+        px_min = int(min(p[0] for p in pts))
+        px_max = int(max(p[0] for p in pts))
         y_start = int(min(p[1] for p in pts))
         y_end = int(max(p[1] for p in pts))
+
+        disc_clip_active = False
+        if self._clip_disc is not None:
+            scx, scy, srx, sry = self._clip_disc
+            # Only apply disc clip if polygon overlaps the disc's bounding box
+            if not (
+                px_max < scx - srx
+                or px_min > scx + srx
+                or y_end < scy - sry
+                or y_start > scy + sry
+            ):
+                disc_clip_active = True
+
         for y in range(y_start, y_end + 1):
             xs: List[float] = []
             for xa, ya, xb, yb in edges:
@@ -1275,7 +1285,7 @@ class BBCGraphics:
                 continue
             x_left = int(math.floor(min(xs)))
             x_right = int(math.ceil(max(xs)))
-            clip_span = self._disc_x_span(y)
+            clip_span = self._disc_x_span(y) if disc_clip_active else None
             if clip_span is not None:
                 x_left = max(x_left, clip_span[0])
                 x_right = min(x_right, clip_span[1])

@@ -126,6 +126,21 @@ for _ch, _code in zip('0123456789', (-40, -49, -50, -18, -19, -20, -53, -37, -22
     _BBC_NEGATIVE_INKEY_KEYS[_code] = ('K_' + _ch,)
 del _ch, _code
 
+# Mouse buttons: INKEY(-10) left, -11 middle, -12 right (pygame get_pressed index).
+_BBC_INKEY_MOUSE = {-10: 0, -11: 1, -12: 2}
+# Terminal fallback: the pending character stands for its key.
+_BBC_INKEY_CHARS = {
+    ' ': -99, '\r': -74, '\n': -74, '\x1b': -113, '\t': -97, '\x7f': -90, '\b': -90,
+    '-': -24, '=': -25, '[': -57, ']': -89, ';': -88, "'": -73, ',': -103, '.': -104,
+    '/': -105, '\\': -121,
+}
+for _code, _names in _BBC_NEGATIVE_INKEY_KEYS.items():
+    _name = _names[0]
+    if len(_name) == 3 and _name[2].isalnum():  # K_a / K_7
+        _BBC_INKEY_CHARS.setdefault(_name[2], _code)
+del _code, _names, _name
+# How long a terminal key counts as "held" for repeated scans in one frame.
+_INKEY_TERMINAL_HOLD_S = 0.1
 
 class RuntimeGraphicsMixin:
     """Mixin providing graphics-related BASICInterpreter methods."""
@@ -1058,30 +1073,43 @@ class RuntimeGraphicsMixin:
     def _inkey_code(self) -> float:
         text = self._inkey_value()
         return float(ord(text[0])) if text else -1.0
-
+    
     def _inkey_bbc_negative_scan(self, scan_code: int) -> float:
         """BBC INKEY(-n): TRUE (-1) while that key is held, else FALSE (0).
 
-        INKEY(-256) is the platform id, not a key scan."""
+        INKEY(-256) is the platform id, not a key scan. In a pygame window the
+        real key/mouse state is read; in a terminal the pending character
+        stands for its key and stays "down" briefly so one frame can scan
+        several keys."""
         if scan_code == -256:
             return float(0x73)  # platform id: BBCSDL 's' (BB4W 'W' = &57)
-        if not self._display_enabled():
+        if self._display_enabled():
+            if hasattr(self._display, 'pump_events'):
+                self._display.pump_events()
+            pygame_mod = getattr(self._display, '_pygame', None)
+            if pygame_mod is not None and pygame_mod.get_init():
+                pygame_mod.event.pump()
+                button = _BBC_INKEY_MOUSE.get(scan_code)
+                if button is not None:
+                    return -1.0 if pygame_mod.mouse.get_pressed()[button] else 0.0
+                pressed = pygame_mod.key.get_pressed()
+                for name in _BBC_NEGATIVE_INKEY_KEYS.get(scan_code, ()):
+                    key = getattr(pygame_mod, name, None)
+                    if key is not None and pressed[key]:
+                        return -1.0
+                return 0.0
             return 0.0
-        if hasattr(self._display, 'pump_events'):
-            self._display.pump_events()
-        pygame_mod = getattr(self._display, '_pygame', None)
-        if pygame_mod is None or not pygame_mod.get_init():
+        now = time.monotonic()
+        held = getattr(self, '_inkey_scan_held', None)
+        if held is None or now - held[1] > _INKEY_TERMINAL_HOLD_S:
+            text = self._inkey_value()
+            held = (text[0], now) if text else None
+            self._inkey_scan_held = held
+        if held is None:
             return 0.0
-        names = _BBC_NEGATIVE_INKEY_KEYS.get(scan_code)
-        if names is None:
-            return 0.0
-        pygame_mod.event.pump()
-        pressed = pygame_mod.key.get_pressed()
-        for name in names:
-            code = getattr(pygame_mod, name, None)
-            if code is not None and pressed[code]:
-                return -1.0
-        return 0.0
+        char = held[0]
+        code = _BBC_INKEY_CHARS.get(char, _BBC_INKEY_CHARS.get(char.lower()))
+        return -1.0 if code == scan_code else 0.0
 
     def _inkey_code_wait(self, timeout_cs: float) -> float:
         if timeout_cs < 0:
