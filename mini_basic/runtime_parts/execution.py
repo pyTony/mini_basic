@@ -18,8 +18,7 @@ import time
 
 from ..config import DEFAULT_CONFIG, InterpreterConfig, SYSTEM_VAR_SPEC
 from ..dialect_hint import DialectHint, parse_comment_dialect_line, split_dialect_hints
-from ..constants import (
-    CLI_EXIT_WORDS as _CLI_EXIT_WORDS,
+from ..constants import (CLI_EXIT_WORDS as _CLI_EXIT_WORDS,
     EXIT_HOLD_CONSOLE,
     EXPR_RESERVED_WORDS as _EXPR_RESERVED_WORDS,
     NUMERIC_BUILTIN_FUNCS as _NUMERIC_BUILTIN_FUNCS,
@@ -1043,8 +1042,13 @@ class RuntimeExecutionMixin:
                         self._bbc_custom_colours[index] = rgb
                         if self._display_enabled() and hasattr(self._display, 'set_palette_rgb'):
                             self._display.set_palette_rgb(index, rgb)
+                            gfx = getattr(self._display, '_gfx', None)
                             apply_tc = getattr(self._display, '_apply_gfx_truecolour', None)
-                            if callable(apply_tc):
+                            if (
+                                gfx is not None
+                                and callable(apply_tc)
+                                and getattr(gfx, 'gcol_fg', (0, -1))[1] == index
+                            ):
                                 apply_tc(index)
                     return run
 
@@ -2895,18 +2899,37 @@ class RuntimeExecutionMixin:
             # Still create a tiny valid BMP so DISPLAY path can run headless.
             self._write_rgb_bmp(path, [[(0, 0, 0)]], 1, 1)
             return
-        # Capture from the graphics pixel buffer only — do not present().
-        # piechart draws under *REFRESH OFF then GSAVE/CLS/DISPLAY-squashed;
-        # a force present here flashed the upright circle before the tilted blit.
+
+        # Ensure graphics raster data is composited onto disp._canvas under *REFRESH OFF
+        if hasattr(disp, '_render_graphics_mode'):
+            disp._render_graphics_mode(force_full=True)
+
         rgb_rows = self._capture_screen_rect_rgb(sx, sy, sw, sh)
         self._write_rgb_bmp(path, rgb_rows, sw, sh)
-
     def _capture_screen_rect_rgb(
         self, sx: int, sy: int, sw: int, sh: int
     ) -> List[List[Tuple[int, int, int]]]:
         disp = self._display
+        if disp is not None:
+            canvas = getattr(disp, '_canvas', None)
+            src = canvas if canvas is not None else getattr(disp, '_screen', None)
+            if src is not None:
+                import pygame
+                surf_w, surf_h = src.get_size()
+                rect = pygame.Rect(sx, sy, sw, sh).clamp(pygame.Rect(0, 0, surf_w, surf_h))
+                sub = src.subsurface(rect)
+                rows = []
+                for y in range(rect.height):
+                    row = []
+                    for x in range(rect.width):
+                        c = sub.get_at((x, y))
+                        row.append((c.r, c.g, c.b))
+                    rows.append(row)
+                return rows
+
+        # Fallback for headless/no-surface mode
         gfx = getattr(disp, '_gfx', None)
-        rows: List[List[Tuple[int, int, int]]] = []
+        rows = []
         if gfx is None:
             for _ in range(max(1, sh)):
                 rows.append([(0, 0, 0)] * max(1, sw))
@@ -2918,20 +2941,16 @@ class RuntimeExecutionMixin:
         gw = int(gfx.width)
         for row in range(sh):
             py = sy + row
-            line: List[Tuple[int, int, int]] = []
+            line = []
             for col in range(sw):
                 px = sx + col
                 if 0 <= px < gw and 0 <= py < gh:
                     idx = int(gfx.pixels[py][px])
                     custom = palette.get(idx)
                     if custom is not None:
-                        line.append(tuple(int(c) for c in custom[:3]))  # type: ignore
+                        line.append(tuple(int(c) for c in custom[:3]))
                     else:
-                        rgb_layer = getattr(gfx, 'rgb_pixels', None)
-                        if rgb_layer is not None and rgb_layer[py][px] is not None:
-                            line.append(tuple(int(c) for c in rgb_layer[py][px][:3]))  # type: ignore
-                        else:
-                            line.append(colour_to_rgb(idx))
+                        line.append(colour_to_rgb(idx))
                 else:
                     line.append((0, 0, 0))
             rows.append(line)
@@ -2991,6 +3010,11 @@ class RuntimeExecutionMixin:
         if not self._display_enabled() or self._display is None:
             return
         disp = self._display
+        print(f"[DEBUG GSAVE] OS coords: ({x}, {y}, {w}, {h}) -> Screen rect: sx={sx}, sy={sy}, sw={sw}, sh={sh}")
+        if disp is not None:
+            src = getattr(disp, '_canvas', None) or getattr(disp, '_screen', None)
+            if src:
+                print(f"[DEBUG GSAVE] Target surface size: {src.get_size()}")
         try:
             import pygame
         except ImportError as exc:

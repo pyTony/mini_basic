@@ -1215,6 +1215,7 @@ class BBCGraphics:
         patch = self.pixels[y_lo : y_hi + 1, x_lo : x_hi + 1]
         patch[mask] = colour_b
         n = int(mask.sum())
+
         if true_rgb is not None:
             layer = self._ensure_rgb_pixels()
             ys_i, xs_i = np.nonzero(mask)
@@ -1222,8 +1223,8 @@ class BBCGraphics:
                 py, px = y_lo + j, x_lo + i
                 layer[py][px] = true_rgb
                 self.rgb_dirty.add((px, py))
-        elif self.rgb_dirty and self.rgb_pixels is not None:
-            # Only scrub overrides if any exist (piechart uses palette only).
+        elif self.rgb_pixels is not None:
+            # Clear baked CLS/CLG background RGB so the palette colour displays
             ys_i, xs_i = np.nonzero(mask)
             for j, i in zip(ys_i.tolist(), xs_i.tolist()):
                 py, px = y_lo + j, x_lo + i

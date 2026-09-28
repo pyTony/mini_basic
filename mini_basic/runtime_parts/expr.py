@@ -4137,6 +4137,7 @@ class RuntimeExprMixin:
                 # Whole-array compound: light() /= s, Value() *= s, Colour&() OR= 8
                 key = self._resolve_array_key(base, kind)
                 if key not in self.array_storage:
+                    print(f"[DEBUG COMPOUND] base={base!r} kind={kind!r} key={key!r} storage_keys={list(self.array_storage.keys())!r}")
                     raise ValueError('unknown array')
                 bounds, lb, data = self.array_storage[key]
                 if not isinstance(data, list):
