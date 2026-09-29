@@ -109,7 +109,16 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 
 Anything else (`LOAD`, `MDISPLAY`, `FONT`, `SPOOL`, `CAT`, `…`) is **ignored with no error**. Russell `clock.bbc` needs `DIM … EXT#` plus `OSCLI "LOAD …"` / `MDISPLAY` into a heap; that is why it is not a regular example. Use `basics/Clock.bas` or `jclock`.
 
-`SYS "SDL_…"`, `SYS "OS_…"`, and SYS used as a function all report `? Out of scope: SYS (RISC OS / OS call)`. Same class as `CALL`, `USR`, and `INSTALL`. `ON SYS` is kept only so the colon tail is not split; the event is not delivered.
+`SYS` is **not** a general FFI: there is no ctypes/DLL bridge, no address space to pass pointers into, and no BBCSDL window. Instead `runtime_parts/sys_calls.py` implements a small named table, enough for timing-driven BBCSDL demos (swirl.bbc):
+
+| Name(s) | Behaviour |
+|---------|-----------|
+| `SDL_GetTicks`, `SDL_GetTicks64`, `timeGetTime`, `GetTickCount` | Milliseconds since interpreter start. |
+| `SDL_GetPerformanceCounter` / `SDL_GetPerformanceFrequency` | Nanosecond counter / fixed 1e9 frequency. |
+| `SDL_Delay`, `Sleep` | Blocking delay in ms (first argument). |
+| `SDL_GetCurrentDisplayMode`, `SDL_GetDesktopDisplayMode` | Fills a `DIM mode{fmt%,w%,h%,r%,d%}`-style struct with the desktop size (from pygame if already loaded, else a fixed 1920×1080) and a 60 Hz refresh rate. |
+
+The optional `TO var` result works, including the glued form (`SYS G$TO T0%`). Any other name (`SYS "OS_…"`, `SYS "SDL_RenderCopy"`, window/GL calls, …) still reports `? Out of scope: SYS (RISC OS / OS call)`. Same class as `CALL`, `USR`, and `INSTALL`. `ON SYS` is kept only so the colon tail is not split; the event is not delivered.
 
 ### 3.5 Data
 
@@ -234,9 +243,9 @@ From `mini_basic/features/deferred.py` and project policy:
 |------|----------|
 | Sound | Real audio synthesis (**polly** deferred). Stub behaviour: §4.4 (`ENVELOPE` no-op; `SOUND` silent + optional short wait) |
 | Desktop | RISC OS WIMP, MENU, WINDOW, rich `ON MOUSE` UI |
-| OS FFI | `SYS` Windows API, `INSTALL` token libraries |
+| OS FFI | General `SYS` ctypes/DLL bridge; `INSTALL` token libraries. A small named `SYS` table exists — see [OSCLI and SYS](#oscli-and-sys) |
 | Low-level | Inline assembler, `CALL`/`USR` machine code |
-| Structures | Full `DIM struct{}` / TYPE as in BB4W |
+| Structures | Nested `{}` members, struct arrays `s{(n)}`, structs as PROC/FN parameters, `DIM s{}=proto{}`. Flat structs (`DIM name{a%,b$,c}`, `name.a%` read/assign) already work in both `mini` and `bbc` |
 | Teletext remainder | Boxed / full SAA5050 (double-height + conceal implemented) |
 | Physics / net | Box2D bindings, Ceefax HTTP fetch |
 | Compiler | Crunch / compile-to-native |

@@ -188,6 +188,25 @@ class ProcNumericNameTests(unittest.TestCase):
             i.run()
         self.assertEqual(buf.getvalue().strip(), 'ok-x')
 
+    def test_single_line_colon_joined_proc_body(self):
+        """DEF PROCname:stmt:stmt:ENDPROC all on one physical line (pointer.bbc)."""
+        i = self._bbc()
+        lines = [
+            (10, 'N%=0'),
+            (20, 'PROCCLER'),
+            (30, 'PRINT N%'),
+            (40, 'END'),
+            (100, 'DEF PROCCLER:N%=1:N%=N%+1:ENDPROC'),
+        ]
+        for ln, st in lines:
+            i.set_program_line(ln, st)
+        i._prepare_run()
+        self.assertIn('CLER', i.user_procedures)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            i.run()
+        self.assertEqual(buf.getvalue().strip(), '2')
+
     def test_defproc4_glued_header(self):
         i = self._bbc()
         lines = [

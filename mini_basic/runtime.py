@@ -117,11 +117,11 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
     _RE_COND_NE = _RE_COND_NE
     _RE_COND_EQ = _RE_COND_EQ
     _RE_PARSE_CMD = re.compile(
-        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|TIMING|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
+        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|ELLIPSE|MOUSE|WIDTH|TRACE|TIMING|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SYS(?![A-Za-z0-9_])|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
         re.IGNORECASE,
     )
     _RE_PARSE_CMD_BBC = re.compile(
-        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|MOUSE|WIDTH|TRACE|TIMING|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|OSCLI|CHAIN|RUN|WAIT|INSTALL|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
+        r'^(PRINT#|INPUT#|WRITE#|CLOSE#|BPUT#|BGET#|PRINT(?!#)|INPUT(?!#)|WRITE(?!#)|ENDIF|ELSEIF|ELIF|ELSE|ENDCASE|OTHERWISE|WHEN|CASE|ENDPROC|END(?!IF)|REPEAT|REPORT|UNTIL|EXIT|FOR|NEXT|WHILE|WEND|ENDWHILE|BREAK|CONTINUE|RESTORE|READ|DATA|DEF|DIM|LOCAL|LET|IF|GOTO|GOSUB|RESUME|RETURN|REM|MODE|VDU|COLOUR|COLOR|CLS|CLG|GCOL|RECTANGLE|CIRCLE|ELLIPSE|MOUSE|WIDTH|TRACE|TIMING|LVAR|OFF|ON|MOVE|DRAW|LINE|ORIGIN|PLOT|SPRITEDEF|SPRITE|STOP|QUIT|OSCLI|CHAIN|RUN|WAIT|INSTALL|SYS(?![A-Za-z0-9_])|SOUND|ENVELOPE|KILL|ERASE|SWAP)\s*(.*)$',
     )
     _RE_PROC_CALL = _RE_PROC_CALL
     _RE_DEF_PROC = _RE_DEF_PROC
@@ -169,7 +169,6 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         # SOUND: timing-only (no audio). ENVELOPE: accepted no-op (welcome.bbc).
     }
     _NOT_IMPLEMENTED_STATEMENTS = {
-        'ELLIPSE': 'ELLIPSE (and ELLIPSE FILL)',
         'FLOOD': 'FLOOD (flood fill)',
         # Add others as identified (e.g. some advanced VDU, VOICE etc. if top-level)
     }
@@ -183,7 +182,7 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
     _IF_THEN_LINE_DIALECTS = frozenset({'mini', 'mits', 'bbc', 'commodore'})
     _GRAPHICS_CMDS = frozenset({
         'MODE', 'CLG', 'GCOL', 'MOVE', 'DRAW', 'ORIGIN', 'PLOT',
-        'SPRITEDEF', 'SPRITE', 'RECTANGLE', 'CIRCLE',
+        'SPRITEDEF', 'SPRITE', 'RECTANGLE', 'CIRCLE', 'ELLIPSE',
     })
     _BBC_DISPLAY_CMDS = frozenset({
         'MODE', 'CLS', 'CLG', 'COLOUR', 'COLOR', 'VDU', 'WAIT',
@@ -215,7 +214,7 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE',
         'GOTO', 'GOSUB', 'RESUME', 'RETURN',
         'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
-        'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE', 'CIRCLE', 'MOUSE',
+        'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE', 'CIRCLE', 'ELLIPSE', 'MOUSE',
         'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW',
         'ORIGIN', 'PLOT', 'SPRITEDEF', 'SPRITE', 'STOP', 'OSCLI', 'CHAIN', 'RUN', 'WAIT',
         'KILL', 'ERASE', 'LINE', 'TRACE', 'TIMING', 'LVAR', 'SWAP',
@@ -1007,9 +1006,13 @@ def _list_bas_file(
     return 0
 
 
-def _run_bas_file(interp: BASICInterpreter, path: str) -> int:
+def _run_bas_file(interp: BASICInterpreter, path: str, *, trace: bool = False) -> int:
     if _load_bas_file(interp, path) != 0:
         return 1
+    # load() resets trace state via new(), so a CLI --trace request must be
+    # (re)applied after loading, not before (mirrors typing TRACE ON after LOAD).
+    if trace:
+        interp.trace_enabled = True
     # Loaded: is printed on stderr. On Windows the console cursor can stay on
     # that line, so the first PRINT TAB pads beside the path (bacarrat title).
     try:
@@ -1455,7 +1458,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             status = (
                 _run_command_script(interp, target)
                 if kind == 'commands'
-                else _run_bas_file(interp, target)
+                else _run_bas_file(interp, target, trace=trace)
             )
         except BasicRuntimeError:
             # Shouldn't normally reach here (run() catches), but be safe

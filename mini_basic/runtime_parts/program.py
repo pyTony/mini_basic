@@ -486,7 +486,7 @@ class RuntimeProgramMixin:
             'OTHERWISE', 'ENDCASE', 'SELECT', 'GOTO', 'GOSUB', 'RESUME', 'RETURN',
             'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
             'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
-            'CIRCLE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
+            'CIRCLE', 'ELLIPSE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
             'PLOT', 'STOP', 'CHAIN', 'RUN', 'WAIT', 'KILL', 'ERASE', 'LINE',
             'TRACE', 'SWAP', 'LOCAL', 'RANDOMIZE', 'OPEN', 'CLOSE', 'SOUND',
             'BEEP', 'LOCATE', 'SUB', 'ERROR', 'OPTION', 'BASE', 'CLEAR', 'TAB',
@@ -628,6 +628,13 @@ class RuntimeProgramMixin:
                         folded = True
                 elif nxt in ('%', '!', '#', '&') or (nxt == '$'):
                     folded = False
+                elif re.match(r'\.[A-Za-z_]', statement[end:end + 2]):
+                    # Structure member: mode.w% = 640 is not the MODE statement.
+                    folded = False
+                elif nxt == '{':
+                    # Struct / struct-array variable: circle{(0)}.r% = 7 is not
+                    # the CIRCLE statement (which is never followed by '{').
+                    folded = False
                 elif stmt_start and upper in self._MINI_FOLD_STMT_WORDS:
                     # print = 5 / for(3) = 1 are variables, not statements.
                     folded = not (nxt == '=' or (nxt == '(' and upper not in (
@@ -691,7 +698,12 @@ class RuntimeProgramMixin:
                 statement = re.sub(
                     r'\bWEND\b', 'ENDWHILE', statement, flags=re.IGNORECASE,
                 )
-        statement = self._expand_question_print(statement)
+        # BBC ?addr=v is a byte store, not PRINT shorthand.
+        if not (
+            self.config.dialect == 'bbc'
+            and self._BBC_INDIR_LVALUE_RE.match(statement)
+        ):
+            statement = self._expand_question_print(statement)
         # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):
             statement = self._map_outside_strings(
@@ -1032,12 +1044,15 @@ class RuntimeProgramMixin:
                             self._run_repeat_until[line_num] = (until_line, until_cond)
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
+        self._registered_int_vars = set()
+        self._registered_float_vars = set()
         self._compiled_expr_cache = {}
         self._parse_command_cache = {}
         self._clear_string_plan_caches()
         self._assign_parse_cache = {}
         self._stmt_fast_runners = {}
         self._while_assign_accel = {}
+        self._if_parse_cache = {}
         if self.config.use_compiled_exprs:
             self._warm_compiled_exprs()
         self._build_data_table()
@@ -1801,7 +1816,12 @@ class RuntimeProgramMixin:
         else:
             line = re.sub(r'\bENDWHILE\b', 'WEND', line, flags=re.IGNORECASE)
             line = self._normalize_two_word_closers(line)
-        line = self._expand_question_print(line)
+        # BBC ?addr=v is a byte store, not PRINT shorthand.
+        if not (
+            self.config.dialect == 'bbc'
+            and self._BBC_INDIR_LVALUE_RE.match(line)
+        ):
+            line = self._expand_question_print(line)
         proc_match = self._RE_PROC_CALL.match(line)
         if proc_match:
             name = proc_match.group(1)
@@ -1961,7 +1981,7 @@ class RuntimeProgramMixin:
         # Use full dotted+suffix as the storage key for uniqueness (x vs x% on same struct).
         if '.' in token and not token.startswith('.'):
             # Match optional suffix only at end; member names can have the suffix attached after dot.
-            m = re.match(r'^(.+?)(%%|%|\$\$|\$|!|#)?$', token)
+            m = re.match(r'^(.+?)(%%|%|&|\$\$|\$|!|#)?$', token)
             if m:
                 dotted = m.group(1)
                 suf = m.group(2) or ''
@@ -1969,7 +1989,7 @@ class RuntimeProgramMixin:
                     full_key = dotted + suf
                     if suf in ('$$', '$'):
                         return full_key, 'str'
-                    if suf in ('%%', '%'):
+                    if suf in ('%%', '%', '&'):
                         return full_key, 'int'
                     if suf in ('!', '#'):
                         return full_key, 'float'
@@ -1986,8 +2006,9 @@ class RuntimeProgramMixin:
         if token.endswith('%'):
             return self._validate_var_base(token[:-1]), 'int'
         # BBCSDL byte scalar/array type suffix
+        # Storage key keeps the suffix so a& and a% do not collide.
         if token.endswith('&'):
-            return self._validate_var_base(token[:-1]), 'int'
+            return self._validate_var_base(token[:-1]) + '&', 'int'
         if token.endswith('!') or token.endswith('#'):
             return self._validate_var_base(token[:-1]), 'float'
         base = self._validate_var_base(token)
@@ -2208,10 +2229,37 @@ class RuntimeProgramMixin:
             if stmt_parts is None:
                 stmt_parts = self._parse_line_statements(self.program[line_num])
             handled = False
-            for _, text in stmt_parts:
+            for stmt_pos, (_, text) in enumerate(stmt_parts):
                 cmd, rest = self._parse_command(text)
                 if cmd != 'DEF':
                     continue
+                # A colon-joined one-liner (``DEF PROCfoo:...:ENDPROC``) is split
+                # into separate statements by _parse_line_statements, so the body
+                # after the header lands in later stmt_parts entries rather than
+                # in ``rest`` itself. Reconstruct the colon-joined text here (up
+                # to and including a same-nesting-level ENDPROC) so it parses the
+                # same way as a space-joined one-liner
+                # (``DEF PROCfoo(...) ... ENDPROC``), landing in header_stmt.
+                if stmt_pos + 1 < len(stmt_parts) and not re.search(
+                    r'\bENDPROC\b', rest, re.IGNORECASE
+                ):
+                    nest = 0
+                    end_pos = None
+                    for later_pos in range(stmt_pos + 1, len(stmt_parts)):
+                        _, later_text = stmt_parts[later_pos]
+                        later_cmd, later_rest = self._parse_command(later_text)
+                        if later_cmd == 'DEF' and self._RE_DEF_PROC.match((later_rest or '').strip()):
+                            nest += 1
+                            continue
+                        if later_cmd == 'ENDPROC':
+                            if nest == 0:
+                                end_pos = later_pos
+                                break
+                            nest -= 1
+                    if end_pos is not None:
+                        rest = ':'.join(
+                            [rest] + [stmt_parts[p][1] for p in range(stmt_pos + 1, end_pos + 1)]
+                        )
                 try:
                     proc = self._parse_def_proc_header(rest)
                 except Exception:
@@ -2232,6 +2280,7 @@ class RuntimeProgramMixin:
                     procedures[proc.name] = proc
                     skip_lines.add(line_num)
                     handled = True
+                    idx += 1
                     break
                 if end_line is None or idx + 1 >= len(line_nums):
                     break
@@ -2745,6 +2794,10 @@ class RuntimeProgramMixin:
         label = self._normalize_loop_label(token)
         return label, label is not None
 
+    _RE_STRUCT_LHS_TAIL = re.compile(
+        r'(?:\{\([^{}]*\)\})?(?:\.[A-Za-z_][A-Za-z0-9_]*)*(?:%%|%|\$\$|\$|&)?'
+    )
+
     def _parse_assignment_statement(self, line: str) -> Tuple[str, str, str]:
         """Return (lvalue, operator, rhs) for = / += / -= / *= / /= / OR= / AND= / …
 
@@ -2775,6 +2828,18 @@ class RuntimeProgramMixin:
 
         flags = self._identifier_re_flags()
         name_m = re.match(rf'^({self._VAR_BASE_PATTERN}[%$!#&]?)', text, flags=flags)
+        struct_m = None
+        if name_m and name_m.end() < len(text) and text[name_m.end()] in '{.':
+            struct_m = self._RE_STRUCT_LHS_TAIL.match(text, name_m.end())
+        if struct_m is not None and struct_m.end() > name_m.end():
+            # Struct member / whole struct-array element: Ball{(i%)}.Pos.x += v
+            lhs = text[: struct_m.end()].strip()
+            rest = text[struct_m.end() :].lstrip()
+            op_m = re.match(r'^([+\-*/]=)\s*(.+)$', rest, flags=re.DOTALL)
+            if op_m:
+                return _remember((lhs, op_m.group(1), op_m.group(2).strip()))
+            if rest.startswith('=') and not rest.startswith('=='):
+                return _remember((lhs, '=', rest[1:].strip()))
         if name_m:
             pos = name_m.end()
             # Optional array index / whole-array (): balanced scan, not greedy .*

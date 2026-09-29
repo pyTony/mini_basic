@@ -1873,6 +1873,10 @@ class MiniBASICTests(unittest.TestCase):
         ]
         self.assertEqual(self.run_program(lines), "yes")
 
+    @unittest.skipUnless(
+        os.name == 'nt',
+        'backslash path joining is a Windows-only resolve_path behaviour',
+    )
     def test_resolve_path_relative_and_absolute(self):
         interp = self.make_interp()
         interp.working_dir = r'C:\Projects\basic'
@@ -3038,9 +3042,11 @@ class MiniBASICTests(unittest.TestCase):
 
     def test_rnd_neg_time_seeds(self):
         lines = [
-            (10, 'LET S = RND(-TIME)'),
-            (20, 'IF S <> -TIME THEN PRINT "bad" ELSE PRINT "ok"'),
-            (30, 'END'),
+            (10, 'LET T = TIME'),
+            (20, 'IF T = 0 THEN T = 1'),
+            (30, 'LET S = RND(-T)'),
+            (40, 'IF S <> -T THEN PRINT "bad" ELSE PRINT "ok"'),
+            (50, 'END'),
         ]
         self.assertEqual(self.run_program(lines), 'ok')
 

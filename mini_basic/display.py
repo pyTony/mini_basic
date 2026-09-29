@@ -139,7 +139,7 @@ class DisplayBackend(ABC):
         ...
 
     @abstractmethod
-    def set_colour(self, colour: int) -> None:
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
         ...
 
     @abstractmethod
@@ -179,6 +179,20 @@ class DisplayBackend(ABC):
     def fill_rectangle(self, x: int, y: int, width: int, height: int) -> None:
         return
 
+    def draw_rectangle(self, x: int, y: int, width: int, height: int) -> None:
+        return
+
+    def draw_ellipse(
+        self, x: int, y: int, a: int, b: int, angle: float = 0.0, filled: bool = False,
+    ) -> None:
+        return
+
+    def transfer_rectangle(
+        self, x: int, y: int, width: int, height: int,
+        dest_x: int, dest_y: int, mode: str = 'copy',
+    ) -> None:
+        return
+
     def clear_graphics(self) -> None:
         return
 
@@ -189,6 +203,9 @@ class DisplayBackend(ABC):
         return
 
     def set_palette_rgb(self, index: int, rgb: Tuple[int, int, int]) -> None:
+        return
+
+    def set_line_thickness(self, pixels: int) -> None:
         return
 
     def point_colour(self, x: int, y: int) -> int:
@@ -286,7 +303,7 @@ class NullDisplay(DisplayBackend):
     def set_text_dimensions(self, cols: int, rows: int) -> None:
         return
 
-    def set_colour(self, colour: int) -> None:
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
         return
 
     def goto(self, row: int, col: int) -> None:
@@ -507,17 +524,23 @@ class TerminalDisplay(DisplayBackend):
     def set_mode(self, mode: int) -> None:
         return
 
-    def set_colour(self, colour: int) -> None:
-        """BBC COLOUR / VDU 17: 0-127 text fg, 128-255 text bg (code-128)."""
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
+        """BBC COLOUR / VDU 17: 0-127 text fg, 128-255 text bg (code-128).
+
+        ``no_flash`` is set by the interpreter when this logical colour was
+        just redefined with ``COLOR n,r,g,b`` (piechart's ``COLOR
+        15,&87,&CE,&FF`` then ``COLOR 15+128``): that is a custom palette
+        pick, not a request for the classic COLOUR 136..143 flash.
+        """
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
             # COLOUR 136..143 = flashing background 0..7 (128+8 .. 128+15).
-            if 8 <= logical <= 15:
+            if 8 <= logical <= 15 and not no_flash:
                 self._bg_colour = logical - 8
                 self._text_flash = True
             else:
-                # Keep full 0..127 (piechart COLOR 15+128 → sky palette index 15).
+                # Keep full 0..127 (piechart COLOR 15+128 -> sky palette index 15).
                 self._bg_colour = logical & 255
         elif code >= 8:
             self._fg_colour = (code - 8) & 7
@@ -703,6 +726,8 @@ class PygameDisplay(DisplayBackend):
     def _use_mos_font(self) -> bool:
         """True when text should use the Acorn MOS 8x8 matrix (BBC modes 0–8)."""
         if self.is_teletext_mode():
+            return False
+        if getattr(self, "scale_locked", False):
             return False
         return self._effective_cell_width() == 8
 
@@ -946,7 +971,15 @@ class PygameDisplay(DisplayBackend):
         )
 
     def _display_text_colour(self, logical: int) -> int:
-        return map_mode_text_colour(logical, self._mode)
+        code = int(logical) & 255
+        # MODE 0 strictly restricts non-zero foreground to white (7)
+        if self._mode == 0:
+            return map_mode_text_colour(code, self._mode)
+        # Extended high-intensity / custom palette entries (8..15 or >=16)
+        # retain their direct index if not flashing.
+        if code >= 8 and not getattr(self, "_text_flash", False):
+            return code
+        return map_mode_text_colour(code, self._mode)
 
     def _reset_text_grid(self) -> None:
         self._text_flash = False
@@ -1080,7 +1113,9 @@ class PygameDisplay(DisplayBackend):
         if not hasattr(pygame, 'Window'):
             return
         try:
-            window = pygame.Window.from_display_module()
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*Window\.from_display_module.*")
+                window = pygame.Window.from_display_module()
             screen_w, screen_h = desktop_size(pygame)
             client_w, client_h = window.size
             x = max(0, (screen_w - client_w) // 2)
@@ -1095,13 +1130,12 @@ class PygameDisplay(DisplayBackend):
         screen_w, screen_h = desktop_size(pygame)
         win_w = w + _WINDOW_CHROME_WIDTH
         win_h = h + _TITLE_BAR_ESTIMATE + _WINDOW_MARGIN
-        # Do not apply a 92% height cutoff on Windows. Default 2x MODE 8/9 is
-        # 1280x1024; plus chrome that is 1072px, and 1072 > 1080*0.92 (=993)
-        # forced 1x while WSL (no cutoff) kept 2x on the same monitor.
         if not hasattr(pygame, 'Window'):
             return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
         try:
-            window = pygame.Window.from_display_module()
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*Window\.from_display_module.*")
+                window = pygame.Window.from_display_module()
             x, y = window.position
             client_w, client_h = window.size
             bottom = y + client_h + _TITLE_BAR_ESTIMATE
@@ -1109,7 +1143,7 @@ class PygameDisplay(DisplayBackend):
             return x >= 0 and y >= 0 and bottom <= screen_h and right <= screen_w
         except Exception:
             return win_h <= screen_h and win_w <= screen_w
-
+        
     @property
     def is_open(self) -> bool:
         return bool(self._open and self._screen is not None)
@@ -1163,7 +1197,8 @@ class PygameDisplay(DisplayBackend):
         self._sprite_placements = []
 
         if self._gfx is not None:
-            self._gfx.clear_graphics(self._bg_colour)
+            bg_rgb = self._palette_rgb.get(int(self._bg_colour))
+            self._gfx.clear_graphics(self._bg_colour, bg_rgb=bg_rgb)
         self._graphics_print_layers = []
 
         self._dirty = True
@@ -1227,35 +1262,40 @@ class PygameDisplay(DisplayBackend):
             self._open_window(center=False)
         self._dirty = True
 
-    def set_colour(self, colour: int) -> None:
+    def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
         """BBC COLOUR / VDU 17 text colour.
 
         * ``0..7`` — foreground (and clear flash)
-        * ``8..15`` — flashing foreground (logical colour ``n-8``)
+        * ``8..15`` — flashing foreground in classic modes, or high-intensity palette entry
         * ``128..255`` — background colour ``n-128`` (full index; MODE 8 palette)
         * ``136..143`` — flashing background 0..7 (``128+8`` .. ``128+15``)
-
-        ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray.
-        Hanoi MODE 3 still maps via ``map_mode_text_colour`` when blitting.
         """
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
-            if 8 <= logical <= 15:
-                self._bg_colour = logical - 8
+            is_flash_bg = 136 <= code <= 143 and not no_flash
+            if is_flash_bg:
+                self._bg_colour = (logical - 8) & 255
                 self._text_flash = True
             else:
                 self._bg_colour = logical & 255
+                self._text_flash = False
             if self._gfx is not None:
                 self._gfx.gcol_bg = (0, self._bg_colour)
             return
-        if code >= 8:
-            self._fg_colour = (code - 8) & 7
-            self._text_flash = True
-            return
-        self._fg_colour = code
-        self._text_flash = False
 
+        if 8 <= code <= 15:
+            if no_flash or not self.is_teletext_mode():
+                self._fg_colour = code
+                self._text_flash = False
+            else:
+                self._fg_colour = (code - 8) & 7
+                self._text_flash = True
+            return
+
+        self._fg_colour = code & 255
+        self._text_flash = False
+        
     def goto(self, row: int, col: int) -> None:
         self._cursor_row = max(0, min(self.text_rows - 1, int(row)))
         self._cursor_col = max(0, min(self.text_cols - 1, int(col)))
@@ -1558,6 +1598,29 @@ class PygameDisplay(DisplayBackend):
         self._gfx.fill_rectangle(x, y, width, height)
         self._dirty = True
 
+    def draw_rectangle(self, x: int, y: int, width: int, height: int) -> None:
+        if not self._plot_enabled or self._gfx is None:
+            return
+        self._gfx.draw_rectangle(x, y, width, height)
+        self._dirty = True
+
+    def draw_ellipse(
+        self, x: int, y: int, a: int, b: int, angle: float = 0.0, filled: bool = False,
+    ) -> None:
+        if not self._plot_enabled or self._gfx is None:
+            return
+        self._gfx.draw_ellipse(x, y, a, b, angle, filled)
+        self._dirty = True
+
+    def transfer_rectangle(
+        self, x: int, y: int, width: int, height: int,
+        dest_x: int, dest_y: int, mode: str = 'copy',
+    ) -> None:
+        if not self._plot_enabled or self._gfx is None:
+            return
+        self._gfx.transfer_rectangle(x, y, width, height, dest_x, dest_y, mode)
+        self._dirty = True
+
     def set_graphics_size(
         self,
         width: int,
@@ -1595,6 +1658,13 @@ class PygameDisplay(DisplayBackend):
     def set_palette_rgb(self, index: int, rgb: Tuple[int, int, int]) -> None:
         self._palette_rgb[int(index)] = tuple(int(channel) for channel in rgb[:3])
         self._palette_dirty = True
+        # COLOUR n,r,g,b while GCOL n is selected recolours later plots (swirl.bbc).
+        if self._gfx is not None and self._gfx.gcol_fg == (0, int(index)):
+            self._apply_gfx_truecolour(int(index))
+
+    def set_line_thickness(self, pixels: int) -> None:
+        if self._gfx is not None:
+            self._gfx.line_thickness = max(1, int(pixels))
 
     def _apply_gfx_truecolour(self, colour: int) -> None:
         if not self._plot_enabled or self._gfx is None:
@@ -1636,7 +1706,12 @@ class PygameDisplay(DisplayBackend):
         # Do not clear VDU 5 print layers here — CLG does not erase prior
         # graphics-cursor text on a real Beeb; welcome keeps DISC SYSTEM.
         if self._gfx is not None:
-            self._gfx.clear_graphics()
+            # Bake in the background's custom RGB (if COLOUR n,r,g,b set one)
+            # so the cleared region survives a later COLOUR reassigning the
+            # same palette index to a foreground shape (surks.bbc: CLG and
+            # every CIRCLE FILL share palette index 1).
+            bg_rgb = self._palette_rgb.get(int(self._gfx.gcol_bg[1]))
+            self._gfx.clear_graphics(bg_rgb=bg_rgb)
         self.mark_compose_full()
 
     def set_graphics_viewport(self, x1: int, y1: int, x2: int, y2: int) -> None:
@@ -1965,14 +2040,20 @@ class PygameDisplay(DisplayBackend):
                     y1 = min(h - 1, y1 + 1)
                     patch = idx[y0 : y1 + 1, x0 : x1 + 1]
                     rgb = palette[patch]
-                    if rgb_layer is not None and self._gfx.rgb_dirty:
-                        # rgb_dirty entries are (sx, sy) screen coords (see bbc_graphics).
-                        for sx, sy in list(self._gfx.rgb_dirty):
-                            if y0 <= sy <= y1 and x0 <= sx <= x1:
-                                if 0 <= sy < h and 0 <= sx < w:
-                                    val = rgb_layer[sy][sx]
-                                    if val is not None:
-                                        rgb[sy - y0, sx - x0] = val
+                    if rgb_layer is not None:
+                        # Scan the (small) patch box directly rather than the
+                        # global rgb_dirty set: CLG can now bake a custom
+                        # background RGB into every pixel it clears (see
+                        # BBCGraphics.clear_graphics), so rgb_dirty can hold
+                        # every screen pixel — iterating it per patch would
+                        # cost O(screen size) on every present() instead of
+                        # O(patch size).
+                        for sy in range(y0, y1 + 1):
+                            row = rgb_layer[sy]
+                            for sx in range(x0, x1 + 1):
+                                val = row[sx]
+                                if val is not None:
+                                    rgb[sy - y0, sx - x0] = val
                     if rgb.size:
                         surf = pygame.surfarray.make_surface(
                             np.transpose(rgb, (1, 0, 2))
@@ -1993,10 +2074,12 @@ class PygameDisplay(DisplayBackend):
                 rgb = palette[idx]
                 t2 = time.monotonic()
                 if rgb_layer is not None:
-                    # rgb_dirty entries are (sx, sy) screen coords (see bbc_graphics).
-                    for sx, sy in self._gfx.rgb_dirty:
-                        if 0 <= sy < h and 0 <= sx < w:
-                            val = rgb_layer[sy][sx]
+                    # Scan rgb_layer directly (see the patch branch above for
+                    # why this no longer goes through rgb_dirty).
+                    for sy in range(min(h, len(rgb_layer))):
+                        row = rgb_layer[sy]
+                        for sx in range(min(w, len(row))):
+                            val = row[sx]
                             if val is not None:
                                 rgb[sy, sx] = val
                 surf = pygame.surfarray.make_surface(np.transpose(rgb, (1, 0, 2)))

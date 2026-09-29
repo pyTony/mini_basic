@@ -12,4 +12,5 @@
   OFF                          hide text cursor       yes    yes     VDU 23,1,0
   COLOR RGB                    physical colour        yes    partial  wheel PROCbow
   @ispal% guard                0=high color           stub=0   yes     test_ispal_percent_stub
-  ELLIPSE / FLOOD              BB4W graphics          missing   no      deferred until CIRCLE stable
+  ELLIPSE [FILL] x,y,a,b[,angle] BB4W graphics          yes    yes     test_ellipse_statement
+  FLOOD                        flood fill             missing   no      not yet implemented

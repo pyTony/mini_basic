@@ -9,7 +9,7 @@ import pytest
 
 from mini_basic import BASICInterpreter
 from mini_basic.config import InterpreterConfig
-from mini_basic.runtime_parts.graphics import BBC_INKEY_KEYS
+from mini_basic.runtime_parts.graphics import _BBC_NEGATIVE_INKEY_KEYS
 
 pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx, pytest.mark.timeout(15)]
 
@@ -58,17 +58,17 @@ class InkeyScanTests(unittest.TestCase):
         for char, code in ((' ', -99), ('\x1b', -113), ('\r', -74)):
             interp._inkey_scan_held = None
             interp._inkey_value = lambda c=char: c
-            self.assertEqual(interp._inkey_bbc_key_down(code), -1.0, msg=repr(char))
+            self.assertEqual(interp._inkey_bbc_negative_scan(code), -1.0, msg=repr(char))
 
     def test_key_table_names_common_keys(self):
-        self.assertEqual(BBC_INKEY_KEYS[-99], ('K_SPACE',))
-        self.assertEqual(BBC_INKEY_KEYS[-122], ('K_RIGHT',))
-        self.assertEqual(BBC_INKEY_KEYS[-26], ('K_LEFT',))
-        self.assertEqual(BBC_INKEY_KEYS[-58], ('K_UP',))
-        self.assertEqual(BBC_INKEY_KEYS[-42], ('K_DOWN',))
-        self.assertEqual(BBC_INKEY_KEYS[-66], ('K_a',))
-        self.assertEqual(BBC_INKEY_KEYS[-98], ('K_z',))
-        self.assertEqual(BBC_INKEY_KEYS[-113], ('K_ESCAPE',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-99], ('K_SPACE',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-122], ('K_RIGHT',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-26], ('K_LEFT',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-58], ('K_UP',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-42], ('K_DOWN',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-66], ('K_a',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-98], ('K_z',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-113], ('K_ESCAPE',))
 
     def test_pygame_window_reads_held_keys_and_mouse(self):
         class FakeKeys(dict):
@@ -104,12 +104,12 @@ class InkeyScanTests(unittest.TestCase):
         interp._display = FakeDisplay()
         interp._display_enabled = lambda: True
         self.assertEqual(
-            [interp._inkey_bbc_key_down(n) for n in (-99, -98, -122, -10, -12)],
+            [interp._inkey_bbc_negative_scan(n) for n in (-99, -98, -122, -10, -12)],
             [-1.0, 0.0, 0.0, -1.0, 0.0],
         )
 
     def test_platform_id_unchanged(self):
-        self.assertEqual(_interp('bbc')._inkey_bbc_key_down(-256), 115.0)
+        self.assertEqual(_interp('bbc')._inkey_bbc_negative_scan(-256), 115.0)
 
 
 if __name__ == '__main__':

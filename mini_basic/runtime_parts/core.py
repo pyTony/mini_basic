@@ -27,6 +27,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
+from ..util import session as _session
 from .strplan import init_string_plan_state
 from ..expr.patterns import (
     RE_ARRAY_HEAD as _RE_ARRAY_HEAD,
@@ -213,6 +214,8 @@ class RuntimeCoreMixin:
         self._run_repeat_until: Dict[int, Tuple[int, str]] = {}
         self._var_subst_int_entries: List[Tuple[re.Pattern, str]] = []
         self._var_subst_float_entries: List[Tuple[re.Pattern, str]] = []
+        self._registered_int_vars: set = set()
+        self._registered_float_vars: set = set()
         self._compiled_expr_cache: Dict[Tuple[str, bool], CompiledExpr] = {}
         # __aget__ ids for compiled numeric array reads: id → (base, kind).
         self._compiled_array_keys: List[tuple] = []
@@ -221,6 +224,8 @@ class RuntimeCoreMixin:
         init_string_plan_state(self)
         self._stmt_fast_runners: Dict[str, object] = {}
         self._while_assign_accel: Dict[int, object] = {}
+        # Single-line IF text -> (then_part, else_part, condition, then_code).
+        self._if_parse_cache: Dict[Tuple[str, str], Tuple[str, Optional[str], str, str]] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
         self._inkey_scan_held: Optional[Tuple[str, float]] = None
         self._ansi_bg_cache: Dict[int, str] = {}
@@ -675,15 +680,22 @@ class RuntimeCoreMixin:
         self._run_repeat_until.clear()
         self._var_subst_int_entries.clear()
         self._var_subst_float_entries.clear()
+        self._registered_int_vars.clear()
+        self._registered_float_vars.clear()
         self._compiled_expr_cache.clear()
         self._clear_string_plan_caches()
         self._stmt_fast_runners.clear()
         self._while_assign_accel.clear()
+        self._if_parse_cache.clear()
 
     def _bigint_enabled(self) -> bool:
         return bool(self.config.bigint_enabled)
 
     def _register_numeric_var(self, base: str, kind: VarKind) -> None:
+        # BBCSDL byte vars (key 'a&') are read by _substitute_variables,
+        # which masks them to 0..255.
+        if base.endswith('&'):
+            return
         # BBCSDL 64-bit ints use storage keys like 'a%%' (suffix included).
         is_i64 = base.endswith('%%')
         name_root = base[:-2] if is_i64 else base
@@ -691,10 +703,16 @@ class RuntimeCoreMixin:
         if sig_len > 0:
             # for limited sig, the pattern should match any longer name that
             # normalizes to this base (e.g. ABCD normalizes to AB)
-            match_pat = r'\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#])'
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
         else:
-            match_pat = r'\b' + re.escape(name_root) + r'\b(?![%$!#])'
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])'
         if kind == 'int':
+            if base in self._registered_int_vars:
+                # Already fully processed for this base (see the end of this
+                # branch) — a LET reassigning the same variable is the
+                # overwhelmingly common case once a loop is running, so skip
+                # rebuilding/recompiling patterns and rescanning the list.
+                return
             existing_patterns = {
                 pattern.pattern
                 for pattern, var in self._var_subst_int_entries
@@ -703,19 +721,25 @@ class RuntimeCoreMixin:
             id_flags = self._identifier_re_flags()
             if is_i64:
                 # Match a%% before a% (longer suffix first via sort by key length).
+                # (?<!\.) so a struct member's own a%% (circle{(I%)}.a%%) is
+                # left for the struct_members substitution, not clobbered by
+                # a same-named bare variable's value.
                 patterns = [
                     re.compile(
-                        r'\b' + re.escape(name_root) + r'\s*%%(?!\d)(?!\()',
+                        r'(?<!\.)\b' + re.escape(name_root) + r'\s*%%(?!\d)(?!\()',
                         id_flags,
                     )
                 ]
             else:
                 # (?!%) so a%% is not partially matched as a% + %.
-                # (?<![@A-Za-z0-9_]) not bare \b: word-boundary after @ would
-                # match ``vdu%`` inside BBCSDL ``@vdu%!220`` (piechart MOVE).
+                # (?<![@A-Za-z0-9_.]) not bare \b: word-boundary after @ would
+                # match ``vdu%`` inside BBCSDL ``@vdu%!220`` (piechart MOVE);
+                # excluding a preceding . keeps a struct-array element read
+                # like circle{(I%)}.r% from having its own .r% clobbered by
+                # an unrelated bare variable r% of the same name (surks.bbc).
                 patterns = [
                     re.compile(
-                        r'(?<![@A-Za-z0-9_])'
+                        r'(?<![@A-Za-z0-9_.])'
                         + re.escape(name_root)
                         + r'\s*%(?!%)(?!\d)(?!\()',
                         id_flags,
@@ -723,14 +747,26 @@ class RuntimeCoreMixin:
                 ]
                 if name_root and self.default_var_types.get(name_root[0].upper()) == 'int':
                     patterns.append(re.compile(match_pat, id_flags))
+            added = False
             for pattern in patterns:
                 if pattern.pattern not in existing_patterns:
                     self._var_subst_int_entries.append((pattern, base))
-            # Longer keys (a%%) before shorter (a) so substitution order is safe.
-            self._var_subst_int_entries.sort(key=lambda item: len(item[1]), reverse=True)
+                    added = True
+            if added:
+                # Longer keys (a%%) before shorter (a) so substitution order
+                # is safe. Re-sorting the whole list on every LET — even
+                # when the variable was already registered, which is most
+                # calls once a loop is running — dominated runtime
+                # (surks.bbc's collision-check loop reassigns the same
+                # handful of int vars thousands of times).
+                self._var_subst_int_entries.sort(key=lambda item: len(item[1]), reverse=True)
+            self._registered_int_vars.add(base)
             return
         if kind == 'float':
+            if base in self._registered_float_vars:
+                return
             if any(var == base for _, var in self._var_subst_float_entries):
+                self._registered_float_vars.add(base)
                 return
             self._var_subst_float_entries.append(
                 (
@@ -739,6 +775,7 @@ class RuntimeCoreMixin:
                 )
             )
             self._var_subst_float_entries.sort(key=lambda item: len(item[1]), reverse=True)
+            self._registered_float_vars.add(base)
 
     @staticmethod
     def _int_slot(name: str) -> str:
@@ -841,9 +878,7 @@ class RuntimeCoreMixin:
         """Abort RUN if Ctrl+C or ESC was pressed in the launching terminal."""
         if not getattr(self, '_run_interrupt_watch', False):
             return
-        from mini_basic.util.session import terminal_interrupt_pending
-
-        kind = terminal_interrupt_pending()
+        kind = _session.terminal_interrupt_pending()
         if kind is None:
             return
         raise KeyboardInterrupt
@@ -922,6 +957,10 @@ class RuntimeCoreMixin:
 
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""
+        # default_var_types just changed, which _register_numeric_var's
+        # bare-letter pattern depends on — drop its "already registered"
+        # cache so already-seen vars are reconsidered under the new types.
+        self._registered_int_vars.clear()
         id_flags = self._identifier_re_flags()
         existing = {
             (pattern.pattern, var)
@@ -931,7 +970,7 @@ class RuntimeCoreMixin:
             if kind != 'int' or len(letter) != 1:
                 continue
             pattern = re.compile(
-                r'\b' + re.escape(letter) + r'\b(?![%$!#])',
+                r'(?<!\.)\b' + re.escape(letter) + r'\b(?![%$!#])',
                 id_flags,
             )
             key = (pattern.pattern, letter)
@@ -1377,6 +1416,8 @@ class RuntimeCoreMixin:
                 '',
             )
         # BBCSDL struct string member e.g. obj.name$   (full key 'obj.name$' in struct_members)
+        if '{(' in expr:
+            expr = self._normalize_struct_array_index_refs(expr)
         dmatch = re.match(r'^(.+\..+)\$$', expr)
         if dmatch:
             key = dmatch.group(1) + '$'
@@ -1397,6 +1438,9 @@ class RuntimeCoreMixin:
         cmd, _ = self._parse_command(text)
         if cmd:
             return True
+        # PROCname[(args)] followed by more colon statements: IF c THEN PROCx : y = 0
+        if re.match(r'^PROC\s*[A-Za-z_@]', text, flags=self._identifier_re_flags()):
+            return True
         # Simple / compound assignment (same maximal-LHS rules as assign parse).
         # ``aand=0`` is a normal assignment, not ``a`` AND= 0.
         if '=' not in text:
@@ -1416,6 +1460,12 @@ class RuntimeCoreMixin:
             lhs,
             flags=self._identifier_re_flags(),
         ):
+            return True
+        # Struct member lvalue: Ball{(i%)}.Pos.x = 0
+        if re.match(
+            rf'^({self._VAR_BASE_PATTERN})(?:\{{\([^{{}}]*\)\}}|\{{\}})?(?:\.[A-Za-z_][A-Za-z0-9_]*)+[%$&]{{0,2}}$',
+            lhs,
+        ) or re.match(rf'^({self._VAR_BASE_PATTERN})\{{\([^{{}}]*\)\}}$', lhs):
             return True
         return False
 
@@ -2568,6 +2618,8 @@ class RuntimeCoreMixin:
         self._run_while_wend = {}
         self._var_subst_int_entries = []
         self._var_subst_float_entries = []
+        self._registered_int_vars = set()
+        self._registered_float_vars = set()
         self._compiled_expr_cache = {}
         self._clear_string_plan_caches()
         if announce:

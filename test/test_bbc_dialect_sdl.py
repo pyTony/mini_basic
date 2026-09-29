@@ -109,11 +109,13 @@ class BBCDialectSDLTests(unittest.TestCase):
         ])
         self.assertIn('? BREAK error', out)
 
-    def test_inkey_negative_scan_is_false_when_idle(self):
+    def test_inkey_negative_scan_returns_false_when_idle(self):
+        # BBC INKEY(-n) is TRUE (-1) only while key n is held: UNTIL INKEY(-99)
+        # must keep looping when SPACE is not pressed (bounce.bbc).
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
-        self.assertEqual(interp._inkey_bbc_key_down(-99), 0.0)
+        self.assertEqual(interp._inkey_bbc_negative_scan(-99), 0.0)
         # -256 is not a key: it is the platform id (BBCSDL 's').
-        self.assertEqual(interp._inkey_bbc_key_down(-256), 115.0)
+        self.assertEqual(interp._inkey_bbc_negative_scan(-256), 115.0)
 
     def test_inkey_negative_in_expression(self):
         out, _ = self._run_bbc(

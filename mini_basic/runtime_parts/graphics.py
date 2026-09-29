@@ -101,33 +101,31 @@ from .helpers import (
     _apply_pygame_display_defaults,
 )
 
-# BBC internal key numbers for INKEY(-n) (BBC Micro layout; -1..-12 as BB4W /
-# BBCSDL: Shift, Ctrl, Alt, left/right variants, mouse buttons) → pygame key
-# attribute names. Unlisted numbers are never "down".
-BBC_INKEY_KEYS = {
-    -1: ('K_LSHIFT', 'K_RSHIFT'), -2: ('K_LCTRL', 'K_RCTRL'), -3: ('K_LALT', 'K_RALT'),
-    -4: ('K_LSHIFT',), -5: ('K_LCTRL',), -6: ('K_LALT',),
-    -7: ('K_RSHIFT',), -8: ('K_RCTRL',), -9: ('K_RALT',),
-    -17: ('K_q',), -18: ('K_3',), -19: ('K_4',), -20: ('K_5',), -21: ('K_F4',),
-    -22: ('K_8',), -23: ('K_F7',), -24: ('K_MINUS',), -25: ('K_EQUALS',),
+# BBC BASIC negative-INKEY key numbers -> pygame key constant names.
+_BBC_NEGATIVE_INKEY_KEYS = {
+    -1: ('K_LSHIFT', 'K_RSHIFT'),
+    -2: ('K_LCTRL', 'K_RCTRL'),
+    -3: ('K_LALT', 'K_RALT'),
     -26: ('K_LEFT',),
-    -33: ('K_F10',), -34: ('K_w',), -35: ('K_e',), -36: ('K_t',), -37: ('K_7',),
-    -38: ('K_i',), -39: ('K_9',), -40: ('K_0',), -42: ('K_DOWN',),
-    -49: ('K_1',), -50: ('K_2',), -51: ('K_d',), -52: ('K_r',), -53: ('K_6',),
-    -54: ('K_u',), -55: ('K_o',), -56: ('K_p',), -57: ('K_LEFTBRACKET',),
+    -122: ('K_RIGHT',),
     -58: ('K_UP',),
-    -65: ('K_CAPSLOCK',), -66: ('K_a',), -67: ('K_x',), -68: ('K_f',), -69: ('K_y',),
-    -70: ('K_j',), -71: ('K_k',), -73: ('K_QUOTE',), -74: ('K_RETURN', 'K_KP_ENTER'),
-    -82: ('K_s',), -83: ('K_c',), -84: ('K_g',), -85: ('K_h',), -86: ('K_n',),
-    -87: ('K_l',), -88: ('K_SEMICOLON',), -89: ('K_RIGHTBRACKET',),
+    -42: ('K_DOWN',),
+    -74: ('K_RETURN', 'K_KP_ENTER'),
+    -99: ('K_SPACE',),
+    -113: ('K_ESCAPE',),
     -90: ('K_BACKSPACE', 'K_DELETE'),
-    -97: ('K_TAB',), -98: ('K_z',), -99: ('K_SPACE',), -100: ('K_v',), -101: ('K_b',),
-    -102: ('K_m',), -103: ('K_COMMA',), -104: ('K_PERIOD',), -105: ('K_SLASH',),
-    -106: ('K_END',),
-    -113: ('K_ESCAPE',), -114: ('K_F1',), -115: ('K_F2',), -116: ('K_F3',),
-    -117: ('K_F5',), -118: ('K_F6',), -119: ('K_F8',), -120: ('K_F9',),
-    -121: ('K_BACKSLASH',), -122: ('K_RIGHT',),
+    -97: ('K_TAB',),
 }
+for _ch, _code in zip(
+    'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    (-66, -101, -83, -51, -35, -68, -84, -85, -38, -70, -71, -87, -102,
+     -86, -55, -56, -17, -52, -82, -36, -54, -100, -34, -67, -69, -98),
+):
+    _BBC_NEGATIVE_INKEY_KEYS[_code] = ('K_' + _ch.lower(),)
+for _ch, _code in zip('0123456789', (-40, -49, -50, -18, -19, -20, -53, -37, -22, -39)):
+    _BBC_NEGATIVE_INKEY_KEYS[_code] = ('K_' + _ch,)
+del _ch, _code
+
 # Mouse buttons: INKEY(-10) left, -11 middle, -12 right (pygame get_pressed index).
 _BBC_INKEY_MOUSE = {-10: 0, -11: 1, -12: 2}
 # Terminal fallback: the pending character stands for its key.
@@ -136,14 +134,13 @@ _BBC_INKEY_CHARS = {
     '-': -24, '=': -25, '[': -57, ']': -89, ';': -88, "'": -73, ',': -103, '.': -104,
     '/': -105, '\\': -121,
 }
-for _code, _names in BBC_INKEY_KEYS.items():
+for _code, _names in _BBC_NEGATIVE_INKEY_KEYS.items():
     _name = _names[0]
     if len(_name) == 3 and _name[2].isalnum():  # K_a / K_7
         _BBC_INKEY_CHARS.setdefault(_name[2], _code)
 del _code, _names, _name
 # How long a terminal key counts as "held" for repeated scans in one frame.
 _INKEY_TERMINAL_HOLD_S = 0.1
-
 
 class RuntimeGraphicsMixin:
     """Mixin providing graphics-related BASICInterpreter methods."""
@@ -417,6 +414,15 @@ class RuntimeGraphicsMixin:
                 backend = 'terminal'
         if hasattr(self._display, 'fps_limit'):
             self._display.fps_limit = max(0, int(self.config.display_fps_limit))
+        # X seen by pump_events() only flips _open (surface kept, unlike
+        # mark_closed): stop the program here instead of reopening the window.
+        if (
+            self._display_live
+            and self._display is not None
+            and getattr(self._display, '_open', True) is False
+            and getattr(self._display, '_screen', None) is not None
+        ):
+            self._invoke_on_close_and_exit()
         # Reopen after user closed the window (or first open).
         if self._display is not None:
             setattr(self._display, '_refresh_enabled', self._refresh_enabled)
@@ -1067,35 +1073,16 @@ class RuntimeGraphicsMixin:
     def _inkey_code(self) -> float:
         text = self._inkey_value()
         return float(ord(text[0])) if text else -1.0
-
+    
     def _inkey_bbc_negative_scan(self, scan_code: int) -> float:
-        """INKEY$(-n): code of any key being pressed, or -1 (non-blocking)."""
-        if self._display_enabled():
-            if hasattr(self._display, 'pump_events'):
-                self._display.pump_events()
-            pygame_mod = getattr(self._display, '_pygame', None)
-            if pygame_mod is not None and pygame_mod.get_init():
-                pygame_mod.event.pump()
-                pressed = pygame_mod.key.get_pressed()
-                if pressed[pygame_mod.K_ESCAPE]:
-                    return 27.0
-                for key_code in range(32, 127):
-                    if pressed[key_code]:
-                        return float(key_code)
-        text = self._inkey_value()
-        if text:
-            return float(ord(text[0]))
-        return -1.0
+        """BBC INKEY(-n): TRUE (-1) while that key is held, else FALSE (0).
 
-    def _inkey_bbc_key_down(self, scan_code: int) -> float:
-        """BBC INKEY(-n): TRUE (-1) while key ``n`` is down, else FALSE (0).
-
-        ``INKEY(-256)`` is the platform id (BBCSDL ``&73``). In a pygame window
-        the real key state is read; in a terminal the pending character stands
-        for its key and stays "down" briefly so a frame can scan several keys.
-        """
+        INKEY(-256) is the platform id, not a key scan. In a pygame window the
+        real key/mouse state is read; in a terminal the pending character
+        stands for its key and stays "down" briefly so one frame can scan
+        several keys."""
         if scan_code == -256:
-            return float(0x73)  # BBCSDL 's' (BB4W 'W' = &57)
+            return float(0x73)  # platform id: BBCSDL 's' (BB4W 'W' = &57)
         if self._display_enabled():
             if hasattr(self._display, 'pump_events'):
                 self._display.pump_events()
@@ -1106,13 +1093,14 @@ class RuntimeGraphicsMixin:
                 if button is not None:
                     return -1.0 if pygame_mod.mouse.get_pressed()[button] else 0.0
                 pressed = pygame_mod.key.get_pressed()
-                for name in BBC_INKEY_KEYS.get(scan_code, ()):
+                for name in _BBC_NEGATIVE_INKEY_KEYS.get(scan_code, ()):
                     key = getattr(pygame_mod, name, None)
                     if key is not None and pressed[key]:
                         return -1.0
                 return 0.0
+            return 0.0
         now = time.monotonic()
-        held = self._inkey_scan_held
+        held = getattr(self, '_inkey_scan_held', None)
         if held is None or now - held[1] > _INKEY_TERMINAL_HOLD_S:
             text = self._inkey_value()
             held = (text[0], now) if text else None
@@ -1125,7 +1113,7 @@ class RuntimeGraphicsMixin:
 
     def _inkey_code_wait(self, timeout_cs: float) -> float:
         if timeout_cs < 0:
-            return self._inkey_bbc_key_down(int(timeout_cs))
+            return self._inkey_bbc_negative_scan(int(timeout_cs))
         # Make prior PRINT/TAB/PLOT visible before waiting (same-line REPEAT:PRINT:INKEY
         # loops; welcome PROCPLOT ends with D%=INKEY2 as a frame delay so invert zaps
         # are seen — terminal present alone is a no-op for pygame).

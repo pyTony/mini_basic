@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import io
+import math
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 
@@ -884,3 +885,372 @@ class ColonlessUntilTests(unittest.TestCase):
             )
             self.assertEqual(out.split(), ['4', '7', 'UNTILUNTIL', '3'], msg=(dialect, err))
             self.assertNotIn('UNTIL', err, msg=dialect)
+
+
+class ByteVariableTests(unittest.TestCase):
+    """BBCSDL byte variables (NAME&) in expressions (disco.bbc line 950)."""
+
+    def test_byte_vars_read_in_expressions(self):
+        out, err = _run(
+            '10 r1&=10 : r2&=250 : f=0.5\n'
+            '20 r& = r1& + f * (r2& - r1&)\n'
+            '30 PRINT r&;" ";(r2&-r1&)\n'
+            '40 x&=300 : y&=-1 : PRINT x&;" ";y&\n'
+            '50 a%=7 : a&=3 : a=1.5 : PRINT a%;" ";a&;" ";a\n'
+            '60 b&=5 : b&+=1 : PRINT b& AND &FF;" ";&10+b&\n',
+            'bbc',
+        )
+        self.assertEqual(out.split(), ['130', '240', '44', '255', '7', '3', '1.5', '6', '22'], msg=err)
+        self.assertEqual(err, '')
+
+
+class RectangleStatementTests(unittest.TestCase):
+    """RECTANGLE [FILL|SWAP] x,y,w[,h] [TO x,y] dispatch (disco.bbc)."""
+
+    def test_rectangle_forms_reach_display(self):
+        from unittest.mock import MagicMock, patch
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        display = MagicMock()
+        display.mouse_state.return_value = (0, 0, 0)
+        interp._display = display
+        for n, text in [
+            (10, 'B%=64'),
+            (20, 'RECTANGLE 2*(1+(B%-4)/2), 2, 8, 8'),
+            (30, 'RECTANGLE FILL 1, 2, 3'),
+            (40, 'RECTANGLE SWAP 2*1, 2*2, 2*B%-1, 2*B%-1 TO 2*3, 2*4'),
+            (50, 'RECTANGLE 1, 2, 3, 4 TO 5, 6'),
+            (60, 'RECTANGLE FILL 1, 2, 3, 4 TO 5, 6'),
+        ]:
+            interp.set_program_line(n, text)
+        errs = []
+        with patch.object(interp, '_graphics_plot_enabled', return_value=True), \
+                patch.object(interp, '_display_enabled', return_value=True), \
+                patch.object(interp, '_ensure_display'), \
+                patch.object(interp, '_sync_graphics'), \
+                patch.object(interp, '_runtime_error', side_effect=lambda m, *a, **k: errs.append(m)):
+            interp.run()
+        self.assertEqual(errs, [])
+        display.draw_rectangle.assert_called_once_with(62, 2, 8, 8)
+        display.fill_rectangle.assert_called_once_with(1, 2, 3, 3)
+        self.assertEqual(display.transfer_rectangle.call_args_list, [
+            ((2, 4, 127, 127, 6, 8, 'swap'),),
+            ((1, 2, 3, 4, 5, 6, 'copy'),),
+            ((1, 2, 3, 4, 5, 6, 'move'),),
+        ])
+
+
+class EllipseStatementTests(unittest.TestCase):
+    """ELLIPSE [FILL] x,y,a,b[,angle] dispatch (surks.bbc grid effect)."""
+
+    def test_ellipse_forms_reach_display(self):
+        from unittest.mock import MagicMock, patch
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        display = MagicMock()
+        display.mouse_state.return_value = (0, 0, 0)
+        interp._display = display
+        for n, text in [
+            (10, 'x%=10 : y%=20 : r%=5 : I%=3'),
+            (20, 'ELLIPSE 2*x%, 2*y%, 2*r%, 2*I%'),
+            (30, 'ELLIPSE FILL 1, 2, 3, 4, 0.5'),
+        ]:
+            interp.set_program_line(n, text)
+        errs = []
+        with patch.object(interp, '_graphics_plot_enabled', return_value=True), \
+                patch.object(interp, '_display_enabled', return_value=True), \
+                patch.object(interp, '_ensure_display'), \
+                patch.object(interp, '_sync_graphics'), \
+                patch.object(interp, '_runtime_error', side_effect=lambda m, *a, **k: errs.append(m)):
+            interp.run()
+        self.assertEqual(errs, [])
+        self.assertEqual(display.draw_ellipse.call_args_list, [
+            ((20, 40, 10, 6, 0.0, False),),
+            ((1, 2, 3, 4, 0.5, True),),
+        ])
+
+    def test_ellipse_lowercase_keyword_folds_in_mini(self):
+        # CLAUDE.md keyword-case policy: mini is not strict about keyword case.
+        out, err = _run(
+            '10 gcol 0,1\n'
+            '20 ellipse 20,20,10,5\n'
+            '30 print "ok"\n',
+        )
+        self.assertEqual(out.split(), ['ok'], msg=err)
+        self.assertEqual(err, '')
+
+
+class EllipseGeometryTests(unittest.TestCase):
+    """Pixel-level checks for BBCGraphics.draw_ellipse (axis-aligned, unrotated)."""
+
+    def test_outline_touches_axis_extremes_and_leaves_centre_clear(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        gfx = BBCGraphics(64, 64)
+        gfx.gcol(0, 1)
+        gfx.draw_ellipse(32, 32, 20, 10, filled=False)
+        self.assertEqual(gfx.point_colour(32 + 20, 32), 1)
+        self.assertEqual(gfx.point_colour(32 - 20, 32), 1)
+        self.assertEqual(gfx.point_colour(32, 32 + 10), 1)
+        self.assertEqual(gfx.point_colour(32, 32 - 10), 1)
+        self.assertEqual(gfx.point_colour(32, 32), 0)
+
+    def test_filled_area_matches_pi_a_b(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        a, b = 15, 8
+        gfx = BBCGraphics(64, 64)
+        gfx.gcol(0, 1)
+        gfx.draw_ellipse(32, 32, a, b, filled=True)
+        count = sum(
+            1
+            for sy in range(64)
+            for sx in range(64)
+            if gfx.point_colour(sx, sy) == 1
+        )
+        expected = math.pi * a * b
+        self.assertLess(abs(count - expected) / expected, 0.15)
+
+
+class SurksMiniSmokeTests(unittest.TestCase):
+    """examples/graphics/surks_mini.bbc: parallel-array fork of surks.bbc,
+    kept as a working alternative for the real BBC BASIC restriction the
+    original still hits (no EXIT FOR workaround inside a WHILE-driven
+    collision-check without restructuring it) — the struct-array element
+    access itself (circle{(I%)}.r%) now works in mini_basic directly, see
+    SurksSmokeTests below.
+    """
+
+    def test_runs_without_runtime_error(self):
+        import threading
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.load('examples/graphics/surks_mini.bbc', announce=False)
+
+        errors = []
+
+        def patched(msg, *args, **kwargs):
+            errors.append((msg, kwargs.get('statement')))
+            raise SystemExit(1)
+
+        interp._runtime_error = patched
+
+        thread = threading.Thread(target=interp.run, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+        self.assertEqual(errors, [])
+
+
+class SurksSmokeTests(unittest.TestCase):
+    """examples/graphics/surks.bbc: the original, unmodified BB4W/BBCSDL
+    source (struct-array circle collision check, EXIT FOR). Runs cleanly
+    now that struct-array element read/write and EXIT FOR are supported
+    under --dialect bbc.
+    """
+
+    def test_runs_without_runtime_error(self):
+        import threading
+
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.load('examples/graphics/surks.bbc', announce=False)
+
+        errors = []
+
+        def patched(msg, *args, **kwargs):
+            errors.append((msg, kwargs.get('statement')))
+            raise SystemExit(1)
+
+        interp._runtime_error = patched
+
+        thread = threading.Thread(target=interp.run, daemon=True)
+        thread.start()
+        thread.join(timeout=5)
+        self.assertEqual(errors, [])
+
+
+class StructArrayFieldTests(unittest.TestCase):
+    """DIM struct{} / struct-array element access, including indexed
+    reads/writes (surks.bbc's circle{(I%)}.r%). Struct-array element keys
+    are built from the index's evaluated value (see
+    _normalize_struct_array_index_refs in mini_basic/runtime_parts/expr.py),
+    so a write via one index variable and a read via another holding the
+    same value must agree on the same element.
+    """
+
+    def test_flat_struct_numeric_and_string_fields_read_write(self):
+        # DIM name{a%,b$,c} / name.a% read+assign — documented as already working.
+        for dialect in ('mini', 'bbc'):
+            out, err = _run(
+                '10 DIM pt{ x%, y%, label$ }\n'
+                '20 pt.x% = 3 : pt.y% = 4 : pt.label$ = "P"\n'
+                '30 pt.x% = pt.x% + 1\n'
+                '40 PRINT pt.x%; pt.y%; pt.label$\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['44P'], msg=(dialect, err))
+            self.assertEqual(err, '')
+
+    def test_struct_array_element_write_does_not_error(self):
+        # DIM circle{(n) x%,y%,r%,t%} ; circle{(0)}.r% = v — write side works.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 circle{(0)}.x% = 5\n'
+            '30 circle{(0)}.r% = 7\n'
+            '40 PRINT "ok"\n',
+        )
+        self.assertEqual(out.split(), ['ok'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_element_read_by_variable_index(self):
+        # circle{(I%)}.r% — reading a struct-array element's field back by a
+        # variable index (same variable used for the write).
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 circle{(0)}.r% = 7\n'
+            '30 I% = 0\n'
+            '40 R% = circle{(I%)}.r%\n'
+            '50 PRINT R%\n',
+        )
+        self.assertEqual(out.split(), ['7'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_element_write_and_read_use_different_index_vars(self):
+        # circle{(N%)}.r% = 7 written via N%, then read back via a
+        # differently-named variable I% holding the same value. This is the
+        # exact pattern that broke examples/graphics/surks.bbc (a circle
+        # collision-check loop writes with one loop variable and reads back
+        # with another) until struct-array keys were built from the index's
+        # evaluated value instead of its source text.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 N% = 0\n'
+            '30 circle{(N%)}.r% = 7\n'
+            '40 I% = 0\n'
+            '50 PRINT circle{(I%)}.r%\n',
+        )
+        self.assertEqual(out.split(), ['7'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_unwritten_index_reads_as_type_default(self):
+        # DIM circle{(4) x%,y%,r%,t%} allocates indices 0..4 inclusive (BBC
+        # array semantics: n+1 elements), so reading a member of an index
+        # that has never been individually written (e.g. circle{(3)}.r%
+        # before circle 3 has been placed) must return the member's type
+        # default (0 for %), not fail to substitute at all. This is what
+        # blocked examples/graphics/surks.bbc's circle collision-check loop
+        # even after write/read indexing by different variables was fixed.
+        out, err = _run(
+            '10 DIM circle{(4) x%, y%, r%, t%}\n'
+            '20 circle{(0)}.r% = 7\n'
+            '30 I% = 3\n'
+            '40 PRINT circle{(I%)}.r%\n',
+        )
+        self.assertEqual(out.split(), ['0'], msg=err)
+        self.assertEqual(err, '')
+
+    def test_struct_array_unwritten_index_string_member_reads_empty(self):
+        out, err = _run(
+            '10 DIM circle{(4) x%, label$}\n'
+            '20 circle{(0)}.label$ = "hi"\n'
+            '30 I% = 2\n'
+            '40 PRINT "[" + circle{(I%)}.label$ + "]"\n',
+        )
+        self.assertEqual(out.split(), ['[]'], msg=err)
+        self.assertEqual(err, '')
+
+
+class SwirlStructSysTests(unittest.TestCase):
+    """swirl.bbc: DIM mode{}, SYS SDL calls, ABSSIN glue, PLOT 165 arcs."""
+
+    def test_struct_member_named_like_keyword_in_mini(self):
+        # mode.w% must not fold to the MODE statement.
+        for dialect in ('mini', 'bbc'):
+            out, err = _run(
+                '10 DIM mode{ fmt%, w%, h% }\n'
+                '20 mode.w% = 640\n'
+                '30 PRINT mode.w% + 1\n',
+                dialect,
+            )
+            self.assertEqual(out.split(), ['641'], msg=(dialect, err))
+
+    def test_sys_display_mode_fills_struct_and_ticks_to_var(self):
+        out, err = _run(
+            '10 DIM mode{ fmt%, w%, h%, r%, d% }\n'
+            '20 SYS "SDL_GetCurrentDisplayMode", 0, mode{}\n'
+            '30 ok% = mode.w% > 0 AND mode.h% > 0 : PRINT ok%\n'
+            '40 G$ = "SDL_GetTicks"\n'
+            '50 SYS G$ TO T0%\n'
+            '60 SYS "SDL_Delay", 20\n'
+            '70 SYS G$TO T1%\n'
+            '80 PRINT T1% - T0% >= 20\n'
+        )
+        self.assertEqual(out.split(), ['-1', '-1'], msg=err)
+
+    def test_sys_unknown_name_is_out_of_scope(self):
+        out, err = _run('10 SYS "OS_Write0", "hi"\n')
+        self.assertIn('? Out of scope: SYS', out + err)
+        self.assertIn('OS_Write0', out + err)
+
+    def test_monadic_glued_to_function_call(self):
+        out, err = _run(
+            '10 x = -0.5\n'
+            '20 PRINT ABSSIN(x) = ABS(SIN(x))\n'
+            '30 PRINT SINRAD(PI/2)\n'
+        )
+        self.assertEqual(out.split(), ['-1', '1'], msg=err)
+
+
+class PlotArcTests(unittest.TestCase):
+    def test_plot_165_draws_anticlockwise_arc_with_thickness(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        gfx = BBCGraphics(64, 64)
+        gfx.gcol(0, 1)
+        gfx.line_thickness = 3
+        gfx.move_absolute(32, 32)       # centre
+        gfx.move_absolute(52, 32)       # start: east, radius 20
+        gfx.plot_code(165, 32, 60)      # end direction: north
+        # Quarter arc east → north only (anticlockwise).
+        self.assertEqual(gfx.point_colour(32 + 14, 32 + 14), 1)  # 45°, r≈19.8
+        self.assertEqual(gfx.point_colour(32 - 14, 32 + 14), 0)  # 135°
+        self.assertEqual(gfx.point_colour(32 + 14, 32 - 14), 0)  # -45°
+        self.assertEqual(gfx.point_colour(32, 32), 0)            # centre untouched
+
+
+class PlotArcSeamOverlapTests(unittest.TestCase):
+    """A rotating arc's cut ends must not flicker pixel-by-pixel (swirl.bbc)."""
+
+    def test_arc_seam_pixel_stays_lit_across_tiny_rotation(self):
+        from mini_basic.bbc_graphics import BBCGraphics
+
+        radius = 20
+        for deg in range(0, 360, 3):
+            gfx = BBCGraphics(64, 64)
+            gfx.gcol(0, 1)
+            gfx.line_thickness = 1
+            a0 = math.radians(deg)
+            a1 = a0 + math.pi  # half-circle sweep, like swirl.bbc
+            start_x = 32 + round(radius * math.cos(a0))
+            start_y = 32 + round(radius * math.sin(a0))
+            gfx.move_absolute(32, 32)
+            gfx.move_absolute(start_x, start_y)
+            gfx.plot_code(
+                165,
+                32 + round(1000 * math.cos(a1)),
+                32 + round(1000 * math.sin(a1)),
+            )
+            # The pixel right at the arc's start must always be lit, at any
+            # sub-degree rotation — not on/off depending on rounding.
+            self.assertEqual(
+                gfx.point_colour(start_x, start_y),
+                1,
+                msg=f'deg={deg} start seam not lit',
+            )

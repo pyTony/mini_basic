@@ -16,6 +16,7 @@ import struct
 import sys
 import time
 
+from ..expr.patterns import VAR_BASE_PATTERN as _VAR_BASE_PATTERN
 from ..config import DEFAULT_CONFIG, InterpreterConfig, SYSTEM_VAR_SPEC
 from ..dialect_hint import DialectHint, parse_comment_dialect_line, split_dialect_hints
 from ..constants import (
@@ -278,7 +279,7 @@ class RuntimeExprMixin:
             flags=id_flags,
         )
         return re.sub(
-            rf'\b({self._VAR_BASE_PATTERN})\b(?![%$!#])',
+            rf'\b({self._VAR_BASE_PATTERN})\b(?![%$!#&])',
             repl,
             expr,
             flags=id_flags,
@@ -2173,9 +2174,10 @@ class RuntimeExprMixin:
             inner = expr[m.start() + 3 : paren_end + 1]
             expr = expr[: m.start()] + f'VAL({inner})' + expr[paren_end + 1 :]
 
-        # Boundary after the name so POS is not a prefix of pos_space%.
+        # Boundary after the name so POS is not a prefix of pos_space%; no
+        # leading '.' so a struct member like Ball{(1)}.Pos.x is not POS.
         func_re = re.compile(
-            rf'(?<![A-Za-z0-9_])({_NUMERIC_BUILTIN_FUNC_RE}|EVAL|NOT)(?![A-Za-z0-9_$])',
+            rf'(?<![A-Za-z0-9_.])({_NUMERIC_BUILTIN_FUNC_RE}|EVAL|NOT)(?![A-Za-z0-9_$])',
             re.IGNORECASE,
         )
         while func_re.search(expr):
@@ -2784,7 +2786,7 @@ class RuntimeExprMixin:
             raise ValueError('invalid DIM syntax')
         for decl in decls:
             d = decl.strip()
-            if self._dim_heap_ext(d):
+            if self._dim_heap_ext(d) or self._dim_heap_block(d):
                 continue
             if '{' in d:
                 self._dim_structure(d)
@@ -2803,7 +2805,56 @@ class RuntimeExprMixin:
         return name + '%%' if suffix == '%%' else name
 
     def _bbc_ptr_value(self, base: str, suffix: str) -> int:
+        if not suffix:
+            # Plain numeric pointer (BBC DIM p 8 stores the address in p).
+            return int(self._eval_numeric(base))
         return int(self.int_variables.get(self._bbc_ptr_key(base, suffix), 0))
+
+    def _bbc_set_ptr(self, base: str, suffix: str, addr: int) -> None:
+        if suffix:
+            self.int_variables[self._bbc_ptr_key(base, suffix)] = addr
+        else:
+            self._assign(base, str(addr))
+
+    def _bbc_mem_store(self, addr: int, width: int, value: int) -> None:
+        block = self._bbc_mem_block(addr)
+        if block is None:
+            raise ValueError(f'bad pointer {addr}')
+        base = next(s for s in self._bbc_heap if self._bbc_heap[s] is block)
+        pos = addr - base
+        if pos < 0 or pos + width > len(block):
+            raise ValueError('pointer out of range')
+        if width == 1:
+            block[pos] = int(value) & 0xFF
+        else:
+            block[pos : pos + 4] = (int(value) & 0xFFFFFFFF).to_bytes(4, 'little')
+
+    _BBC_INDIR_LVALUE_RE = re.compile(
+        rf'^\s*(?:([?!])\s*({_VAR_BASE_PATTERN}%?|\(.+\))'
+        rf'|({_VAR_BASE_PATTERN})(%%|%)?\s*([?!])\s*(-?\d+|{_VAR_BASE_PATTERN}%?|\(.+\)))'
+        rf'\s*=(?![=<>])(.*)$'
+    )
+
+    def _try_bbc_indirection_assign(self, line: str) -> bool:
+        """BBC ?addr=v, !addr=v, p?n=v, p%!n=v — byte/word stores into DIM blocks."""
+        if self.config.dialect not in ('bbc', 'mini') or (
+            '?' not in line and '!' not in line
+        ):
+            return False
+        match = self._BBC_INDIR_LVALUE_RE.match(line)
+        # Unary ?x= is PRINT shorthand outside bbc.
+        if match is None or (match.group(1) and self.config.dialect != 'bbc'):
+            return False
+        if match.group(1):
+            op = match.group(1)
+            addr = int(self._eval_numeric(match.group(2)))
+        else:
+            op = match.group(5)
+            addr = self._bbc_ptr_value(match.group(3), match.group(4) or '')
+            addr += int(self._eval_numeric(match.group(6)))
+        value = int(self._eval_numeric(match.group(7).strip()))
+        self._bbc_mem_store(addr, 1 if op == '?' else 4, value)
+        return True
 
     def _bbc_mem_block(self, addr: int) -> Optional[bytearray]:
         if addr in self._bbc_heap:
@@ -2848,6 +2899,22 @@ class RuntimeExprMixin:
         size = int(self._eval_numeric(size_expr))
         addr = self._bbc_alloc(size)
         self.int_variables[self._bbc_ptr_key(match.group(1), match.group(2))] = addr
+        return True
+
+    def _dim_heap_block(self, decl: str) -> bool:
+        """BBC DIM p n / DIM p% n — reserve n+1 bytes and store the address."""
+        if self.config.dialect not in ('bbc', 'mini'):
+            return False
+        match = re.match(
+            rf'^({self._VAR_BASE_PATTERN})(%%|%)?\s+([^(\s].*)$', decl.strip()
+        )
+        if not match or match.group(3).upper().startswith(('EXT', 'LOCAL')):
+            return False
+        size = int(self._eval_numeric(match.group(3).strip()))
+        if size < -1:
+            raise ValueError('bad DIM')
+        addr = self._bbc_alloc(size + 1)
+        self._bbc_set_ptr(match.group(1), match.group(2) or '', addr)
         return True
 
     def _expand_bbc_indirection(self, expr: str) -> str:
@@ -2897,7 +2964,175 @@ class RuntimeExprMixin:
             expr,
             flags=flags,
         )
+        if self.config.dialect in ('bbc', 'mini'):
+            expr = self._map_outside_strings(expr, self._expand_bbc_plain_indirection)
         return expr
+
+    def _expand_bbc_plain_indirection(self, text: str) -> str:
+        """DIM p 8 pointers: p?1, p!4, p%?i% and (bbc) unary ?p, !p, ?(p+1)."""
+        if '?' not in text and '!' not in text:
+            return text
+        name = self._VAR_BASE_PATTERN
+        text = re.sub(
+            rf'(?<![\w%])({name})(%%|%)?\s*([?!])\s*(-?\d+|{name}%?)',
+            lambda m: str(
+                self._bbc_mem_i(
+                    self._bbc_ptr_value(m.group(1), m.group(2) or ''),
+                    int(self._eval_numeric(m.group(4))),
+                    1 if m.group(3) == '?' else 4,
+                )
+            ),
+            text,
+        )
+        if self.config.dialect != 'bbc':
+            return text
+        unary = re.compile(rf'(^|[^\w%)\s])(\s*)([?!])\s*({name}%?|\()')
+        while True:
+            match = unary.search(text)
+            if match is None:
+                return text
+            start = match.start(3)
+            if match.group(4) == '(':
+                close = self._match_paren(text, match.end(4) - 1)
+                if close is None or close < 0:
+                    return text
+                operand, end = text[match.end(4) : close], close + 1
+            else:
+                operand, end = match.group(4), match.end(4)
+            addr = int(self._eval_numeric(operand))
+            value = self._bbc_mem_i(addr, 0, 1 if match.group(3) == '?' else 4)
+            text = text[:start] + str(value) + text[end:]
+
+    def _normalize_struct_array_index_refs(self, text: str) -> str:
+        """Rewrite NAME{(idxexpr)} to NAME{(N)}, evaluating idxexpr to an
+        integer. Struct-array element keys (in struct_members) must be built
+        from the index's runtime VALUE, not its source text, so a write via
+        one variable (circle{(N%)}.r%) and a read via another holding the
+        same value (circle{(I%)}.r%) agree on the same key."""
+        if '{(' not in text:
+            return text
+        pattern = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\{\(')
+        out = []
+        i = 0
+        while True:
+            m = pattern.search(text, i)
+            if not m:
+                out.append(text[i:])
+                break
+            open_paren = m.end() - 1
+            try:
+                close_paren = self._match_paren(text, open_paren)
+            except ValueError:
+                out.append(text[i:m.end()])
+                i = m.end()
+                continue
+            if close_paren + 1 >= len(text) or text[close_paren + 1] != '}':
+                out.append(text[i:m.end()])
+                i = m.end()
+                continue
+            idx_expr = text[open_paren + 1 : close_paren]
+            out.append(text[i : open_paren + 1])
+            try:
+                idx_val = int(self._eval_numeric(idx_expr))
+            except Exception:
+                out.append(idx_expr)
+            else:
+                out.append(str(idx_val))
+            out.append(')}')
+            i = close_paren + 2
+        return ''.join(out)
+
+    # Candidate dotted struct-member token: NAME[{(N)}].MEMBER[suffix].
+    # Used only on the case-sensitive fast path in _substitute_variables to
+    # find substitution candidates by scanning expr once instead of testing
+    # every struct_members key against it; a match that isn't an actual key
+    # is left untouched by _struct_member_ref_repl.
+    _STRUCT_MEMBER_REF_RE = re.compile(
+        r'[A-Za-z_][A-Za-z0-9_]*(?:\{\(\d+\)\})?(?:\.[A-Za-z_][A-Za-z0-9_]*)+(?:\$\$|\$|%%|%|&)?'
+    )
+
+    def _struct_member_ref_repl(self, m: re.Match) -> str:
+        key = m.group(0)
+        if key not in self.struct_members:
+            # '&' may be a following hex literal/operator rather than a byte suffix
+            if key.endswith('&') and key[:-1] in self.struct_members:
+                return self._struct_member_ref_repl_key(key[:-1]) + '&'
+            return key
+        return self._struct_member_ref_repl_key(key)
+
+    def _struct_member_ref_repl_key(self, key: str) -> str:
+        if key.endswith('$') or key.endswith('$$'):
+            # string members not substituted here (handled in PRINT/string contexts)
+            return key
+        val = self.struct_members[key]
+        if key.endswith('%') or key.endswith('&'):
+            return str(int(val) if isinstance(val, (int, float)) else val)
+        v = float(val) if not isinstance(val, str) else 0.0
+        return str(int(v)) if v == int(v) else str(v)
+
+    def _struct_subst_pattern(self, key: str):
+        """Compiled regex matching struct member ``key`` as a whole token,
+        cached per key: struct_members can hold hundreds of entries per
+        struct array once DIM name{(n) members} pre-allocates every index,
+        and recompiling this pattern for each one on every expression
+        evaluation dominated runtime (surks.bbc collision checks)."""
+        flags = self._identifier_re_flags()
+        cache = getattr(self, '_struct_subst_pattern_cache', None)
+        if cache is None:
+            cache = {}
+            self._struct_subst_pattern_cache = cache
+        cache_key = (key, flags)
+        pat = cache.get(cache_key)
+        if pat is None:
+            pat = re.compile(
+                r'(?<![A-Za-z0-9_])' + re.escape(key) + r'(?![A-Za-z0-9_])',
+                flags,
+            )
+            cache[cache_key] = pat
+        return pat
+
+    def _parse_struct_member_decls(self, body: str) -> Dict[str, VarKind]:
+        """Parse a struct member-list body (the text inside { }), returning a
+        flat dict of dotted member key -> kind. Nested sub-structures such as
+        'Pos{x,y}' recurse and produce dotted keys like 'Pos.x', 'Pos.y'."""
+        result: Dict[str, VarKind] = {}
+        raw_members = self._split_at_depth(body, ',', skip_empty=True)
+        for raw in raw_members:
+            mem = raw.strip()
+            if not mem:
+                continue
+            if '{' in mem:
+                # nested sub-structure: subname{members...}
+                brace_idx = mem.index('{')
+                subname = mem[:brace_idx].strip()
+                sub_body = mem[brace_idx + 1:]
+                if sub_body.endswith('}'):
+                    sub_body = sub_body[:-1]
+                if not subname:
+                    continue
+                for sub_mkey, sub_kind in self._parse_struct_member_decls(sub_body).items():
+                    result[f"{subname}.{sub_mkey}"] = sub_kind
+                continue
+            if '(' in mem:
+                # array member inside struct e.g. arr(5) ; treat as special, skip scalar init
+                continue
+            # parse member like foo  foo%  bar$  baz%%
+            mm = re.match(r'^(' + self._VAR_BASE_PATTERN + r')(%%|%|&|\$\$|\$|!|#)?$', mem)
+            if mm:
+                mbase = mm.group(1)
+                msuf = mm.group(2) or ''
+                mkey = mbase + msuf  # e.g. 'x%' or 'name$'
+                if msuf in ('$', '$$'):
+                    k: VarKind = 'str'
+                elif msuf in ('%', '%%', '&'):
+                    k = 'int'
+                else:
+                    k = 'float'
+                result[mkey] = k
+            else:
+                # bare name without suffix
+                result[mem] = 'float'
+        return result
 
     def _dim_structure(self, decl: str) -> None:
         """Support BBCSDL record structure variables: DIM name{member1, member2%, sub{...}, arr(3)}"""
@@ -2921,44 +3156,24 @@ class RuntimeExprMixin:
             raise ValueError('invalid structure DIM syntax')
         sname = self._normalize_identifier(m.group(1))
         body = m.group(2).strip()
-        # split members, but for nested {} we keep simple split (sufficient for flat + note subs)
-        raw_members = self._split_at_depth(body, ',', skip_empty=True)
-        member_kinds: Dict[str, VarKind] = {}
+        # DIM name{(n) member1, member2%, ...}: array-of-struct, size inside
+        # the braces (not before them, unlike a plain array's DIM a(n)).
+        size_match = re.match(r'^\(([^)]*)\)\s*(.*)$', body, flags=re.DOTALL)
+        size_expr = size_match.group(1) if size_match else None
+        if size_match:
+            body = size_match.group(2).strip()
+        # split members; nested sub-structures (e.g. Pos{x,y}) are recursed
+        # into dotted member keys like 'Pos.x' so the rest of this function's
+        # key-construction logic (sname.mkey / sname{(idx)}.mkey) needs no
+        # further changes to support them.
+        member_kinds = self._parse_struct_member_decls(body)
         init_values: Dict[str, object] = {}
-        for raw in raw_members:
-            mem = raw.strip()
-            if not mem or '{' in mem:
-                # nested sub-structure or complex: record name for reference but no init value here
-                # allow later assignment to sub members like s.sub.m
-                if mem:
-                    # store a placeholder for the sub name e.g. 'sub{}' or just skip init
-                    subname = mem.split('{')[0].strip()
-                    # we don't allocate flat for sub, access via dotted full key will create on assign
-                    pass
-                continue
-            if '(' in mem:
-                # array member inside struct e.g. arr(5) ; treat as special, skip scalar init
-                continue
-            # parse member like foo  foo%  bar$  baz%%
-            mm = re.match(r'^(' + self._VAR_BASE_PATTERN + r')(%%|%|\$\$|\$|!|#)?$', mem)
-            if mm:
-                mbase = mm.group(1)
-                msuf = mm.group(2) or ''
-                mkey = mbase + msuf  # e.g. 'x%' or 'name$'
-                if msuf in ('$', '$$'):
-                    k: VarKind = 'str'
-                    init_values[mkey] = ''
-                elif msuf in ('%', '%%'):
-                    k = 'int'
-                    init_values[mkey] = 0
-                else:
-                    k = 'float'
-                    init_values[mkey] = 0.0
-                member_kinds[mkey] = k
+        for mkey, k in member_kinds.items():
+            if k == 'str':
+                init_values[mkey] = ''
+            elif k == 'int':
+                init_values[mkey] = 0
             else:
-                # bare name without suffix
-                mkey = mem
-                member_kinds[mkey] = 'float'
                 init_values[mkey] = 0.0
         self.struct_defs[sname] = member_kinds
         # merge inits into struct_members using dotted? No: here we store bare for the top struct? Wait
@@ -2967,6 +3182,19 @@ class RuntimeExprMixin:
             dotted_key = f"{sname}.{mkey}"
             if dotted_key not in self.struct_members:
                 self.struct_members[dotted_key] = val
+        if size_expr is not None and size_expr.strip():
+            # DIM name{(n) members}: a struct ARRAY, indices 0..n inclusive
+            # (matches regular BBC array DIM semantics: n+1 elements). Every
+            # slot must exist with its type default, so reading a member of
+            # an index that hasn't been individually written yet (e.g.
+            # circle{(3)}.r% before circle 3 has been placed) returns 0/""
+            # instead of failing to substitute at all.
+            count = int(self._eval_numeric(size_expr.strip()))
+            for idx in range(count + 1):
+                for mkey, val in init_values.items():
+                    dotted_key = f"{sname}{{({idx})}}.{mkey}"
+                    if dotted_key not in self.struct_members:
+                        self.struct_members[dotted_key] = val
 
     def _expand_shift_operators(self, expr: str) -> str:
         if '>>' not in expr and '<<' not in expr:
@@ -3007,7 +3235,28 @@ class RuntimeExprMixin:
             return f'({s})'
         return s
 
+    _RE_BYTE_VAR_HINT = re.compile(r'(?<=[A-Za-z0-9_])&')
+
+    def _substitute_byte_vars(self, expr: str) -> str:
+        """BBCSDL byte variables: ``r1&`` reads its stored value AND 255.
+
+        Runs before hex literals so ``r1&`` is not read as ``r1`` + ``&…``.
+        disco.bbc: r& = r1& + f * (r2& - r1&)
+        """
+        return re.sub(
+            rf'(?<![@A-Za-z0-9_.])({self._VAR_BASE_PATTERN})&(?![A-Za-z0-9_(])',
+            lambda m: self._embed_subst_number(
+                int(self.int_variables.get(
+                    self._normalize_identifier(m.group(1)) + '&', 0
+                )) & 0xFF
+            ),
+            expr,
+            flags=self._identifier_re_flags(),
+        )
+
     def _substitute_variables(self, expr: str) -> str:
+        if '&' in expr and self._RE_BYTE_VAR_HINT.search(expr):
+            expr = self._substitute_byte_vars(expr)
         if '&' in expr or '%' in expr:
             expr = self._substitute_bbc_hex_literals(expr)
         # Always run for π (Commodore) and SQR5 etc.
@@ -3113,27 +3362,42 @@ class RuntimeExprMixin:
                 flags=id_flags,
             )
         # BBCSDL structure record members: support pt.x%  obj.name$  s.foo  (numeric ones for expr eval)
-        # Use direct replace for dotted keys (plain \b patterns don't reliably cross dots + suffix)
         if self.struct_members:
-            for key, val in list(self.struct_members.items()):
-                if '.' not in key:
-                    continue
-                if key.endswith('$') or key.endswith('$$'):
-                    # string members not substituted here (handled in PRINT/string contexts)
-                    continue
-                # numeric: key may be 'pt.x%' or 'pt.z' 
-                # build pattern that matches the literal key (escaped) optionally followed by nothing
-                # tolerate minor space around . or before suffix but prefer glued as normalized
-                pat = re.compile(
-                    r'(?<![A-Za-z0-9_])' + re.escape(key) + r'(?![A-Za-z0-9_])',
-                    self._identifier_re_flags(),
-                )
-                if key.endswith('%') or key.endswith('%%'):
-                    vstr = str(int(val) if isinstance(val, (int, float)) else val)
+            if '{(' in expr:
+                # circle{(I%)}.r%: match struct_members keys (which are keyed
+                # by evaluated index, see _assign) rather than index source text.
+                expr = self._normalize_struct_array_index_refs(expr)
+            if '.' in expr:
+                if self._identifiers_case_sensitive():
+                    # DIM name{(n) members} now pre-populates every index
+                    # (see _dim_structure), so struct_members can hold
+                    # thousands of entries per struct array; looping over
+                    # every entry to test-and-substitute it against expr
+                    # (even with a cheap substring pre-filter) is
+                    # O(len(struct_members)) per expression evaluation and
+                    # dominated runtime (surks.bbc: seconds per collision
+                    # check). Identifiers are case-sensitive here, so scan
+                    # expr once for candidate dotted-member tokens and look
+                    # each one up directly in the dict instead.
+                    expr = self._STRUCT_MEMBER_REF_RE.sub(
+                        self._struct_member_ref_repl, expr
+                    )
                 else:
-                    v = float(val) if not isinstance(val, str) else 0.0
-                    vstr = str(int(v)) if v == int(v) else str(v)
-                expr = pat.sub(vstr, expr)
+                    for key, val in list(self.struct_members.items()):
+                        if '.' not in key:
+                            continue
+                        if key.endswith('$') or key.endswith('$$'):
+                            # string members not substituted here (handled in PRINT/string contexts)
+                            continue
+                        if key not in expr:
+                            continue
+                        pat = self._struct_subst_pattern(key)
+                        if key.endswith('%') or key.endswith('%%'):
+                            vstr = str(int(val) if isinstance(val, (int, float)) else val)
+                        else:
+                            v = float(val) if not isinstance(val, str) else 0.0
+                            vstr = str(int(v)) if v == int(v) else str(v)
+                        expr = pat.sub(vstr, expr)
 
         # Ensure bitwise for numeric (BBC-style AND/OR/XOR/NOT on integer values)
         # after all substitutions. This makes expressions like "x% AND y%" do & not logical and.
@@ -3514,13 +3778,24 @@ class RuntimeExprMixin:
             rf'(?<![A-Za-z0-9_])({alts})'
             rf'(-?(?:\d+(?:\.\d*)?|\.\d+))(?![A-Za-z0-9_$])'
         )
+        # Monadic before a call: ABSSIN(x) → ABS SIN(x) (swirl.bbc).
+        # SINRAD( is one function, not SIN RAD(.
+        chained = rf'(?<![A-Za-z0-9_])({alts})(?=({alts})\()'
+        whole = set(self._MONADIC_NUMERIC_UNGLUE_FUNCS)
+        expr = re.sub(
+            chained,
+            lambda m: m.group(1) if (m.group(1) + m.group(2)).upper() in whole
+            else m.group(1) + ' ',
+            expr,
+            flags=flags,
+        )
         # Letters before digits so ABSx1 stays ABS(x1), not ABS + leftover.
         expr = re.sub(bare, r'\1(\2)', expr, flags=flags)
         expr = re.sub(num, r'\1(\2)', expr, flags=flags)
         return expr
 
     def _unglue_inkey_digits(self, expr: str) -> str:
-        """INKEY1 / INKEY2 → INKEY(1) (welcome pack D%=INKEY1).
+        """INKEY1 / INKEY2 → INKEY(1); INKEY-99 → INKEY(-99) (BBCSDL listings).
 
         Must run before expand_dynamic_calls / compiled eval; normalize_operators
         alone is too late (expand sees bare INKEY1 and leaves name INKEY).
@@ -3555,7 +3830,7 @@ class RuntimeExprMixin:
         expr = self._expand_bbc_indirection(expr)
         expr = self._unglue_monadic_expr(expr)
         # Compiled eval does not subst NAME%%; FNgetbmp's ``= p%%`` became 0.
-        if '%%' in expr:
+        if '%%' in expr or ('&' in expr and self._RE_BYTE_VAR_HINT.search(expr)):
             return self._eval_numeric_slow(expr)
         if self.config.use_compiled_exprs:
             cached = self._compiled_expr_cache.get((expr, False))
@@ -3862,6 +4137,7 @@ class RuntimeExprMixin:
                 # Whole-array compound: light() /= s, Value() *= s, Colour&() OR= 8
                 key = self._resolve_array_key(base, kind)
                 if key not in self.array_storage:
+                    print(f"[DEBUG COMPOUND] base={base!r} kind={kind!r} key={key!r} storage_keys={list(self.array_storage.keys())!r}")
                     raise ValueError('unknown array')
                 bounds, lb, data = self.array_storage[key]
                 if not isinstance(data, list):
@@ -4054,7 +4330,50 @@ class RuntimeExprMixin:
             return self._coerce_int_storage(self._eval_numeric(expr.strip()))
         return self._eval_numeric(expr.strip())
 
+    _RE_WHOLE_STRUCT_REF = re.compile(
+        r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*(\{\(\d+\)\}|\{\})\s*$'
+    )
+
+    def _try_whole_struct_assign(self, var: str, expr: str) -> bool:
+        """Copy a whole struct (or struct-array element) record:
+        Ball{(i%)} = Ball{(i%+1)} or a{} = b{}. Returns False if not that form."""
+        dst = self._RE_WHOLE_STRUCT_REF.match(var)
+        if dst is None:
+            return False
+        src_text = expr.strip()
+        if '{(' in src_text:
+            src_text = self._normalize_struct_array_index_refs(src_text)
+        src = self._RE_WHOLE_STRUCT_REF.match(src_text)
+        if src is None:
+            return False
+
+        def prefix(name: str, sel: str) -> str:
+            name = self._normalize_identifier(name)
+            return f"{name}." if sel == '{}' else f"{name}{sel}."
+
+        src_prefix = prefix(src.group(1), src.group(2))
+        dst_prefix = prefix(dst.group(1), dst.group(2))
+        if src_prefix == dst_prefix:
+            return True
+        src_name = self._normalize_identifier(src.group(1))
+        members = self.struct_defs.get(src_name)
+        if members is None:
+            raise ValueError(f'unknown structure {src.group(1)}')
+        for mkey, kind in members.items():
+            default: object = '' if kind == 'str' else (0 if kind == 'int' else 0.0)
+            self.struct_members[dst_prefix + mkey] = self.struct_members.get(
+                src_prefix + mkey, default
+            )
+        return True
+
     def _assign(self, var: str, expr: str):
+        if '{(' in var:
+            # Struct-array element lvalue, e.g. circle{(N%)}.r% = 7: key the
+            # storage by the index's evaluated value, not its source text,
+            # so a later read via a different index variable can find it.
+            var = self._normalize_struct_array_index_refs(var)
+        if '{' in var and self._try_whole_struct_assign(var, expr):
+            return
         memory_vars = {
             'PAGE': 'bbc_page',
             'LOMEM': 'bbc_lomem',
@@ -4118,6 +4437,8 @@ class RuntimeExprMixin:
                 val = str(self._eval_assignment_expr(expr, kind='str'))
             elif kind == 'int':
                 val = self._coerce_int_storage(self._eval_assignment_expr(expr, kind='int'))
+                if base.endswith('&'):
+                    val = int(val) & 0xFF
             else:
                 val = float(self._eval_assignment_expr(expr, kind='float'))
             self.struct_members[base] = val
