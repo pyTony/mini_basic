@@ -1360,3 +1360,29 @@ class NoPythonExceptionEscapesTests(unittest.TestCase):
                 self.assertNotIn('after', out, msg=(dialect, bad))
                 self.assertIn('? ', err + out, msg=(dialect, bad, err))
                 self.assertIn('line 20', err + out, msg=(dialect, bad, err))
+
+
+class OnErrorInsideFnTests(unittest.TestCase):
+    """An error inside a DEF FN body reaches the outer ON ERROR with its own text."""
+
+    def test_error_in_fn_body_keeps_original_message_and_line(self):
+        for dialect in ('bbc', 'mini'):
+            out, err = _run(
+                '10 ON ERROR PRINT "trapped: ";REPORT$;" at ";ERL : END\n'
+                '20 PRINT FNbad\n'
+                '30 END\n'
+                '40 DEF FNbad\n'
+                '50 LOCAL A%\n'
+                '60 A% = 1 DIV 0\n'
+                '70 = A%\n',
+                dialect,
+            )
+            self.assertNotIn('jump outside body', out + err, msg=(dialect, out, err))
+            self.assertIn('trapped:', out, msg=(dialect, out, err))
+            self.assertIn('at 60', out, msg=(dialect, out, err))
+
+    def test_error_in_fn_body_without_trap_names_the_real_error(self):
+        out, err = _run(
+            '10 PRINT FNbad\n20 END\n30 DEF FNbad\n40 = 1 DIV 0\n', 'bbc',
+        )
+        self.assertNotIn('jump outside body', out + err, msg=(out, err))
