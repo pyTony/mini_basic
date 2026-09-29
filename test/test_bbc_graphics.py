@@ -33,6 +33,46 @@ class BBCGraphicsTests(unittest.TestCase):
         colour = gfx.point_colour(20, 20)
         self.assertEqual(colour, 2)
 
+    def test_line_thickness_widens_lines(self):
+        """VDU 23,23,t| (BBCSDL line thickness) applies to lines, not just arcs."""
+        def column(thickness):
+            gfx = BBCGraphics(64, 64, x_scale=1, y_scale=1)
+            gfx.gcol(0, 2)
+            gfx.line_thickness = thickness
+            gfx.move_absolute(10, 32)
+            gfx.plot_code(5, 50, 32)  # PLOT 5: line in the foreground colour
+            return [y for y in range(20, 45) if gfx.point_colour(30, y) == 2]
+
+        self.assertEqual(column(1), [32])
+        self.assertEqual(column(5), [30, 31, 32, 33, 34])
+        self.assertEqual(len(column(4)), 4)
+
+    def test_thick_line_covers_diagonals_and_verticals(self):
+        gfx = BBCGraphics(64, 64, x_scale=1, y_scale=1)
+        gfx.gcol(0, 2)
+        gfx.line_thickness = 6
+        gfx.move_absolute(10, 10)
+        gfx.plot_code(5, 50, 50)
+        inked = sum(
+            1 for x in range(64) for y in range(64) if gfx.point_colour(x, y) == 2
+        )
+        self.assertGreater(inked, 40 * 6)  # a 1-px diagonal would be about 40
+        self.assertEqual(gfx.point_colour(30, 30), 2)
+        gfx.line_thickness = 3
+        gfx.move_absolute(5, 5)
+        gfx.plot_code(5, 5, 20)
+        self.assertEqual(
+            [gfx.point_colour(x, 12) for x in (3, 4, 5, 6, 7)], [0, 2, 2, 2, 0],
+        )
+
+    def test_thick_zero_length_line_is_a_dot_of_that_size(self):
+        gfx = BBCGraphics(64, 64, x_scale=1, y_scale=1)
+        gfx.gcol(0, 2)
+        gfx.line_thickness = 3
+        gfx.move_absolute(30, 30)
+        gfx.plot_code(5, 30, 30)
+        self.assertEqual(gfx.point_colour(30, 30), 2)
+
     def test_dirty_rect_tracks_plots_and_skips_same_ink(self):
         """Present path uses dirty rect patches; same-ink rewrite is free."""
         gfx = BBCGraphics(64, 64, x_scale=1, y_scale=1)
