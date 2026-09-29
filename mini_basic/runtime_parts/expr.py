@@ -1481,7 +1481,7 @@ class RuntimeExprMixin:
             if timeout_cs < 0:
                 if not self._dialect_allows('inkey_scan'):
                     raise ValueError('INKEY(-n) is a mini (SDL) extension')
-                return self._inkey_bbc_key_down(int(timeout_cs))
+                return self._inkey_bbc_negative_scan(int(timeout_cs))
             return self._inkey_code_wait(timeout_cs)
         if func == 'WIDTH':
             if arg is None or not arg.strip():
