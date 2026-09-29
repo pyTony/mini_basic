@@ -727,6 +727,8 @@ class PygameDisplay(DisplayBackend):
         """True when text should use the Acorn MOS 8x8 matrix (BBC modes 0–8)."""
         if self.is_teletext_mode():
             return False
+        if getattr(self, "scale_locked", False):
+            return False
         return self._effective_cell_width() == 8
 
     def _refresh_font(self) -> None:
@@ -969,7 +971,15 @@ class PygameDisplay(DisplayBackend):
         )
 
     def _display_text_colour(self, logical: int) -> int:
-        return map_mode_text_colour(logical, self._mode)
+        code = int(logical) & 255
+        # MODE 0 strictly restricts non-zero foreground to white (7)
+        if self._mode == 0:
+            return map_mode_text_colour(code, self._mode)
+        # Extended high-intensity / custom palette entries (8..15 or >=16)
+        # retain their direct index if not flashing.
+        if code >= 8 and not getattr(self, "_text_flash", False):
+            return code
+        return map_mode_text_colour(code, self._mode)
 
     def _reset_text_grid(self) -> None:
         self._text_flash = False
@@ -1255,34 +1265,36 @@ class PygameDisplay(DisplayBackend):
         """BBC COLOUR / VDU 17 text colour.
 
         * ``0..7`` — foreground (and clear flash)
-        * ``8..15`` — flashing foreground (logical colour ``n-8``)
+        * ``8..15`` — flashing foreground in classic modes, or high-intensity palette entry
         * ``128..255`` — background colour ``n-128`` (full index; MODE 8 palette)
         * ``136..143`` — flashing background 0..7 (``128+8`` .. ``128+15``)
-
-        ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray:
-        the interpreter passes ``no_flash=True`` when this logical colour was
-        just redefined with ``COLOR n,r,g,b``, so a custom palette pick never
-        flashes even if it lands in the classic 136..143 range.
-        Hanoi MODE 3 still maps via ``map_mode_text_colour`` when blitting.
         """
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
-            if 8 <= logical <= 15 and not no_flash:
-                self._bg_colour = logical - 8
+            is_flash_bg = 136 <= code <= 143 and not no_flash
+            if is_flash_bg:
+                self._bg_colour = (logical - 8) & 255
                 self._text_flash = True
             else:
                 self._bg_colour = logical & 255
+                self._text_flash = False
             if self._gfx is not None:
                 self._gfx.gcol_bg = (0, self._bg_colour)
             return
-        if code >= 8:
-            self._fg_colour = (code - 8) & 7
-            self._text_flash = True
-            return
-        self._fg_colour = code
-        self._text_flash = False
 
+        if 8 <= code <= 15:
+            if no_flash or not self.is_teletext_mode():
+                self._fg_colour = code
+                self._text_flash = False
+            else:
+                self._fg_colour = (code - 8) & 7
+                self._text_flash = True
+            return
+
+        self._fg_colour = code & 255
+        self._text_flash = False
+        
     def goto(self, row: int, col: int) -> None:
         self._cursor_row = max(0, min(self.text_rows - 1, int(row)))
         self._cursor_col = max(0, min(self.text_cols - 1, int(col)))
