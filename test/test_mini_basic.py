@@ -3042,9 +3042,11 @@ class MiniBASICTests(unittest.TestCase):
 
     def test_rnd_neg_time_seeds(self):
         lines = [
-            (10, 'LET S = RND(-TIME)'),
-            (20, 'IF S <> -TIME THEN PRINT "bad" ELSE PRINT "ok"'),
-            (30, 'END'),
+            (10, 'LET T = TIME'),
+            (20, 'IF T = 0 THEN T = 1'),
+            (30, 'LET S = RND(-T)'),
+            (40, 'IF S <> -T THEN PRINT "bad" ELSE PRINT "ok"'),
+            (50, 'END'),
         ]
         self.assertEqual(self.run_program(lines), 'ok')
 

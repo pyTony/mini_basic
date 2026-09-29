@@ -1113,7 +1113,9 @@ class PygameDisplay(DisplayBackend):
         if not hasattr(pygame, 'Window'):
             return
         try:
-            window = pygame.Window.from_display_module()
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*Window\.from_display_module.*")
+                window = pygame.Window.from_display_module()
             screen_w, screen_h = desktop_size(pygame)
             client_w, client_h = window.size
             x = max(0, (screen_w - client_w) // 2)
@@ -1128,13 +1130,12 @@ class PygameDisplay(DisplayBackend):
         screen_w, screen_h = desktop_size(pygame)
         win_w = w + _WINDOW_CHROME_WIDTH
         win_h = h + _TITLE_BAR_ESTIMATE + _WINDOW_MARGIN
-        # Do not apply a 92% height cutoff on Windows. Default 2x MODE 8/9 is
-        # 1280x1024; plus chrome that is 1072px, and 1072 > 1080*0.92 (=993)
-        # forced 1x while WSL (no cutoff) kept 2x on the same monitor.
         if not hasattr(pygame, 'Window'):
             return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
         try:
-            window = pygame.Window.from_display_module()
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", category=DeprecationWarning, message=r".*Window\.from_display_module.*")
+                window = pygame.Window.from_display_module()
             x, y = window.position
             client_w, client_h = window.size
             bottom = y + client_h + _TITLE_BAR_ESTIMATE
@@ -1142,7 +1143,7 @@ class PygameDisplay(DisplayBackend):
             return x >= 0 and y >= 0 and bottom <= screen_h and right <= screen_w
         except Exception:
             return win_h <= screen_h and win_w <= screen_w
-
+        
     @property
     def is_open(self) -> bool:
         return bool(self._open and self._screen is not None)
