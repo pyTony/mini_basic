@@ -1254,3 +1254,30 @@ class PlotArcSeamOverlapTests(unittest.TestCase):
                 1,
                 msg=f'deg={deg} start seam not lit',
             )
+
+
+class NoPythonExceptionEscapesTests(unittest.TestCase):
+    """A bad expression in any statement is a BASIC error, never a traceback."""
+
+    BAD_LINES = (
+        '20 IF (1 THEN PRINT "y"',
+        '20 IF 1 THEN IF (2 THEN PRINT "y"',
+        '20 WHILE (1 : WEND',
+        '20 REPEAT : UNTIL (1',
+        '20 FOR I = (1 TO 3 : NEXT',
+        '20 PRINT (1',
+    )
+
+    def test_bad_expression_reports_error_and_stops(self):
+        for dialect in ('bbc', 'mini', 'mits'):
+            for bad in self.BAD_LINES:
+                if dialect == 'mits' and bad.split()[1] in ('WHILE', 'REPEAT'):
+                    continue
+                try:
+                    out, err = _run(f'10 PRINT "start"\n{bad}\n30 PRINT "after"\n', dialect)
+                except BaseException as exc:  # noqa: BLE001 - the point of the test
+                    self.fail(f'{dialect}: {bad!r} escaped as {type(exc).__name__}: {exc}')
+                self.assertIn('start', out, msg=(dialect, bad))
+                self.assertNotIn('after', out, msg=(dialect, bad))
+                self.assertIn('? ', err + out, msg=(dialect, bad, err))
+                self.assertIn('line 20', err + out, msg=(dialect, bad, err))
