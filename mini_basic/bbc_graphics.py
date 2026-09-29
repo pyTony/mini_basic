@@ -751,6 +751,9 @@ class BBCGraphics:
         # Iterate in screen pixels so scaled OS units do not XOR the same pixel twice.
         sx0, sy0 = self._to_screen(x0, y0)
         sx1, sy1 = self._to_screen(x1, y1)
+        if self.line_thickness > 1:
+            self._thick_line_screen(sx0, sy0, sx1, sy1, self.line_thickness, gcol)
+            return
         dx = abs(sx1 - sx0)
         dy = -abs(sy1 - sy0)
         sx_step = 1 if sx0 < sx1 else -1
@@ -768,6 +771,43 @@ class BBCGraphics:
             if e2 <= dx:
                 err += dx
                 sy += sy_step
+
+    def _thick_line_screen(
+        self,
+        sx0: int,
+        sy0: int,
+        sx1: int,
+        sy1: int,
+        thickness: int,
+        gcol: GColState,
+    ) -> None:
+        """VDU 23,23,t| line: a filled quad ``thickness`` pixels wide.
+
+        Axis-aligned lines cover exactly ``thickness`` pixel rows/columns. The
+        ends extend by half the width (square caps) so the joints of a
+        branching drawing (snowscene's tree) stay closed. Filled once, so XOR
+        colour modes do not cancel where segments would overlap.
+        """
+        half = (thickness - 1) / 2.0
+        length = math.hypot(sx1 - sx0, sy1 - sy0)
+        if length == 0.0:
+            ux, uy = 1.0, 0.0
+        else:
+            ux, uy = (sx1 - sx0) / length, (sy1 - sy0) / length
+        nx, ny = -uy * half, ux * half  # perpendicular, half width
+        ex, ey = ux * half, uy * half  # cap extension along the line
+        ax, ay = sx0 - ex, sy0 - ey
+        bx, by = sx1 + ex, sy1 + ey
+        def up(value: float) -> int:  # round half up (round() is banker's)
+            return int(math.floor(value + 0.5))
+
+        pts = [
+            (up(ax + nx), up(ay + ny)),
+            (up(bx + nx), up(by + ny)),
+            (up(bx - nx), up(by - ny)),
+            (up(ax - nx), up(ay - ny)),
+        ]
+        self._fill_convex_screen(pts, gcol)
 
     def _triangle(self, code: int, x2: int, y2: int) -> None:
         if len(self.stack) < 2:
