@@ -1904,6 +1904,10 @@ class RuntimeExecutionMixin:
                         # Structured IF/WHILE/FOR exit onto END DEF (body_end).
                         if target == fn.body_end or target == -1:
                             break
+                        if target == self.error_trap_line and self._error_trap_enabled():
+                            # An error in the body: unwind the FN and let the outer
+                            # ON ERROR run (error_message / ERL already recorded).
+                            raise BasicRuntimeError()
                         raise ValueError('DEF FN jump outside body')
                     idx = body_line_index[target]
                 else:
