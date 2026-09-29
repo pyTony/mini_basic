@@ -725,7 +725,7 @@ class PygameDisplay(DisplayBackend):
 
     def _use_mos_font(self) -> bool:
         """True when text should use the Acorn MOS 8x8 matrix (BBC modes 0–8)."""
-        if self.is_teletext_mode() or self.is_graphics_mode():
+        if self.is_teletext_mode():
             return False
         return self._effective_cell_width() == 8
 
@@ -969,10 +969,8 @@ class PygameDisplay(DisplayBackend):
         )
 
     def _display_text_colour(self, logical: int) -> int:
-        if self.is_graphics_mode():
-            return int(logical) & 255
         return map_mode_text_colour(logical, self._mode)
-    
+
     def _reset_text_grid(self) -> None:
         self._text_flash = False
         blank = self._blank_text_cell()
@@ -1257,26 +1255,20 @@ class PygameDisplay(DisplayBackend):
         """BBC COLOUR / VDU 17 text colour.
 
         * ``0..7`` — foreground (and clear flash)
-        * ``8..15`` — flashing foreground (logical colour ``n-8``) in text-only
-          modes; preserved as direct logical colour in graphics modes or when
-          ``no_flash=True``.
+        * ``8..15`` — flashing foreground (logical colour ``n-8``)
         * ``128..255`` — background colour ``n-128`` (full index; MODE 8 palette)
-        * ``136..143`` — flashing background 0..7 (``128+8`` .. ``128+15``) in
-          text-only modes; preserved as direct logical background when
-          ``no_flash=True`` or in graphics modes.
+        * ``136..143`` — flashing background 0..7 (``128+8`` .. ``128+15``)
 
         ``COLOR 15+128`` (piechart sky) must keep index 15, not ``15 & 7`` → 7 gray:
         the interpreter passes ``no_flash=True`` when this logical colour was
         just redefined with ``COLOR n,r,g,b``, so a custom palette pick never
         flashes even if it lands in the classic 136..143 range.
-        Similarly, graphics mode captions (e.g. MODE 1 ``COLOUR 11``) retain their
-        full logical colour index without converting to flashing colour 3.
         Hanoi MODE 3 still maps via ``map_mode_text_colour`` when blitting.
         """
         code = int(colour) & 255
         if code >= 128:
             logical = code - 128
-            if 8 <= logical <= 15 and not no_flash and not self.is_graphics_mode():
+            if 8 <= logical <= 15 and not no_flash:
                 self._bg_colour = logical - 8
                 self._text_flash = True
             else:
@@ -1284,7 +1276,7 @@ class PygameDisplay(DisplayBackend):
             if self._gfx is not None:
                 self._gfx.gcol_bg = (0, self._bg_colour)
             return
-        if 8 <= code <= 15 and not no_flash and not self.is_graphics_mode():
+        if code >= 8:
             self._fg_colour = (code - 8) & 7
             self._text_flash = True
             return
