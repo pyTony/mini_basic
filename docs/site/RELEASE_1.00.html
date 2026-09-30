@@ -60,7 +60,12 @@ python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas</code></pre>
 <p>Regular users never need this.</p>
 <hr>
 <h3 id="tag-checklist-user-gate-do-not-auto-tag">Tag checklist (user gate — do not auto-tag)</h3>
-<ol><li>[ ] Accept this file + LANGUAGE_FEATURES_1.00  </li><li>[ ] <code>__version__</code> / <code>pyproject.toml</code> already <code>1.0.0</code>  </li><li>[ ] <code>pytest -q -m &quot;phase1 and not slow&quot;</code> green on the release machine  </li><li>[ ] <code>git tag 1.0.0</code> when you want it</li></ol>
+<p>Run on the release machine, in this order. Tag name is <code>1.0.0</code> (no <code>v</code>).</p>
+<ol><li>[ ] Accept this file + <a href="LANGUAGE_FEATURES_1.00.html">LANGUAGE_FEATURES_1.00.md</a>; add the PR number to the newest <a href="CHANGELOG.html">CHANGELOG.md</a> section header.</li><li>[ ] Full suite green: <code>python -m pytest -q</code> (last run: 1283 passed, 4 skipped, 1 xfailed, Windows / PyPy 3.11).</li><li>[ ] Merge the release branch into <code>main</code>.</li><li>[ ] Bump <code>1.0.0.dev0</code> → <code>1.0.0</code> in <strong>all</strong> of these (the version currently lives in six places):</li></ol>
+<p>- <code>mini_basic/version.py</code> (<code>__version__</code>) - <code>pyproject.toml</code> (<code>version =</code>; keep in sync with <code>version.py</code>) - <code>README.md</code> (line &quot;Version: … pre-release <code>1.0.0.dev0</code> until tagged&quot;) - <code>docs/LANGUAGE_FEATURES_1.00.md</code> (<strong>Version line</strong>) - <code>docs/RELEASE_1.00.md</code> (Status line, top of this file) - <code>documentation/build_minibasic_manual.py</code> (fallback version string)</p>
+<p>Then <code>python scripts/build_user_docs.py</code> to rebuild <code>docs/site/</code>, and check with <code>grep -rn &quot;dev0&quot; --include=*.py --include=*.toml --include=*.md .</code> that only history (CHANGELOG, PACKAGING wording) is left.</p>
+<ol><li>[ ] <code>python -m mini_basic --version</code> prints <code>1.0.0</code>; commit <code>release: 1.0.0</code> on <code>main</code>.</li><li>[ ] <code>git tag 1.0.0</code> and <code>git push origin 1.0.0</code>.</li><li>[ ] Fresh-clone check (a temporary folder, not the dev checkout):</li></ol>
+<p>``<code>text python -m pip install &quot;mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git&quot; mini-basic --version python -m mini_basic -c &quot;PRINT 6*7&quot; </code>``</p>
 <hr>
 <h3 id="after-1-00-light">After 1.00 (light)</h3>
 <ul><li>poem MODE 7 audit path (graphics flavor)</li><li>Teletext remainder / SYS only if demanded</li></ul>
