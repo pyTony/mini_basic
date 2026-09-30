@@ -139,10 +139,28 @@ everything else (REPL, file I/O, the non-graphical dialects/demos) works.
 
 ## Tag checklist (user gate — do not auto-tag)
 
-1. [ ] Accept this file + LANGUAGE_FEATURES_1.00  
-2. [ ] `__version__` / `pyproject.toml` already `1.0.0`  
-3. [ ] `pytest -q -m "phase1 and not slow"` green on the release machine  
-4. [ ] `git tag 1.0.0` when you want it
+Run on the release machine, in this order. Tag name is `1.0.0` (no `v`).
+
+1. [ ] Accept this file + [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md); add the PR number to the newest [CHANGELOG.md](../CHANGELOG.md) section header.
+2. [ ] Full suite green: `python -m pytest -q` (last run: 1283 passed, 4 skipped, 1 xfailed, Windows / PyPy 3.11).
+3. [ ] Merge the release branch into `main`.
+4. [ ] Bump `1.0.0.dev0` → `1.0.0` in **all** of these (the version currently lives in six places):
+   - `mini_basic/version.py` (`__version__`)
+   - `pyproject.toml` (`version =`; keep in sync with `version.py`)
+   - `README.md` (line "Version: … pre-release `1.0.0.dev0` until tagged")
+   - `docs/LANGUAGE_FEATURES_1.00.md` (**Version line**)
+   - `docs/RELEASE_1.00.md` (Status line, top of this file)
+   - `documentation/build_minibasic_manual.py` (fallback version string)
+   
+   Then `python scripts/build_user_docs.py` to rebuild `docs/site/`, and check with `grep -rn "dev0" --include=*.py --include=*.toml --include=*.md .` that only history (CHANGELOG, PACKAGING wording) is left.
+5. [ ] `python -m mini_basic --version` prints `1.0.0`; commit `release: 1.0.0` on `main`.
+6. [ ] `git tag 1.0.0` and `git push origin 1.0.0`.
+7. [ ] Fresh-clone check (a temporary folder, not the dev checkout):
+   ```text
+   python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+   mini-basic --version
+   python -m mini_basic -c "PRINT 6*7"
+   ```
 
 ---
 
