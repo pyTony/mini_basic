@@ -9,6 +9,7 @@ on:
 permissions:
   contents: write
   issues: read
+  pull-requests: read
 
 jobs:
   update-todo:
@@ -19,7 +20,7 @@ jobs:
         with:
           ref: main
 
-      - name: Regenerate TODO.md from open issues
+      - name: Regenerate TODO.md from open issues and recent PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
@@ -27,12 +28,21 @@ jobs:
           {
             echo "# TODO"
             echo
-            echo "Auto-generated from open GitHub issues. Do not edit by hand —"
-            echo "edit the issues instead; this file is refreshed on every merge to main."
+            echo "Auto-generated from open GitHub issues and recently merged PRs. Do not"
+            echo "edit by hand — edit the issues instead; this file is refreshed on every"
+            echo "merge to main."
+            echo
+            echo "## Open"
             echo
             gh issue list --repo "$REPO" --state open \
               --json number,title,url \
               --jq '.[] | "- [ ] [#\(.number)](\(.url)) \(.title)"'
+            echo
+            echo "## Recently merged PRs"
+            echo
+            gh pr list --repo "$REPO" --state merged --limit 10 \
+              --json number,title,url,mergedAt \
+              --jq '.[] | "- [#\(.number)](\(.url)) \(.title) (\(.mergedAt | split("T")[0]))"'
           } > TODO.md
 
       - name: Commit if changed
