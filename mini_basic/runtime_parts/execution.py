@@ -121,7 +121,7 @@ _WHILE_ACCEL_BLOCKING_CMDS = frozenset({
     'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END',
     'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
     'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
-    'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP',
+    'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP', 'TINT',
 })
 
 class RuntimeExecutionMixin:
@@ -2303,8 +2303,10 @@ class RuntimeExecutionMixin:
         code = self._bbc_text_colour_code(raw_code)
         if code >= 128:
             self.text_bg_colour = code - 128
+            self._bbc_tint_bg = 0
         else:
             self.text_fg_colour = code
+            self._bbc_tint_fg = 0
         self._last_emitted_fg_colour = None
         self._ensure_display()
         if self._display_enabled():
@@ -2313,6 +2315,34 @@ class RuntimeExecutionMixin:
             # not a request for the classic flashing background.
             no_flash = code >= 128 and (code - 128) in self._bbc_custom_colours
             self._display.set_colour(code, no_flash=no_flash)
+
+    def _apply_text_tint(self, index: int, level: int) -> None:
+        """Blend ``level`` (0/64/128/192) brightness into logical colour ``index``.
+
+        The base RGB always comes from an explicit 4-arg COLOUR definition
+        (``_bbc_custom_colours``, untouched by TINT) or the default palette
+        function — never from a previous TINT result — so repeated TINT
+        calls on the same base colour stay idempotent instead of compounding.
+        """
+        from ..display import colour_to_rgb
+
+        index = int(index) & 255
+        base = self._bbc_custom_colours.get(index)
+        if base is None:
+            base = colour_to_rgb(index)
+        frac = max(0, min(192, int(level))) / 192.0
+        rgb = tuple(min(255, int(round(c + (255 - c) * frac))) for c in base)
+        self._ensure_display()
+        if self._display_enabled() and hasattr(self._display, 'set_palette_rgb'):
+            self._display.set_palette_rgb(index, rgb)
+            gfx = getattr(self._display, '_gfx', None)
+            apply_tc = getattr(self._display, '_apply_gfx_truecolour', None)
+            if (
+                gfx is not None
+                and callable(apply_tc)
+                and getattr(gfx, 'gcol_fg', (0, -1))[1] == index
+            ):
+                apply_tc(index)
 
     def _vdu_text_bounds(self) -> Tuple[int, int, int, int]:
         """Return (left, bottom, right, top) inclusive text window in char cells."""
@@ -2344,6 +2374,8 @@ class RuntimeExecutionMixin:
         """VDU 20: default white-on-black text colours and default palette."""
         self.text_fg_colour = 7
         self.text_bg_colour = 0
+        self._bbc_tint_fg = 0
+        self._bbc_tint_bg = 0
         self._last_emitted_fg_colour = None
         self._bbc_custom_colours.clear()
         self._ensure_display()
@@ -5154,6 +5186,8 @@ class RuntimeExecutionMixin:
                         self._flush_display()
                     self.text_fg_colour = 7
                     self.text_bg_colour = 0
+                    self._bbc_tint_fg = 0
+                    self._bbc_tint_bg = 0
                     self._last_emitted_fg_colour = None
                 except Exception as exc:
                     self._runtime_error(
@@ -5408,6 +5442,8 @@ class RuntimeExecutionMixin:
                     bg = self._bbc_text_colour_code(self._eval_numeric(args[1]))
                     self.text_fg_colour = fg
                     self.text_bg_colour = bg
+                    self._bbc_tint_fg = 0
+                    self._bbc_tint_bg = 0
                     self._last_emitted_fg_colour = None
                     self._ensure_display()
                     if self._display_enabled():
@@ -5422,6 +5458,31 @@ class RuntimeExecutionMixin:
             except Exception as exc:
                 self._runtime_error(
                     self._error_message('? COLOUR error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'TINT':
+            # TINT target,level: brightness (0/64/128/192) blended into the
+            # current text foreground (0) or background (1) colour, without
+            # changing its base hue. Archimedes/RISC OS BBC BASIC statement
+            # (distinct from the TINT(x,y) pixel-read function).
+            try:
+                args = self._split_args(rest.strip())
+                if len(args) != 2:
+                    raise ValueError('TINT requires target,level (e.g. TINT 0,64)')
+                target = int(self._eval_numeric(args[0]))
+                level = int(self._eval_numeric(args[1])) & 192
+                if target == 0:
+                    self._bbc_tint_fg = level
+                    index = self.text_fg_colour if self.text_fg_colour is not None else 7
+                elif target == 1:
+                    self._bbc_tint_bg = level
+                    index = self.text_bg_colour
+                else:
+                    raise ValueError('TINT target must be 0 (foreground) or 1 (background)')
+                self._apply_text_tint(index, level)
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? TINT error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         if cmd == 'CHAIN':
