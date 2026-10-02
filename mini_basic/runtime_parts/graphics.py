@@ -101,11 +101,13 @@ from .helpers import (
     _apply_pygame_display_defaults,
 )
 
-# BBC BASIC negative-INKEY key numbers -> pygame key constant names.
+# BBC BASIC negative-INKEY key numbers -> pygame key constant names (BBC Micro
+# layout, plus BB4W/BBCSDL -1..-12: Shift, Ctrl, Alt, left/right variants and
+# mouse buttons). Unlisted numbers are never "down".
 _BBC_NEGATIVE_INKEY_KEYS = {
-    -1: ('K_LSHIFT', 'K_RSHIFT'),
-    -2: ('K_LCTRL', 'K_RCTRL'),
-    -3: ('K_LALT', 'K_RALT'),
+    -1: ('K_LSHIFT', 'K_RSHIFT'), -2: ('K_LCTRL', 'K_RCTRL'), -3: ('K_LALT', 'K_RALT'),
+    -4: ('K_LSHIFT',), -5: ('K_LCTRL',), -6: ('K_LALT',),
+    -7: ('K_RSHIFT',), -8: ('K_RCTRL',), -9: ('K_RALT',),
     -26: ('K_LEFT',),
     -122: ('K_RIGHT',),
     -58: ('K_UP',),
@@ -115,6 +117,12 @@ _BBC_NEGATIVE_INKEY_KEYS = {
     -113: ('K_ESCAPE',),
     -90: ('K_BACKSPACE', 'K_DELETE'),
     -97: ('K_TAB',),
+    -21: ('K_F4',), -23: ('K_F7',), -33: ('K_F10',), -65: ('K_CAPSLOCK',),
+    -106: ('K_END',), -114: ('K_F1',), -115: ('K_F2',), -116: ('K_F3',),
+    -117: ('K_F5',), -118: ('K_F6',), -119: ('K_F8',), -120: ('K_F9',),
+    -24: ('K_MINUS',), -25: ('K_EQUALS',), -57: ('K_LEFTBRACKET',),
+    -73: ('K_QUOTE',), -88: ('K_SEMICOLON',), -89: ('K_RIGHTBRACKET',),
+    -103: ('K_COMMA',), -104: ('K_PERIOD',), -105: ('K_SLASH',), -121: ('K_BACKSLASH',),
 }
 for _ch, _code in zip(
     'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
