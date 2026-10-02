@@ -1,0 +1,48 @@
+name: Update TODO.md
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  issues: read
+
+jobs:
+  update-todo:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Regenerate TODO.md from open issues
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+        run: |
+          {
+            echo "# TODO"
+            echo
+            echo "Auto-generated from open GitHub issues. Do not edit by hand —"
+            echo "edit the issues instead; this file is refreshed on every merge to main."
+            echo
+            gh issue list --repo "$REPO" --state open \
+              --json number,title,url \
+              --jq '.[] | "- [ ] [#\(.number)](\(.url)) \(.title)"'
+          } > TODO.md
+
+      - name: Commit if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- TODO.md; then
+            git add TODO.md
+            git commit -m "chore: regenerate TODO.md from open issues"
+            git push origin HEAD:main
+          else
+            echo "TODO.md unchanged"
+          fi
