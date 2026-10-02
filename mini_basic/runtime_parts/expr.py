@@ -2045,6 +2045,17 @@ class RuntimeExprMixin:
                 or (inner is not None and self._is_qb_fn_result_assign(inner))
             ):
                 return full
+            # A bare FNxxx is only a zero-arg call when FNxxx is actually
+            # defined; otherwise it's a plain variable that happens to start
+            # with FN (e.g. fn0%, fnTotal$) and must be left untouched.
+            if inner is not None:
+                self._ensure_definitions_current()
+                known = self._lookup_user_function(inner) is not None
+                if not known:
+                    lname = inner.lower()
+                    known = lname.startswith('gfx') or lname == 'sortinit'
+                if not known:
+                    return full
             return f'{full}()'
 
         expr = re.sub(
