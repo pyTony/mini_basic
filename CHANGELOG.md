@@ -5,6 +5,10 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-02
 
+- [#29](https://github.com/pyTony/mini_basic/pull/29) Remove stale compatibility blockers from bbcsdl_scan — those stale patterns are removed. The genuine gaps stay, re-weighted: `OSCLI LOAD/FONT/MDISPLAY` (image/font loading) and `ON MOUSE`/`ON MOVE` event hooks are weighted lower than `SYS`/OpenGL/Box2D/inline-asm/raw fn-pointers, since pygame is itself an SDL wrapper and could plausibly support the former later —…
+- [#27](https://github.com/pyTony/mini_basic/pull/27) Pull merged-PR info from GitHub into TODO.md — `TODO.md` now has two sections: the open-issues checklist as before, plus a "Recently merged PRs" list (number, title, merge date) for the 10 most recently merged PRs. The `update-todo.yml` workflow regenerates both sections the same way — on every merge to `main`, or via manual `workflow_dispatch`.
+- [#28](https://github.com/pyTony/mini_basic/pull/28) Restore INKEY(-n) key table entries dropped by a manual merge — the full key table is back. Added a regression test (`test_key_table_names_punctuation_and_function_keys`) that checks every code `_BBC_INKEY_CHARS` recognizes is also present in `_BBC_NEGATIVE_INKEY_KEYS`, so the two tables can't silently disagree again — the existing `test_key_table_names_common_keys` only…
+- [#25](https://github.com/pyTony/mini_basic/pull/25) Add auto-generated TODO.md refreshed on each merge — There is no `TODO.md`. "Open work" only exists as the GitHub issues list (#11-#14), and there's no automated link between merged PRs and that list — nothing updates automatically.
 - [#24](https://github.com/pyTony/mini_basic/pull/24) Fix bare-FN-call rewrite hijacking plain fn-prefixed variables — the rewrite only fires when `FN<name>` is an actually-defined user function (or a recognized `gfx*`/`sortinit` builtin stub); any other `FN`-prefixed identifier is left as a normal variable.
 
 ## 2026-09-28
