@@ -70,6 +70,21 @@ class InkeyScanTests(unittest.TestCase):
         self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-98], ('K_z',))
         self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-113], ('K_ESCAPE',))
 
+    def test_key_table_names_punctuation_and_function_keys(self):
+        # Regression guard: these were silently dropped by a bad manual merge
+        # once (main briefly had no pygame mapping for them at all, even
+        # though _BBC_INKEY_CHARS still claimed the terminal fallback codes).
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-24], ('K_MINUS',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-25], ('K_EQUALS',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-121], ('K_BACKSLASH',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-65], ('K_CAPSLOCK',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-106], ('K_END',))
+        self.assertEqual(_BBC_NEGATIVE_INKEY_KEYS[-114], ('K_F1',))
+        for code in (-24, -25, -57, -73, -88, -89, -103, -104, -105, -121):
+            # Every code the terminal fallback recognizes must also be
+            # recognized by the pygame key table, or the two modes disagree.
+            self.assertIn(code, _BBC_NEGATIVE_INKEY_KEYS, msg=code)
+
     def test_pygame_window_reads_held_keys_and_mouse(self):
         class FakeKeys(dict):
             def __missing__(self, key):
