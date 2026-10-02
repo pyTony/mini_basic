@@ -13,6 +13,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#29](https://github.com/pyTony/mini_basic/pull/29) Remove stale compatibility blockers from bbcsdl_scan (2026-10-02)
 - [#28](https://github.com/pyTony/mini_basic/pull/28) Restore INKEY(-n) key table entries dropped by a manual merge (2026-10-02)
 - [#27](https://github.com/pyTony/mini_basic/pull/27) Pull merged-PR info from GitHub into TODO.md (2026-10-02)
 - [#25](https://github.com/pyTony/mini_basic/pull/25) Add auto-generated TODO.md refreshed on each merge (2026-10-02)
@@ -22,4 +23,3 @@ merge to main.
 - [#21](https://github.com/pyTony/mini_basic/pull/21) Fix --trace CLI flag being silently reset by load() (2026-09-26)
 - [#20](https://github.com/pyTony/mini_basic/pull/20) Fix redundant re-sort in _register_numeric_var (surks.bbc perf) (2026-09-26)
 - [#19](https://github.com/pyTony/mini_basic/pull/19) Fix unrecognized single-line colon-joined DEF PROC bodies (2026-09-26)
-- [#17](https://github.com/pyTony/mini_basic/pull/17) Add ELLIPSE [FILL] x,y,a,b[,angle] command (surks.bbc) (2026-09-26)
