@@ -1,17 +1,31 @@
 # Changelog
 
-Format: one line per merged PR, newest first. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
+Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` runs it on every merge to `main`). See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
+
+
+## 2026-10-02
+
+- [#24](https://github.com/pyTony/mini_basic/pull/24) Fix bare-FN-call rewrite hijacking plain fn-prefixed variables — the rewrite only fires when `FN<name>` is an actually-defined user function (or a recognized `gfx*`/`sortinit` builtin stub); any other `FN`-prefixed identifier is left as a normal variable.
+
+## 2026-09-28
+
+- [#23](https://github.com/pyTony/mini_basic/pull/23) Fix INKEY(-n) key-down scan and glued INKEY-99 syntax — the key table now covers the full BBC Micro layout plus BB4W/BBCSDL extras (F-keys, punctuation, CAPSLOCK, END, Shift/Ctrl/Alt left+right variants) and mouse buttons `-10`/`-11`/`-12`. A terminal (non-pygame) fallback treats the pending input character as its key, held for 0.1s so one frame of a game loop can scan…
+- [#10](https://github.com/pyTony/mini_basic/pull/10) docs: add CHANGELOG.md for merge history — `CHANGELOG.md` lists each merged PR (#2-#9) with a one-line summary, newest first. `index.html` is kept — it's the front door to the `docs/site/` HTML handbook, linked from README.md/HOWTO.md/docs/INDEX.md, not Grok-only as first thought. Ongoing task tracking moves to GitHub Issues (#11-#14) instead of a…
 
 ## 2026-09-26
 
-- #9 Scope COLOUR 136-143 flash to non-custom palette entries; skip Windows-only test
-- #8 perf: fix Mandelbrot ANSI slowdown (WHILE guard fast path + IF parse cache) — Mandel_ANSI 1.9s -> 0.47s
-- #7 Fill PLOT 112-119 parallelograms instead of drawing a line
-- #6 BBC DIM p n memory blocks with ?/! reads and stores
-- #5 Run swirl.bbc: SYS SDL calls, struct members in mini, ABSSIN, PLOT arcs
-- #4 Stop the program when the pygame window is closed with X
-- #3 disco.bbc: byte variables and RECTANGLE outline / SWAP / TO
-
-## 2026-09-25
-
-- #2 Edge-case fixes: == equality, INKEY(-256) platform id, negative INKEY in bbc
+- [#21](https://github.com/pyTony/mini_basic/pull/21) Fix --trace CLI flag being silently reset by load() — `--trace` traces the loaded program's execution the same way `TRACE ON` does.
+- [#22](https://github.com/pyTony/mini_basic/pull/22) Nested structs and whole-struct copy (bounce.bbc runs) — bounce.bbc runs, balls spawn, bounce and get removed at the right edge. It also no longer quits after the first frame.
+- [#20](https://github.com/pyTony/mini_basic/pull/20) Fix redundant re-sort in _register_numeric_var (surks.bbc perf) — the list is only re-sorted when a pattern is actually newly added, and already-registered variable names are cached so a repeat `LET` skips rebuilding/recompiling patterns and rescanning the list entirely. Re-profiling `surks.bbc` shows ~32% more statements executed in the same time window.
+- [#17](https://github.com/pyTony/mini_basic/pull/17) Add ELLIPSE [FILL] x,y,a,b[,angle] command (surks.bbc) — `ELLIPSE [FILL] x,y,a,b[,angle]` draws an outline or filled ellipse, with an optional rotation angle in radians (BBC BASIC convention). `surks.bbc` now runs past its ellipse-drawing loop.
+- [#19](https://github.com/pyTony/mini_basic/pull/19) Fix unrecognized single-line colon-joined DEF PROC bodies — `PROCCLER` (and any other procedure defined entirely on one physical line with a colon-joined body, e.g. `DEF PROCfoo:stmt:stmt:ENDPROC`) is correctly recognized and runs. `pointer.bbc` now gets past its startup init and into its interactive input loop instead of crashing.
+- [#16](https://github.com/pyTony/mini_basic/pull/16) docs: SYS and struct support are partial, not out of scope — the docs describe the small named `SYS` table (`runtime_parts/sys_calls.py`: ticks, delay, display mode) and flat `DIM name{a%,b$,c}` struct support that already work, and narrow the "deferred" rows to what's genuinely still missing (a general SYS FFI, nested/array structs, structs as PROC/FN parameters).
+- [#15](https://github.com/pyTony/mini_basic/pull/15) Fix PLOT arc seam flicker on rotation (swirl.bbc) — the arc's cut-off ends stay lit across rotation instead of toggling pixel by pixel.
+- [#5](https://github.com/pyTony/mini_basic/pull/5) Run swirl.bbc: SYS SDL calls, struct members in mini, ABSSIN, PLOT arcs — swirl runs error-free and draws thick, colour-graded arcs. Any SYS name that isn't in the table still reports "? Out of scope".
+- [#6](https://github.com/pyTony/mini_basic/pull/6) BBC DIM p n memory blocks with ?/! reads and stores — `DIM p n` and `DIM p% n` reserve `n+1` bytes on the interpreter's byte-array heap and store the block's address in the (plain or `%`) variable, matching BBC BASIC's non-array `DIM` form. Reads work with `p?1`, `p!4`, `p%?i%`, and in the `bbc` dialect also the unary `?p` / `!p` / `?(p+1)` forms. Writes now work too:…
+- [#3](https://github.com/pyTony/mini_basic/pull/3) disco.bbc: byte variables and RECTANGLE outline / SWAP / TO — disco.bbc runs without errors, drawing its gradient grid and swapping tiles.
+- [#4](https://github.com/pyTony/mini_basic/pull/4) Stop the program when the pygame window is closed with X — closing the window runs any `ON CLOSE` handler and stops the program, like Escape.
+- [#7](https://github.com/pyTony/mini_basic/pull/7) Fill PLOT 112-119 parallelograms instead of drawing a line — the diamonds render as filled shapes matching BBC BASIC's output.
+- [#8](https://github.com/pyTony/mini_basic/pull/8) perf: fix Mandelbrot ANSI slowdown (WHILE guard fast path + IF parse cache) — Mandel_ANSI now runs in ~0.47s, with identical output. mand_arch is unchanged (it already used the fast path).
+- [#9](https://github.com/pyTony/mini_basic/pull/9) Scope COLOUR 136-143 flash to non-custom palette entries; skip Windows-only test — the interpreter tells the display when a background colour in the 136-143 range was just given a custom RGB, and the display keeps that colour solid instead of flashing; a plain `COLOUR 136` (no custom palette) still flashes as before. The path test now skips on non-Windows platforms instead of failing.
+- [#2](https://github.com/pyTony/mini_basic/pull/2) Edge-case fixes: == equality, INKEY(-256) platform id, negative INKEY in bbc — `INKEY(-256)` returns the BBCSDL platform id (`&73`), negative `INKEY` works in bbc, and `==` is treated as `=` in comparisons. `disco.bbc` starts and animates.

@@ -1,0 +1,47 @@
+name: Update changelog
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-changelog
+  cancel-in-progress: false
+
+jobs:
+  update-changelog:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Regenerate CHANGELOG.md from merged PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/update_changelog.py
+
+      - name: Rebuild HTML docs
+        run: python scripts/build_user_docs.py
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md docs/site/CHANGELOG.html
+          if git diff --cached --quiet; then
+            echo "No changelog changes"
+          else
+            git commit -m "chore: update changelog from merged PR #${{ github.event.pull_request.number }}"
+            git push origin HEAD:main
+          fi
