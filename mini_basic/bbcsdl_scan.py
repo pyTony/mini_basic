@@ -7,35 +7,32 @@ from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 # Weighted blockers: higher weight = harder to support in mini_basic today.
+#
+# Pruned 2026-10 against actual current support (several patterns here used
+# to flag features mini_basic has since implemented, badly inflating scores
+# for programs that only use them in passing — e.g. the universal
+# `ON ERROR ... PRINT REPORT$` boilerplate, or `i%%` as an ordinary 64-bit
+# int loop counter). Keep this list to things that genuinely don't run yet;
+# re-verify with a grep of mini_basic/ before re-adding a pattern here.
+#
+# pygame is itself an SDL wrapper, so "OSCLI LOAD/FONT/MDISPLAY" (image/font
+# loading) and "ON MOUSE"/"ON MOVE" event hooks are plausible future work,
+# not dismiss-and-forget like SYS/OpenGL/Box2D/inline-asm/raw fn-pointers —
+# weighted lower accordingly, but still counted as real gaps.
 BLOCKER_PATTERNS: Tuple[Tuple[str, int, str], ...] = (
     (r'\bSYS\s+"', 10, 'SYS'),
     (r'`[A-Za-z_][A-Za-z0-9_]*`', 8, 'fn_ptr'),
     (r'\bINSTALL\b', 7, 'INSTALL'),
-    (r'%%', 7, 'pointer'),
-    (r'\bON\s+(MOUSE|MOVE|CLOSE|SYS)\b', 6, 'on_event'),
-    (r'\bCASE\b|\bWHEN\b|\bENDCASE\b', 1, 'case'),
-    (r'\bEVAL\s*\(', 5, 'eval'),
-    (r'\bDIM\s+\w+\{', 5, 'structure'),
+    (r'\bON\s+(MOUSE|MOVE|CLOSE|SYS)\b', 4, 'on_event'),  # parsed as no-ops; SDL-feasible
     (r'(?m)^\s*\[(?:opt|equ|def|fn|fp)', 6, 'asm'),
     (r'\bgl[A-Z]\w+', 8, 'opengl'),
     (r'\bshaderlib\b|\bshader\b', 7, 'shader'),
     (r'\bBox2D\b|\bHello_Box2D\b', 9, 'box2d'),
-    (r'\bOSCLI\s+"LOAD\b', 4, 'oscli_load'),
-    (r'\bOSCLI\s+"FONT\b', 3, 'oscli_font'),
-    (r'\bOSCLI\s+"MDISPLAY\b', 5, 'oscli_mdisplay'),
-    (r'\*REFRESH\b', 1, 'star_refresh'),
-    (r'@dir\$|@lib\$|@hwnd%|@memhdc%|@platform%|@vdu%|@size\.', 4, 'bbcsdl_vars'),
-    (r'\bMOUSE\b', 1, 'mouse'),
-    (r'\bSOUND\b|\bENVELOPE\b', 2, 'sound'),
-    (r'\bREPORT\$|\bREPORT\b', 2, 'report'),
-    (r'\bWIDTH\s*\(', 1, 'width'),
-    (r'\bINKEY\s*\(\s*-', 2, 'inkey_neg'),
-    (r'\bINKEY\s*\(\s*\d', 2, 'inkey_timeout'),
-    (r'\bPTR#|\bEXT#|\bGET\$\s*#', 3, 'file_ptr'),
-    (r'\bVDU\s+23\s*,\s*22', 1, 'vdu_custom_mode'),
+    (r'\bOSCLI\s+"LOAD\b', 3, 'oscli_load'),  # image/data load — SDL-feasible
+    (r'\bOSCLI\s+"FONT\b', 2, 'oscli_font'),  # SDL_ttf-feasible
+    (r'\bOSCLI\s+"MDISPLAY\b', 3, 'oscli_mdisplay'),  # SDL_image-feasible
+    (r'\bPTR#|\bEXT#|\bGET\$\s*#', 3, 'file_ptr'),  # random-access file I/O, not just PTR()/EXT()
     (r'\bCALL\b|\bUSR\b', 4, 'call_usr'),
-    (r'\bLOCAL\b', 1, 'local'),
-    (r'\bSWAP\b', 1, 'swap'),
 )
 
 _COMPILED = tuple(
@@ -103,13 +100,13 @@ def scan_bbcsdl_source(source: str, *, strip_rem: bool = True) -> ScanResult:
 
 def classify_tier(score: int, blockers: Sequence[BlockerHit]) -> str:
     names = {hit.name for hit in blockers}
-    if names & {'opengl', 'shader', 'box2d', 'fn_ptr'} or score >= 80:
-        return 'D'  # BBCSDL specialist (GPU/physics/SDL internals)
-    if names & {'SYS', 'pointer', 'INSTALL', 'on_event'} or score >= 35:
-        return 'C'  # Full BBCSDL desktop app
-    if score >= 12:
-        return 'B'  # BBCSDL-ish but mostly BASIC + graphics
-    return 'A'  # Acorn-era portable target
+    if names & {'opengl', 'shader', 'box2d', 'fn_ptr', 'asm'} or score >= 40:
+        return 'D'  # BBCSDL specialist (GPU/physics/SDL internals/raw ASM)
+    if names & {'SYS', 'INSTALL', 'call_usr'} or score >= 20:
+        return 'C'  # Full BBCSDL desktop app (raw OS calls)
+    if score >= 6:
+        return 'B'  # SDL-feasible gaps only (event hooks, image/font load)
+    return 'A'  # Already runs, or trivially close
 
 
 def scan_bbcsdl_file(path: Path, *, strip_rem: bool = True) -> ScanResult:
