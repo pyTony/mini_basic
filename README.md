@@ -52,6 +52,26 @@ from mini_basic.config import InterpreterConfig
 interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
 ```
 
+## Showcase
+
+Eight confirmed-working `examples/` programs picked to span graphics, fractals,
+performance and language features. Run them all in order with:
+
+```bash
+python scripts/demo_reel.py          # run the whole reel
+python scripts/demo_reel.py --list   # just print what's in it
+python scripts/demo_reel.py wheel fern   # run only these entries
+```
+
+| | | |
+|---|---|---|
+| ![disco](docs/showcase/disco.png) **disco** — colour lightshow, grid redraw + palette cycling | ![illusion](docs/showcase/illusion.png) **illusion** — cafe-wall optical illusion: a dead-straight grid *looks* bent, purely from alternating corner wedges at each intersection | ![wheel](docs/showcase/wheel.png) **wheel** — spinning colour ring; `CASE`/`WHEN` dispatch, `CIRCLE` discs, `*REFRESH` |
+| ![fern](docs/showcase/fern.png) **fern** — Barnsley fern fractal via chained `DRAW`/affine steps | **Mandel_ANSI** — Mandelbrot set in ANSI colour, console only, renders in well under a second (the interpreter's perf highlight) | ![bounce](docs/showcase/bounce.png) **bounce** — nested structs `Pos{x,y}`, whole-struct array copy, `+=` on struct members |
+| **hanoi** — Towers of Hanoi, solved and animated recursively (interactive: enter a disc count, press SPACE) | ![soccerball](docs/showcase/soccerball.png) **soccerball** — spinning 3D ball via per-frame matrix rotation | |
+
+`examples/` has ~30 more confirmed-working programs beyond this reel; see
+[examples/README.txt](examples/README.txt) for the full tree.
+
 ## Dialects (short)
 
 | Dialect | Notes |
