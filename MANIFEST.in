@@ -9,4 +9,5 @@ global-exclude *.py[cod] __pycache__ *.so *~
 prune mini_basic/__pycache__
 # Never ship demo programs or docs in the sdist — they're in git, not the wheel.
 prune basics
+prune showcase
 prune docs
