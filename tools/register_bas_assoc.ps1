@@ -7,9 +7,9 @@ param(
 
 $ErrorActionPreference = 'Stop'
 if (-not $OpenCommand) {
-    $cmd = Join-Path $env:USERPROFILE 'bin\mini_basic.cmd'
-    if (Test-Path $cmd) {
-        $OpenCommand = "`"$cmd`" `"%1`""
+    $pipExe = Get-Command mini-basic -ErrorAction SilentlyContinue
+    if ($pipExe) {
+        $OpenCommand = "`"$($pipExe.Source)`" `"%1`""
     } else {
         $OpenCommand = 'cmd.exe /k python -m mini_basic "%1"'
     }

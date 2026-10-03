@@ -18,7 +18,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 | Doc | What it is |
 |-----|------------|
 | [../README.md](../README.md) | Overview, quick start, pip install summary |
-| [../HOWTO.md](../HOWTO.md) | Install archives, text parts, common tasks |
+| [../HOWTO.md](../HOWTO.md) | Dev setup, modular runtime, common tasks |
 | [RELEASE_1.00.md](RELEASE_1.00.md) | 1.00 release notes + tag checklist (user gate) |
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Language / graphics baseline for 1.00 ship |
 | [PACKAGING.md](PACKAGING.md) | Wheel contents, extras (`display` / `repl` / `all`), build |
@@ -42,7 +42,7 @@ Start-Process .\documentation\BBC_BASIC_Manual.html
 | Doc | What it is |
 |-----|------------|
 | [PACKAGING.md](PACKAGING.md) | pip / wheel / what is **not** in the package |
-| [../HOWTO.md](../HOWTO.md) | Text-archive `install.ps1` / `dev_install.ps1` |
+| [../HOWTO.md](../HOWTO.md) | Dev setup from a git clone, mixin regeneration |
 | [../requirements-repl.txt](../requirements-repl.txt) | Windows REPL: pyreadline3 |
 | [../requirements-display.txt](../requirements-display.txt) | Graphics: pygame-ce |
 

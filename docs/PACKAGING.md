@@ -29,7 +29,6 @@ Only the **importable interpreter package** under `mini_basic/`:
 | `tools/python-embed/` | Bundled Python tree for offline installers |
 | `__pycache__` | Build leftover |
 | `mini_basic/diffcheck.py` | Removed — was a broken one-off (lived under `tools/` if kept) |
-| Old text-archive installers | Separate distribution path (`tools/install.ps1` + parts) |
 
 ## Install from GitHub (supported)
 

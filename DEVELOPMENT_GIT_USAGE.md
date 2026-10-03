@@ -70,19 +70,11 @@ Merge to `main` only after user approval of the focused work (same as before).
 python -m mini_basic --version   # package path + MINIBASIC_DIR
 ```
 
-Install scripts (`tools/install.ps1`, `tools/dev_install.ps1`) set `MINIBASIC_DIR`; they do not replace git.
+`MINIBASIC_DIR` is purely informational (shown by `--version`); the interpreter does not read it to resolve files. It is not set by the normal `pip install` / `git clone` workflow.
 
 ---
 
-## 5. Text archives / distribution
-
-- `tools/create_text_archive.py` / reconstruct scripts produce `*_text_part*.txt`.
-- Those parts are **distribution artifacts** — usually ignored by `.gitignore`.
-- Ship process: generate parts → distribute → do not treat them as primary code history.
-
----
-
-## 6. Branching (unchanged principles)
+## 5. Branching (unchanged principles)
 
 ```powershell
 git checkout -b fix/soccerball-green-screen
@@ -98,7 +90,7 @@ Naming: `fix/…`, `feat/…`, `docs/…`, `test/…`.
 
 ---
 
-## 7. Checklist
+## 6. Checklist
 
 1. `cd` to the clone; confirm `git rev-parse --show-toplevel`.
 2. Create/switch to a **branch** for the single focus.
@@ -107,7 +99,7 @@ Naming: `fix/…`, `feat/…`, `docs/…`, `test/…`.
 
 ---
 
-## 8. Useful commands
+## 7. Useful commands
 
 ```powershell
 # Package still untracked?
@@ -126,7 +118,7 @@ git branch -vv
 
 ---
 
-## 9. Optional: seed a full package commit
+## 8. Optional: seed a full package commit
 
 If the package was never fully added after modularization:
 
