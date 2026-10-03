@@ -23,7 +23,7 @@ Only the **importable interpreter package** under `mini_basic/`:
 
 | Path | Why |
 |------|-----|
-| `basics/` | Demo programs — get from [git](https://github.com/pyTony/mini_basic/tree/main/basics), not the wheel |
+| `basics/`, `showcase/` | Demo programs — get from [git](https://github.com/pyTony/mini_basic/tree/main), not the wheel |
 | `test/`, `tools/`, `utils/`, `scripts/`, `examples/`, `documentation/` | Development-only; these live on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on `main`, and are never part of the wheel |
 | `__pycache__` | Build leftover |
 | `mini_basic/diffcheck.py` | Removed — was a broken one-off |

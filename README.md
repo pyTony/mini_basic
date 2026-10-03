@@ -17,11 +17,11 @@ python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_bas
 mini-basic --version
 ```
 
-This `main` branch is the lean release tree: the interpreter package plus
-`basics/` (small standalone programs) and this handbook. The full
-development tree — `examples/`, `test/`, `tools/`, `scripts/`,
-`documentation/`, and the complete per-PR changelog — lives on the
-[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch:
+This `main` branch is the lean release tree: the interpreter package,
+`basics/` (small standalone programs), `showcase/` (the demo reel below),
+and this handbook. The full development tree — `examples/`, `test/`,
+`tools/`, `scripts/`, `documentation/`, and the complete per-PR changelog —
+lives on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch:
 
 ```bash
 git clone -b dev https://github.com/pyTony/mini_basic.git   # full dev tree
@@ -31,6 +31,7 @@ git clone https://github.com/pyTony/mini_basic.git          # release tree (this
 | On GitHub | What |
 |-----------|------|
 | [basics/](https://github.com/pyTony/mini_basic/tree/main/basics) | Small standalone `.bas` files |
+| [showcase/](https://github.com/pyTony/mini_basic/tree/main/showcase) | The 8-program demo reel (see below) |
 | [docs/](https://github.com/pyTony/mini_basic/tree/main/docs) | Language / release notes |
 | [dev branch](https://github.com/pyTony/mini_basic/tree/dev) | Full dev tree: examples/, test/, tools/, scripts/, documentation/ |
 
@@ -57,14 +58,12 @@ interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
 ## Showcase
 
 Eight confirmed-working programs picked to span graphics, fractals,
-performance and language features. They live under `examples/` and run via
-`scripts/demo_reel.py` — both on the `dev` branch:
+performance and language features. They live under `showcase/` right here
+on `main` and run via `showcase/demo_reel.py`:
 
 ```bash
-git clone -b dev https://github.com/pyTony/mini_basic.git
-cd mini_basic
-python scripts/demo_reel.py          # run the whole reel
-python scripts/demo_reel.py --list   # just print what's in it
+python showcase/demo_reel.py          # run the whole reel
+python showcase/demo_reel.py --list   # just print what's in it
 ```
 
 | | | |
@@ -73,8 +72,9 @@ python scripts/demo_reel.py --list   # just print what's in it
 | ![fern](docs/showcase/fern.png) **fern** — Barnsley fern fractal via chained `DRAW`/affine steps | **Mandel_ANSI** — Mandelbrot set in ANSI colour, console only, renders in well under a second (the interpreter's perf highlight) | ![bounce](docs/showcase/bounce.png) **bounce** — nested structs `Pos{x,y}`, whole-struct array copy, `+=` on struct members |
 | **hanoi** — Towers of Hanoi, solved and animated recursively (interactive: enter a disc count, press SPACE) | ![soccerball](docs/showcase/soccerball.png) **soccerball** — spinning 3D ball via per-frame matrix rotation | |
 
-`examples/` (on `dev`) has ~30 more confirmed-working programs beyond this
-reel; see `examples/README.txt` there for the full tree.
+`examples/` on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev)
+branch has ~30 more confirmed-working programs beyond this reel; see
+`examples/README.txt` there for the full tree.
 
 ## Dialects (short)
 
@@ -98,6 +98,7 @@ Product conventions that trip people up:
 | `mini_basic/runtime_parts/` | Mixin modules (core, program, expr, defs, execution, io, graphics, dialect) |
 | `mini_basic/type_system.py` | `VarKind`, `BasicRuntimeError`, frames / dataclasses |
 | `basics/` | Small standalone BASIC programs |
+| `showcase/` | 8-program demo reel + `demo_reel.py` launcher |
 | `docs/site/` | Browsable HTML handbook |
 
 The full dev tree (`examples/`, `test/`, `tools/`, `scripts/`,
