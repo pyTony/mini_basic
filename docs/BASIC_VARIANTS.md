@@ -3,10 +3,15 @@
 This document maps historical and modern BASIC dialects to **mini_basic**, and
 shows how that mapping is recorded in the project **feature grids**.
 
+The generated `.txt` feature-matrix files this page links to live under
+`documentation/feature_matrices/` on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on this
+(`main`) release branch — clone `-b dev` to open them.
+
 | | |
 |--|--|
-| **Canonical grids (generated)** | [`documentation/feature_matrices/`](../documentation/feature_matrices/) |
-| **Combined dump** | [`ALL_MATRICES.txt`](../documentation/feature_matrices/ALL_MATRICES.txt) |
+| **Canonical grids (generated, on `dev`)** | `documentation/feature_matrices/` |
+| **Combined dump (on `dev`)** | `ALL_MATRICES.txt` |
 | **Python source of truth** | [`mini_basic/features/`](../mini_basic/features/) |
 | **Ship language baseline** | [`LANGUAGE_FEATURES_1.00.md`](LANGUAGE_FEATURES_1.00.md) |
 | **REPL** | `MATRIX` / `HELP DIALECTS` (structure grid) · `HELP PROGRAM` (LOAD/SAVE) |
@@ -28,8 +33,8 @@ mini_basic needs **two** grids, not one:
 
 | Axis | Columns | File | Question it answers |
 |------|---------|------|---------------------|
-| **A. Interpreter dialects** | `mits` · `commodore` · `tiny` · `bbc` · `mini` | [`01_dialect_structure.txt`](../documentation/feature_matrices/01_dialect_structure.txt) | What does *this* dialect mode allow or reject? |
-| **B. BBC family products** | Beeb · ROS · BB4W · SDL · mini(bbc) | [`01b_bbc_family.txt`](../documentation/feature_matrices/01b_bbc_family.txt) | How does mini’s **bbc** mode relate to real BBC BASICs? |
+| **A. Interpreter dialects** | `mits` · `commodore` · `tiny` · `bbc` · `mini` | `01_dialect_structure.txt` | What does *this* dialect mode allow or reject? |
+| **B. BBC family products** | Beeb · ROS · BB4W · SDL · mini(bbc) | `01b_bbc_family.txt` | How does mini’s **bbc** mode relate to real BBC BASICs? |
 
 Topic grids (trig, graphics, arrays, DATA, implementation status, deferred) sit under the same folder and measure **bb** / mini capability depth against BB4W/SDL-style specs—not MITS vs C64.
 
@@ -171,12 +176,12 @@ These compare **BB4W/SDL-style specs** to mini implementation status. Paths unde
 
 | File | Topic |
 |------|--------|
-| [`02_trigonometry.txt`](../documentation/feature_matrices/02_trigonometry.txt) | Degrees vs radians, DEG/RAD, SINRAD… |
-| [`03_graphics.txt`](../documentation/feature_matrices/03_graphics.txt) | CIRCLE, RECTANGLE, GCOL, MODE scaling… |
-| [`04_arrays_matrix.txt`](../documentation/feature_matrices/04_arrays_matrix.txt) | Array fill, multiply, SUM, slices… |
-| [`05_data_read.txt`](../documentation/feature_matrices/05_data_read.txt) | DATA / READ / RESTORE |
-| [`06_implementation_status.txt`](../documentation/feature_matrices/06_implementation_status.txt) | User-verify implementation checklist |
-| [`07_deferred.txt`](../documentation/feature_matrices/07_deferred.txt) | WIMP, ASM, general SYS FFI, real sound, INSTALL, nested/array structs… (flat `DIM name{}` structs and a small named SYS table already work) |
+| `02_trigonometry.txt` | Degrees vs radians, DEG/RAD, SINRAD… |
+| `03_graphics.txt` | CIRCLE, RECTANGLE, GCOL, MODE scaling… |
+| `04_arrays_matrix.txt` | Array fill, multiply, SUM, slices… |
+| `05_data_read.txt` | DATA / READ / RESTORE |
+| `06_implementation_status.txt` | User-verify implementation checklist |
+| `07_deferred.txt` | WIMP, ASM, general SYS FFI, real sound, INSTALL, nested/array structs… (flat `DIM name{}` structs and a small named SYS table already work) |
 
 Deferred rows are intentional non-goals until core language + corpus stay stable—not silent gaps.
 
@@ -212,4 +217,4 @@ roadmap are written up in [`BBC_TOKENIZE_VS_UNGLUE.md`](BBC_TOKENIZE_VS_UNGLUE.m
 3. Keep this overview in sync only when **dialect roles** or **axis definitions** change—not for every `+`/`-` flip (those belong in the generated files).
 
 Ship-facing language promises: [`LANGUAGE_FEATURES_1.00.md`](LANGUAGE_FEATURES_1.00.md).  
-User-facing matrix notes: [`documentation/FEATURE_TESTS_FOR_USER.txt`](../documentation/FEATURE_TESTS_FOR_USER.txt).
+User-facing matrix notes: `documentation/FEATURE_TESTS_FOR_USER.txt`.

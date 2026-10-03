@@ -23,13 +23,10 @@ Only the **importable interpreter package** under `mini_basic/`:
 
 | Path | Why |
 |------|-----|
-| `test/`, `tools/`, `utils/`, `scripts/` | Development |
-| `examples/`, `basics/`, `test/corpus/` | Demos and BBCSDL corpus — get from [git](https://github.com/pyTony/mini_basic/tree/main/examples), not the wheel |
-| `documentation/*.pdf`, large media | Not required to run the interpreter |
-| `tools/python-embed/` | Bundled Python tree for offline installers |
+| `basics/` | Demo programs — get from [git](https://github.com/pyTony/mini_basic/tree/main/basics), not the wheel |
+| `test/`, `tools/`, `utils/`, `scripts/`, `examples/`, `documentation/` | Development-only; these live on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on `main`, and are never part of the wheel |
 | `__pycache__` | Build leftover |
-| `mini_basic/diffcheck.py` | Removed — was a broken one-off (lived under `tools/` if kept) |
-| Old text-archive installers | Separate distribution path (`tools/install.ps1` + parts) |
+| `mini_basic/diffcheck.py` | Removed — was a broken one-off |
 
 ## Install from GitHub (supported)
 
@@ -40,13 +37,15 @@ mini-basic --version
 python -m mini_basic -c "PRINT 6*7"
 ```
 
-That installs the interpreter only. For examples and `docs/site/`:
+That installs the interpreter only. For `basics/` and `docs/site/`:
 
 ```powershell
 git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e ".[repl]"
 ```
+
+For the full dev tree (`examples/`, `test/`, `tools/`, `scripts/`, `documentation/`), clone the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch instead.
 
 ## Build a wheel (local checkout)
 

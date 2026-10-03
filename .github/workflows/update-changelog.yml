@@ -1,0 +1,60 @@
+name: Update changelog
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-changelog
+  cancel-in-progress: false
+
+jobs:
+  update-changelog:
+    # The full per-PR changelog lives on the `dev` branch, not `main` — see
+    # CHANGELOG.md on `main` for why. This job keeps `dev` in sync with
+    # `main` and refreshes the full changelog there on every merge.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dev
+          fetch-depth: 0
+
+      - name: Merge main into dev
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin main
+          # CHANGELOG.md / docs/site/CHANGELOG.html intentionally differ
+          # between branches (minimal release notes on main, full history on
+          # dev) — keep dev's copy on conflict; the next steps regenerate it
+          # from scratch anyway.
+          git merge --no-edit -X ours origin/main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Regenerate CHANGELOG.md from merged PRs
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/update_changelog.py
+
+      - name: Rebuild HTML docs
+        run: python scripts/build_user_docs.py
+
+      - name: Commit and push if changed
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes"
+          else
+            git commit -m "chore: sync dev with main + refresh changelog (PR #${{ github.event.pull_request.number }})"
+            git push origin HEAD:dev
+          fi

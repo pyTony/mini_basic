@@ -5,6 +5,10 @@
 **Runner:** `test/test_m6502_cport_mits.py`  
 **Filters:** `pytest -q -m "mits and not slow"` or `-m m6502_cport`
 
+`examples/` and `test/` paths on this page live on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on this
+(`main`) release branch.
+
 ## What `mits` is
 
 | | |

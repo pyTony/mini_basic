@@ -17,26 +17,28 @@ python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_bas
 mini-basic --version
 ```
 
-Examples and the HTML handbook are in the git tree, not the pip wheel. Clone for those:
+This `main` branch is the lean release tree: the interpreter package plus
+`basics/` (small standalone programs) and this handbook. The full
+development tree — `examples/`, `test/`, `tools/`, `scripts/`,
+`documentation/`, and the complete per-PR changelog — lives on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch:
 
 ```bash
-git clone https://github.com/pyTony/mini_basic.git
+git clone -b dev https://github.com/pyTony/mini_basic.git   # full dev tree
+git clone https://github.com/pyTony/mini_basic.git          # release tree (this branch)
 ```
 
 | On GitHub | What |
 |-----------|------|
-| [examples/](https://github.com/pyTony/mini_basic/tree/main/examples) | Curated BASIC programs ([README](https://github.com/pyTony/mini_basic/blob/main/examples/README.txt)) |
 | [basics/](https://github.com/pyTony/mini_basic/tree/main/basics) | Small standalone `.bas` files |
 | [docs/](https://github.com/pyTony/mini_basic/tree/main/docs) | Language / release notes |
-| [GIT_QUICKSTART.md](https://github.com/pyTony/mini_basic/blob/main/GIT_QUICKSTART.md) | Developer git checklist |
+| [dev branch](https://github.com/pyTony/mini_basic/tree/dev) | Full dev tree: examples/, test/, tools/, scripts/, documentation/ |
 
 Upstream (not this repo): [garyexplains/BASIC-M6502-CPORT](https://github.com/garyexplains/BASIC-M6502-CPORT) · [rtrussell/BBCSDL examples](https://github.com/rtrussell/BBCSDL/tree/master/examples)
 
 ## Quick start
 
 ```bash
-python -m mini_basic examples/mini/hello_args.bas
-python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
 python -m mini_basic basics/MB_COLOR.BAS
 python -m mini_basic --dialect mits basics/ELIZA.BAS
 python -m mini_basic --dialect bbc basics/BETH.BAS
@@ -54,13 +56,15 @@ interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
 
 ## Showcase
 
-Eight confirmed-working `examples/` programs picked to span graphics, fractals,
-performance and language features. Run them all in order with:
+Eight confirmed-working programs picked to span graphics, fractals,
+performance and language features. They live under `examples/` and run via
+`scripts/demo_reel.py` — both on the `dev` branch:
 
 ```bash
+git clone -b dev https://github.com/pyTony/mini_basic.git
+cd mini_basic
 python scripts/demo_reel.py          # run the whole reel
 python scripts/demo_reel.py --list   # just print what's in it
-python scripts/demo_reel.py wheel fern   # run only these entries
 ```
 
 | | | |
@@ -69,8 +73,8 @@ python scripts/demo_reel.py wheel fern   # run only these entries
 | ![fern](docs/showcase/fern.png) **fern** — Barnsley fern fractal via chained `DRAW`/affine steps | **Mandel_ANSI** — Mandelbrot set in ANSI colour, console only, renders in well under a second (the interpreter's perf highlight) | ![bounce](docs/showcase/bounce.png) **bounce** — nested structs `Pos{x,y}`, whole-struct array copy, `+=` on struct members |
 | **hanoi** — Towers of Hanoi, solved and animated recursively (interactive: enter a disc count, press SPACE) | ![soccerball](docs/showcase/soccerball.png) **soccerball** — spinning 3D ball via per-frame matrix rotation | |
 
-`examples/` has ~30 more confirmed-working programs beyond this reel; see
-[examples/README.txt](examples/README.txt) for the full tree.
+`examples/` (on `dev`) has ~30 more confirmed-working programs beyond this
+reel; see `examples/README.txt` there for the full tree.
 
 ## Dialects (short)
 
@@ -93,50 +97,26 @@ Product conventions that trip people up:
 | `mini_basic/` | Package: runtime facade, mixins, display, REPL helpers |
 | `mini_basic/runtime_parts/` | Mixin modules (core, program, expr, defs, execution, io, graphics, dialect) |
 | `mini_basic/type_system.py` | `VarKind`, `BasicRuntimeError`, frames / dataclasses |
-| `examples/` | Curated demos (bbc/, games/, graphics/, mini/, museum/, …) |
 | `basics/` | Small standalone BASIC programs |
-| `test/` | Unit tests + BBCSDL corpus + audit probe |
-| `documentation/feature_matrices/` | Capability matrices (generated) |
-| `docs/BASIC_VARIANTS.md` | BASIC dialects / BBC family vs mini_basic (integrates matrices) |
 | `docs/site/` | Browsable HTML handbook |
-| `scripts/` | Dev tools (not collected as tests) |
 
-## Tests (pytest preferred)
+The full dev tree (`examples/`, `test/`, `tools/`, `scripts/`,
+`documentation/`) lives on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
 
-From the **project root**:
+## Tests and development
+
+Tests, dev tooling, and the git workflow docs live on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch — `test/`,
+`pytest.ini`, `GIT_QUICKSTART.md`, `DEVELOPMENT_GIT_USAGE.md`. Check that
+branch out to run the test suite:
 
 ```bash
-# phase0 only — implemented baseline (incl. test_mini_basic, hanoi wrap, …)
-python -m pytest -q -m "phase0 and not slow" --timeout=45
-
-# Default REGRESSION — phase0 + phase1 (cumulative; see test/conftest.py)
+git clone -b dev https://github.com/pyTony/mini_basic.git
+cd mini_basic
 python -m pytest -q -m "phase1 and not slow" --timeout=45
-
-# When phase2 graphics suites are marked:
-python -m pytest -q -m "phase2 and not slow" --timeout=60
 ```
 
-Markers: `phase0` ⊂ `phase1` ⊂ `phase2` when you use `-m phaseN` (expanded in conftest).
-Also: `non_gfx`, `graphics`, `slow`. Module lists live in `pytest.ini`.
-
-Collection is limited to `test/` so scripts under `scripts/` are not mistaken for tests.
-
-Legacy unittest still works for single modules:
-
-```bash
-python -m unittest test.test_mini_basic -v
-```
-
-### BBCSDL corpus audit
-
-```bash
-python test/corpus_audit_probe.py
-```
-
-## Development notes
-
-- **Git:** branch-per-focus; see `GIT_QUICKSTART.md` and `DEVELOPMENT_GIT_USAGE.md`.
-- **LLM / contributors:** [`docs/LLM.md`](docs/LLM.md).
+LLM / contributor notes: [`docs/LLM.md`](docs/LLM.md).
 
 ## Import map
 
