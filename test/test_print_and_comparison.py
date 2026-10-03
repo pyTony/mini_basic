@@ -17,11 +17,15 @@ import sys
 import unittest
 from contextlib import redirect_stdout
 
+import pytest
+
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
 from mini_basic import BASICInterpreter, InterpreterConfig
+
+pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 
 def _run(lines: list[str], dialect: str = 'mini') -> str:
