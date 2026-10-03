@@ -13,6 +13,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#32](https://github.com/pyTony/mini_basic/pull/32) Follow-ups: drop CLAUDE.md from main, bring showcase onto main (2026-10-03)
 - [#31](https://github.com/pyTony/mini_basic/pull/31) Implement TINT statement (brightness blend on text colour) (2026-10-02)
 - [#30](https://github.com/pyTony/mini_basic/pull/30) Add v1.0 demo reel: launcher script + README showcase (2026-10-02)
 - [#29](https://github.com/pyTony/mini_basic/pull/29) Remove stale compatibility blockers from bbcsdl_scan (2026-10-02)
@@ -22,4 +23,3 @@ merge to main.
 - [#25](https://github.com/pyTony/mini_basic/pull/25) Add auto-generated TODO.md refreshed on each merge (2026-10-02)
 - [#24](https://github.com/pyTony/mini_basic/pull/24) Fix bare-FN-call rewrite hijacking plain fn-prefixed variables (2026-10-02)
 - [#23](https://github.com/pyTony/mini_basic/pull/23) Fix INKEY(-n) key-down scan and glued INKEY-99 syntax (2026-09-28)
-- [#22](https://github.com/pyTony/mini_basic/pull/22) Nested structs and whole-struct copy (bounce.bbc runs) (2026-09-26)
