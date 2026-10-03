@@ -24,83 +24,7 @@ htmlcov/
 .tox/
 .mypy_cache/
 .ruff_cache/
-test/logs/
-test/_run_progress.log
-test/_regression_out.txt
-test_execution.log
 *.log
-
-# Agent / local probes (not product)
-test/_probe_*.py
-test/_debug_*.py
-test/_repro_*.py
-test/_bench_*.py
-test/_patch_*.py
-test/_t_*.py
-test/t/
-_run_one_probe.py
-_t_*.py
-*_session_summary.md
-
-# Local agent / status — stay on disk, never return to GitHub.
-# gitignore only blocks *untracked* files. After merging main, do not
-# `git add -f` these. Prefer: git add mini_basic/ test/test_….py docs/
-AGENT_POLICY.txt
-CURRENT_TASK.txt
-FEATURES_DONE.txt
-WORK_LOG.txt
-USER_APPROVAL.txt
-USER_APPROVAL_AGENT.txt
-USER_APPROVAL*.txt
-USER_VERIFY_SNIPPETS.txt
-DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md
-CORPUS_AUDIT.txt
-CORPUS_RUNNABLE.txt
-SYNC_TEST.txt
-DEBUG_STEP.txt
-FOLLOW_PROGRESS.txt
-PROGRESS.txt
-STATUS.txt
-COMPARE_REPORT.txt
-mcps/
-docs/SESSION_*.md
-docs/git/INDEPENDENT_FIXES.md
-scripts/progress_heartbeat.py
-scripts/serve_progress_web.py
-scripts/probe_agent_python.py
-scripts/verify_resources.py
-scripts/force_sync_stamp.py
-scripts/ps1/register_progress_task.ps1
-scripts/ps1/start_web_lan.ps1
-scripts/ps1/start_web_localhost_run.ps1
-scripts/ps1/start_web_tunnel.ps1
-test/progress_runner.py
-test/test_progress_runner.py
-test/test_agent_resource.py
-test/test_user_approval.py
-test/verify_user_approval.py
-utils/agent_resource.py
-utils/debug_step.py
-utils/program_run_guide.py
-utils/status_sources.py
-utils/status_updater.py
-utils/user_approval.py
-
-# Status / resource churn
-.resource_crash.json
-.resource_peak.json
-.status_heartbeat_meta.json
-.status_sources_stamp.json
-.sync_counter
-RESOURCE_CHECK.txt
-AGENT_RESOURCE_ALERT.txt
-
-# Generated archives / installs
-archives/
-mini_basic_text_part*.txt
-mini_basic_dev_text_part*.txt
-dev_text_part*.txt
-dist_archive/
 
 # Windows
 *.tmp
@@ -115,34 +39,8 @@ desktop.ini
 *.swp
 *~
 
-# Embedded Python (local install tree)
-tools/python-embed/
-
 # Local scratch I/O
 INPUT.TXT
 out.txt
-
-# Local data / dumps / agent debug
-data.txt
-data2.txt
-hanoi_debug.txt
-world_debug*.txt
-*_fault.txt
-*_debug.txt
-*_debug2.txt
 *.prof
-ufo_function.py
-test_example.py
-example_module.py
-apply_fixes.py
-fix_var.py
-backup/
 *.bak
-test_reconstruct/
-
-# Regenerated status page
-status.html
-
-# Fetched third-party MBASIC 5.21 golden tests (not vendored)
-test/corpus/mbasic521/
-BASIC-M6502-CPORT/

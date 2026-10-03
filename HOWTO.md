@@ -8,7 +8,7 @@ mini-basic --version
 python -m mini_basic -c "PRINT 6*7"
 ```
 
-Clone the repo for examples and the HTML handbook. Open `index.html` at the clone root (pages live in `docs/site/`). See `docs/site/install.html` and `docs/PACKAGING.md`.
+Clone this (`main`) repo for `basics/` and the HTML handbook. Open `index.html` at the clone root (pages live in `docs/site/`). See `docs/site/install.html` and `docs/PACKAGING.md`.
 
 ## Modular runtime (what you get)
 
@@ -24,10 +24,13 @@ Public import is unchanged: `from mini_basic import BASICInterpreter, main`.
 
 ## Development setup
 
-The repository **is** the full dev tree (`mini_basic/`, `test/`, `tools/`, …) — no separate install step:
+This `main` branch is the lean release tree. The full dev tree
+(`test/`, `tools/`, `scripts/`, `examples/`, `documentation/`, and the git
+workflow docs) lives on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch:
 
 ```powershell
-git clone https://github.com/pyTony/mini_basic.git
+git clone -b dev https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e ".[repl]"
 python -m mini_basic --help
@@ -43,7 +46,7 @@ pip install -r requirements-display.txt
 
 ## Regenerating mixins (developers)
 
-If you edit a monorepo snapshot of `runtime.py` and want to re-emit the `runtime_parts/` mixins:
+If you edit a monorepo snapshot of `runtime.py` and want to re-emit the `runtime_parts/` mixins, from a `dev` checkout:
 
 ```powershell
 python tools/split_runtime_mixins.py
@@ -55,15 +58,15 @@ See `mini_basic/RUNTIME_MODULARIZATION_STATUS.md`.
 ## Requirements
 
 - Python 3.10+
-- PowerShell (Windows helper scripts under `tools/`, `scripts/ps1/`) — optional, not required to run or develop the interpreter
+- PowerShell (Windows helper scripts under `tools/`, `scripts/ps1/` on the `dev` branch) — optional, not required to run or develop the interpreter
 
 ## Common tasks
 
 | Task | Command |
 |------|---------|
-| Run a program | `python -m mini_basic examples/mini/hello_args.bas hello` |
-| Run the test suite | `python -m pytest -q -m "phase1 and not slow" --timeout=45` |
-| Split runtime mixins | `python tools/split_runtime_mixins.py` |
+| Run a program | `python -m mini_basic basics/MB_COLOR.BAS` |
+| Run the test suite (on `dev`) | `python -m pytest -q -m "phase1 and not slow" --timeout=45` |
+| Split runtime mixins (on `dev`) | `python tools/split_runtime_mixins.py` |
 
 ## Troubleshooting
 
@@ -71,4 +74,4 @@ See `mini_basic/RUNTIME_MODULARIZATION_STATUS.md`.
 - `mini-basic`/`minibasic` not found after `pip install` → open a **new** shell so `PATH` picks up the console scripts, or confirm the Python Scripts/bin directory is on `PATH`.
 
 For language notes see `docs/LLM.md`.
-For git rules see `GIT_QUICKSTART.md`.
+For git rules see `GIT_QUICKSTART.md` on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
