@@ -7,8 +7,8 @@ merge to main.
 ## Open
 
 - [ ] [#13](https://github.com/pyTony/mini_basic/issues/13) Known graphics rendering edge cases (2 pre-existing failures)
-- [ ] [#12](https://github.com/pyTony/mini_basic/issues/12) swirl.bbc: flicker / jerky motion
-- [ ] [#11](https://github.com/pyTony/mini_basic/issues/11) flood.bbc: CALL &FFF1 (OSWORD 10) unsupported
+- [ ] [#12](https://github.com/pyTony/mini_basic/issues/12) Flicker / jerky motion in some graphics demos
+- [ ] [#11](https://github.com/pyTony/mini_basic/issues/11) OSWORD 10 (block indirection call) not yet implemented
 
 ## Recently merged PRs
 
