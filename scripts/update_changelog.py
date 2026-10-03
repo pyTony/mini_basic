@@ -22,11 +22,12 @@ REPO = 'pyTony/mini_basic'
 API = f'https://api.github.com/repos/{REPO}/pulls'
 
 HEADER = (
-    "# Changelog\n\n"
+    "# Changelog (dev branch — full history)\n\n"
     "Format: one line per merged PR, newest first, auto-generated from PR "
     "descriptions by `scripts/update_changelog.py` "
-    "(`.github/workflows/update-changelog.yml` runs it on every merge to "
-    "`main`). See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) "
+    "(`.github/workflows/update-changelog.yml` refreshes this branch on "
+    "every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged "
+    "releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) "
     "for open work.\n"
 )
 
