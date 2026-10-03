@@ -12,6 +12,8 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#35](https://github.com/pyTony/mini_basic/pull/35) Port PRINT AND/comparison fix + regression test to dev (2026-10-03)
+- [#34](https://github.com/pyTony/mini_basic/pull/34) Remove test/ from main — tests live on dev (2026-10-03)
 - [#33](https://github.com/pyTony/mini_basic/pull/33) Fix PRINT a>0 AND b>0 printing 0 for true/true (2026-10-03)
 - [#32](https://github.com/pyTony/mini_basic/pull/32) Release cleanup: showcase on main, main is HTML-only (README.md excepted) (2026-10-03)
 - [#31](https://github.com/pyTony/mini_basic/pull/31) Implement TINT statement (brightness blend on text colour) (2026-10-02)
@@ -20,5 +22,3 @@ merge to main.
 - [#28](https://github.com/pyTony/mini_basic/pull/28) Restore INKEY(-n) key table entries dropped by a manual merge (2026-10-02)
 - [#27](https://github.com/pyTony/mini_basic/pull/27) Pull merged-PR info from GitHub into TODO.md (2026-10-02)
 - [#26](https://github.com/pyTony/mini_basic/pull/26) Release 1.00 cleanup: split main (lean) from dev (full tree) (2026-10-03)
-- [#25](https://github.com/pyTony/mini_basic/pull/25) Add auto-generated TODO.md refreshed on each merge (2026-10-02)
-- [#24](https://github.com/pyTony/mini_basic/pull/24) Fix bare-FN-call rewrite hijacking plain fn-prefixed variables (2026-10-02)
