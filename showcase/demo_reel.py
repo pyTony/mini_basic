@@ -79,9 +79,13 @@ REEL: tuple[ReelEntry, ...] = (
 )
 
 
-def _run_entry(entry: ReelEntry) -> int:
-    print(f'\n=== {entry.key}: {entry.blurb}')
+def _run_entry(entry: ReelEntry, index: int, total: int) -> int:
+    print(f'\n[{index}/{total}] === {entry.key}: {entry.blurb}')
     print(f'    {entry.path}')
+    if entry.pygame:
+        print('    Opens a window. Close it, or press Esc, to continue to the next program.')
+    else:
+        print('    Console only — prints output and returns on its own.')
     argv = [sys.executable, '-m', 'mini_basic', '--dialect', entry.dialect]
     if entry.pygame:
         argv.append('--pygame')
@@ -108,11 +112,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f'\nUnknown key(s): {", ".join(sorted(wanted - {e.key for e in REEL}))}')
         return 1
 
-    for entry in entries:
-        rc = _run_entry(entry)
+    print(f'Running {len(entries)} program(s) from the mini_basic showcase reel.')
+    print('Ctrl+C at any point stops the whole reel.\n')
+
+    failures = []
+    for i, entry in enumerate(entries, start=1):
+        rc = _run_entry(entry, i, len(entries))
         ok = rc == 0 or (not entry.pygame and rc == _EXIT_HOLD_CONSOLE)
         if not ok:
+            failures.append(entry.key)
             print(f'! {entry.key} exited with code {rc}', file=sys.stderr)
+
+    print(f"\nDone: {len(entries) - len(failures)}/{len(entries)} finished cleanly.")
+    if failures:
+        print(f'Problems with: {", ".join(failures)}', file=sys.stderr)
+    else:
+        print('Run `python showcase/demo_reel.py --list` to see them again, '
+              'or `python showcase/demo_reel.py <key>` to replay just one.')
     return 0
 
 

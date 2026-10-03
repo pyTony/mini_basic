@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Runtime modularization status — mini_basic</title>
+  <link rel="stylesheet" href="../docs/site/site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="../index.html">Home</a>
+      <a href="../README.html">README</a>
+      <a href="../HOWTO.html">HOWTO</a>
+      <a href="../docs/site/index.html">Full handbook</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>Runtime modularization status</h1>
+    <p class="tag">Mixin split status — generated from RUNTIME_MODULARIZATION_STATUS.md.</p>
+  </header>
+  <main>
+    <article>
+<h2 id="runtime-modularization-status-2026-07-17">Runtime modularization status (2026-07-17)</h2>
+<h3 id="live-layout-modular">Live layout (modular)</h3>
+<p><code>BASICInterpreter</code> is a <strong>mixin composition</strong> facade. All 495 methods from the former monorepo live under <code>runtime_parts/</code>; CLI/REPL helpers stay in <code>runtime.py</code>.</p>
+<table><tr><th>Path</th><th>Role</th><th>Size (approx)</th></tr><tr><td><code>runtime.py</code></td><td>Facade class + REPL/CLI/<code>main</code></td><td>~50 KB</td></tr><tr><td><code>runtime_parts/core.py</code></td><td>Init, state, clocks, shared helpers</td><td>~79 KB</td></tr><tr><td><code>runtime_parts/program.py</code></td><td>Program lines, parse, labels, prepare</td><td>~63 KB</td></tr><tr><td><code>runtime_parts/expr.py</code></td><td>Expr eval, vars, arrays, assign</td><td>~124 KB</td></tr><tr><td><code>runtime_parts/defs.py</code></td><td>DEF FN / DEF PROC</td><td>~12 KB</td></tr><tr><td><code>runtime_parts/execution.py</code></td><td>RUN loop, statements, control flow</td><td>~155 KB</td></tr><tr><td><code>runtime_parts/io.py</code></td><td>PRINT/INPUT/files/LIST/SAVE/LOAD</td><td>~61 KB</td></tr><tr><td><code>runtime_parts/graphics.py</code></td><td>Display, MODE/VDU, INKEY, sound</td><td>~27 KB</td></tr><tr><td><code>runtime_parts/dialect.py</code></td><td>Dialect switches / hints</td><td>~7 KB</td></tr><tr><td><code>runtime_parts/helpers.py</code></td><td>Free functions methods call by name</td><td>~7 KB</td></tr></table>
+<p>Public API is unchanged:</p>
+<pre><code>from mini_basic import BASICInterpreter, main</code></pre>
+<h3 id="archives-restore">Archives / restore</h3>
+<table><tr><th>Path</th><th>Notes</th></tr><tr><td><code>backup/runtime_monolith.py</code></td><td>Full pre-split monorepo (~555 KB)</td></tr><tr><td><code>backup/runtime_old.py</code></td><td>Same content (user restore source)</td></tr><tr><td><code>backup/obsolete_runtime_stubs/</code></td><td>Old incomplete stubs + monorepo snapshots</td></tr></table>
+<p>Restore monorepo (if needed):</p>
+<pre><code>Copy-Item -LiteralPath &#x27;backup\runtime_monolith.py&#x27; -Destination &#x27;mini_basic\runtime.py&#x27; -Force</code></pre>
+<p>Then re-split:</p>
+<pre><code>python tools/split_runtime_mixins.py</code></pre>
+<h3 id="regenerating-mixins">Regenerating mixins</h3>
+<p><code>tools/split_runtime_mixins.py</code> (on the <a href="https://github.com/pyTony/mini_basic/tree/dev">`dev`</a> branch, not on this <code>main</code> release branch) AST-splits a monorepo <code>runtime.py</code> into mixins:</p>
+<ol><li>Classifies methods by name into buckets (core/program/expr/defs/execution/io/graphics/dialect).</li><li>Emits mixin modules + helpers for free functions methods reference.</li><li>Writes the facade <code>runtime.py</code>.</li></ol>
+<pre><code>python tools/split_runtime_mixins.py --classify-only   # list buckets
+python tools/split_runtime_mixins.py --dry-run
+python tools/split_runtime_mixins.py                   # write files</code></pre>
+<p><strong>Source must be the monorepo</strong> (or re-run from <code>backup/runtime_monolith.py</code> via <code>--source</code>). Do not feed the thin facade back into the splitter.</p>
+<h3 id="verified">Verified</h3>
+<ul><li><code>python -m mini_basic --help</code></li><li><code>from mini_basic import BASICInterpreter</code> + init</li><li>OPENOUT / file I/O path (<code>_parse_path_arg</code> helpers import)</li><li><code>pytest -m phase1</code> → <strong>35 passed, 1 skipped</strong></li></ul>
+<h3 id="obsolete-stubs-removed-from-active-use">Obsolete stubs (removed from active use)</h3>
+<p>Earlier incomplete files at package root (<code>runtime_core.py</code>, <code>runtime_execution.py</code>, …) were <strong>not</strong> wired into the live import path. They are superseded by <code>runtime_parts/*</code> and may be deleted or ignored.</p>
+    </article>
+  </main>
+  <footer>
+    <a href="../index.html">Home</a>
+  </footer>
+</body>
+</html>

@@ -10,40 +10,45 @@
   <header>
     <nav>
       <a href="index.html">Home</a>
-      <a href="docs/site/install.html">Install</a>
-      <a href="docs/site/tree.html">Public tree</a>
-      <a href="docs/site/LANGUAGE_FEATURES_1.00.html">Language</a>
-      <a href="docs/site/LANGUAGE_FEATURES_1.00.html#oscli-and-sys">OSCLI / SYS</a>
-      <a href="docs/site/CHANGELOG.html">Changelog</a>
+      <a href="README.html">README</a>
+      <a href="DEMO.html">Showcase</a>
+      <a href="HOWTO.html">HOWTO</a>
+      <a href="docs/site/index.html">Full handbook</a>
       <a href="https://github.com/pyTony/mini_basic">GitHub</a>
     </nav>
     <h1>mini_basic</h1>
-    <p class="tag">HTML handbook. Open this file from the clone root. Pages live under <span class="path">docs/site/</span>.</p>
+    <p class="tag">HTML handbook. Open this file from the clone root.</p>
   </header>
   <main>
     <article>
       <p>Regular 1.00 is text and console. Version <code>1.0.0.dev0</code> until tagged. Markdown sources stay next to these pages; this file is the browser front door.</p>
-      <p>Start with <a href="docs/site/install.html">Install</a> to run programs. Use <a href="docs/site/tree.html">Public tree</a> for every user-facing path.</p>
+      <p><a href="README.html">README</a>, <a href="HOWTO.html">HOWTO</a> and <a href="DEMO.html">Showcase</a> are right here at the clone root. The rest of the handbook (install details, full language reference, release notes, packaging, changelog) lives under <span class="path">docs/site/</span>.</p>
     </article>
 
     <h2>Run</h2>
     <pre><code>pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
 mini-basic --version
 python -m mini_basic</code></pre>
-    <p>Examples and this handbook are in the git checkout, not the pip wheel.</p>
+    <p><span class="path">basics/</span> and <span class="path">showcase/</span> are in the git checkout, not the pip wheel.</p>
 
-    <h2>Handbook</h2>
+    <h2>Start here</h2>
+    <ul>
+      <li><a href="README.html">README</a> — overview, quick start, pip install</li>
+      <li><a href="HOWTO.html">HOWTO</a> — usage, dialects, full function/statement reference</li>
+      <li><a href="DEMO.html">Showcase</a> — the 8-program demo reel in <span class="path">showcase/</span></li>
+    </ul>
+
+    <h2>Full handbook</h2>
     <ul>
       <li><a href="docs/site/index.html">Handbook home</a> (same site, deeper in the tree)</li>
       <li><a href="docs/site/install.html">Install from GitHub (pip and clone)</a></li>
       <li><a href="docs/site/LANGUAGE_FEATURES_1.00.html">Language features (1.00)</a></li>
       <li><a href="docs/site/LANGUAGE_FEATURES_1.00.html#oscli-and-sys">OSCLI / * and SYS</a></li>
       <li><a href="docs/site/BASIC_VARIANTS.html">BASIC variants / BBC family</a></li>
-      <li><a href="docs/site/PROGRAM_VS_TESTS.html">Programs vs tests</a></li>
       <li><a href="docs/site/RELEASE_1.00.html">Release notes</a></li>
       <li><a href="docs/site/CHANGELOG.html">Changelog (auto-generated from merged PRs)</a></li>
     </ul>
-    <p>The built BBC-oriented HTML manual and PDF reference live under <code>documentation/</code> on the <a href="https://github.com/pyTony/mini_basic/tree/dev">dev</a> branch.</p>
+    <p>The full dev tree (<span class="path">examples/</span>, <span class="path">test/</span>, <span class="path">tools/</span>, <span class="path">scripts/</span>, <span class="path">documentation/</span> — including the built BBC-oriented HTML manual and PDF reference) lives on the <a href="https://github.com/pyTony/mini_basic/tree/dev">dev</a> branch.</p>
   </main>
   <footer>
     Source: <a href="https://github.com/pyTony/mini_basic">github.com/pyTony/mini_basic</a>

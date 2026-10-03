@@ -8,7 +8,7 @@ REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
 
 Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).
 
-**Docs (HTML):** open [`index.html`](index.html) at the clone root (pages are under [`docs/site/`](docs/site/index.html)) — [install](docs/site/install.html) · [public tree](docs/site/tree.html) · [language](docs/site/LANGUAGE_FEATURES_1.00.html)
+**Docs (HTML):** open [index.html](index.html) at the clone root (pages are under [docs/site/](docs/site/index.html)) — [install](docs/site/install.html) · [public tree](docs/site/tree.html) · [language](docs/site/LANGUAGE_FEATURES_1.00.html)
 
 **Install the interpreter from GitHub:**
 
@@ -117,7 +117,7 @@ cd mini_basic
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 ```
 
-LLM / contributor notes: [`docs/LLM.md`](docs/LLM.md).
+LLM / contributor notes: [docs/site/LLM.html](docs/site/LLM.html).
 
 ## Import map
 
@@ -128,4 +128,4 @@ from mini_basic.format import UsingFormatter
 from mini_basic.expr import CompiledExpr, patterns
 ```
 
-Package-level detail: `mini_basic/README.md`.
+Package-level detail: [mini_basic/README.html](mini_basic/README.html).

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Showcase demo reel — mini_basic</title>
+  <link rel="stylesheet" href="docs/site/site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="README.html">README</a>
+      <a href="DEMO.html">Showcase</a>
+      <a href="HOWTO.html">HOWTO</a>
+      <a href="docs/site/index.html">Full handbook</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>Showcase demo reel</h1>
+    <p class="tag">The 8-program demo reel — generated from DEMO.md.</p>
+  </header>
+  <main>
+    <article>
+<h2 id="showcase-demo-reel">Showcase demo reel</h2>
+<p>Eight confirmed-working programs picked to span graphics, fractals, performance and language features. They live under <code>showcase/</code> and run via <code>showcase/demo_reel.py</code>:</p>
+<pre><code>python showcase/demo_reel.py          # run the whole reel, in order
+python showcase/demo_reel.py --list   # just print what&#x27;s in it
+python showcase/demo_reel.py wheel fern   # run just these entries</code></pre>
+<p>Pygame entries open a window (close it, or press the program&#x27;s usual exit key, to move to the next one). The console entry (<code>mandel_ansi</code>) just prints and returns.</p>
+<h3 id="the-reel">The reel</h3>
+<table><tr><th>Key</th><th>File</th><th>Dialect</th><th>Kind</th><th>What it shows</th></tr><tr><td><code>disco</code></td><td><code>showcase/disco.bbc</code></td><td>bbc</td><td>pygame</td><td>Colour lightshow: grid redraw + palette cycling</td></tr><tr><td><code>illusion</code></td><td><code>showcase/illusion.bbc</code></td><td>bbc</td><td>pygame</td><td>Cafe-wall optical illusion: a dead-straight grid of tan/grey bands looks bent, purely from small alternating corner wedges at each intersection (checkerboard-parity <code>PLOT 113</code> marks)</td></tr><tr><td><code>wheel</code></td><td><code>showcase/wheel.bbc</code></td><td>bbc</td><td>pygame</td><td>Spinning colour ring: <code>CASE</code>/<code>WHEN</code> dispatch, <code>CIRCLE</code> discs, <code>*REFRESH</code></td></tr><tr><td><code>fern</code></td><td><code>showcase/fern.bbc</code></td><td>bbc</td><td>pygame</td><td>Barnsley fern fractal drawn with chained <code>DRAW</code>/affine steps</td></tr><tr><td><code>mandel_ansi</code></td><td><code>showcase/Mandel_ANSI.BAS</code></td><td>mini</td><td>console</td><td>Mandelbrot set in ANSI colour, console only — renders in well under a second, the interpreter&#x27;s performance highlight</td></tr><tr><td><code>bounce</code></td><td><code>showcase/bounce.bbc</code></td><td>bbc</td><td>pygame</td><td>Bouncing balls: nested structs <code>Pos{x,y}</code>, whole-struct array copy, <code>+=</code> on struct members</td></tr><tr><td><code>hanoi</code></td><td><code>showcase/hanoi.bbc</code></td><td>bbc</td><td>pygame</td><td>Towers of Hanoi, solved and animated recursively. Interactive: enter a disc count (1-13), then press SPACE to start</td></tr><tr><td><code>soccerball</code></td><td><code>showcase/soccerball.bas</code></td><td>bbc</td><td>pygame</td><td>Spinning 3D soccer ball: matrix rotation (<code>B() . C()</code>) redrawn every frame</td></tr></table>
+<h3 id="run-one-directly-without-the-launcher">Run one directly (without the launcher)</h3>
+<pre><code>python -m mini_basic --pygame --dialect bbc showcase/disco.bbc
+python -m mini_basic --dialect mini showcase/Mandel_ANSI.BAS</code></pre>
+<h3 id="more-programs">More programs</h3>
+<p><code>examples/</code> on the <a href="https://github.com/pyTony/mini_basic/tree/dev">`dev`</a> branch has ~30 more confirmed-working programs beyond this reel — see <code>examples/README.txt</code> there for the full tree. <code>basics/</code> (also right here on <code>main</code>) has small single-feature standalone programs used for quick language checks rather than showpieces.</p>
+    </article>
+  </main>
+  <footer>
+    <a href="index.html">Home</a>
+  </footer>
+</body>
+</html>

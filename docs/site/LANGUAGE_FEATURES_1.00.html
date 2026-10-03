@@ -22,7 +22,7 @@
   <main>
     <article>
 <h2 id="mini-basic-1-00-language-features-ship-qualification">mini_basic 1.00 — Language features &amp; ship qualification</h2>
-<p><strong>Status:</strong> Ready to ship as <strong>1.00</strong> under the scope locked below <strong>Version line:</strong> <code>1.0.0.dev0</code> (PEP 440 / PyPI) → tag <strong>`1.0.0`</strong> when this document is accepted <strong>Date:</strong> 2026-08-03 <strong>Related:</strong> <a href="PLAN_1.00_AND_VDU.html">`PLAN_1.00_AND_VDU.md`</a> · <a href="RELEASE_1.00.html">`RELEASE_1.00.md`</a> · <a href="LLM.html">`LLM.md`</a></p>
+<p><strong>Status:</strong> Ready to ship as <strong>1.00</strong> under the scope locked below <strong>Version line:</strong> <code>1.0.0.dev0</code> (PEP 440 / PyPI) → tag <strong>`1.0.0`</strong> when this document is accepted <strong>Date:</strong> 2026-08-03 <strong>Related:</strong> <a href="RELEASE_1.00.html">RELEASE_1.00.html</a> · <a href="LLM.html">LLM.html</a></p>
 <p>This is the <strong>language and graphics baseline</strong> for 1.00. It states what is in, what is out, and <strong>why the product qualifies</strong> without claiming full BBCSDL / RISC OS parity.</p>
 <hr>
 <h3 id="1-why-1-00-is-justified">1. Why 1.00 is justified</h3>
@@ -81,7 +81,7 @@
 <table><tr><th>Gate</th><th>Result</th></tr><tr><td>Corpus <code>ALL</code> runnable</td><td><strong>22 OK</strong></td></tr><tr><td>Explicit DEFER only</td><td><strong>poem</strong> (interactive MODE7); music/tools/physics not in corpus</td></tr><tr><td>Phase 0 / 1 pytest</td><td>Large green regression (phase0 + phase1 markers)</td></tr><tr><td>Focused graphics tests</td><td>piechart sectors/labels, welcome chars/envelope, VDU A–C, squares speed, soccerball, etc.</td></tr></table>
 <h4 id="5-2-user-visual-approval-graphics-language-exercised">5.2 User visual approval (graphics language exercised)</h4>
 <p>Approved programs (non-exhaustive): <strong>welcome</strong>, <strong>squares</strong>, <strong>saucer</strong>, <strong>flier</strong>, <strong>soccerball</strong>, <strong>wheel</strong>, <strong>jclock</strong>, <strong>filters</strong>, <strong>hanoi</strong>, <strong>animal</strong>.</p>
-<p>Pytest covers <strong>fragments</strong> those programs need (glue, kernels, XOR, file stubs). It does not run the playable program. What only you can confirm — look, play, mouse, timing — stays <strong>user confirmation</strong>. See <a href="PROGRAM_VS_TESTS.html">PROGRAM_VS_TESTS.md</a>.</p>
+<p>Pytest covers <strong>fragments</strong> those programs need (glue, kernels, XOR, file stubs). It does not run the playable program. What only you can confirm — look, play, mouse, timing — stays <strong>user confirmation</strong>.</p>
 <h4 id="5-3-plan-checklist-from-plan-1-00">5.3 Plan checklist (from PLAN_1.00)</h4>
 <table><tr><th>Item</th><th>1.00</th></tr><tr><td>VDU A–C</td><td>Done</td></tr><tr><td>Corpus FAIL empty <strong>or</strong> explicit DEFER</td><td>Done</td></tr><tr><td>Version report</td><td>Done (<code>--version</code>)</td></tr><tr><td>Language + graphics baseline written</td><td><strong>This document</strong></td></tr><tr><td>Full sound / WIMP / SYS</td><td>Out of scope</td></tr></table>
 <hr>
