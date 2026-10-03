@@ -1691,6 +1691,14 @@ class RuntimeExprMixin:
         return float(value)
 
     def _eval_whole_arith(self, expr: str) -> object:
+        # AND/OR/EOR normalize to & / | / ^, which bind tighter than Python's
+        # comparison operators: "A>0 AND B>0" became "A>0 & B>0", parsed as
+        # the chained comparison "A > (0 & B) > 0" instead of two comparisons
+        # ANDed together (PRINT A>0 AND B>0 printed 0 for true/true). Route
+        # boolean-syntax expressions through the BBC-aware evaluator instead,
+        # same as _eval_numeric_without_fn does below.
+        if self._expr_has_boolean_syntax(expr):
+            return self._eval_numeric_without_fn(expr)
         prepared = self._prepare_return_expr_no_fn(expr)
         if self._RE_FN_CALL.search(prepared):
             return prepared
