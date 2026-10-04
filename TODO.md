@@ -11,13 +11,13 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#39](https://github.com/pyTony/mini_basic/pull/39) Fix bare WAIT (no argument) raising a runtime error (backport to main) (2026-10-04)
+- [#38](https://github.com/pyTony/mini_basic/pull/38) Fix bare WAIT (no argument) raising a runtime error (2026-10-04)
+- [#37](https://github.com/pyTony/mini_basic/pull/37) Fix: bare DRAW x,y treated as relative in mini dialect (2026-10-04)
+- [#36](https://github.com/pyTony/mini_basic/pull/36) Remove stale known-failures note from CLAUDE.md (2026-10-04)
 - [#35](https://github.com/pyTony/mini_basic/pull/35) Port PRINT AND/comparison fix + regression test to dev (2026-10-03)
 - [#34](https://github.com/pyTony/mini_basic/pull/34) Remove test/ from main — tests live on dev (2026-10-03)
 - [#33](https://github.com/pyTony/mini_basic/pull/33) Fix PRINT a>0 AND b>0 printing 0 for true/true (2026-10-03)
 - [#32](https://github.com/pyTony/mini_basic/pull/32) Release cleanup: showcase on main, main is HTML-only (README.md excepted) (2026-10-03)
 - [#31](https://github.com/pyTony/mini_basic/pull/31) Implement TINT statement (brightness blend on text colour) (2026-10-02)
 - [#30](https://github.com/pyTony/mini_basic/pull/30) Add v1.0 demo reel: launcher script + README showcase (2026-10-02)
-- [#29](https://github.com/pyTony/mini_basic/pull/29) Remove stale compatibility blockers from bbcsdl_scan (2026-10-02)
-- [#28](https://github.com/pyTony/mini_basic/pull/28) Restore INKEY(-n) key table entries dropped by a manual merge (2026-10-02)
-- [#27](https://github.com/pyTony/mini_basic/pull/27) Pull merged-PR info from GitHub into TODO.md (2026-10-02)
-- [#26](https://github.com/pyTony/mini_basic/pull/26) Release 1.00 cleanup: split main (lean) from dev (full tree) (2026-10-03)
