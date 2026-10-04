@@ -172,6 +172,61 @@ class GraphicsCaptureTests(unittest.TestCase):
             f'expected a single horizontal row (absolute DRAW), got rows {sorted(rows)}',
         )
 
+    def test_vdu19_redefines_logical_colour_for_cls(self):
+        """VDU 19,L,P,R,G,B redefines logical colour L; CLS must use it.
+
+        Regression test: VDU 19 was not implemented at all (silently
+        ignored), so a program setting the background via
+        VDU 19,0,2,0,0,0 (logical colour 0 -> physical green) got a black
+        CLS instead (soccerball_bbc_V.bas).
+        """
+        lines = [
+            (10, 'MODE 9'),
+            (20, 'VDU 19,0,2,0,0,0'),
+            (30, 'CLS'),
+            (40, 'END'),
+        ]
+        interp = _pygame_interp()
+        for line_num, statement in lines:
+            interp.set_program_line(line_num, statement)
+        _run_without_display_shutdown(interp)
+        _, (width, height, canvas) = _capture_after_run(interp)
+        green = colour_to_rgb(2)
+        flat = [px for row in canvas for px in row]
+        self.assertEqual(
+            flat.count(green), width * height,
+            'VDU 19 background redefinition did not reach CLS',
+        )
+
+    def test_plain_circle_fill_not_hidden_by_stale_cls_rgb(self):
+        """A plain (non-truecolour) CIRCLE FILL must show its own colour.
+
+        Regression test: once VDU 19 bakes a custom RGB for the background
+        (above), CLS stores that RGB on every pixel's truecolour overlay.
+        _fill_disc_numpy's fast path only updated that overlay for
+        truecolour fills, so a later plain GCOL CIRCLE FILL changed the
+        index buffer but left the stale background RGB in place, making the
+        filled disc invisible (soccerball_bbc_V.bas: the yellow ball never
+        appeared over the green VDU 19 background).
+        """
+        lines = [
+            (10, 'MODE 9'),
+            (20, 'VDU 19,0,2,0,0,0'),
+            (30, 'CLS'),
+            (40, 'GCOL 0,3'),
+            (50, 'CIRCLE FILL 0,0,200'),
+            (60, 'END'),
+        ]
+        interp = _pygame_interp()
+        for line_num, statement in lines:
+            interp.set_program_line(line_num, statement)
+        _run_without_display_shutdown(interp)
+        pixels, (_, _, canvas) = _capture_after_run(interp)
+        self.assertGreater(count_framebuffer_pixels(pixels, colour=3), 0)
+        yellow = colour_to_rgb(3)
+        flat = [px for row in canvas for px in row]
+        self.assertIn(yellow, flat, 'filled circle stayed hidden under stale CLS RGB')
+
     def test_colour_130_cls_clears_green_background(self):
         """COLOUR 130 sets background colour 2; CLS must clear graphics to green."""
         lines = [
