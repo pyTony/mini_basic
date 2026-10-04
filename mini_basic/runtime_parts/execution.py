@@ -2523,6 +2523,31 @@ class RuntimeExecutionMixin:
                         self._display.gcol(codes[index + 1], codes[index + 2])
                 index += 3
                 continue
+            if code == 19 and index + 5 < len(codes):
+                # VDU 19,L,P,R,G,B — redefine logical colour L. P=16 means a
+                # direct RGB colour (R,G,B); otherwise P selects a physical
+                # colour from the standard BBC palette.
+                logical = codes[index + 1]
+                physical = codes[index + 2]
+                if physical == 16:
+                    rgb = (codes[index + 3], codes[index + 4], codes[index + 5])
+                else:
+                    from ..display import colour_to_rgb
+                    rgb = colour_to_rgb(physical)
+                self._bbc_custom_colours[logical] = rgb
+                self._ensure_display()
+                if self._display_enabled() and hasattr(self._display, 'set_palette_rgb'):
+                    self._display.set_palette_rgb(logical, rgb)
+                    gfx = getattr(self._display, '_gfx', None)
+                    apply_tc = getattr(self._display, '_apply_gfx_truecolour', None)
+                    if (
+                        gfx is not None
+                        and callable(apply_tc)
+                        and getattr(gfx, 'gcol_fg', (0, -1))[1] == logical
+                    ):
+                        apply_tc(logical)
+                index += 6
+                continue
             if code == 20:
                 self._vdu_reset_colours()
                 index += 1
