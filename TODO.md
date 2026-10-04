@@ -11,7 +11,9 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#43](https://github.com/pyTony/mini_basic/pull/43) Fix PROC unregistered when body has no ENDPROC at end of program (2026-10-04)
 - [#42](https://github.com/pyTony/mini_basic/pull/42) Backport: VDU 19 palette set + fix stale RGB overlay hiding fills (main) (2026-10-04)
+- [#41](https://github.com/pyTony/mini_basic/pull/41) Implement LIBRARY statement; make INSTALL actually load libraries (2026-10-04)
 - [#40](https://github.com/pyTony/mini_basic/pull/40) Implement VDU 19 (palette set) and fix stale RGB overlay hiding fills (2026-10-04)
 - [#39](https://github.com/pyTony/mini_basic/pull/39) Fix bare WAIT (no argument) raising a runtime error (backport to main) (2026-10-04)
 - [#38](https://github.com/pyTony/mini_basic/pull/38) Fix bare WAIT (no argument) raising a runtime error (2026-10-04)
@@ -19,5 +21,3 @@ merge to main.
 - [#36](https://github.com/pyTony/mini_basic/pull/36) Remove stale known-failures note from CLAUDE.md (2026-10-04)
 - [#35](https://github.com/pyTony/mini_basic/pull/35) Port PRINT AND/comparison fix + regression test to dev (2026-10-03)
 - [#34](https://github.com/pyTony/mini_basic/pull/34) Remove test/ from main — tests live on dev (2026-10-03)
-- [#33](https://github.com/pyTony/mini_basic/pull/33) Fix PRINT a>0 AND b>0 printing 0 for true/true (2026-10-03)
-- [#32](https://github.com/pyTony/mini_basic/pull/32) Release cleanup: showcase on main, main is HTML-only (README.md excepted) (2026-10-03)
