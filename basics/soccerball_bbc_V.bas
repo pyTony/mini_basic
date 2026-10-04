@@ -1,6 +1,7 @@
 1 REM dialect: bbc
     10 REM Spinning soccer ball (Accurate Archimedes / Matrix Brandy Port)
     20 MODE 9
+    25 *REFRESH OFF
     30 VDU 23,1,0;0;0;0;: REM Hide cursor
     40 ORIGIN 640,512
     50 REM Set background to Green (Palette 2 in Mode 9)
