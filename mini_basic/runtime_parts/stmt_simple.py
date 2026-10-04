@@ -40,7 +40,43 @@ def _h_install(
     statement: str,
     line_nums: List[int],
 ) -> Optional[int]:
-    # BBCSDL library load — stub (PROCs/FNs error if missing).
+    # BBCSDL/BB4W library load — merges the named file's DEF PROC/FN into
+    # this program (see _h_library; INSTALL and LIBRARY are near-aliases).
+    try:
+        interp._execute_library(
+            rest,
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+    except (KeyboardInterrupt, ProgramExit):
+        raise
+    return None
+
+
+def _h_library(
+    interp: Any,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+    line_nums: List[int],
+) -> Optional[int]:
+    # Classic BBC BASIC library load — merges the named file's DEF PROC/FN
+    # definitions into this program without running its top-level code.
+    try:
+        interp._execute_library(
+            rest,
+            line_num,
+            stmt_index,
+            stmt_count=stmt_count,
+            statement=statement,
+        )
+    except (KeyboardInterrupt, ProgramExit):
+        raise
     return None
 
 
@@ -462,6 +498,7 @@ def _h_quit(
 SIMPLE_STMT_HANDLERS: Dict[str, SimpleHandler] = {
     'REM': _h_rem,
     'INSTALL': _h_install,
+    'LIBRARY': _h_library,
     'SYS': _h_sys,
     'DATA': _h_data,
     'OFF': _h_off,

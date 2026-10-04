@@ -2168,3 +2168,93 @@ class RuntimeIoMixin:
             self._revert_auto_pygame_display()
         return True
 
+    def _execute_library(
+        self,
+        rest: str,
+        line_num: int,
+        stmt_index: int,
+        *,
+        stmt_count: int = 1,
+        statement: Optional[str] = None,
+    ) -> None:
+        """LIBRARY / INSTALL — load another program's DEF PROC/FN into this one.
+
+        Only definitions are merged (installed under fresh, unused line
+        numbers); the library's own top-level code is never executed. This
+        mirrors real BBC BASIC, where INSTALL/LIBRARY make a file's
+        procedures and functions callable without running it.
+        """
+        rest = rest.strip()
+        if not rest:
+            self._runtime_error(
+                '? LIBRARY error: missing filename', line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            filename = self._eval_string_arg(rest)
+        except Exception as exc:
+            self._runtime_error(
+                self._error_message('? LIBRARY error', exc), line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            path = self.resolve_load_path(filename)
+        except ValueError as exc:
+            self._runtime_error(
+                self._error_message('? LIBRARY error', exc), line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        if not os.path.isfile(path):
+            self._runtime_error(
+                f'? LIBRARY error: file not found ({path})', line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            with open(path, 'rb') as f:
+                data = f.read()
+        except OSError as exc:
+            self._runtime_error(
+                f'? LIBRARY error: cannot read {path} ({type(exc).__name__}: {exc})',
+                line_num, stmt_index, stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            from ..bbc_detokenize import bbc_binary_to_source, detect_bbc_binary_format
+
+            if detect_bbc_binary_format(data):
+                raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
+            else:
+                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
+        except Exception as exc:
+            self._runtime_error(
+                f'? LIBRARY error: cannot decode {path} ({type(exc).__name__}: {exc})',
+                line_num, stmt_index, stmt_count=stmt_count, statement=statement,
+            )
+            return
+        raw_lines, _hint = split_dialect_hints(raw_lines)
+        parsed = self._parse_program_file(raw_lines)
+        if parsed is None:
+            self._runtime_error(
+                f'? LIBRARY error: could not parse {path}', line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        parsed_lines, _source_was_numbered = parsed
+        if not parsed_lines:
+            return
+        # Install the library's lines as a block, shifted to an unused range of
+        # line numbers above anything already in this program. Shifting (rather
+        # than renumbering individually) keeps any GOTO/GOSUB/loop targets that
+        # stay inside the library's own lines self-consistent.
+        existing_max = max(self.program.keys()) if self.program else 0
+        offset = ((existing_max // 100000) + 1) * 100000
+        for lib_line_num, lib_statement, lib_indent in parsed_lines:
+            new_line_num = offset + lib_line_num
+            if new_line_num in self.program:
+                continue
+            self.set_program_line(new_line_num, lib_statement, lib_indent)
+

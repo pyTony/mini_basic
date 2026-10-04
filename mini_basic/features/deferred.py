@@ -13,7 +13,6 @@ DEFERRED_ROWS: List[DeferredRow] = [
     ('Inline ASM', 'CALL / USR machine code', 'register ABI and memory model'),
     ('Inline ASM', 'OPT FN / assembler labels', 'low-level linking'),
     ('OS integration', 'SYS Windows API calls', 'foreign function interface'),
-    ('OS integration', 'INSTALL libraries', 'tokenised library load'),
     ('Structures', 'DIM struct{} / TYPE', 'user-defined record types'),
     ('Structures', 'RETURN struct from FN', 'pass/return whole struct values'),
     ('Pointers', '? ! $ $$ indirection', 'byte/word/string pointers'),
