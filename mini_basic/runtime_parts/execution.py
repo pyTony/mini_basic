@@ -2721,17 +2721,11 @@ class RuntimeExecutionMixin:
         statement: Optional[str] = None,
     ) -> None:
         rest = rest.strip()
-        if not rest:
-            self._runtime_error(
-                '? WAIT error',
-                line_num,
-                stmt_index,
-                stmt_count=stmt_count,
-                statement=statement,
-            )
-            return
         try:
-            centiseconds = float(self._eval_numeric(rest))
+            # Bare WAIT (no argument) waits for the next vertical sync/flyback
+            # in real BBC BASIC, rather than being an error. Treat it the same
+            # as WAIT 0 below (a single yielded slice).
+            centiseconds = float(self._eval_numeric(rest)) if rest else 0.0
             self._flush_program_output()
 
             # With *REFRESH OFF, only *REFRESH should present. With refresh on,
