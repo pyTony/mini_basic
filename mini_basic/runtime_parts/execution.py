@@ -2752,6 +2752,14 @@ class RuntimeExecutionMixin:
         statement: Optional[str] = None,
     ) -> None:
         rest = rest.strip()
+        # Once a program uses WAIT at all, treat it as the frame boundary: the
+        # automatic per-line flush (below, in execute_line) stops presenting
+        # partial frames, and only WAIT's own flush shows the screen. Real
+        # BBC BASIC V hardware draws fast enough that intra-frame state is
+        # never visible; our software renderer is slow enough that presenting
+        # every line flickers mid-draw frames (soccerball_bbc_V.bas: CLS then
+        # 12 pentagon patches, visible as a green flash before the ball).
+        self._wait_statement_executed = True
         try:
             # Bare WAIT (no argument) waits for the next vertical sync/flyback
             # in real BBC BASIC, rather than being an error. Treat it the same
@@ -5722,7 +5730,10 @@ class RuntimeExecutionMixin:
             self._active_line_num = -1
             self._active_stmt_parts = None
             self._active_statement = ''
-        if self._refresh_enabled:
+        if self._refresh_enabled and not self._wait_statement_executed:
+            # Once WAIT has run at least once this RUN, it owns presenting
+            # (see _execute_wait) so the frame being drawn between WAITs
+            # stays hidden instead of flickering on screen line-by-line.
             self._flush_display()  # rate-limited; excessive force=True caused flicker/jerky updates in text-heavy loops in pygame window
         # For pure --display terminal (TerminalDisplay), batch-render the grid at end of each
         # executed BASIC line. This gives one ANSI update per line instead of per PRINT/TAB.
