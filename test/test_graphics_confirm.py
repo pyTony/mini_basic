@@ -139,6 +139,39 @@ class GraphicsCaptureTests(unittest.TestCase):
         self.assertGreater(count_framebuffer_pixels(pixels, colour=2), 0)
         self.assertIn(colour_to_rgb(2), [px for row in canvas for px in row])
 
+    def test_mini_dialect_draw_without_by_is_absolute(self):
+        """Bare DRAW x,y must be absolute (PLOT 5) in mini, same as bbc/BB4W.
+
+        Regression test: a prior change made mini treat bare DRAW as relative
+        (PLOT 1), so MOVE x,y: DRAW x2,y2 drew a diagonal segment offset from
+        the move point instead of a horizontal line ending at (x2, y2). This
+        broke chaos-game fractals (e.g. the Barnsley fern) that rely on
+        MOVE x,y: DRAW x,y to plot absolute points.
+        """
+        lines = [
+            (10, 'MODE 8'),
+            (20, 'GCOL 2'),
+            (30, 'FOR I%=0 TO 2'),
+            (40, 'FOR J%=0 TO 2'),
+            (50, 'MOVE 100+I%*10, 100'),
+            (60, 'DRAW 150+I%*10, 100'),
+            (70, 'NEXT J%'),
+            (80, 'NEXT I%'),
+            (90, 'END'),
+        ]
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='mini', display='pygame', hold_display_open=False)
+        )
+        for line_num, statement in lines:
+            interp.set_program_line(line_num, statement)
+        _run_without_display_shutdown(interp)
+        pixels, _ = _capture_after_run(interp)
+        rows = {y for y, row in enumerate(pixels) for v in row if v}
+        self.assertEqual(
+            len(rows), 1,
+            f'expected a single horizontal row (absolute DRAW), got rows {sorted(rows)}',
+        )
+
     def test_colour_130_cls_clears_green_background(self):
         """COLOUR 130 sets background colour 2; CLS must clear graphics to green."""
         lines = [
