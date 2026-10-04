@@ -91,7 +91,7 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             '+',
             '~',
-            'BB4W/SDL library path',
+            'mini: loads/merges DEF PROC/FN from a file; no @lib$ search path',
         ),
         # --- graphics ---
         (

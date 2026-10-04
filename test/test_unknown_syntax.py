@@ -184,9 +184,12 @@ class UnknownSyntaxTests(unittest.TestCase):
         self.assertIn('0', out)
         self.assertNotIn('? Expression error:', out)
 
-    def test_install_is_silent_stub(self) -> None:
-        out = self._imm('INSTALL "lib"')
-        self.assertNotIn('?', out)
+    def test_install_missing_library_reports_file_not_found(self) -> None:
+        # INSTALL now really loads a library file (see test_library.py); a
+        # missing one should report a clear, specific error, not silently
+        # swallow it.
+        out = self._imm('INSTALL "no_such_library_file"')
+        self.assertIn('? LIBRARY error: file not found', out)
 
 
 if __name__ == '__main__':
