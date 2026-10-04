@@ -96,6 +96,27 @@ class ReturnDropsForFramesTests(unittest.TestCase):
         self.assertEqual(out.strip(), 'OK4', msg=err)
 
 
+class BareWaitTests(unittest.TestCase):
+    """WAIT with no argument waits for vsync/flyback in real BBC BASIC; it
+    must not be a syntax error (soccerball_bbc_V.bas, backported BASIC V demo,
+    uses bare WAIT for frame pacing)."""
+
+    def test_bare_wait_does_not_error(self):
+        for dialect in ('mini', 'bbc', 'mits'):
+            out, err = _run(
+                '10 PRINT "A"\n'
+                '20 WAIT\n'
+                '30 PRINT "B"\n',
+                dialect,
+            )
+            self.assertNotIn('WAIT error', err, msg=(dialect, err))
+            self.assertEqual(out.split(), ['A', 'B'], msg=(dialect, err))
+
+    def test_wait_with_argument_still_errors_on_bad_expression(self):
+        out, err = _run('10 WAIT "x"\n', 'mini')
+        self.assertIn('WAIT error', err)
+
+
 class FnAssignIsNotReturnTests(unittest.TestCase):
     """Assigning to the function name sets the result; it does not return."""
 
