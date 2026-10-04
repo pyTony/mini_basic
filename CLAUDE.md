@@ -12,6 +12,3 @@
 ## Tests
 
 - Run `python -m pytest test -q -p no:cacheprovider`.
-- Known failures that predate the edge-case work (not regressions):
-  `test_display.py::DisplayTests::test_colour_136_enables_flash_on_subsequent_print` and
-  two tests in `test_graphics_confirm.py`.
