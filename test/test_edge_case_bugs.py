@@ -116,6 +116,64 @@ class BareWaitTests(unittest.TestCase):
         out, err = _run('10 WAIT "x"\n', 'mini')
         self.assertIn('WAIT error', err)
 
+    def test_first_wait_stops_automatic_per_line_flush(self):
+        """Once a program uses WAIT, only WAIT should present the screen.
+
+        Before this, mini_basic flushed/presented the display after every
+        executed line regardless of WAIT, so a program that draws a frame
+        across many statements (CLS, fills, many MOVE/PLOT) and then calls
+        WAIT to pace itself could have a partially-drawn frame presented in
+        between — visible as flicker (soccerball_bbc_V.bas without the
+        BBCSDL-only *REFRESH OFF/*REFRESH commands, which real BASIC V does
+        not support). WAIT is real BBC BASIC's own frame-boundary marker, so
+        once it has run at least once, the automatic per-line flush should
+        get out of the way and let WAIT own presenting.
+        """
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        lines = [
+            (10, 'A = 1'),
+            (20, 'B = 2'),
+            (30, 'WAIT'),
+            (40, 'C = 3'),
+            (50, 'D = 4'),
+            (60, 'WAIT'),
+        ]
+        for line_num, statement in lines:
+            interp.set_program_line(line_num, statement)
+
+        flush_count = [0]
+        orig_flush = interp._flush_display
+
+        def counting_flush(*args, **kwargs):
+            flush_count[0] += 1
+            return orig_flush(*args, **kwargs)
+
+        interp._flush_display = counting_flush
+        line_nums = [n for n, _ in lines]
+
+        self.assertFalse(interp._wait_statement_executed)
+
+        # Lines 10 and 20 run before any WAIT: the automatic per-line flush
+        # still fires for them (unchanged pre-WAIT behaviour).
+        interp.execute_line(10, 'A = 1', line_nums)
+        self.assertEqual(flush_count[0], 1)
+        interp.execute_line(20, 'B = 2', line_nums)
+        self.assertEqual(flush_count[0], 2)
+
+        # WAIT marks the frame boundary; it does its own flush too.
+        interp.execute_line(30, 'WAIT', line_nums)
+        self.assertTrue(interp._wait_statement_executed)
+        after_first_wait = flush_count[0]
+        self.assertGreater(after_first_wait, 2)
+
+        # Lines 40 and 50 run after the first WAIT: the automatic per-line
+        # flush must stay out of the way now that WAIT owns presenting.
+        interp.execute_line(40, 'C = 3', line_nums)
+        interp.execute_line(50, 'D = 4', line_nums)
+        self.assertEqual(flush_count[0], after_first_wait)
+
 
 class FnAssignIsNotReturnTests(unittest.TestCase):
     """Assigning to the function name sets the result; it does not return."""
