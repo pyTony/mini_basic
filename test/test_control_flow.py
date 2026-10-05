@@ -1372,10 +1372,13 @@ class TestOnErrorInControl(unittest.TestCase):
         # this exercises the trap set + BasicRuntimeError catch + resume path.
 
 
-@st.composite
-def on_error_inside_proc(draw):
+def _on_error_inside_proc_program() -> str:
     """ON ERROR + RESUME set inside PROC, error inside it.
     Verifies RESUME works in PROC/DEF context (Phase 1 TODO).
+
+    Fixed text, no hypothesis strategy needed: nothing here varies between
+    runs, so this is a plain helper rather than an @st.composite strategy
+    (which would otherwise warn that it never calls draw()).
     """
     lines = [
         "DEF PROCbad",
@@ -1390,9 +1393,8 @@ def on_error_inside_proc(draw):
 
 
 class TestOnErrorInProc(unittest.TestCase):
-    @given(prog=on_error_inside_proc())
-    @settings(max_examples=2, deadline=3000)
-    def test_on_error_resume_in_proc(self, prog: str):
+    def test_on_error_resume_in_proc(self):
+        prog = _on_error_inside_proc_program()
         interp = BASICInterpreter(InterpreterConfig(dialect="bbc", display="none"))
         buf = io.StringIO()
         with redirect_stdout(buf):
