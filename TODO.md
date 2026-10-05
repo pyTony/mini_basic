@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#47](https://github.com/pyTony/mini_basic/pull/47) Backport: Implement LIBRARY statement; make INSTALL actually load libraries (2026-10-05)
 - [#46](https://github.com/pyTony/mini_basic/pull/46) Fix PRINT line-wrap splitting ANSI escape sequences mid-sequence (2026-10-05)
 - [#45](https://github.com/pyTony/mini_basic/pull/45) Backport: stop presenting partial frames once WAIT paces the program (main) (2026-10-04)
 - [#44](https://github.com/pyTony/mini_basic/pull/44) Stop presenting partial frames once WAIT paces the program (2026-10-04)
@@ -20,4 +21,3 @@ merge to main.
 - [#40](https://github.com/pyTony/mini_basic/pull/40) Implement VDU 19 (palette set) and fix stale RGB overlay hiding fills (2026-10-04)
 - [#39](https://github.com/pyTony/mini_basic/pull/39) Fix bare WAIT (no argument) raising a runtime error (backport to main) (2026-10-04)
 - [#38](https://github.com/pyTony/mini_basic/pull/38) Fix bare WAIT (no argument) raising a runtime error (2026-10-04)
-- [#37](https://github.com/pyTony/mini_basic/pull/37) Fix: bare DRAW x,y treated as relative in mini dialect (2026-10-04)
