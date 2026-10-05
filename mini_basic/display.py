@@ -1108,12 +1108,26 @@ class PygameDisplay(DisplayBackend):
             self._screen = self._set_display_mode(fitted)
         return True
 
+    @staticmethod
+    def _window_from_display_module(pygame):
+        """``Window.from_display_module()`` without pygame-ce's blanket
+        deprecation warning — it fires for any use of the returned Window,
+        including the size/position reads here, not just surface-rendering.
+        """
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                'ignore',
+                message=r'.*Window\.get_surface and Window\.flip.*',
+                category=DeprecationWarning,
+            )
+            return pygame.Window.from_display_module()
+
     def _center_window(self) -> None:
         pygame = self._pygame
         if not hasattr(pygame, 'Window'):
             return
         try:
-            window = pygame.Window.from_display_module()
+            window = self._window_from_display_module(pygame)
             screen_w, screen_h = desktop_size(pygame)
             client_w, client_h = window.size
             x = max(0, (screen_w - client_w) // 2)
@@ -1134,7 +1148,7 @@ class PygameDisplay(DisplayBackend):
         if not hasattr(pygame, 'Window'):
             return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
         try:
-            window = pygame.Window.from_display_module()
+            window = self._window_from_display_module(pygame)
             x, y = window.position
             client_w, client_h = window.size
             bottom = y + client_h + _TITLE_BAR_ESTIMATE

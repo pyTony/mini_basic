@@ -243,12 +243,14 @@ class RuntimeExprMixin:
         if cmd == 'LET' or ('=' in text and cmd not in self._STMT_KEYWORDS):
             if '=' in text:
                 try:
-                    _, op, expr = self._parse_assignment_statement(text)
+                    lhs, op, expr = self._parse_assignment_statement(text)
                 except ValueError:
                     return
                 if (
                     not expr
+                    or '$' in lhs
                     or '$' in expr
+                    or expr.lstrip()[:1] in ('"', "'")
                     or self._RE_FN_CALL.search(expr)
                     or self._RE_FUNC_CALL.search(expr)
                 ):
