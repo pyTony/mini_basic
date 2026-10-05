@@ -145,6 +145,7 @@ class RuntimeCoreMixin:
         self.if_stack: List[IfFrame] = []
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
+        self._wait_statement_executed = False
         self.trace_enabled = False
         self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
@@ -2326,6 +2327,7 @@ class RuntimeCoreMixin:
         self.data_pointer = 0
         self._rnd_last = 0.0
         self._refresh_enabled = True
+        self._wait_statement_executed = False
         self.stack.clear()
         self.if_stack.clear()
         self.gosub_stack.clear()
