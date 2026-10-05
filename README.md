@@ -3,7 +3,7 @@
 Python BASIC interpreter: multi-dialect (mini / bbc / mits / commodore / tiny),
 REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
 
-**CLI:** `python -m mini_basic` · `python mini_basic.py` · `mb.py`  
+**CLI:** `python -m mini_basic` (guarantees which installed copy runs)  
 (After a pip install: `mini-basic` / `minibasic`.)
 
 Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).

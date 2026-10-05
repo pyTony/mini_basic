@@ -477,7 +477,12 @@ class BBCGraphics:
                 for sx in range(x0, x1 + 1):
                     rgb_row[sx] = trgb
                     self.rgb_dirty.add((sx, sy))
-            elif colour == 0 and self.rgb_pixels is not None:
+            elif self.rgb_pixels is not None:
+                # Plain (non-truecolour) fill: clear any stale per-pixel RGB a
+                # prior CLS/CLG baked into this span (e.g. a custom VDU 19
+                # background colour), whatever palette index we're filling
+                # with — not just colour 0 — otherwise the new index stays
+                # hidden under the old baked RGB. Mirrors _fill_disc_numpy.
                 rgb_row = self.rgb_pixels[sy]
                 for sx in range(x0, x1 + 1):
                     if rgb_row[sx] is not None:

@@ -2,7 +2,7 @@
 
 Compare versions with **git diffs** instead of loading full historic files. See DEVELOPMENT_GIT_USAGE.md (`git diff`, `git show`, `git log`).
 
-**Further optimization (per request):** Full historic runtime files have been dropped entirely. We now keep **only diffs + a reconstruction script** (see the small zip `backup\runtime_history_diffs_and_script_*.zip` and `tools\reconstruct_runtime_version.py`). The script starts from a base and applies sequential unified diffs to reconstruct any historical version. This is much smaller and aligns with using git for records.
+**Further optimization (per request):** Full historic runtime files have been dropped entirely; this document is the surviving record. Use `git log` / `git diff` on `mini_basic/runtime.py` for anything not captured here.
 
 **Focus:** Successful progression only. Back-and-forth unsuccessful experiments (files named with "problem", "failed", "bad", "try", "implied_failed", "plusequalbad", "counter_try", "next problem", "window_flash", "phone", etc.) have been ignored as requested.
 
