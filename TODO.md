@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#50](https://github.com/pyTony/mini_basic/pull/50) Fix tab completion for quoted LOAD/SAVE/RUN/CD filenames (main backport) (2026-10-05)
 - [#47](https://github.com/pyTony/mini_basic/pull/47) Backport: Implement LIBRARY statement; make INSTALL actually load libraries (2026-10-05)
 - [#46](https://github.com/pyTony/mini_basic/pull/46) Fix PRINT line-wrap splitting ANSI escape sequences mid-sequence (2026-10-05)
 - [#45](https://github.com/pyTony/mini_basic/pull/45) Backport: stop presenting partial frames once WAIT paces the program (main) (2026-10-04)
@@ -20,4 +21,3 @@ merge to main.
 - [#41](https://github.com/pyTony/mini_basic/pull/41) Implement LIBRARY statement; make INSTALL actually load libraries (2026-10-04)
 - [#40](https://github.com/pyTony/mini_basic/pull/40) Implement VDU 19 (palette set) and fix stale RGB overlay hiding fills (2026-10-04)
 - [#39](https://github.com/pyTony/mini_basic/pull/39) Fix bare WAIT (no argument) raising a runtime error (backport to main) (2026-10-04)
-- [#38](https://github.com/pyTony/mini_basic/pull/38) Fix bare WAIT (no argument) raising a runtime error (2026-10-04)
