@@ -1,7 +1,9 @@
 # mini_basic
 
 Python BASIC interpreter: multi-dialect (mini / bbc / mits / commodore / tiny),
-REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
+REPL/CLI, file I/O, and `MODE`/pygame graphics. Graphics is the normal way
+most programs run (see Showcase below); a **text-only** CLI install is also
+available for people without pygame.
 
 **CLI:** `python -m mini_basic` (guarantees which installed copy runs)  
 (After a pip install: `mini-basic` / `minibasic`.)
