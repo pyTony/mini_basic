@@ -709,9 +709,12 @@ class RuntimeCoreMixin:
         if sig_len > 0:
             # for limited sig, the pattern should match any longer name that
             # normalizes to this base (e.g. ABCD normalizes to AB)
-            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
+            # (?!\() so a same-named array's A(i) is left for
+            # _substitute_array_references instead of being clobbered by
+            # this bare scalar's value (DIM A(3) alongside scalar A).
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])(?!\()'
         else:
-            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])'
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])(?!\()'
         if kind == 'int':
             if base in self._registered_int_vars:
                 # Already fully processed for this base (see the end of this
