@@ -1,12 +1,14 @@
 1 REM dialect: bbc
     10 REM Spinning soccer ball (Accurate Archimedes / Matrix Brandy Port)
     20 MODE 9
-    25 *REFRESH OFF
+    25 REM remove for BASIC V, needed for mini to smooth it out
+    27 *REFRESH OFF
     30 VDU 23,1,0;0;0;0;: REM Hide cursor
     40 ORIGIN 640,512
     50 REM Set background to Green (Palette 2 in Mode 9)
     60 VDU 19,0,2,0,0,0
     70 CLS
+    75 VDU 19,1,P,0,0,0
     80 DIM XYZ(2,59), TMP(2,59), B(2,2), C(2,2), M(2,2)
     90 S = SQR(5) + 1: P = S / 2: Q = P + 2: R_VAL = S + 1: T = P * 3
    100 FOR I% = 0 TO 59
@@ -39,7 +41,7 @@
    370   GCOL 0, 3
    380   CIRCLE FILL 0, 0, 432
    390   REM Draw Black Patches (Color 0 = Black in Mode 9)
-   400   GCOL 0, 0
+   400   GCOL 0, 1
    410   I% = 0
    420   FOR J% = 0 TO 11
    430     Z = TMP(1,I%) + TMP(1,I%+1) + TMP(1,I%+2) + TMP(1,I%+3) + TMP(1,I%+4)
@@ -54,6 +56,8 @@
    520       I% = I% + 1
    530     NEXT K%
    540   NEXT J%
+   542   REM remove for BASIC V, needed for mini to smooth it out
+   545   *REFRESH
    550   WAIT
    560   C = C + 0.03
    570 UNTIL FALSE
