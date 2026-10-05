@@ -1263,6 +1263,13 @@ class RuntimeIoMixin:
         return width
 
     def _print_emit(self, text: str) -> str:
+        if self._print_esc_pending:
+            # A PRINT statement emits each ;-separated item through its own
+            # _print_emit call (CHR$27;"[0;";A%;"m ..."), so a CSI escape
+            # routinely arrives split across several calls. Stitch any
+            # carried-over partial sequence back onto the front here.
+            text = self._print_esc_pending + text
+            self._print_esc_pending = ''
         cols = self._text_cols()
         non_wrapping = len(text) > cols and bool(
             re.fullmatch(r'[-+]?[\dA-Fa-f.]+', text)
@@ -1271,12 +1278,22 @@ class RuntimeIoMixin:
         index = 0
         length = len(text)
         while index < length:
-            if text[index] == self._esc and index + 1 < length and text[index + 1] == '[':
+            if text[index] == self._esc and index + 1 >= length:
+                # Lone ESC at the very end of this chunk: may be the start
+                # of a CSI sequence completed by the next item. Buffer it
+                # instead of counting it as a printable column (that
+                # corrupted output with a hard-wrap mid-escape-sequence).
+                self._print_esc_pending = text[index:]
+                index = length
+                break
+            if text[index] == self._esc and text[index + 1] == '[':
                 end = text.find('m', index + 2)
                 if end == -1:
-                    parts.append(text[index])
-                    index += 1
-                    continue
+                    # Incomplete CSI (no terminating 'm' yet in this chunk):
+                    # buffer it whole and resume once more text arrives.
+                    self._print_esc_pending = text[index:]
+                    index = length
+                    break
                 parts.append(text[index:end + 1])
                 index = end + 1
                 continue
