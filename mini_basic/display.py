@@ -2113,13 +2113,17 @@ class PygameDisplay(DisplayBackend):
                 self._canvas.fill((0, 0, 0))
                 for sy in range(self.graphics_height):
                     for sx in range(self.graphics_width):
+                        if rgb_layer is not None and rgb_layer[sy][sx] is not None:
+                            # Custom VDU 19 RGB can be baked onto index-0
+                            # (background) pixels too (see clear_graphics) —
+                            # paint it even though the fill() above already
+                            # covers the plain-black default for index 0.
+                            self._canvas.set_at((sx, sy), rgb_layer[sy][sx])
+                            continue
                         colour = int(self._gfx.pixels[sy][sx])
                         if colour == 0:
                             continue
-                        if rgb_layer is not None and rgb_layer[sy][sx] is not None:
-                            self._canvas.set_at((sx, sy), rgb_layer[sy][sx])
-                        else:
-                            self._canvas.set_at((sx, sy), self._pixel_rgb(colour))
+                        self._canvas.set_at((sx, sy), self._pixel_rgb(colour))
                 if hasattr(self._gfx, 'consume_dirty_rect'):
                     self._gfx.consume_dirty_rect()
             self._blit_graphics_print_layers()

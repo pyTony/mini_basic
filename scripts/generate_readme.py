@@ -36,7 +36,6 @@ SKIP_EXTENSIONS = {
 
 # Exact relative-path roles (POSIX-style keys).
 EXACT_ROLES: dict[str, str] = {
-    'mini_basic.py': 'CLI entry shim; delegates to mini_basic package',
     'display.py': 'Pygame text/graphics display backend for RUN',
     'bbc_graphics.py': 'BBC BASIC graphics primitives (PLOT, DRAW, GCOL, …)',
     'bbc_modes.py': 'BBC screen MODE definitions and palette tables',
