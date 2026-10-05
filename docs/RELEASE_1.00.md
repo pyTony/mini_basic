@@ -87,6 +87,24 @@ python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas
 
 Regular users never need this.
 
+### Known limitations (graphics flavor)
+
+- **Flicker / jerky motion in some real-time demos** (e.g. `swirl.bbc` on the
+  `dev` branch, [#12](https://github.com/pyTony/mini_basic/issues/12)).
+  These programs pace their animation off a wall-clock tick count
+  (`TIME`/`SYS "timeGetTime"`) so the *math* always reflects true elapsed
+  time, but mini_basic is a tree-walking Python interpreter: how long each
+  animation frame takes to *compute* varies, and the display only presents
+  at a capped rate (~20 Hz, dropping to ~10 Hz during heavy `PLOT` bursts —
+  see `_flush_display` / `_present_min_interval` in
+  `mini_basic/runtime_parts/io.py`). The result is uneven, sometimes-jerky
+  real-time presentation even though each frame's computed position is
+  correct. This is a performance characteristic of the interpreter, not a
+  logic bug; no fix is planned for 1.0.
+- **`CALL &FFF1` / `OSWORD 10`** (cursor-position readback) is unsupported —
+  tracked as [#11](https://github.com/pyTony/mini_basic/issues/11),
+  deprioritized; not needed for 1.0.
+
 ---
 
 ## Tag checklist (user gate — do not auto-tag)

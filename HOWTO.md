@@ -18,7 +18,6 @@ The interpreter is no longer a single giant `runtime.py` dump:
 |------|------|
 | `mini_basic/runtime.py` | Facade + REPL/CLI/`main` |
 | `mini_basic/runtime_parts/` | Mixin modules (core, program, expr, defs, execution, io, graphics, dialect) + helpers |
-| `mini_basic.py` / `mb.py` | Entry shims |
 
 Public import is unchanged: `from mini_basic import BASICInterpreter, main`.
 
