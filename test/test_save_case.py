@@ -37,6 +37,22 @@ class SaveCaseFormatTests(unittest.TestCase):
         original = "' Do not touch this String"
         self.assertEqual(format_program_line(original, 'upper'), original)
 
+    def test_rem_comment_with_colon_is_not_split(self):
+        # A colon inside a REM (a URL, a timestamp, "Note: ...") is payload,
+        # not a statement separator -- LIST must not treat it as one and
+        # reformat the remainder as code.
+        original = 'REM R.T.Russell: http://www.rtrussell.co.uk/ 24-Mar-2026'
+        self.assertEqual(format_program_line(original, 'none'), original)
+        self.assertEqual(format_program_line(original, 'upper'), original)
+
+    def test_apostrophe_comment_with_colon_is_not_split(self):
+        original = "' Note: see http://example.com/ for details"
+        self.assertEqual(format_program_line(original, 'upper'), original)
+
+    def test_code_before_rem_with_colon_still_splits_at_first_colon(self):
+        line = format_program_line('PRINT X: REM Note: keep this verbatim', 'none')
+        self.assertEqual(line, 'PRINT X: REM Note: keep this verbatim')
+
     def test_string_literals_are_preserved(self):
         line = format_program_line('PRINT "MiXeD"; n', 'upper')
         self.assertEqual(line, 'PRINT "MiXeD"; N')
