@@ -5312,6 +5312,32 @@ class MiniBASICTests(unittest.TestCase):
             self.assertIn('game.bas', save_all)
             self.assertNotIn('notes.txt', save_all)
 
+    def test_compute_matches_inside_quotes(self):
+        # Real BASIC V requires quotes around LOAD/SAVE filenames; the quote
+        # isn't a completer delimiter, so readline/the line editor include it
+        # in the word being completed (text == '"demo', not 'demo').
+        with tempfile.TemporaryDirectory() as tmp:
+            open(os.path.join(tmp, 'demo.bas'), 'w', encoding='utf-8').close()
+            os.makedirs(os.path.join(tmp, 'subdir'))
+            matches = compute_matches(tmp, 'LOAD "demo', '"demo')
+            self.assertEqual(matches, ['"demo.bas"'])
+            single = compute_matches(tmp, "LOAD 'demo", "'demo")
+            self.assertEqual(single, ["'demo.bas'"])
+            dir_matches = compute_matches(tmp, 'LOAD "sub', '"sub')
+            self.assertEqual(dir_matches, [f'"subdir{os.sep}'])
+
+    def test_windows_repl_input_tab_completes_quoted_load(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            open(os.path.join(tmp, 'game.bas'), 'w', encoding='utf-8').close()
+            keys = list('LOAD "g\t\n')
+            result = windows_repl_input(
+                '> ',
+                working_dir=lambda: tmp,
+                expand_abbrev=lambda s: s,
+                getwch=lambda: keys.pop(0),
+            )
+            self.assertEqual(result, 'LOAD "game.bas"')
+
     def test_configure_readline_installs_completer(self):
         fake_readline = MagicMock()
         with tempfile.TemporaryDirectory() as tmp:
