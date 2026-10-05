@@ -118,7 +118,7 @@ _WHILE_ACCEL_BLOCKING_CMDS = frozenset({
     'GOTO', 'GOSUB', 'PROC', 'ENDPROC', 'EXIT', 'NEXT', 'UNTIL',
     'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE', 'BREAK', 'CONTINUE',
     'ON', 'DEF', 'LOCAL', 'DIM', 'READ', 'RESTORE', 'DATA',
-    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END',
+    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END', 'INSTALL', 'LIBRARY',
     'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
     'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
     'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP', 'TINT',
