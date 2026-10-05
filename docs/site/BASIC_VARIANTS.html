@@ -13,6 +13,7 @@
       <a href="install.html">Install</a>
       <a href="tree.html">Public tree</a>
       <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="CHANGELOG.html">Changelog</a>
       <a href="https://github.com/pyTony/mini_basic">GitHub</a>
     </nav>
     <h1>BASIC variants</h1>
@@ -22,7 +23,8 @@
     <article>
 <h2 id="basic-variants-and-mini-basic">BASIC variants and mini_basic</h2>
 <p>This document maps historical and modern BASIC dialects to <strong>mini_basic</strong>, and shows how that mapping is recorded in the project <strong>feature grids</strong>.</p>
-<table><tr><th></th><th></th></tr><tr><td><strong>Canonical grids (generated)</strong></td><td><a href="../documentation/feature_matrices/">`documentation/feature_matrices/`</a></td></tr><tr><td><strong>Combined dump</strong></td><td><a href="../documentation/feature_matrices/ALL_MATRICES.txt">`ALL_MATRICES.txt`</a></td></tr><tr><td><strong>Python source of truth</strong></td><td><a href="../mini_basic/features/">`mini_basic/features/`</a></td></tr><tr><td><strong>Ship language baseline</strong></td><td><a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a></td></tr><tr><td><strong>REPL</strong></td><td><code>MATRIX</code> / <code>HELP DIALECTS</code> (structure grid) · <code>HELP PROGRAM</code> (LOAD/SAVE)</td></tr></table>
+<p>The generated <code>.txt</code> feature-matrix files this page links to live under <code>documentation/feature_matrices/</code> on the <a href="https://github.com/pyTony/mini_basic/tree/dev">`dev`</a> branch, not on this (<code>main</code>) release branch — clone <code>-b dev</code> to open them.</p>
+<table><tr><th></th><th></th></tr><tr><td><strong>Canonical grids (generated, on `dev`)</strong></td><td><code>documentation/feature_matrices/</code></td></tr><tr><td><strong>Combined dump (on `dev`)</strong></td><td><code>ALL_MATRICES.txt</code></td></tr><tr><td><strong>Python source of truth</strong></td><td><a href="../mini_basic/features/">`mini_basic/features/`</a></td></tr><tr><td><strong>Ship language baseline</strong></td><td><a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a></td></tr><tr><td><strong>REPL</strong></td><td><code>MATRIX</code> / <code>HELP DIALECTS</code> (structure grid) · <code>HELP PROGRAM</code> (LOAD/SAVE)</td></tr></table>
 <p>Regenerate text matrices from the package:</p>
 <pre><code>python -m mini_basic.features
 # or: python -m mini_basic.feature_matrices</code></pre>
@@ -30,7 +32,7 @@
 <hr>
 <h3 id="1-two-axes-of-comparison">1. Two axes of comparison</h3>
 <p>mini_basic needs <strong>two</strong> grids, not one:</p>
-<table><tr><th>Axis</th><th>Columns</th><th>File</th><th>Question it answers</th></tr><tr><td><strong>A. Interpreter dialects</strong></td><td><code>mits</code> · <code>commodore</code> · <code>tiny</code> · <code>bbc</code> · <code>mini</code></td><td><a href="../documentation/feature_matrices/01_dialect_structure.txt">`01_dialect_structure.txt`</a></td><td>What does <em>this</em> dialect mode allow or reject?</td></tr><tr><td><strong>B. BBC family products</strong></td><td>Beeb · ROS · BB4W · SDL · mini(bbc)</td><td><a href="../documentation/feature_matrices/01b_bbc_family.txt">`01b_bbc_family.txt`</a></td><td>How does mini’s <strong>bbc</strong> mode relate to real BBC BASICs?</td></tr></table>
+<table><tr><th>Axis</th><th>Columns</th><th>File</th><th>Question it answers</th></tr><tr><td><strong>A. Interpreter dialects</strong></td><td><code>mits</code> · <code>commodore</code> · <code>tiny</code> · <code>bbc</code> · <code>mini</code></td><td><code>01_dialect_structure.txt</code></td><td>What does <em>this</em> dialect mode allow or reject?</td></tr><tr><td><strong>B. BBC family products</strong></td><td>Beeb · ROS · BB4W · SDL · mini(bbc)</td><td><code>01b_bbc_family.txt</code></td><td>How does mini’s <strong>bbc</strong> mode relate to real BBC BASICs?</td></tr></table>
 <p>Topic grids (trig, graphics, arrays, DATA, implementation status, deferred) sit under the same folder and measure <strong>bb</strong> / mini capability depth against BB4W/SDL-style specs—not MITS vs C64.</p>
 <pre><code>                    historical BASIC family
                               │
@@ -75,7 +77,7 @@
 <hr>
 <h3 id="5-topic-grids-how-deep-bbc-mini-go">5. Topic grids (how deep bbc/mini go)</h3>
 <p>These compare <strong>BB4W/SDL-style specs</strong> to mini implementation status. Paths under <code>documentation/feature_matrices/</code>:</p>
-<table><tr><th>File</th><th>Topic</th></tr><tr><td><a href="../documentation/feature_matrices/02_trigonometry.txt">`02_trigonometry.txt`</a></td><td>Degrees vs radians, DEG/RAD, SINRAD…</td></tr><tr><td><a href="../documentation/feature_matrices/03_graphics.txt">`03_graphics.txt`</a></td><td>CIRCLE, RECTANGLE, GCOL, MODE scaling…</td></tr><tr><td><a href="../documentation/feature_matrices/04_arrays_matrix.txt">`04_arrays_matrix.txt`</a></td><td>Array fill, multiply, SUM, slices…</td></tr><tr><td><a href="../documentation/feature_matrices/05_data_read.txt">`05_data_read.txt`</a></td><td>DATA / READ / RESTORE</td></tr><tr><td><a href="../documentation/feature_matrices/06_implementation_status.txt">`06_implementation_status.txt`</a></td><td>User-verify implementation checklist</td></tr><tr><td><a href="../documentation/feature_matrices/07_deferred.txt">`07_deferred.txt`</a></td><td>WIMP, ASM, general SYS FFI, real sound, INSTALL, nested/array structs… (flat <code>DIM name{}</code> structs and a small named SYS table already work)</td></tr></table>
+<table><tr><th>File</th><th>Topic</th></tr><tr><td><code>02_trigonometry.txt</code></td><td>Degrees vs radians, DEG/RAD, SINRAD…</td></tr><tr><td><code>03_graphics.txt</code></td><td>CIRCLE, RECTANGLE, GCOL, MODE scaling…</td></tr><tr><td><code>04_arrays_matrix.txt</code></td><td>Array fill, multiply, SUM, slices…</td></tr><tr><td><code>05_data_read.txt</code></td><td>DATA / READ / RESTORE</td></tr><tr><td><code>06_implementation_status.txt</code></td><td>User-verify implementation checklist</td></tr><tr><td><code>07_deferred.txt</code></td><td>WIMP, ASM, general SYS FFI, real sound, INSTALL, nested/array structs… (flat <code>DIM name{}</code> structs and a small named SYS table already work)</td></tr></table>
 <p>Deferred rows are intentional non-goals until core language + corpus stay stable—not silent gaps.</p>
 <hr>
 <h3 id="6-practical-mapping-for-users">6. Practical mapping for users</h3>
@@ -86,7 +88,7 @@
 <hr>
 <h3 id="8-maintaining-the-grids">8. Maintaining the grids</h3>
 <ol><li>Edit rows in <code>mini_basic/features/*.py</code> (e.g. <code>dialect_structure.py</code>, <code>bbc_family.py</code>).  </li><li>Run <code>python -m mini_basic.features</code> to refresh <code>documentation/feature_matrices/</code>.  </li><li>Keep this overview in sync only when <strong>dialect roles</strong> or <strong>axis definitions</strong> change—not for every <code>+</code>/<code>-</code> flip (those belong in the generated files).</li></ol>
-<p>Ship-facing language promises: <a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a>. User-facing matrix notes: <a href="../documentation/FEATURE_TESTS_FOR_USER.txt">`documentation/FEATURE_TESTS_FOR_USER.txt`</a>.</p>
+<p>Ship-facing language promises: <a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a>. User-facing matrix notes: <code>documentation/FEATURE_TESTS_FOR_USER.txt</code>.</p>
     </article>
   </main>
   <footer>

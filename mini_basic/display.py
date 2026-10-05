@@ -1492,7 +1492,7 @@ class PygameDisplay(DisplayBackend):
         self._gfx.cursor_x = x_user
         self._gfx.cursor_y = y_user
         self._dirty = True
-        # Force full compose so a late VDU 5 label (e.g. test_fps4 "N fps") is not
+        # Force full compose so a late VDU 5 label (e.g. soccerball_fps_test "N fps") is not
         # lost on a dirty-rect path that only has soccerball fill dirtied earlier.
         self.mark_compose_full()
 

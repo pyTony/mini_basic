@@ -61,14 +61,15 @@ python -m mini_basic -h
 
 Env: `MINIBASIC_DIR`, `MINI_BASIC_DIALECT`. Text sessions stay text.
 
-Examples and developer files live in the **git tree**, not in a pip wheel:
+Examples and developer files live on the **`dev` branch**, not in a pip wheel
+and not on `main`:
 
 - Repo: [https://github.com/pyTony/mini_basic](https://github.com/pyTony/mini_basic)
-- Examples: [examples/](https://github.com/pyTony/mini_basic/tree/main/examples)
-- Developer git notes: [GIT_QUICKSTART.md](https://github.com/pyTony/mini_basic/blob/main/GIT_QUICKSTART.md)
+- Examples: [examples/](https://github.com/pyTony/mini_basic/tree/dev/examples)
+- Developer git notes: [GIT_QUICKSTART.md](https://github.com/pyTony/mini_basic/blob/dev/GIT_QUICKSTART.md)
 
 ```text
-git clone https://github.com/pyTony/mini_basic.git
+git clone -b dev https://github.com/pyTony/mini_basic.git
 ```
 
 Third-party sources: [M6502 C-port](https://github.com/garyexplains/BASIC-M6502-CPORT) · [BBCSDL examples](https://github.com/rtrussell/BBCSDL/tree/master/examples)

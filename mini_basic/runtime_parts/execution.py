@@ -118,10 +118,10 @@ _WHILE_ACCEL_BLOCKING_CMDS = frozenset({
     'GOTO', 'GOSUB', 'PROC', 'ENDPROC', 'EXIT', 'NEXT', 'UNTIL',
     'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE', 'BREAK', 'CONTINUE',
     'ON', 'DEF', 'LOCAL', 'DIM', 'READ', 'RESTORE', 'DATA',
-    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END',
+    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END', 'INSTALL', 'LIBRARY',
     'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
     'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
-    'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP',
+    'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP', 'TINT',
 })
 
 class RuntimeExecutionMixin:
@@ -1762,6 +1762,10 @@ class RuntimeExecutionMixin:
                     idx = body_line_index[target]
                 else:
                     idx += 1
+            if full_line_nums and proc.body_end >= full_line_nums[-1]:
+                # Body runs off the end of the program with no explicit
+                # ENDPROC: BBC BASIC treats this as an implicit return.
+                return
             raise ValueError('PROC missing ENDPROC')
         finally:
             self._restore_local_bindings()
@@ -2303,8 +2307,10 @@ class RuntimeExecutionMixin:
         code = self._bbc_text_colour_code(raw_code)
         if code >= 128:
             self.text_bg_colour = code - 128
+            self._bbc_tint_bg = 0
         else:
             self.text_fg_colour = code
+            self._bbc_tint_fg = 0
         self._last_emitted_fg_colour = None
         self._ensure_display()
         if self._display_enabled():
@@ -2313,6 +2319,34 @@ class RuntimeExecutionMixin:
             # not a request for the classic flashing background.
             no_flash = code >= 128 and (code - 128) in self._bbc_custom_colours
             self._display.set_colour(code, no_flash=no_flash)
+
+    def _apply_text_tint(self, index: int, level: int) -> None:
+        """Blend ``level`` (0/64/128/192) brightness into logical colour ``index``.
+
+        The base RGB always comes from an explicit 4-arg COLOUR definition
+        (``_bbc_custom_colours``, untouched by TINT) or the default palette
+        function — never from a previous TINT result — so repeated TINT
+        calls on the same base colour stay idempotent instead of compounding.
+        """
+        from ..display import colour_to_rgb
+
+        index = int(index) & 255
+        base = self._bbc_custom_colours.get(index)
+        if base is None:
+            base = colour_to_rgb(index)
+        frac = max(0, min(192, int(level))) / 192.0
+        rgb = tuple(min(255, int(round(c + (255 - c) * frac))) for c in base)
+        self._ensure_display()
+        if self._display_enabled() and hasattr(self._display, 'set_palette_rgb'):
+            self._display.set_palette_rgb(index, rgb)
+            gfx = getattr(self._display, '_gfx', None)
+            apply_tc = getattr(self._display, '_apply_gfx_truecolour', None)
+            if (
+                gfx is not None
+                and callable(apply_tc)
+                and getattr(gfx, 'gcol_fg', (0, -1))[1] == index
+            ):
+                apply_tc(index)
 
     def _vdu_text_bounds(self) -> Tuple[int, int, int, int]:
         """Return (left, bottom, right, top) inclusive text window in char cells."""
@@ -2344,6 +2378,8 @@ class RuntimeExecutionMixin:
         """VDU 20: default white-on-black text colours and default palette."""
         self.text_fg_colour = 7
         self.text_bg_colour = 0
+        self._bbc_tint_fg = 0
+        self._bbc_tint_bg = 0
         self._last_emitted_fg_colour = None
         self._bbc_custom_colours.clear()
         self._ensure_display()
@@ -2490,6 +2526,31 @@ class RuntimeExecutionMixin:
                     if self._display_enabled():
                         self._display.gcol(codes[index + 1], codes[index + 2])
                 index += 3
+                continue
+            if code == 19 and index + 5 < len(codes):
+                # VDU 19,L,P,R,G,B — redefine logical colour L. P=16 means a
+                # direct RGB colour (R,G,B); otherwise P selects a physical
+                # colour from the standard BBC palette.
+                logical = codes[index + 1]
+                physical = codes[index + 2]
+                if physical == 16:
+                    rgb = (codes[index + 3], codes[index + 4], codes[index + 5])
+                else:
+                    from ..display import colour_to_rgb
+                    rgb = colour_to_rgb(physical)
+                self._bbc_custom_colours[logical] = rgb
+                self._ensure_display()
+                if self._display_enabled() and hasattr(self._display, 'set_palette_rgb'):
+                    self._display.set_palette_rgb(logical, rgb)
+                    gfx = getattr(self._display, '_gfx', None)
+                    apply_tc = getattr(self._display, '_apply_gfx_truecolour', None)
+                    if (
+                        gfx is not None
+                        and callable(apply_tc)
+                        and getattr(gfx, 'gcol_fg', (0, -1))[1] == logical
+                    ):
+                        apply_tc(logical)
+                index += 6
                 continue
             if code == 20:
                 self._vdu_reset_colours()
@@ -2691,17 +2752,19 @@ class RuntimeExecutionMixin:
         statement: Optional[str] = None,
     ) -> None:
         rest = rest.strip()
-        if not rest:
-            self._runtime_error(
-                '? WAIT error',
-                line_num,
-                stmt_index,
-                stmt_count=stmt_count,
-                statement=statement,
-            )
-            return
+        # Once a program uses WAIT at all, treat it as the frame boundary: the
+        # automatic per-line flush (below, in execute_line) stops presenting
+        # partial frames, and only WAIT's own flush shows the screen. Real
+        # BBC BASIC V hardware draws fast enough that intra-frame state is
+        # never visible; our software renderer is slow enough that presenting
+        # every line flickers mid-draw frames (soccerball_bbc_V.bas: CLS then
+        # 12 pentagon patches, visible as a green flash before the ball).
+        self._wait_statement_executed = True
         try:
-            centiseconds = float(self._eval_numeric(rest))
+            # Bare WAIT (no argument) waits for the next vertical sync/flyback
+            # in real BBC BASIC, rather than being an error. Treat it the same
+            # as WAIT 0 below (a single yielded slice).
+            centiseconds = float(self._eval_numeric(rest)) if rest else 0.0
             self._flush_program_output()
 
             # With *REFRESH OFF, only *REFRESH should present. With refresh on,
@@ -5154,6 +5217,8 @@ class RuntimeExecutionMixin:
                         self._flush_display()
                     self.text_fg_colour = 7
                     self.text_bg_colour = 0
+                    self._bbc_tint_fg = 0
+                    self._bbc_tint_bg = 0
                     self._last_emitted_fg_colour = None
                 except Exception as exc:
                     self._runtime_error(
@@ -5408,6 +5473,8 @@ class RuntimeExecutionMixin:
                     bg = self._bbc_text_colour_code(self._eval_numeric(args[1]))
                     self.text_fg_colour = fg
                     self.text_bg_colour = bg
+                    self._bbc_tint_fg = 0
+                    self._bbc_tint_bg = 0
                     self._last_emitted_fg_colour = None
                     self._ensure_display()
                     if self._display_enabled():
@@ -5422,6 +5489,31 @@ class RuntimeExecutionMixin:
             except Exception as exc:
                 self._runtime_error(
                     self._error_message('? COLOUR error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'TINT':
+            # TINT target,level: brightness (0/64/128/192) blended into the
+            # current text foreground (0) or background (1) colour, without
+            # changing its base hue. Archimedes/RISC OS BBC BASIC statement
+            # (distinct from the TINT(x,y) pixel-read function).
+            try:
+                args = self._split_args(rest.strip())
+                if len(args) != 2:
+                    raise ValueError('TINT requires target,level (e.g. TINT 0,64)')
+                target = int(self._eval_numeric(args[0]))
+                level = int(self._eval_numeric(args[1])) & 192
+                if target == 0:
+                    self._bbc_tint_fg = level
+                    index = self.text_fg_colour if self.text_fg_colour is not None else 7
+                elif target == 1:
+                    self._bbc_tint_bg = level
+                    index = self.text_bg_colour
+                else:
+                    raise ValueError('TINT target must be 0 (foreground) or 1 (background)')
+                self._apply_text_tint(index, level)
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? TINT error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         if cmd == 'CHAIN':
@@ -5638,7 +5730,10 @@ class RuntimeExecutionMixin:
             self._active_line_num = -1
             self._active_stmt_parts = None
             self._active_statement = ''
-        if self._refresh_enabled:
+        if self._refresh_enabled and not self._wait_statement_executed:
+            # Once WAIT has run at least once this RUN, it owns presenting
+            # (see _execute_wait) so the frame being drawn between WAITs
+            # stays hidden instead of flickering on screen line-by-line.
             self._flush_display()  # rate-limited; excessive force=True caused flicker/jerky updates in text-heavy loops in pygame window
         # For pure --display terminal (TerminalDisplay), batch-render the grid at end of each
         # executed BASIC line. This gives one ANSI update per line instead of per PRINT/TAB.

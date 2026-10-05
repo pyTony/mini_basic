@@ -13,6 +13,7 @@
       <a href="install.html">Install</a>
       <a href="tree.html">Public tree</a>
       <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="CHANGELOG.html">Changelog</a>
       <a href="https://github.com/pyTony/mini_basic">GitHub</a>
     </nav>
     <h1>Packaging</h1>
@@ -27,16 +28,17 @@
 <p><strong>Optional extras</strong> (not hard dependencies):</p>
 <ul><li><code>pip install &quot;mini-basic[display]&quot;</code> → <code>pygame-ce</code> (MODE/PLOT windows)</li><li><code>pip install &quot;mini-basic[accel]&quot;</code> → <code>numpy</code> (uint8 framebuffer / fast present)</li><li><code>pip install &quot;mini-basic[repl]&quot;</code> → <code>pyreadline3</code> on Windows</li><li><code>pip install &quot;mini-basic[all]&quot;</code> → display + accel + repl</li></ul>
 <h3 id="explicitly-excluded-from-the-wheel">Explicitly excluded from the wheel</h3>
-<table><tr><th>Path</th><th>Why</th></tr><tr><td><code>test/</code>, <code>tools/</code>, <code>utils/</code>, <code>scripts/</code></td><td>Development</td></tr><tr><td><code>examples/</code>, <code>basics/</code>, <code>test/corpus/</code></td><td>Demos and BBCSDL corpus — get from <a href="https://github.com/pyTony/mini_basic/tree/main/examples">git</a>, not the wheel</td></tr><tr><td><code>documentation/*.pdf</code>, large media</td><td>Not required to run the interpreter</td></tr><tr><td><code>tools/python-embed/</code></td><td>Bundled Python tree for offline installers</td></tr><tr><td><code>__pycache__</code></td><td>Build leftover</td></tr><tr><td><code>mini_basic/diffcheck.py</code></td><td>Removed — was a broken one-off (lived under <code>tools/</code> if kept)</td></tr><tr><td>Old text-archive installers</td><td>Separate distribution path (<code>tools/install.ps1</code> + parts)</td></tr></table>
+<table><tr><th>Path</th><th>Why</th></tr><tr><td><code>basics/</code>, <code>showcase/</code></td><td>Demo programs — get from <a href="https://github.com/pyTony/mini_basic/tree/main">git</a>, not the wheel</td></tr><tr><td><code>test/</code>, <code>tools/</code>, <code>utils/</code>, <code>scripts/</code>, <code>examples/</code>, <code>documentation/</code></td><td>Development-only; these live on the <a href="https://github.com/pyTony/mini_basic/tree/dev">`dev`</a> branch, not on <code>main</code>, and are never part of the wheel</td></tr><tr><td><code>__pycache__</code></td><td>Build leftover</td></tr><tr><td><code>mini_basic/diffcheck.py</code></td><td>Removed — was a broken one-off</td></tr></table>
 <h3 id="install-from-github-supported">Install from GitHub (supported)</h3>
 <pre><code>python -m pip install &quot;mini-basic @ git+https://github.com/pyTony/mini_basic.git&quot;
 python -m pip install &quot;mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git&quot;
 mini-basic --version
 python -m mini_basic -c &quot;PRINT 6*7&quot;</code></pre>
-<p>That installs the interpreter only. For examples and <code>docs/site/</code>:</p>
+<p>That installs the interpreter only. For <code>basics/</code> and <code>docs/site/</code>:</p>
 <pre><code>git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e &quot;.[repl]&quot;</code></pre>
+<p>For the full dev tree (<code>examples/</code>, <code>test/</code>, <code>tools/</code>, <code>scripts/</code>, <code>documentation/</code>), clone the <a href="https://github.com/pyTony/mini_basic/tree/dev">`dev`</a> branch instead.</p>
 <h3 id="build-a-wheel-local-checkout">Build a wheel (local checkout)</h3>
 <pre><code>python -m pip install -U build
 python -m build

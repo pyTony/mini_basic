@@ -145,6 +145,7 @@ class RuntimeCoreMixin:
         self.if_stack: List[IfFrame] = []
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
+        self._wait_statement_executed = False
         self.trace_enabled = False
         self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
@@ -160,6 +161,11 @@ class RuntimeCoreMixin:
         self._mouse_y = 0
         self._mouse_buttons = 0
         self._bbc_custom_colours: Dict[int, Tuple[int, int, int]] = {}
+        # TINT statement: brightness (0/64/128/192) blended into the current
+        # text foreground (0) / background (1) colour. Reset whenever COLOUR
+        # or MODE picks a new base colour.
+        self._bbc_tint_fg = 0
+        self._bbc_tint_bg = 0
         self.gosub_stack: List[tuple] = []
         # >0 while an IF THEN/ELSE clause runs as its own statement list.
         self._inline_exec_depth = 0
@@ -204,6 +210,7 @@ class RuntimeCoreMixin:
         self.text_col = 0
         self.working_dir = os.path.normpath(os.getcwd())
         self._esc = '\033'
+        self._print_esc_pending = ''
         self._if_layout_cache: Dict[int, IfBlockLayout] = {}
         self._case_layout_cache: Dict[int, CaseBlockLayout] = {}
         self._run_line_nums: List[int] = []
@@ -2321,6 +2328,7 @@ class RuntimeCoreMixin:
         self.data_pointer = 0
         self._rnd_last = 0.0
         self._refresh_enabled = True
+        self._wait_statement_executed = False
         self.stack.clear()
         self.if_stack.clear()
         self.gosub_stack.clear()
@@ -2358,6 +2366,8 @@ class RuntimeCoreMixin:
         self._clear_stop_state()
         self._run_aborted = False
         self._bbc_custom_colours.clear()
+        self._bbc_tint_fg = 0
+        self._bbc_tint_bg = 0
         reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
         if callable(reset_pal):
             reset_pal()
@@ -2607,6 +2617,8 @@ class RuntimeCoreMixin:
             self.loaded_filename = None
         self._program_source_numbered = None
         self._bbc_custom_colours.clear()
+        self._bbc_tint_fg = 0
+        self._bbc_tint_bg = 0
         reset_pal = getattr(getattr(self, '_display', None), 'reset_palette', None)
         if callable(reset_pal):
             reset_pal()

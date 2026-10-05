@@ -906,6 +906,17 @@ class BBCGraphics:
                 sx, sy = x0 + dx, y0 + dy
                 rgb_pixels[sy][sx] = trgb
                 self.rgb_dirty.add((sx, sy))
+        elif self.rgb_pixels is not None:
+            # Plain (non-truecolour) fill: clear any stale per-pixel RGB a
+            # prior CLS/CLG baked into this region (e.g. a custom VDU 19
+            # background colour) so the new palette index actually shows —
+            # otherwise this disc stays invisible under the old baked RGB.
+            rgb_pixels = self.rgb_pixels
+            ys, xs = np.nonzero(mask[y0 : y1 + 1, x0 : x1 + 1])
+            for dy, dx in zip(ys.tolist(), xs.tolist()):
+                sx, sy = x0 + dx, y0 + dy
+                rgb_pixels[sy][sx] = None
+                self.rgb_dirty.discard((sx, sy))
         self._mark_pixel_dirty(x0, y0)
         self._mark_pixel_dirty(x1, y1)
         self.plot_count += int(mask.sum())
