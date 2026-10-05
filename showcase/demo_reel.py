@@ -5,9 +5,13 @@ classic algorithms in one sitting.
 
 Usage (from the project root):
 
-    python showcase/demo_reel.py              # run all 8, in order
-    python showcase/demo_reel.py --list        # show the reel without running it
-    python showcase/demo_reel.py wheel fern    # run just these entries
+    python showcase/demo_reel.py              # interactive menu (pick one, or run all)
+    python showcase/demo_reel.py --all         # run all 8, in order, no menu
+    python showcase/demo_reel.py --list        # print the reel (with blurbs) and exit
+    python showcase/demo_reel.py wheel fern    # run just these entries, no menu
+
+With no arguments and no terminal attached (e.g. piped/CI), falls back to
+--all instead of waiting on a menu nobody can answer.
 
 Pygame entries use a window (close it, or press the program's usual exit
 key, to move to the next one).
@@ -85,34 +89,77 @@ def _run_entry(entry: ReelEntry) -> int:
     if entry.pygame:
         argv.append('--pygame')
     argv.append(entry.path)
-    return subprocess.call(argv, cwd=_ROOT)
+    rc = subprocess.call(argv, cwd=_ROOT)
+    ok = rc == 0 or (not entry.pygame and rc == _EXIT_HOLD_CONSOLE)
+    if not ok:
+        print(f'! {entry.key} exited with code {rc}', file=sys.stderr)
+    return rc
+
+
+def _print_list() -> None:
+    print('Demo reel:')
+    for e in REEL:
+        kind = 'pygame' if e.pygame else 'console'
+        print(f'  {e.key:12s} [{kind:7s}] {e.blurb}')
+
+
+def _interactive_menu() -> int:
+    """Pick one entry at a time, see its blurb, run it, come back to the menu."""
+    while True:
+        print('\nmini_basic v1.0 demo reel — pick one to see what it shows off:\n')
+        for i, e in enumerate(REEL, 1):
+            print(f'  {i}. {e.key:12s} {e.blurb}')
+        print('\n  a. run all, in order')
+        print('  q. quit')
+        try:
+            choice = input('\n> ').strip().lower()
+        except EOFError:
+            print()
+            return 0
+        if choice in ('', 'q', 'quit'):
+            return 0
+        if choice in ('a', 'all'):
+            for entry in REEL:
+                _run_entry(entry)
+            continue
+        if choice.isdigit() and 1 <= int(choice) <= len(REEL):
+            _run_entry(REEL[int(choice) - 1])
+            continue
+        print(f'Unrecognised choice: {choice!r}')
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='Run the mini_basic v1.0 demo reel')
     parser.add_argument('keys', nargs='*', help='only run these entries (by key), in reel order')
-    parser.add_argument('--list', action='store_true', help='print the reel and exit')
+    parser.add_argument('--list', action='store_true', help='print the reel (with blurbs) and exit')
+    parser.add_argument(
+        '--all', action='store_true',
+        help='run the whole reel in order, no menu',
+    )
     args = parser.parse_args(argv)
 
+    if args.list:
+        _print_list()
+        return 0
+
     wanted = set(args.keys)
-    entries = [e for e in REEL if not wanted or e.key in wanted]
+    if wanted:
+        entries = [e for e in REEL if e.key in wanted]
+        unknown = wanted - {e.key for e in REEL}
+        if unknown:
+            _print_list()
+            print(f'\nUnknown key(s): {", ".join(sorted(unknown))}')
+            return 1
+        for entry in entries:
+            _run_entry(entry)
+        return 0
 
-    if args.list or not entries:
-        print('Demo reel:')
-        for e in REEL:
-            kind = 'pygame' if e.pygame else 'console'
-            print(f'  {e.key:12s} [{kind:7s}] {e.blurb}')
-        if args.list:
-            return 0
-        print(f'\nUnknown key(s): {", ".join(sorted(wanted - {e.key for e in REEL}))}')
-        return 1
+    if args.all or not sys.stdin.isatty():
+        for entry in REEL:
+            _run_entry(entry)
+        return 0
 
-    for entry in entries:
-        rc = _run_entry(entry)
-        ok = rc == 0 or (not entry.pygame and rc == _EXIT_HOLD_CONSOLE)
-        if not ok:
-            print(f'! {entry.key} exited with code {rc}', file=sys.stderr)
-    return 0
+    return _interactive_menu()
 
 
 if __name__ == '__main__':

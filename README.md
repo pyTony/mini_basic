@@ -62,7 +62,8 @@ performance and language features. They live under `showcase/` right here
 on `main` and run via `showcase/demo_reel.py`:
 
 ```bash
-python showcase/demo_reel.py          # run the whole reel
+python showcase/demo_reel.py          # interactive menu: pick one (with its blurb) or run all
+python showcase/demo_reel.py --all    # run the whole reel in order, no menu
 python showcase/demo_reel.py --list   # just print what's in it
 ```
 
