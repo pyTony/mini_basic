@@ -10,8 +10,7 @@ Usage (from the project root):
     python showcase/demo_reel.py wheel fern    # run just these entries
 
 Pygame entries use a window (close it, or press the program's usual exit
-key, to move to the next one). Console entries (Mandel_ANSI) just print
-and return.
+key, to move to the next one).
 """
 from __future__ import annotations
 
@@ -58,9 +57,9 @@ REEL: tuple[ReelEntry, ...] = (
         'Barnsley fern fractal drawn with chained DRAW/affine steps.',
     ),
     ReelEntry(
-        'mandel_ansi', 'showcase/Mandel_ANSI.BAS', 'mini', False,
-        'Mandelbrot set in ANSI colour, console only — renders in well '
-        'under a second, the interpreter perf highlight.',
+        'mandelbrot', 'showcase/mandelbrot_archimedes_mode9.bas', 'bbc', True,
+        'Full-screen MODE 9 Mandelbrot, solid-block colouring — the '
+        'interpreter perf highlight (renders in a few seconds).',
     ),
     ReelEntry(
         'bounce', 'showcase/bounce.bbc', 'bbc', True,
