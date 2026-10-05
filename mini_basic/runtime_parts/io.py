@@ -642,7 +642,11 @@ class RuntimeIoMixin:
         if newline and text and text[-1] == '\n':
             newline = False
         if self._display_enabled():
-            if self._terminal_tee_enabled() or immediate:
+            # A non-positioned TerminalDisplay already streams straight to
+            # stdout from _display_write_vdu_string() below (see
+            # TerminalDisplay.write()); teeing here too would print every
+            # immediate-mode PRINT twice (e.g. REPL ``PRINT 1/FNfact(100)``).
+            if self._terminal_tee_enabled() or (immediate and not self._display_streams_to_stdout()):
                 if text:
                     self._tee_terminal_write(text)
                 if newline:
