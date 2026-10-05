@@ -18,8 +18,9 @@ DEFERRED_ROWS: List[DeferredRow] = [
     ('Pointers', '? ! $ $$ indirection', 'byte/word/string pointers'),
     (
         'Sound',
-        'Real SOUND / ENVELOPE / ADVAL audio',
-        'multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait',
+        'ENVELOPE / ADVAL audio',
+        'SOUND plays an approximate tone/noise via pygame (see mini_basic/sound.py); '
+        'ENVELOPE remains a no-op, no amplitude/pitch sweep',
     ),
     # MODE 7 teletext: double-height + conceal implemented; boxed / full SAA5050 deferred.
     ('Teletext remainder', 'MODE 7 boxed / full SAA5050 remainder', 'extend existing teletext renderer'),

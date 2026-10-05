@@ -19,8 +19,9 @@ _IMPLEMENTATION_STATUS = (
     'double-height 140/141 + conceal 152; boxed / not full SAA5050); '
     'Russell .bbc detokenize; text-only session skip of auto-pygame; '
     'phase0+phase1 pytest regression. '
-    'SOUND/ENVELOPE: silent stubs (optional capped wait on SOUND; no audio engine). '
-    'Not RISC OS: SYS/WIMP/assembler/full sound/Ceefax.'
+    'SOUND: approximate tone/noise synthesis via pygame (not chip-accurate); '
+    'ENVELOPE: still a no-op. '
+    'Not RISC OS: SYS/WIMP/assembler/Ceefax.'
 )
 
 
