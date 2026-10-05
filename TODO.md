@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#51](https://github.com/pyTony/mini_basic/pull/51) Fix doubled PRINT output in REPL immediate mode (2026-10-05)
 - [#50](https://github.com/pyTony/mini_basic/pull/50) Fix tab completion for quoted LOAD/SAVE/RUN/CD filenames (main backport) (2026-10-05)
 - [#49](https://github.com/pyTony/mini_basic/pull/49) Fix --list: launcher drops flags, REM comments with colons get mangled (2026-10-05)
 - [#48](https://github.com/pyTony/mini_basic/pull/48) Fix tab completion for quoted LOAD/SAVE/RUN/CD filenames (2026-10-05)
@@ -20,4 +21,3 @@ merge to main.
 - [#44](https://github.com/pyTony/mini_basic/pull/44) Stop presenting partial frames once WAIT paces the program (2026-10-04)
 - [#43](https://github.com/pyTony/mini_basic/pull/43) Fix PROC unregistered when body has no ENDPROC at end of program (2026-10-04)
 - [#42](https://github.com/pyTony/mini_basic/pull/42) Backport: VDU 19 palette set + fix stale RGB overlay hiding fills (main) (2026-10-04)
-- [#41](https://github.com/pyTony/mini_basic/pull/41) Implement LIBRARY statement; make INSTALL actually load libraries (2026-10-04)
