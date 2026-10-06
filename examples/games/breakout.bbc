@@ -11,6 +11,7 @@ REM showcasing sample playback alongside the synthesized SOUND tones.
 50 PRINT TAB(14,10)"B R E A K O U T"
 60 PRINT TAB(10,13)"Arrows move, SPACE serves"
 70 PRINT TAB(13,15)"Press SPACE to start"
+75 *REFRESH
 80 REPEAT UNTIL INKEY(-99)
 90 PROCinit
 100 playing% = TRUE
