@@ -19,6 +19,10 @@ through pygame's mixer:
   chip's note table.
 - ``duration`` is in the usual BBC units of 1/20s.
 
+``play_sample`` is the other half: it plays a real sample file (WAV, OGG,
+...) via pygame's native loader, for ``*PLAY "file.wav"[,channel]`` -- for
+cases where a synthesized tone isn't enough (e.g. a sampled sound effect).
+
 If pygame, numpy, or an actual audio device is unavailable (headless CI,
 containers, etc.), every method here degrades to a silent no-op rather than
 raising -- callers do not need to check availability first.
@@ -57,13 +61,26 @@ def amplitude_to_volume(amplitude: int) -> float:
 
 class SoundEngine:
     """Lazily-initialised pygame mixer wrapper. Safe to use even when audio
-    is unavailable -- every public method then becomes a no-op."""
+    is unavailable -- every public method then becomes a no-op.
+
+    The mixer may already be running under different settings than the
+    ones this module would pick -- e.g. the display layer's
+    ``pygame.init()`` (opened by a MODE statement before any SOUND runs)
+    auto-initialises the mixer at 44100Hz/stereo. Buffers must be built to
+    match whatever is actually active, not fixed constants, or
+    ``sndarray.make_sound``/``mixer.Sound`` raises (channel-count or width
+    mismatch) and the tone silently never plays.
+    """
 
     def __init__(self) -> None:
         self._pygame = None
         self._ready: Optional[bool] = None  # None = not yet attempted.
         self._num_channels = 8
+        self._rate = _SAMPLE_RATE
+        self._bits = 16
+        self._mixer_channels = 1
         self._cache: Dict[Tuple[int, int, bool, int], object] = {}
+        self._sample_cache: Dict[str, object] = {}
 
     def _ensure_ready(self) -> bool:
         if self._ready is not None:
@@ -74,6 +91,10 @@ class SoundEngine:
             pygame = import_pygame()
             if not pygame.mixer.get_init():
                 pygame.mixer.init(frequency=_SAMPLE_RATE, size=-16, channels=1, buffer=512)
+            rate, size, mixer_channels = pygame.mixer.get_init()
+            self._rate = abs(rate)
+            self._bits = abs(size)
+            self._mixer_channels = abs(mixer_channels) if mixer_channels else 1
             self._pygame = pygame
             self._num_channels = max(8, pygame.mixer.get_num_channels())
             self._ready = True
@@ -83,22 +104,31 @@ class SoundEngine:
 
     def _make_tone(self, freq: float, seconds: float, volume: float, noise: bool):
         pygame = self._pygame
-        n = max(1, int(_SAMPLE_RATE * seconds))
-        amp = max(0, min(32767, int(32767 * volume)))
-        fade = max(0, min(n // 2, int(0.01 * _SAMPLE_RATE)))  # 10ms anti-click fade.
+        rate = self._rate
+        n = max(1, int(rate * seconds))
+        peak = (1 << (self._bits - 1)) - 1
+        amp = max(0, min(peak, int(peak * volume)))
+        fade = max(0, min(n // 2, int(0.01 * rate)))  # 10ms anti-click fade.
+        dtype_name = {8: 'int8', 16: 'int16', 32: 'int32'}.get(self._bits, 'int16')
+        pack_fmt = {8: '<b', 16: '<h', 32: '<i'}.get(self._bits, '<h')
         try:
             import numpy as np  # type: ignore
             if noise:
-                samples = np.random.randint(-amp, amp + 1, size=n, dtype=np.int16)
+                mono = np.random.randint(-amp, amp + 1, size=n)
             else:
-                t = np.arange(n, dtype=np.float64) / _SAMPLE_RATE
+                t = np.arange(n, dtype=np.float64) / rate
                 wave = np.sin(2.0 * np.pi * freq * t)
                 if fade > 0:
                     ramp = np.linspace(0.0, 1.0, fade)
                     wave[:fade] *= ramp
                     wave[-fade:] *= ramp[::-1]
-                samples = (wave * amp).astype(np.int16)
-            return pygame.sndarray.make_sound(samples)
+                mono = wave * amp
+            mono = mono.astype(getattr(np, dtype_name))
+            if self._mixer_channels >= 2:
+                samples = np.repeat(mono.reshape(-1, 1), self._mixer_channels, axis=1)
+            else:
+                samples = mono
+            return pygame.sndarray.make_sound(np.ascontiguousarray(samples))
         except Exception:
             # Pure-python fallback when numpy isn't installed (it's an
             # optional dependency -- see requirements-display.txt).
@@ -107,13 +137,38 @@ class SoundEngine:
                 if noise:
                     v = float(random.randint(-amp, amp))
                 else:
-                    v = math.sin(2.0 * math.pi * freq * i / _SAMPLE_RATE) * amp
+                    v = math.sin(2.0 * math.pi * freq * i / rate) * amp
                     if fade and i < fade:
                         v *= i / fade
                     elif fade and i >= n - fade:
                         v *= (n - i) / fade
-                buf += struct.pack('<h', int(v))
+                frame = struct.pack(pack_fmt, int(v))
+                buf += frame * max(1, self._mixer_channels)
             return pygame.mixer.Sound(buffer=bytes(buf))
+
+    def play_sample(self, path: str, channel: Optional[int] = None) -> None:
+        """Play a sound sample file (WAV, OGG, ...) via pygame's native
+        loader. Fire-and-forget: does not block, and any failure (missing
+        file, unsupported format, no audio device) is a silent no-op."""
+        if not self._ensure_ready():
+            return
+        snd = self._sample_cache.get(path)
+        if snd is None:
+            try:
+                snd = self._pygame.mixer.Sound(path)
+            except Exception:
+                return
+            if len(self._sample_cache) >= _CACHE_LIMIT:
+                self._sample_cache.clear()
+            self._sample_cache[path] = snd
+        try:
+            if channel is None:
+                snd.play()
+            else:
+                idx = abs(int(channel)) % self._num_channels
+                self._pygame.mixer.Channel(idx).play(snd)
+        except Exception:
+            pass
 
     def play(self, channel: int, amplitude: int, pitch: int, duration_units: int) -> None:
         """Play one BBC-style SOUND. Fire-and-forget: does not block."""

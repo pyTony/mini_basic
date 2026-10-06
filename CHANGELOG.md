@@ -3,6 +3,35 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-06
+
+- [#57](https://github.com/pyTony/mini_basic/pull/57) Backport: basic SOUND support (pygame tone synthesis) — Companion backport of #54 (merged to `dev`) onto `main`, same change: `SOUND channel,amplitude,pitch,duration` now plays an approximate tone (sine wave; white noise on channel 0, BBC's traditional noise channel) through pygame's mixer instead of being a silent stub. See #54's description for the full before/after…
+
+## 2026-10-05
+
+- [#59](https://github.com/pyTony/mini_basic/pull/59) Fix docs implying graphics isn't for regular users — Tony flagged that the docs wrongly implied graphics mode isn't for regular users — in reality, graphics (`MODE`, pygame window) is the normal way most programs run (the showcase reel is almost entirely pygame demos); it's a separate pip extra only because pygame is a native dependency, not because it's a niche…
+- [#55](https://github.com/pyTony/mini_basic/pull/55) Pre-1.0: showcase refinements, SyntaxWarning fixes, pygame deprecation fix — Follow-up to #52, continuing the pre-1.0 release-cleanup thread:
+- [#52](https://github.com/pyTony/mini_basic/pull/52) Pre-1.0: fix CIRCLE FILL/VDU19 graphics bugs, remove redundant launcher scripts — - Both graphics bugs are fixed in `mini_basic/bbc_graphics.py` and `mini_basic/display.py` — the non-numpy fallback paths now match the numpy fast paths' handling of the truecolour RGB overlay. Verified against the full `test/test_graphics_confirm.py` + `test/test_display.py` suites on the `dev` branch (companion…
+- [#51](https://github.com/pyTony/mini_basic/pull/51) Fix doubled PRINT output in REPL immediate mode — Every immediate-mode PRINT prints exactly once, regardless of whether the expression is a float, a big integer, or wraps a memoized FN call.
+- [#49](https://github.com/pyTony/mini_basic/pull/49) Fix --list: launcher drops flags, REM comments with colons get mangled — `./minibasic` forwards all CLI arguments via `"$@"`, so `--list` (and any other flag) reaches the interpreter. The LIST/SAVE statement splitter now stops looking for `:` once a comment starts, taking the rest of the line verbatim, so comments with colons list unchanged.
+- [#50](https://github.com/pyTony/mini_basic/pull/50) Fix tab completion for quoted LOAD/SAVE/RUN/CD filenames (main backport) — `LOAD "demo` + Tab completes to `LOAD "demo.bas"`.
+- [#47](https://github.com/pyTony/mini_basic/pull/47) Backport: Implement LIBRARY statement; make INSTALL actually load libraries — both `LIBRARY` and `INSTALL` load the named file and merge its `DEF PROC` / `DEF FN` definitions into the running program. The library's own top-level code is never executed — only the definitions become callable, matching real BBC BASIC semantics.
+- [#46](https://github.com/pyTony/mini_basic/pull/46) Fix PRINT line-wrap splitting ANSI escape sequences mid-sequence — each row of ANSIColour.bbc's output is emitted as a single unbroken line, with every CSI sequence intact, matching real Brandy's behaviour.
+
+## 2026-10-04
+
+- [#45](https://github.com/pyTony/mini_basic/pull/45) Backport: stop presenting partial frames once WAIT paces the program (main) — Without `*REFRESH` (BBCSDL/BB4W-only, unsupported on real BASIC V/Archimedes), mini_basic presented the screen after every executed line, including mid-draw states — e.g. right after `CLS` but before the shapes drawn afterward. mini_basic's software renderer is slow enough per frame that this showed as a…
+- [#43](https://github.com/pyTony/mini_basic/pull/43) Fix PROC unregistered when body has no ENDPROC at end of program — `ANSIColour.bbc` runs correctly and prints the expected ANSI colour grid. `Circle.bbc`'s `PROCcircle` is now found and called correctly (the file still hits two unrelated, pre-existing bugs further in — `DIM mem%15` without parentheses, and the `|mem% = ...` indirection-assignment operator — which are out of scope…
+- [#42](https://github.com/pyTony/mini_basic/pull/42) Backport: VDU 19 palette set + fix stale RGB overlay hiding fills (main) — Two chained bugs affected any BBC BASIC program (e.g. `soccerball_bbc_V.bas`) that redefines the background colour with `VDU 19` and then draws filled shapes on top each frame:
+- [#39](https://github.com/pyTony/mini_basic/pull/39) Fix bare WAIT (no argument) raising a runtime error (backport to main) — `WAIT` with no argument always raised `? WAIT error` in `_execute_wait`, in every dialect. Already fixed on `dev` in #38, but `main` (the lean release tree) didn't have it — a `main` checkout running a BASIC V soccerball demo that uses bare `WAIT` for frame pacing still crashed.
+
+## 2026-10-03
+
+- [#34](https://github.com/pyTony/mini_basic/pull/34) Remove test/ from main — tests live on dev — PR #33 (the PRINT `AND`/comparison fix) added `test/__init__.py` and `test/test_print_and_comparison.py` to `main`. `main` is intentionally the lean 1.00 release tree (`mini_basic/`, `basics/`, the HTML handbook, `CHANGELOG.md` only) — `test/`, `tools/`, `examples/`, etc. live only on `dev`.
+- [#33](https://github.com/pyTony/mini_basic/pull/33) Fix PRINT a>0 AND b>0 printing 0 for true/true — `PRINT A>0 AND B>0` printed `0` even when both comparisons were true. `X = A>0 AND B>0` / `PRINT X` and `IF A>0 AND B>0 THEN ...` gave the correct `-1`, so this was a PRINT-only bug (as noted in the project's bug report). The struct-member case `PRINT M.W% > 0 AND M.H% > 0` also worked incorrectly before this fix…
+- [#32](https://github.com/pyTony/mini_basic/pull/32) Release cleanup: showcase on main, main is HTML-only (README.md excepted) — `main` is a lean, self-contained release tree.
+- [#26](https://github.com/pyTony/mini_basic/pull/26) Release 1.00 cleanup: split main (lean) from dev (full tree) — `main` is the lean release tree: the `mini_basic/` package,
+
 ## 2026-10-02
 
 - [#30](https://github.com/pyTony/mini_basic/pull/30) Add v1.0 demo reel: launcher script + README showcase — a "demo reel" of 8 confirmed-working programs, picked to span graphics/animation, fractals, raw interpreter performance, extended struct support, and classic recursive algorithms:
