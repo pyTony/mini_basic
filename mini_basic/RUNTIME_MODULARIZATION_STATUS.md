@@ -47,7 +47,9 @@ python tools/split_runtime_mixins.py
 
 ## Regenerating mixins
 
-`tools/split_runtime_mixins.py` AST-splits a monorepo `runtime.py` into mixins:
+`tools/split_runtime_mixins.py` (on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on this
+`main` release branch) AST-splits a monorepo `runtime.py` into mixins:
 
 1. Classifies methods by name into buckets (core/program/expr/defs/execution/io/graphics/dialect).
 2. Emits mixin modules + helpers for free functions methods reference.

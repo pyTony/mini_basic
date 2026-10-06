@@ -1,7 +1,7 @@
 10 REM Full-screen Mandelbrot MODE 9 (640x512, OS scale 2) — SDL-like solid blocks.
 20 REM Do not use lone PLOT 69 with STEP: that leaves black gaps between samples.
 30 REM RECTANGLE FILL size matches STEP so tiles abut (see BBCSDL reference look).
-40 REM python -m mini_basic --dialect bbc examples/graphics/mandelbrot/mandelbrot_archimedes_mode9.bas
+40 REM python -m mini_basic --dialect bbc --pygame showcase/mandelbrot_archimedes_mode9.bas
 50 MODE 9
 60 VDU 20
 70 COLOUR 7: COLOUR 128

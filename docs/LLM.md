@@ -5,14 +5,17 @@ mini_basic is a **multi-dialect BASIC interpreter** (console / text). It is not 
 ## Run
 
 ```text
-python -m mini_basic file.bas
-python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
+python -m mini_basic basics/MB_COLOR.BAS
 python -m mini_basic --help
 ```
 
-Tests from the project root:
+Tests and `examples/` live on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on this
+(`main`) release branch:
 
 ```text
+git clone -b dev https://github.com/pyTony/mini_basic.git
+cd mini_basic
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 ```
 

@@ -34,12 +34,14 @@ from mini_basic.expr import CompiledExpr, patterns
 ## Running
 
 ```bash
-python -m mini_basic examples/mini/hello_args.bas
+python -m mini_basic ../basics/MB_COLOR.BAS
 ```
 
 ## Tests
 
-From **project root** (not this directory):
+Tests and `examples/` live on the
+[`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on this
+(`main`) release branch. From a `dev` checkout's project root:
 
 ```bash
 python -m pytest -q test/test_mini_basic.py --timeout=30
