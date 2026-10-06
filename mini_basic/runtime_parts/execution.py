@@ -1760,6 +1760,10 @@ class RuntimeExecutionMixin:
                     idx = body_line_index[target]
                 else:
                     idx += 1
+            if full_line_nums and proc.body_end >= full_line_nums[-1]:
+                # Body runs off the end of the program with no explicit
+                # ENDPROC: BBC BASIC treats this as an implicit return.
+                return
             raise ValueError('PROC missing ENDPROC')
         finally:
             self._restore_local_bindings()

@@ -124,6 +124,15 @@ def _split_colon_statements(line: str) -> List[str]:
             current.append(ch)
             index += 1
             continue
+        if not in_string and ''.join(current).strip() == '':
+            remainder = line[index:]
+            if remainder[:1] == "'" or re.match(r'^REM\b', remainder, re.IGNORECASE):
+                # Comment start: colons inside it (URLs, timestamps, "Note: ...")
+                # are payload, not statement separators — take the rest of the
+                # line verbatim instead of continuing to scan for ':'.
+                current.append(remainder)
+                index = len(line)
+                continue
         if (
             not in_string
             and not after_then

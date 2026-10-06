@@ -23,6 +23,7 @@
     <article>
 <h2 id="mits-dialect-implementation-from-m6502-c-port-tests">MITS dialect implementation (from M6502 C-port tests)</h2>
 <p><strong>Date:</strong> 2026-08-09 <strong>Source suite:</strong> <code>examples/m6502-cport/</code> (<a href="https://github.com/garyexplains/BASIC-M6502-CPORT">garyexplains/BASIC-M6502-CPORT</a>) <strong>Runner:</strong> <code>test/test_m6502_cport_mits.py</code> <strong>Filters:</strong> <code>pytest -q -m &quot;mits and not slow&quot;</code> or <code>-m m6502_cport</code></p>
+<p><code>examples/</code> and <code>test/</code> paths on this page live on the <a href="https://github.com/pyTony/mini_basic/tree/dev">`dev`</a> branch, not on this (<code>main</code>) release branch.</p>
 <h3 id="what-mits-is">What <code>mits</code> is</h3>
 <table><tr><th></th><th></th></tr><tr><td><strong>Target</strong></td><td>Classic numbered-line / GOTO-era Microsoft-style BASIC (MITS 8K / MS lineage)</td></tr><tr><td><strong>Examples</strong></td><td>ELIZA.BAS, M6502 C-port tutorials 01–48</td></tr><tr><td><strong>Not</strong></td><td>BBC PROC/CASE/WHILE, mini extensions, BB4W byte arrays</td></tr></table>
 <p><strong>Default posture:</strong> identifier <strong>fold</strong> (case-insensitive names); 2-letter significance for classic MS-style names when folded. Statement keywords: uppercase-only when <code>CASE ON</code>, any case when folded (mits default is fold).</p>

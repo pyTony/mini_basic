@@ -23,7 +23,7 @@
     <article>
 <h2 id="mini-basic-1-00-regular-basics-release">mini_basic 1.00 — regular (BASICS) release</h2>
 <p><strong>Status:</strong> Public repo default is <strong>`main`</strong>. Package version on <code>main</code> stays <strong>1.0.0.dev0</strong> until you tag. <strong>Language baseline:</strong> <a href="LANGUAGE_FEATURES_1.00.html">LANGUAGE_FEATURES_1.00.md</a></p>
-<p>This is the <strong>regular 1.00</strong> product: a multi-dialect BASIC interpreter for the terminal. It is not a packaging/build toolkit, not pygame, and not full BBCSDL.</p>
+<p>This is the <strong>regular 1.00</strong> product: a multi-dialect BASIC interpreter, text and graphical (pygame window) alike. Graphics is the normal way most programs run — it's just one more pip extra, since pygame is a native dependency. A <strong>text-only</strong> CLI install (no pygame) is also available for people who can't or don't want a graphics dependency. 1.00 is not a packaging/build toolkit and not full BBCSDL.</p>
 <hr>
 <h3 id="what-s-in-regular-1-00">What’s in regular 1.00</h3>
 <h4 id="dialects">Dialects</h4>
@@ -31,34 +31,38 @@
 <p>Case-on (default mini/bbc): names case-sensitive. <strong>bbc</strong> keywords uppercase only; <strong>mini</strong> accepts any keyword case. <code>CASE OFF</code> folds keywords.</p>
 <h4 id="language-repl">Language / REPL</h4>
 <ul><li>Numbered + unnumbered programs; <code>LOAD</code>/<code>SAVE</code>/<code>LIST</code>/<code>EDIT</code>/<code>AUTO</code>; session scripts (<code>INPUT.TXT</code>, <code>-c</code>, stdin)</li><li>Control: <code>FOR</code>/<code>NEXT</code>, <code>WHILE</code>, <code>REPEAT</code>, <code>IF</code>/<code>THEN</code>/<code>ELSE</code>/<code>ENDIF</code>, compact IF, <code>CASE</code>, <code>PROC</code>/<code>FN</code>, <code>ON ERROR</code></li><li>Files: <code>OPENIN</code>/<code>OPENOUT</code>, <code>PRINT#</code>/<code>INPUT#</code>/<code>CLOSE#</code>, MS <code>OPEN &quot;O&quot;,#n,&quot;file&quot;</code></li><li>Arrays: <code>PRINT a(i)</code>, whole-array ops (<code>Colour&amp;()</code>, <code>OR=</code>, <code>SUM</code>)</li><li>Floats: IEEE double; <code>%</code> bigint by default (<code>_bigint</code>)</li><li><code>HELP</code> including <strong>HELP CLI</strong> (= <code>--help</code>)</li></ul>
+<h4 id="graphics">Graphics</h4>
+<p><code>MODE</code>, <code>--pygame</code>, the pygame display window — this is how most of the showcase demos run. It's a separate pip extra (<code>[display]</code>) only because pygame is a native dependency, not because it's a niche feature; see <a href="#how-to-run">How to run</a> below.</p>
 <h4 id="not-in-regular-1-00">Not in regular 1.00</h4>
-<ul><li>pygame / <code>--pygame</code> / graphical MODE (optional extra only — see below)</li><li><code>build/</code>, <code>dist/</code>, embed Python, corpus installer trees</li><li>SOUND/ENVELOPE (silent stubs), WIMP, SYS FFI, Box2D</li><li>C-port <code>OPEN ch,&quot;file&quot;,&quot;OUTPUT&quot;</code> spelling</li></ul>
+<ul><li><code>build/</code>, <code>dist/</code>, embed Python, corpus installer trees</li><li>SOUND/ENVELOPE (silent stubs), WIMP, SYS FFI, Box2D</li><li>C-port <code>OPEN ch,&quot;file&quot;,&quot;OUTPUT&quot;</code> spelling</li></ul>
 <hr>
 <h3 id="how-to-run">How to run</h3>
-<p>Interpreter only (pip from GitHub):</p>
-<pre><code>python -m pip install &quot;mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git&quot;
+<p>With graphics (pip from GitHub) — the normal install, for <code>MODE</code>/pygame demos like the showcase reel:</p>
+<pre><code>python -m pip install &quot;mini-basic[display] @ git+https://github.com/pyTony/mini_basic.git&quot;
 mini-basic --version
-python -m mini_basic -c &quot;PRINT 6*7&quot;</code></pre>
+python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas</code></pre>
 <p>From a source checkout (examples + HTML docs at <code>docs/site/index.html</code>):</p>
 <pre><code>git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
-python -m pip install -e &quot;.[repl]&quot;
-python -m mini_basic file.bas
+python -m pip install -e &quot;.[display]&quot;
+python -m mini_basic --pygame file.bas
 python -m mini_basic --dialect bbc piechart…
 python -m mini_basic --dialect mits examples\m6502-cport\01_hello.bas
 python -m mini_basic --version
 python -m mini_basic -h</code></pre>
 <p>Env: <code>MINIBASIC_DIR</code>, <code>MINI_BASIC_DIALECT</code>. Text sessions stay text.</p>
-<p>Examples and developer files live in the <strong>git tree</strong>, not in a pip wheel:</p>
-<ul><li>Repo: <a href="https://github.com/pyTony/mini_basic">https://github.com/pyTony/mini_basic</a></li><li>Examples: <a href="https://github.com/pyTony/mini_basic/tree/main/examples">examples/</a></li><li>Developer git notes: <a href="GIT_QUICKSTART.html">GIT_QUICKSTART.md</a></li></ul>
-<pre><code>git clone https://github.com/pyTony/mini_basic.git</code></pre>
+<p>Examples and developer files live on the <strong>`dev` branch</strong>, not in a pip wheel and not on <code>main</code>:</p>
+<ul><li>Repo: <a href="https://github.com/pyTony/mini_basic">https://github.com/pyTony/mini_basic</a></li><li>Examples: <a href="https://github.com/pyTony/mini_basic/tree/dev/examples">examples/</a></li><li>Developer git notes: <a href="GIT_QUICKSTART.html">GIT_QUICKSTART.md</a></li></ul>
+<pre><code>git clone -b dev https://github.com/pyTony/mini_basic.git</code></pre>
 <p>Third-party sources: <a href="https://github.com/garyexplains/BASIC-M6502-CPORT">M6502 C-port</a> · <a href="https://github.com/rtrussell/BBCSDL/tree/master/examples">BBCSDL examples</a></p>
 <hr>
-<h3 id="optional-flavor-not-regular-1-00">Optional flavor (not regular 1.00)</h3>
-<p>Graphics (<code>MODE</code>, pygame window) stay in the tree for people who want them:</p>
-<pre><code>pip install &quot;mini-basic[display]&quot;
-python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas</code></pre>
-<p>Regular users never need this.</p>
+<h3 id="text-only-install-no-pygame">Text-only install (no pygame)</h3>
+<p>For people who can't or don't want the pygame dependency — a restricted CLI environment, a headless box, or just a preference for text programs — the interpreter runs fine without it:</p>
+<pre><code>pip install &quot;mini-basic[repl]&quot;
+python -m mini_basic basics/ELIZA.BAS</code></pre>
+<p><code>MODE</code>/<code>--pygame</code> programs won't run without the <code>[display]</code> extra, but everything else (REPL, file I/O, the non-graphical dialects/demos) works.</p>
+<h3 id="known-limitations-graphics">Known limitations (graphics)</h3>
+<ul><li><strong>Flicker / jerky motion in some real-time demos</strong> (e.g. <code>swirl.bbc</code> on the <code>dev</code> branch, <a href="https://github.com/pyTony/mini_basic/issues/12">#12</a>). These programs pace their animation off a wall-clock tick count (<code>TIME</code>/<code>SYS &quot;timeGetTime&quot;</code>) so the <em>math</em> always reflects true elapsed time, but mini_basic is a tree-walking Python interpreter: how long each animation frame takes to <em>compute</em> varies, and the display only presents at a capped rate (~20 Hz, dropping to ~10 Hz during heavy <code>PLOT</code> bursts — see <code>_flush_display</code> / <code>_present_min_interval</code> in <code>mini_basic/runtime_parts/io.py</code>). The result is uneven, sometimes-jerky real-time presentation even though each frame's computed position is correct. This is a performance characteristic of the interpreter, not a logic bug; no fix is planned for 1.0.</li><li><strong><code>CALL &amp;FFF1</code> / <code>OSWORD 10</code></strong> (cursor-position readback) is unsupported — tracked as <a href="https://github.com/pyTony/mini_basic/issues/11">#11</a>, deprioritized; not needed for 1.0.</li></ul>
 <hr>
 <h3 id="tag-checklist-user-gate-do-not-auto-tag">Tag checklist (user gate — do not auto-tag)</h3>
 <ol><li>[ ] Accept this file + LANGUAGE_FEATURES_1.00  </li><li>[ ] <code>__version__</code> / <code>pyproject.toml</code> already <code>1.0.0</code>  </li><li>[ ] <code>pytest -q -m &quot;phase1 and not slow&quot;</code> green on the release machine  </li><li>[ ] <code>git tag 1.0.0</code> when you want it</li></ol>

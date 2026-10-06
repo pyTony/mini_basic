@@ -210,6 +210,7 @@ class RuntimeCoreMixin:
         self.text_col = 0
         self.working_dir = os.path.normpath(os.getcwd())
         self._esc = '\033'
+        self._print_esc_pending = ''
         self._if_layout_cache: Dict[int, IfBlockLayout] = {}
         self._case_layout_cache: Dict[int, CaseBlockLayout] = {}
         self._run_line_nums: List[int] = []
