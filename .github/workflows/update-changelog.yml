@@ -35,7 +35,28 @@ jobs:
           # between branches (minimal release notes on main, full history on
           # dev) — keep dev's copy on conflict; the next steps regenerate it
           # from scratch anyway.
-          git merge --no-edit -X ours origin/main
+          #
+          # main is the lean release branch and dev is the full tree (see
+          # the lean/dev split in project history): main routinely deletes
+          # files dev still carries (test/, CLAUDE.md, scripts/*) and
+          # renames paths dev hasn't mirrored (examples/graphics ->
+          # showcase/). Neither should ever delete or move content on dev.
+          # On a flagged conflict (content, modify/delete, or
+          # rename/location) keep dev's side; a file main deletes that dev
+          # hasn't touched merges *without* a conflict (git just deletes
+          # it), so afterwards also restore anything that disappeared
+          # compared to dev's pre-merge tree.
+          PRE_MERGE=$(git rev-parse HEAD)
+          if ! git merge --no-edit -X ours origin/main; then
+            git diff --name-only --diff-filter=U | xargs -r git add
+            git commit --no-edit
+          fi
+          DELETED=$(git diff --name-only --diff-filter=D "$PRE_MERGE" HEAD)
+          if [ -n "$DELETED" ]; then
+            echo "$DELETED" | while IFS= read -r f; do git checkout "$PRE_MERGE" -- "$f"; done
+            git add -A
+            git commit --amend --no-edit
+          fi
 
       - uses: actions/setup-python@v5
         with:
