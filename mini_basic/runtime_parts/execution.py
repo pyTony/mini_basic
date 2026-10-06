@@ -2820,21 +2820,24 @@ class RuntimeExecutionMixin:
         stmt_count: int = 1,
         statement: Optional[str] = None,
     ) -> None:
-        """Basic SOUND support. No actual audio for now.
-        When a graphical display is active, the duration parameter causes a
-        sleep (with event pumping) so programs that rely on SOUND for pacing
-        (e.g. RACE.BBC) do not run too fast. In pure terminal mode we skip the
-        sleep to keep output responsive.
+        """Basic SOUND support: a real (approximate, non-chip-accurate) tone
+        via pygame's mixer -- see mini_basic/sound.py for the mapping.
+        When a graphical display is active, the duration parameter also
+        causes a sleep (with event pumping) so programs that rely on SOUND
+        for pacing (e.g. RACE.BBC) do not run too fast. In pure terminal mode
+        we skip that sleep to keep output responsive; the tone still plays.
         """
         try:
             parts = self._split_args(rest.strip())
             if len(parts) < 4:
                 raise ValueError('needs channel,amp,pitch,duration')
-            # channel = int(self._eval_numeric(parts[0]))
-            # amp = int(self._eval_numeric(parts[1]))
-            # pitch = int(self._eval_numeric(parts[2]))
+            channel = int(self._eval_numeric(parts[0]))
+            amp = int(self._eval_numeric(parts[1]))
+            pitch = int(self._eval_numeric(parts[2]))
             duration = int(self._eval_numeric(parts[3]))
             self._flush_program_output()
+            from ..sound import get_sound_engine
+            get_sound_engine().play(channel, amp, pitch, duration)
             if (duration > 0 and self._display_enabled()
                     and self._display_backend_name() != 'terminal'):
                 # BBC SOUND duration is in 1/20 s units typically (D*0.05).
