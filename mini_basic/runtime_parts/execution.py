@@ -3140,6 +3140,24 @@ class RuntimeExecutionMixin:
             except Exception:
                 pass
 
+    def _handle_oscli_play(self, rest: str) -> None:
+        """mini_basic ``*PLAY \"file.wav\"[,channel]`` -- play a sound sample.
+
+        Not a BBCSDL/BB4W command (those load samples via ``SYS``/FFI calls
+        into native DLL helpers); this is mini_basic's own, simpler
+        mechanism for playing real sample files alongside synthesized
+        ``SOUND`` tones."""
+        filename, coords = self._parse_oscli_file_and_coords(rest)
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self.working_dir, path)
+        path = os.path.normpath(path)
+        if not os.path.isfile(path):
+            raise ValueError(f'PLAY file not found: {path}')
+        channel = coords[0] if coords else None
+        from ..sound import get_sound_engine
+        get_sound_engine().play_sample(path, channel)
+
     def _execute_bbc_os_command(self, command: str) -> None:
         # === Robust handling for *REFRESH / *REFRESH ON / *REFRESH OFF ===
         raw = command.strip().lstrip('*').strip()
@@ -3166,6 +3184,9 @@ class RuntimeExecutionMixin:
             return
         if cmd.startswith('DISPLAY'):
             self._handle_oscli_display(raw[7:].strip())
+            return
+        if cmd.startswith('PLAY'):
+            self._handle_oscli_play(raw[4:].strip())
             return
         if cmd.startswith('FX'):
             return
