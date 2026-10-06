@@ -1,0 +1,164 @@
+REM breakout.bbc -- paddle/ball/bricks, showcasing graphics + SOUND together
+REM Controls: LEFT/RIGHT arrows move the paddle, SPACE starts/serves.
+REM Each brick row has its own pitch; paddle, wall and life-lost each get
+REM their own tone; a short arpeggio plays on winning or losing the game.
+REM Breaking a brick plays a sampled "crack" and hitting the paddle plays a
+REM sampled "thwack" (both via *PLAY), alongside the synthesized SOUND tones.
+REM Line 15's silent SOUND call warms up the audio engine during the title
+REM screen, rather than taking the one-time pygame/mixer init cost on the
+REM first real SOUND/PLAY call mid-game (that was causing a multi-second
+REM stall and visible ball "hesitation"/rewind right at the first paddle hit).
+10 MODE 8
+15 SOUND 0,0,0,0
+20 *REFRESH OFF
+30 COLOUR 7
+40 CLS
+50 PRINT TAB(14,10)"B R E A K O U T"
+60 PRINT TAB(10,13)"Arrows move, SPACE serves"
+70 PRINT TAB(13,15)"Press SPACE to start"
+75 *REFRESH
+80 REPEAT UNTIL INKEY(-99)
+90 PROCinit
+100 playing% = TRUE
+110 REPEAT
+120   t% = TIME
+130   CLG
+140   PROCdrawbricks
+145   PROCdrawwalls
+150   PROCmovepaddle
+160   IF served% THEN PROCmoveball ELSE PROCserveball
+170   PROCdrawpaddle
+180   PROCdrawball
+190   PROCdrawhud
+200   *REFRESH
+210   REPEAT WAIT 0 : UNTIL TIME <> t%
+220   IF lives% <= 0 OR bricksleft% <= 0 THEN playing% = FALSE
+230 UNTIL NOT playing%
+240 PROCgameend
+250 REPEAT WAIT 1 : UNTIL FALSE
+260 END
+270 :
+280 DEF PROCinit
+285   fx0% = 260 : fw% = 760 : fx1% = fx0% + fw% : REM narrower playfield than the full 1280-wide screen, so the paddle crosses it quicker without needing a higher per-frame speed
+290   cols% = 8 : rows% = 5
+300   DIM brick(cols%-1, rows%-1)
+310   FOR r% = 0 TO rows%-1
+320     FOR c% = 0 TO cols%-1
+330       brick(c%,r%) = 1
+340     NEXT c%
+350   NEXT r%
+360   bricksleft% = cols% * rows%
+370   bw% = 83 : bh% = 32 : gap% = 8
+380   bx0% = fx0% + 20 : by0% = 920
+390   pw% = 120 : ph% = 20 : py% = 60
+400   px% = fx0% + fw%/2 - pw%/2
+410   br% = 10
+420   score% = 0 : lives% = 3
+430   served% = FALSE
+440 ENDPROC
+450 :
+460 DEF PROCserveball
+470   ballx% = px% + pw%/2
+480   bally% = py% + ph% + br%
+490   IF INKEY(-99) THEN ballvx% = 7 : ballvy% = 9 : served% = TRUE
+500 ENDPROC
+510 :
+520 DEF PROCmovepaddle
+530   IF INKEY(-26) THEN px% -= 14
+540   IF INKEY(-122) THEN px% += 14
+550   IF px% < fx0% THEN px% = fx0%
+560   IF px% > fx1% - pw% THEN px% = fx1% - pw%
+570 ENDPROC
+580 :
+590 DEF PROCmoveball
+600   ballx% += ballvx% : bally% += ballvy%
+610   IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : SOUND 0,-10,80,2
+620   IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : SOUND 0,-10,80,2
+630   IF bally% + br% >= 1024 THEN bally% = 1024-br% : ballvy% = -ballvy% : SOUND 0,-10,80,2
+640   IF bally% - br% <= py% + ph% AND bally% >= py% AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit
+650   IF bally% + br% < 0 THEN PROClifelost
+660   PROCcheckbricks
+670 ENDPROC
+680 :
+690 DEF PROCpaddlehit
+700   ballvy% = -ballvy%
+710   hitpos% = (ballx% - px%) - pw%/2
+720   ballvx% = hitpos% / 10
+730   IF ballvx% = 0 THEN ballvx% = 4
+740   *PLAY "showcase/sfx_hit.wav",1
+750 ENDPROC
+760 :
+770 DEF PROClifelost
+780   lives% -= 1
+790   served% = FALSE
+800   SOUND 1,-6,24,20
+810 ENDPROC
+820 :
+830 DEF PROCcheckbricks
+840   LOCAL c%, r%, bxc%, byc%
+850   FOR r% = 0 TO rows%-1
+860     FOR c% = 0 TO cols%-1
+870       IF brick(c%,r%) = 1 THEN
+880         bxc% = bx0% + c%*(bw%+gap%)
+890         byc% = by0% - r%*(bh%+gap%)
+900         IF ballx%+br% >= bxc% AND ballx%-br% <= bxc%+bw% AND bally%+br% >= byc% AND bally%-br% <= byc%+bh% THEN
+910           brick(c%,r%) = 0
+920           bricksleft% -= 1
+930           score% += (rows% - r%) * 10
+940           ballvy% = -ballvy%
+950           SOUND 2,-8,60+(rows%-1-r%)*15,4
+955           *PLAY "showcase/sfx_break.wav",3
+960         ENDIF
+970       ENDIF
+980     NEXT c%
+990   NEXT r%
+1000 ENDPROC
+1010 :
+1020 DEF PROCdrawwalls
+1021   GCOL 7
+1022   RECTANGLE FILL fx0%-10, 0, 6, 1024
+1023   RECTANGLE FILL fx1%+4, 0, 6, 1024
+1024 ENDPROC
+1025 :
+1026 DEF PROCdrawbricks
+1030   LOCAL c%, r%
+1040   FOR r% = 0 TO rows%-1
+1050     GCOL 1 + (r% MOD 6)
+1060     FOR c% = 0 TO cols%-1
+1070       IF brick(c%,r%) = 1 THEN RECTANGLE FILL bx0%+c%*(bw%+gap%), by0%-r%*(bh%+gap%), bw%, bh%
+1080     NEXT c%
+1090   NEXT r%
+1100 ENDPROC
+1110 :
+1120 DEF PROCdrawpaddle
+1130   GCOL 7
+1140   RECTANGLE FILL px%, py%, pw%, ph%
+1150 ENDPROC
+1160 :
+1170 DEF PROCdrawball
+1180   GCOL 7
+1190   CIRCLE FILL ballx%, bally%, br%
+1200 ENDPROC
+1210 :
+1220 DEF PROCdrawhud
+1230   COLOUR 7
+1240   PRINT TAB(0,0)"Score "; score%; "   Lives "; lives%; "  "
+1250 ENDPROC
+1260 :
+1270 DEF PROCgameend
+1280   CLG
+1290   COLOUR 7
+1300   IF bricksleft% <= 0 THEN
+1310     PRINT TAB(16,12)"YOU WIN!"
+1320     FOR n% = 0 TO 7
+1330       SOUND 1,-8,53+n%*4,5
+1340     NEXT n%
+1350   ELSE
+1360     PRINT TAB(14,12)"GAME OVER"
+1370     FOR n% = 7 TO 0 STEP -1
+1380       SOUND 1,-8,40+n%*4,5
+1390     NEXT n%
+1400   ENDIF
+1410   PRINT TAB(12,14)"Final score "; score%
+1420   *REFRESH
+1430 ENDPROC
