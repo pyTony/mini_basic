@@ -18,6 +18,12 @@ REM resulting side margins with a solid colour (palette slot 6, otherwise
 REM unused by the brick rows) instead of leaving them black, and the score
 REM and lives counters are printed inside those margins rather than across
 REM the top of the playfield, so neither overlaps the side walls.
+REM Panels/walls are static, so they're drawn once in PROCinit, not per
+REM frame: a redefined-palette (truecolour) fill is much slower per pixel
+REM than a standard-palette one, and redrawing the two full-height panels
+REM 20x/second made the game crawl. The main loop instead clears only the
+REM playfield rectangle each frame (GCOL 0, never redefined, so it stays
+REM on the fast fill path) and leaves the panels/walls untouched under it.
 10 MODE 8
 15 SOUND 0,0,0,0
 20 *REFRESH OFF
@@ -34,10 +40,8 @@ REM the top of the playfield, so neither overlaps the side walls.
 100 playing% = TRUE
 110 REPEAT
 120   t% = TIME
-130   CLG
-135   PROCdrawsidepanels
+130   GCOL 0 : RECTANGLE FILL fx0%, 0, fw%, sh%
 140   PROCdrawbricks
-145   PROCdrawwalls
 150   PROCmovepaddle
 160   IF served% THEN PROCmoveball ELSE PROCserveball
 170   PROCdrawpaddle
@@ -70,6 +74,8 @@ REM the top of the playfield, so neither overlaps the side walls.
 410   br% = 10
 420   score% = 0 : lives% = 3
 430   served% = FALSE
+435   PROCdrawsidepanels
+436   PROCdrawwalls
 440 ENDPROC
 450 :
 460 DEF PROCserveball
