@@ -11,13 +11,13 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#66](https://github.com/pyTony/mini_basic/pull/66) Fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
+- [#65](https://github.com/pyTony/mini_basic/pull/65) Fix window title bar pushed off screen when window is taller than the display (2026-10-07)
+- [#64](https://github.com/pyTony/mini_basic/pull/64) Backport: sample (WAV) playback and the Breakout demo game (2026-10-07)
+- [#63](https://github.com/pyTony/mini_basic/pull/63) Fix breakout.bbc stutter, narrow playfield, sampled paddle-hit sound (2026-10-07)
+- [#62](https://github.com/pyTony/mini_basic/pull/62) Fix breakout.bbc title screen never presenting (black window) (2026-10-06)
+- [#61](https://github.com/pyTony/mini_basic/pull/61) Add sample (WAV) playback and a Breakout demo game (2026-10-06)
+- [#60](https://github.com/pyTony/mini_basic/pull/60) Fix update-changelog's main→dev auto-merge dropping dev-only files (2026-10-06)
 - [#59](https://github.com/pyTony/mini_basic/pull/59) Fix docs implying graphics isn't for regular users (2026-10-05)
+- [#58](https://github.com/pyTony/mini_basic/pull/58) Fix SOUND producing no audio when a pygame display is active (2026-10-06)
 - [#57](https://github.com/pyTony/mini_basic/pull/57) Backport: basic SOUND support (pygame tone synthesis) (2026-10-06)
-- [#56](https://github.com/pyTony/mini_basic/pull/56) Pre-1.0: operator-consistency regression test, SyntaxWarning + warnings-pass fixes (dev) (2026-10-05)
-- [#55](https://github.com/pyTony/mini_basic/pull/55) Pre-1.0: showcase refinements, SyntaxWarning fixes, pygame deprecation fix (2026-10-05)
-- [#54](https://github.com/pyTony/mini_basic/pull/54) Add basic SOUND support (pygame tone synthesis) for v1.0 (2026-10-05)
-- [#53](https://github.com/pyTony/mini_basic/pull/53) Pre-1.0: finish legacy install-script removal, fix graphics bugs, remove launcher scripts (2026-10-05)
-- [#52](https://github.com/pyTony/mini_basic/pull/52) Pre-1.0: fix CIRCLE FILL/VDU19 graphics bugs, remove redundant launcher scripts (2026-10-05)
-- [#51](https://github.com/pyTony/mini_basic/pull/51) Fix doubled PRINT output in REPL immediate mode (2026-10-05)
-- [#50](https://github.com/pyTony/mini_basic/pull/50) Fix tab completion for quoted LOAD/SAVE/RUN/CD filenames (main backport) (2026-10-05)
-- [#49](https://github.com/pyTony/mini_basic/pull/49) Fix --list: launcher drops flags, REM comments with colons get mangled (2026-10-05)
