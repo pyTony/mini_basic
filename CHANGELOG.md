@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-07
 
+- [#65](https://github.com/pyTony/mini_basic/pull/65) Fix window title bar pushed off screen when window is taller than the display — The vertical clamp now has a floor of `_TITLE_BAR_ESTIMATE` (40px) instead of 0, so the title bar always keeps enough room to stay on screen, even when the window barely fits vertically.
 - [#64](https://github.com/pyTony/mini_basic/pull/64) Backport: sample (WAV) playback and the Breakout demo game — backport of `*PLAY` sample playback (PRs #61/#62/#63 on `dev`) plus the finished Breakout game, including the hesitation/stutter fix, narrower playfield, and the sampled paddle-hit sound from Tony's clip. Since `main` has no `examples/` directory at all (it ships only the curated `showcase/`), the game and its two…
 
 ## 2026-10-06
