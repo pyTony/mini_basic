@@ -3160,6 +3160,25 @@ class RuntimeExecutionMixin:
         from ..sound import get_sound_engine
         get_sound_engine().play_sample(path, channel)
 
+    def _handle_oscli_music(self, rest: str) -> None:
+        """mini_basic ``*MUSIC \"file.mp3\"[,volume]`` -- loop background
+        music via streaming playback (``*MUSIC OFF`` stops it). ``volume``
+        is a 0-100 percentage, defaulting to 100."""
+        from ..sound import get_sound_engine
+        text = rest.strip()
+        if text.upper() == 'OFF':
+            get_sound_engine().stop_music()
+            return
+        filename, coords = self._parse_oscli_file_and_coords(rest)
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self.working_dir, path)
+        path = os.path.normpath(path)
+        if not os.path.isfile(path):
+            raise ValueError(f'MUSIC file not found: {path}')
+        volume = (coords[0] / 100.0) if coords else 1.0
+        get_sound_engine().play_music(path, volume=volume, loop=True)
+
     def _execute_bbc_os_command(self, command: str) -> None:
         # === Robust handling for *REFRESH / *REFRESH ON / *REFRESH OFF ===
         raw = command.strip().lstrip('*').strip()
@@ -3189,6 +3208,9 @@ class RuntimeExecutionMixin:
             return
         if cmd.startswith('PLAY'):
             self._handle_oscli_play(raw[4:].strip())
+            return
+        if cmd.startswith('MUSIC'):
+            self._handle_oscli_music(raw[5:].strip())
             return
         if cmd.startswith('FX'):
             return
