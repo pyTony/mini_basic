@@ -19,6 +19,10 @@ through pygame's mixer:
   chip's note table.
 - ``duration`` is in the usual BBC units of 1/20s.
 
+``play_sample`` is the other half: it plays a real sample file (WAV, OGG,
+...) via pygame's native loader, for ``*PLAY "file.wav"[,channel]`` -- for
+cases where a synthesized tone isn't enough (e.g. a sampled sound effect).
+
 If pygame, numpy, or an actual audio device is unavailable (headless CI,
 containers, etc.), every method here degrades to a silent no-op rather than
 raising -- callers do not need to check availability first.
@@ -76,6 +80,7 @@ class SoundEngine:
         self._bits = 16
         self._mixer_channels = 1
         self._cache: Dict[Tuple[int, int, bool, int], object] = {}
+        self._sample_cache: Dict[str, object] = {}
 
     def _ensure_ready(self) -> bool:
         if self._ready is not None:
@@ -140,6 +145,30 @@ class SoundEngine:
                 frame = struct.pack(pack_fmt, int(v))
                 buf += frame * max(1, self._mixer_channels)
             return pygame.mixer.Sound(buffer=bytes(buf))
+
+    def play_sample(self, path: str, channel: Optional[int] = None) -> None:
+        """Play a sound sample file (WAV, OGG, ...) via pygame's native
+        loader. Fire-and-forget: does not block, and any failure (missing
+        file, unsupported format, no audio device) is a silent no-op."""
+        if not self._ensure_ready():
+            return
+        snd = self._sample_cache.get(path)
+        if snd is None:
+            try:
+                snd = self._pygame.mixer.Sound(path)
+            except Exception:
+                return
+            if len(self._sample_cache) >= _CACHE_LIMIT:
+                self._sample_cache.clear()
+            self._sample_cache[path] = snd
+        try:
+            if channel is None:
+                snd.play()
+            else:
+                idx = abs(int(channel)) % self._num_channels
+                self._pygame.mixer.Channel(idx).play(snd)
+        except Exception:
+            pass
 
     def play(self, channel: int, amplitude: int, pitch: int, duration_units: int) -> None:
         """Play one BBC-style SOUND. Fire-and-forget: does not block."""
