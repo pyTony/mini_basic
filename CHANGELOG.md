@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-07
+
+- [#64](https://github.com/pyTony/mini_basic/pull/64) Backport: sample (WAV) playback and the Breakout demo game — backport of `*PLAY` sample playback (PRs #61/#62/#63 on `dev`) plus the finished Breakout game, including the hesitation/stutter fix, narrower playfield, and the sampled paddle-hit sound from Tony's clip. Since `main` has no `examples/` directory at all (it ships only the curated `showcase/`), the game and its two…
+
 ## 2026-10-06
 
 - [#57](https://github.com/pyTony/mini_basic/pull/57) Backport: basic SOUND support (pygame tone synthesis) — Companion backport of #54 (merged to `dev`) onto `main`, same change: `SOUND channel,amplitude,pitch,duration` now plays an approximate tone (sine wave; white noise on channel 0, BBC's traditional noise channel) through pygame's mixer instead of being a silent stub. See #54's description for the full before/after…
