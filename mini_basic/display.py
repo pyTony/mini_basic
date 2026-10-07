@@ -1131,7 +1131,12 @@ class PygameDisplay(DisplayBackend):
             screen_w, screen_h = desktop_size(pygame)
             client_w, client_h = window.size
             x = max(0, (screen_w - client_w) // 2)
-            y = max(0, (screen_h - client_h - _TITLE_BAR_ESTIMATE) // 2)
+            # window.position is the client area's top-left; the OS draws the
+            # title bar above it. Clamping y to 0 when the window is taller
+            # than the screen pushed the title bar off the top of the screen
+            # (invisible, undraggable) — keep at least one title bar's worth
+            # of room so it stays on screen.
+            y = max(_TITLE_BAR_ESTIMATE, (screen_h - client_h - _TITLE_BAR_ESTIMATE) // 2)
             window.position = (x, y)
         except Exception:
             return
