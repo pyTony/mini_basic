@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#67](https://github.com/pyTony/mini_basic/pull/67) Backport: fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
 - [#66](https://github.com/pyTony/mini_basic/pull/66) Fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
 - [#65](https://github.com/pyTony/mini_basic/pull/65) Fix window title bar pushed off screen when window is taller than the display (2026-10-07)
 - [#64](https://github.com/pyTony/mini_basic/pull/64) Backport: sample (WAV) playback and the Breakout demo game (2026-10-07)
@@ -20,4 +21,3 @@ merge to main.
 - [#60](https://github.com/pyTony/mini_basic/pull/60) Fix update-changelog's main→dev auto-merge dropping dev-only files (2026-10-06)
 - [#59](https://github.com/pyTony/mini_basic/pull/59) Fix docs implying graphics isn't for regular users (2026-10-05)
 - [#58](https://github.com/pyTony/mini_basic/pull/58) Fix SOUND producing no audio when a pygame display is active (2026-10-06)
-- [#57](https://github.com/pyTony/mini_basic/pull/57) Backport: basic SOUND support (pygame tone synthesis) (2026-10-06)
