@@ -23,6 +23,8 @@
     <article>
 <h2 id="changelog-dev-branch-full-history">Changelog (dev branch — full history)</h2>
 <p>Format: one line per merged PR, newest first, auto-generated from PR descriptions by <code>scripts/update_changelog.py</code> (<code>.github/workflows/update-changelog.yml</code> refreshes this branch on every PR merged to <code>main</code>). <code>main</code>&#x27;s own <code>CHANGELOG.md</code> tracks tagged releases only. See <a href="https://github.com/pyTony/mini_basic/issues">GitHub Issues</a> for open work.</p>
+<h3 id="2026-10-07">2026-10-07</h3>
+<ul><li><a href="https://github.com/pyTony/mini_basic/pull/64">#64</a> Backport: sample (WAV) playback and the Breakout demo game — backport of <code>*PLAY</code> sample playback (PRs #61/#62/#63 on <code>dev</code>) plus the finished Breakout game, including the hesitation/stutter fix, narrower playfield, and the sampled paddle-hit sound from Tony&#x27;s clip. Since <code>main</code> has no <code>examples/</code> directory at all (it ships only the curated <code>showcase/</code>), the game and its two…</li></ul>
 <h3 id="2026-10-06">2026-10-06</h3>
 <ul><li><a href="https://github.com/pyTony/mini_basic/pull/57">#57</a> Backport: basic SOUND support (pygame tone synthesis) — Companion backport of #54 (merged to <code>dev</code>) onto <code>main</code>, same change: <code>SOUND channel,amplitude,pitch,duration</code> now plays an approximate tone (sine wave; white noise on channel 0, BBC&#x27;s traditional noise channel) through pygame&#x27;s mixer instead of being a silent stub. See #54&#x27;s description for the full before/after…</li></ul>
 <h3 id="2026-10-05">2026-10-05</h3>

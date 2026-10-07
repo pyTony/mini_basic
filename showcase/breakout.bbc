@@ -85,7 +85,7 @@ REM stall and visible ball "hesitation"/rewind right at the first paddle hit).
 710   hitpos% = (ballx% - px%) - pw%/2
 720   ballvx% = hitpos% / 10
 730   IF ballvx% = 0 THEN ballvx% = 4
-740   *PLAY "examples/games/sfx_hit.wav",1
+740   *PLAY "showcase/sfx_hit.wav",1
 750 ENDPROC
 760 :
 770 DEF PROClifelost
@@ -107,7 +107,7 @@ REM stall and visible ball "hesitation"/rewind right at the first paddle hit).
 930           score% += (rows% - r%) * 10
 940           ballvy% = -ballvy%
 950           SOUND 2,-8,60+(rows%-1-r%)*15,4
-955           *PLAY "examples/games/sfx_break.wav",3
+955           *PLAY "showcase/sfx_break.wav",3
 960         ENDIF
 970       ENDIF
 980     NEXT c%
