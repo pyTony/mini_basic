@@ -8,6 +8,9 @@ REM Line 15's silent SOUND call warms up the audio engine during the title
 REM screen, rather than taking the one-time pygame/mixer init cost on the
 REM first real SOUND/PLAY call mid-game (that was causing a multi-second
 REM stall and visible ball "hesitation"/rewind right at the first paddle hit).
+REM Line 85's CLS clears the title text off the text/VDU layer before play
+REM starts -- CLG in the main loop only clears the graphics layer, so the
+REM title stayed on screen, overlaid on the game, for the rest of the run.
 10 MODE 8
 15 SOUND 0,0,0,0
 20 *REFRESH OFF
@@ -18,6 +21,7 @@ REM stall and visible ball "hesitation"/rewind right at the first paddle hit).
 70 PRINT TAB(13,15)"Press SPACE to start"
 75 *REFRESH
 80 REPEAT UNTIL INKEY(-99)
+85 CLS
 90 PROCinit
 100 playing% = TRUE
 110 REPEAT
