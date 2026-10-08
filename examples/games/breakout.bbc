@@ -36,7 +36,7 @@ REM on the fast fill path) and leaves the panels/walls untouched under it.
 80 REPEAT UNTIL INKEY(-99)
 85 CLS
 90 PROCinit
-95 *MUSIC "examples/games/music.wav",30
+95 *MUSIC "examples/games/music.wav",20
 100 playing% = TRUE
 110 REPEAT
 120   t% = TIME
@@ -81,7 +81,7 @@ REM on the fast fill path) and leaves the panels/walls untouched under it.
 460 DEF PROCserveball
 470   ballx% = px% + pw%/2
 480   bally% = py% + ph% + br%
-490   IF INKEY(-99) THEN ballvx% = 7 : ballvy% = 9 : served% = TRUE
+490   IF INKEY(-99) THEN ballvx% = 7*3/2 : ballvy% = 9*3/2 : served% = TRUE
 500 ENDPROC
 510 :
 520 DEF PROCmovepaddle
@@ -104,8 +104,8 @@ REM on the fast fill path) and leaves the panels/walls untouched under it.
 690 DEF PROCpaddlehit
 700   ballvy% = -ballvy%
 710   hitpos% = (ballx% - px%) - pw%/2
-720   ballvx% = hitpos% / 10
-730   IF ballvx% = 0 THEN ballvx% = 4
+720   ballvx% = hitpos% * 3 / 20
+730   IF ballvx% = 0 THEN ballvx% = 6
 740   *PLAY "examples/games/sfx_hit.wav",1
 750 ENDPROC
 760 :
