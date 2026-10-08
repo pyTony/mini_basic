@@ -1108,16 +1108,35 @@ class PygameDisplay(DisplayBackend):
             self._screen = self._set_display_mode(fitted)
         return True
 
+    @staticmethod
+    def _window_from_display_module(pygame):
+        """``Window.from_display_module()`` without pygame-ce's blanket
+        deprecation warning — it fires for any use of the returned Window,
+        including the size/position reads here, not just surface-rendering.
+        """
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                'ignore',
+                message=r'.*Window\.get_surface and Window\.flip.*',
+                category=DeprecationWarning,
+            )
+            return pygame.Window.from_display_module()
+
     def _center_window(self) -> None:
         pygame = self._pygame
         if not hasattr(pygame, 'Window'):
             return
         try:
-            window = pygame.Window.from_display_module()
+            window = self._window_from_display_module(pygame)
             screen_w, screen_h = desktop_size(pygame)
             client_w, client_h = window.size
             x = max(0, (screen_w - client_w) // 2)
-            y = max(0, (screen_h - client_h - _TITLE_BAR_ESTIMATE) // 2)
+            # window.position is the client area's top-left; the OS draws the
+            # title bar above it. Clamping y to 0 when the window is taller
+            # than the screen pushed the title bar off the top of the screen
+            # (invisible, undraggable) — keep at least one title bar's worth
+            # of room so it stays on screen.
+            y = max(_TITLE_BAR_ESTIMATE, (screen_h - client_h - _TITLE_BAR_ESTIMATE) // 2)
             window.position = (x, y)
         except Exception:
             return
@@ -1134,7 +1153,7 @@ class PygameDisplay(DisplayBackend):
         if not hasattr(pygame, 'Window'):
             return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
         try:
-            window = pygame.Window.from_display_module()
+            window = self._window_from_display_module(pygame)
             x, y = window.position
             client_w, client_h = window.size
             bottom = y + client_h + _TITLE_BAR_ESTIMATE
@@ -2113,13 +2132,17 @@ class PygameDisplay(DisplayBackend):
                 self._canvas.fill((0, 0, 0))
                 for sy in range(self.graphics_height):
                     for sx in range(self.graphics_width):
+                        if rgb_layer is not None and rgb_layer[sy][sx] is not None:
+                            # Custom VDU 19 RGB can be baked onto index-0
+                            # (background) pixels too (see clear_graphics) —
+                            # paint it even though the fill() above already
+                            # covers the plain-black default for index 0.
+                            self._canvas.set_at((sx, sy), rgb_layer[sy][sx])
+                            continue
                         colour = int(self._gfx.pixels[sy][sx])
                         if colour == 0:
                             continue
-                        if rgb_layer is not None and rgb_layer[sy][sx] is not None:
-                            self._canvas.set_at((sx, sy), rgb_layer[sy][sx])
-                        else:
-                            self._canvas.set_at((sx, sy), self._pixel_rgb(colour))
+                        self._canvas.set_at((sx, sy), self._pixel_rgb(colour))
                 if hasattr(self._gfx, 'consume_dirty_rect'):
                     self._gfx.consume_dirty_rect()
             self._blit_graphics_print_layers()

@@ -118,7 +118,7 @@ _WHILE_ACCEL_BLOCKING_CMDS = frozenset({
     'GOTO', 'GOSUB', 'PROC', 'ENDPROC', 'EXIT', 'NEXT', 'UNTIL',
     'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE', 'BREAK', 'CONTINUE',
     'ON', 'DEF', 'LOCAL', 'DIM', 'READ', 'RESTORE', 'DATA',
-    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END',
+    'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END', 'INSTALL', 'LIBRARY',
     'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
     'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
     'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP', 'TINT',
@@ -1762,6 +1762,10 @@ class RuntimeExecutionMixin:
                     idx = body_line_index[target]
                 else:
                     idx += 1
+            if full_line_nums and proc.body_end >= full_line_nums[-1]:
+                # Body runs off the end of the program with no explicit
+                # ENDPROC: BBC BASIC treats this as an implicit return.
+                return
             raise ValueError('PROC missing ENDPROC')
         finally:
             self._restore_local_bindings()
@@ -2523,6 +2527,31 @@ class RuntimeExecutionMixin:
                         self._display.gcol(codes[index + 1], codes[index + 2])
                 index += 3
                 continue
+            if code == 19 and index + 5 < len(codes):
+                # VDU 19,L,P,R,G,B — redefine logical colour L. P=16 means a
+                # direct RGB colour (R,G,B); otherwise P selects a physical
+                # colour from the standard BBC palette.
+                logical = codes[index + 1]
+                physical = codes[index + 2]
+                if physical == 16:
+                    rgb = (codes[index + 3], codes[index + 4], codes[index + 5])
+                else:
+                    from ..display import colour_to_rgb
+                    rgb = colour_to_rgb(physical)
+                self._bbc_custom_colours[logical] = rgb
+                self._ensure_display()
+                if self._display_enabled() and hasattr(self._display, 'set_palette_rgb'):
+                    self._display.set_palette_rgb(logical, rgb)
+                    gfx = getattr(self._display, '_gfx', None)
+                    apply_tc = getattr(self._display, '_apply_gfx_truecolour', None)
+                    if (
+                        gfx is not None
+                        and callable(apply_tc)
+                        and getattr(gfx, 'gcol_fg', (0, -1))[1] == logical
+                    ):
+                        apply_tc(logical)
+                index += 6
+                continue
             if code == 20:
                 self._vdu_reset_colours()
                 index += 1
@@ -2723,17 +2752,19 @@ class RuntimeExecutionMixin:
         statement: Optional[str] = None,
     ) -> None:
         rest = rest.strip()
-        if not rest:
-            self._runtime_error(
-                '? WAIT error',
-                line_num,
-                stmt_index,
-                stmt_count=stmt_count,
-                statement=statement,
-            )
-            return
+        # Once a program uses WAIT at all, treat it as the frame boundary: the
+        # automatic per-line flush (below, in execute_line) stops presenting
+        # partial frames, and only WAIT's own flush shows the screen. Real
+        # BBC BASIC V hardware draws fast enough that intra-frame state is
+        # never visible; our software renderer is slow enough that presenting
+        # every line flickers mid-draw frames (soccerball_bbc_V.bas: CLS then
+        # 12 pentagon patches, visible as a green flash before the ball).
+        self._wait_statement_executed = True
         try:
-            centiseconds = float(self._eval_numeric(rest))
+            # Bare WAIT (no argument) waits for the next vertical sync/flyback
+            # in real BBC BASIC, rather than being an error. Treat it the same
+            # as WAIT 0 below (a single yielded slice).
+            centiseconds = float(self._eval_numeric(rest)) if rest else 0.0
             self._flush_program_output()
 
             # With *REFRESH OFF, only *REFRESH should present. With refresh on,
@@ -2789,21 +2820,24 @@ class RuntimeExecutionMixin:
         stmt_count: int = 1,
         statement: Optional[str] = None,
     ) -> None:
-        """Basic SOUND support. No actual audio for now.
-        When a graphical display is active, the duration parameter causes a
-        sleep (with event pumping) so programs that rely on SOUND for pacing
-        (e.g. RACE.BBC) do not run too fast. In pure terminal mode we skip the
-        sleep to keep output responsive.
+        """Basic SOUND support: a real (approximate, non-chip-accurate) tone
+        via pygame's mixer -- see mini_basic/sound.py for the mapping.
+        When a graphical display is active, the duration parameter also
+        causes a sleep (with event pumping) so programs that rely on SOUND
+        for pacing (e.g. RACE.BBC) do not run too fast. In pure terminal mode
+        we skip that sleep to keep output responsive; the tone still plays.
         """
         try:
             parts = self._split_args(rest.strip())
             if len(parts) < 4:
                 raise ValueError('needs channel,amp,pitch,duration')
-            # channel = int(self._eval_numeric(parts[0]))
-            # amp = int(self._eval_numeric(parts[1]))
-            # pitch = int(self._eval_numeric(parts[2]))
+            channel = int(self._eval_numeric(parts[0]))
+            amp = int(self._eval_numeric(parts[1]))
+            pitch = int(self._eval_numeric(parts[2]))
             duration = int(self._eval_numeric(parts[3]))
             self._flush_program_output()
+            from ..sound import get_sound_engine
+            get_sound_engine().play(channel, amp, pitch, duration)
             if (duration > 0 and self._display_enabled()
                     and self._display_backend_name() != 'terminal'):
                 # BBC SOUND duration is in 1/20 s units typically (D*0.05).
@@ -3108,6 +3142,43 @@ class RuntimeExecutionMixin:
             except Exception:
                 pass
 
+    def _handle_oscli_play(self, rest: str) -> None:
+        """mini_basic ``*PLAY \"file.wav\"[,channel]`` -- play a sound sample.
+
+        Not a BBCSDL/BB4W command (those load samples via ``SYS``/FFI calls
+        into native DLL helpers); this is mini_basic's own, simpler
+        mechanism for playing real sample files alongside synthesized
+        ``SOUND`` tones."""
+        filename, coords = self._parse_oscli_file_and_coords(rest)
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self.working_dir, path)
+        path = os.path.normpath(path)
+        if not os.path.isfile(path):
+            raise ValueError(f'PLAY file not found: {path}')
+        channel = coords[0] if coords else None
+        from ..sound import get_sound_engine
+        get_sound_engine().play_sample(path, channel)
+
+    def _handle_oscli_music(self, rest: str) -> None:
+        """mini_basic ``*MUSIC \"file.mp3\"[,volume]`` -- loop background
+        music via streaming playback (``*MUSIC OFF`` stops it). ``volume``
+        is a 0-100 percentage, defaulting to 100."""
+        from ..sound import get_sound_engine
+        text = rest.strip()
+        if text.upper() == 'OFF':
+            get_sound_engine().stop_music()
+            return
+        filename, coords = self._parse_oscli_file_and_coords(rest)
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self.working_dir, path)
+        path = os.path.normpath(path)
+        if not os.path.isfile(path):
+            raise ValueError(f'MUSIC file not found: {path}')
+        volume = (coords[0] / 100.0) if coords else 1.0
+        get_sound_engine().play_music(path, volume=volume, loop=True)
+
     def _execute_bbc_os_command(self, command: str) -> None:
         # === Robust handling for *REFRESH / *REFRESH ON / *REFRESH OFF ===
         raw = command.strip().lstrip('*').strip()
@@ -3134,6 +3205,12 @@ class RuntimeExecutionMixin:
             return
         if cmd.startswith('DISPLAY'):
             self._handle_oscli_display(raw[7:].strip())
+            return
+        if cmd.startswith('PLAY'):
+            self._handle_oscli_play(raw[4:].strip())
+            return
+        if cmd.startswith('MUSIC'):
+            self._handle_oscli_music(raw[5:].strip())
             return
         if cmd.startswith('FX'):
             return
@@ -5699,7 +5776,10 @@ class RuntimeExecutionMixin:
             self._active_line_num = -1
             self._active_stmt_parts = None
             self._active_statement = ''
-        if self._refresh_enabled:
+        if self._refresh_enabled and not self._wait_statement_executed:
+            # Once WAIT has run at least once this RUN, it owns presenting
+            # (see _execute_wait) so the frame being drawn between WAITs
+            # stays hidden instead of flickering on screen line-by-line.
             self._flush_display()  # rate-limited; excessive force=True caused flicker/jerky updates in text-heavy loops in pygame window
         # For pure --display terminal (TerminalDisplay), batch-render the grid at end of each
         # executed BASIC line. This gives one ANSI update per line instead of per PRINT/TAB.

@@ -91,7 +91,7 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             '+',
             '~',
-            'BB4W/SDL library path',
+            'mini: loads/merges DEF PROC/FN from a file; no @lib$ search path',
         ),
         # --- graphics ---
         (
@@ -201,7 +201,7 @@ def bbc_family_rows() -> List[BbcFamilyRow]:
             '+',
             '+',
             '~',
-            'ENVELOPE no-op; SOUND silent + optional wait (no audio)',
+            'SOUND plays an approximate tone/noise via pygame; ENVELOPE no-op',
         ),
         (
             'MOUSE',

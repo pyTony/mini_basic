@@ -1,9 +1,11 @@
 # mini_basic
 
 Python BASIC interpreter: multi-dialect (mini / bbc / mits / commodore / tiny),
-REPL/CLI, and file I/O. Regular 1.00 is **text/console only**.
+REPL/CLI, file I/O, and `MODE`/pygame graphics. Graphics is the normal way
+most programs run (see Showcase below); a **text-only** CLI install is also
+available for people without pygame.
 
-**CLI:** `python -m mini_basic` · `python mini_basic.py` · `mb.py`  
+**CLI:** `python -m mini_basic` (guarantees which installed copy runs)  
 (After a pip install: `mini-basic` / `minibasic`.)
 
 Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).
@@ -62,14 +64,15 @@ performance and language features. They live under `showcase/` right here
 on `main` and run via `showcase/demo_reel.py`:
 
 ```bash
-python showcase/demo_reel.py          # run the whole reel
+python showcase/demo_reel.py          # interactive menu: pick one (with its blurb) or run all
+python showcase/demo_reel.py --all    # run the whole reel in order, no menu
 python showcase/demo_reel.py --list   # just print what's in it
 ```
 
 | | | |
 |---|---|---|
 | ![disco](docs/showcase/disco.png) **disco** — colour lightshow, grid redraw + palette cycling | ![illusion](docs/showcase/illusion.png) **illusion** — cafe-wall optical illusion: a dead-straight grid *looks* bent, purely from alternating corner wedges at each intersection | ![wheel](docs/showcase/wheel.png) **wheel** — spinning colour ring; `CASE`/`WHEN` dispatch, `CIRCLE` discs, `*REFRESH` |
-| ![fern](docs/showcase/fern.png) **fern** — Barnsley fern fractal via chained `DRAW`/affine steps | **Mandel_ANSI** — Mandelbrot set in ANSI colour, console only, renders in well under a second (the interpreter's perf highlight) | ![bounce](docs/showcase/bounce.png) **bounce** — nested structs `Pos{x,y}`, whole-struct array copy, `+=` on struct members |
+| ![fern](docs/showcase/fern.png) **fern** — Barnsley fern fractal via chained `DRAW`/affine steps | **mandelbrot** — full-screen MODE 9 Mandelbrot, solid-block colouring (the interpreter's perf highlight) | ![bounce](docs/showcase/bounce.png) **bounce** — nested structs `Pos{x,y}`, whole-struct array copy, `+=` on struct members |
 | **hanoi** — Towers of Hanoi, solved and animated recursively (interactive: enter a disc count, press SPACE) | ![soccerball](docs/showcase/soccerball.png) **soccerball** — spinning 3D ball via per-frame matrix rotation | |
 
 `examples/` on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev)

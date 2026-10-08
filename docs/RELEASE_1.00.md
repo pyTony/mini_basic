@@ -3,8 +3,12 @@
 **Status:** Public repo default is **`main`**. Package version on `main` stays **1.0.0.dev0** until you tag.  
 **Language baseline:** [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md)
 
-This is the **regular 1.00** product: a multi-dialect BASIC interpreter for the terminal.
-It is not a packaging/build toolkit, not pygame, and not full BBCSDL.
+This is the **regular 1.00** product: a multi-dialect BASIC interpreter, text
+and graphical (pygame window) alike. Graphics is the normal way most programs
+run — it's just one more pip extra, since pygame is a native dependency. A
+**text-only** CLI install (no pygame) is also available for people who can't
+or don't want a graphics dependency. 1.00 is not a packaging/build toolkit
+and not full BBCSDL.
 
 ---
 
@@ -28,8 +32,13 @@ Case-on (default mini/bbc): names case-sensitive. **bbc** keywords uppercase onl
 - Floats: IEEE double; `%` bigint by default (`_bigint`)
 - `HELP` including **HELP CLI** (= `--help`)
 
+### Graphics
+`MODE`, `--pygame`, the pygame display window — this is how most of the
+showcase demos run. It's a separate pip extra (`[display]`) only because
+pygame is a native dependency, not because it's a niche feature; see
+[How to run](#how-to-run) below.
+
 ### Not in regular 1.00
-- pygame / `--pygame` / graphical MODE (optional extra only — see below)
 - `build/`, `dist/`, embed Python, corpus installer trees
 - SOUND/ENVELOPE (silent stubs), WIMP, SYS FFI, Box2D
 - C-port `OPEN ch,"file","OUTPUT"` spelling
@@ -38,12 +47,13 @@ Case-on (default mini/bbc): names case-sensitive. **bbc** keywords uppercase onl
 
 ## How to run
 
-Interpreter only (pip from GitHub):
+With graphics (pip from GitHub) — the normal install, for `MODE`/pygame demos
+like the showcase reel:
 
 ```text
-python -m pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
+python -m pip install "mini-basic[display] @ git+https://github.com/pyTony/mini_basic.git"
 mini-basic --version
-python -m mini_basic -c "PRINT 6*7"
+python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas
 ```
 
 From a source checkout (examples + HTML docs at `docs/site/index.html`):
@@ -51,8 +61,8 @@ From a source checkout (examples + HTML docs at `docs/site/index.html`):
 ```text
 git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
-python -m pip install -e ".[repl]"
-python -m mini_basic file.bas
+python -m pip install -e ".[display]"
+python -m mini_basic --pygame file.bas
 python -m mini_basic --dialect bbc piechart…
 python -m mini_basic --dialect mits examples\m6502-cport\01_hello.bas
 python -m mini_basic --version
@@ -76,16 +86,37 @@ Third-party sources: [M6502 C-port](https://github.com/garyexplains/BASIC-M6502-
 
 ---
 
-## Optional flavor (not regular 1.00)
+## Text-only install (no pygame)
 
-Graphics (`MODE`, pygame window) stay in the tree for people who want them:
+For people who can't or don't want the pygame dependency — a restricted CLI
+environment, a headless box, or just a preference for text programs — the
+interpreter runs fine without it:
 
 ```text
-pip install "mini-basic[display]"
-python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas
+pip install "mini-basic[repl]"
+python -m mini_basic basics/ELIZA.BAS
 ```
 
-Regular users never need this.
+`MODE`/`--pygame` programs won't run without the `[display]` extra, but
+everything else (REPL, file I/O, the non-graphical dialects/demos) works.
+
+### Known limitations (graphics)
+
+- **Flicker / jerky motion in some real-time demos** (e.g. `swirl.bbc` on the
+  `dev` branch, [#12](https://github.com/pyTony/mini_basic/issues/12)).
+  These programs pace their animation off a wall-clock tick count
+  (`TIME`/`SYS "timeGetTime"`) so the *math* always reflects true elapsed
+  time, but mini_basic is a tree-walking Python interpreter: how long each
+  animation frame takes to *compute* varies, and the display only presents
+  at a capped rate (~20 Hz, dropping to ~10 Hz during heavy `PLOT` bursts —
+  see `_flush_display` / `_present_min_interval` in
+  `mini_basic/runtime_parts/io.py`). The result is uneven, sometimes-jerky
+  real-time presentation even though each frame's computed position is
+  correct. This is a performance characteristic of the interpreter, not a
+  logic bug; no fix is planned for 1.0.
+- **`CALL &FFF1` / `OSWORD 10`** (cursor-position readback) is unsupported —
+  tracked as [#11](https://github.com/pyTony/mini_basic/issues/11),
+  deprioritized; not needed for 1.0.
 
 ---
 
