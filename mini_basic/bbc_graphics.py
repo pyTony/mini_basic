@@ -352,10 +352,15 @@ class BBCGraphics:
         if left > right or top > bottom:
             return
         mode, colour = gcol
-        # Mandelbrot tiles: GCOL 0 replace, no disc clip — one slice, not N plots.
+        # Mandelbrot tiles: GCOL 0 replace — one slice, not N plots. Unlike the
+        # triangle-fill path, this method's own per-pixel fallback below never
+        # consults `_clip_disc` (only `_fill_triangle_screen` does, for the
+        # soccerball disc-clip case) — so gating the fast path on it bought no
+        # correctness, only cost: any game drawing a sprite with CIRCLE FILL
+        # every frame (leaving `_clip_disc` set) silently lost the numpy fast
+        # path for every RECTANGLE FILL afterwards, for the rest of the run.
         if (
             mode == 0
-            and self._clip_disc is None
             and self._truecolour_rgb is None
         ):
             n = (right - left + 1) * (bottom - top + 1)

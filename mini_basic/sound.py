@@ -146,6 +146,27 @@ class SoundEngine:
                 buf += frame * max(1, self._mixer_channels)
             return pygame.mixer.Sound(buffer=bytes(buf))
 
+    def play_music(self, path: str, volume: float = 1.0, loop: bool = True) -> None:
+        """Stream a (typically long) music file via pygame's ``mixer.music``
+        rather than ``mixer.Sound``, so a multi-minute track isn't decoded
+        into memory whole. Fire-and-forget, like the other methods here."""
+        if not self._ensure_ready():
+            return
+        try:
+            self._pygame.mixer.music.load(path)
+            self._pygame.mixer.music.set_volume(max(0.0, min(1.0, volume)))
+            self._pygame.mixer.music.play(-1 if loop else 0)
+        except Exception:
+            pass
+
+    def stop_music(self) -> None:
+        if self._pygame is None:
+            return
+        try:
+            self._pygame.mixer.music.stop()
+        except Exception:
+            pass
+
     def play_sample(self, path: str, channel: Optional[int] = None) -> None:
         """Play a sound sample file (WAV, OGG, ...) via pygame's native
         loader. Fire-and-forget: does not block, and any failure (missing
