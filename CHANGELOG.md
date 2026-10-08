@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-08
+
+- [#70](https://github.com/pyTony/mini_basic/pull/70) Breakout: music/sample-sound update (missed by #67) + perf fix — &lt;!-- ccr-projects-attribution: {"github_login":"pyTony"} --&gt;
+
 ## 2026-10-07
 
 - [#67](https://github.com/pyTony/mini_basic/pull/67) Backport: fix breakout.bbc title text staying on screen, punchier hit sound — a `CLS` before the game loop clears the title text; the hit sample is re-trimmed to a punchier ~280ms transient.
