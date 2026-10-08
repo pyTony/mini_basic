@@ -71,6 +71,7 @@ class FileCompletionContext:
     command: str
     partial_path: str
     quoted: bool
+    quote_char: str = '"'
 
 
 def split_partial_path(fragment: str) -> tuple[str, str]:
@@ -108,7 +109,9 @@ def file_command_context(line: str) -> Optional[FileCompletionContext]:
     arg = match.group(2)
     header = line[: match.start(2)]
     command = 'SAVE' if header.upper().startswith('SAVE') else header.split(None, 1)[0].upper()
-    quoted = arg.lstrip().startswith(('"', "'"))
+    stripped_arg = arg.lstrip()
+    quoted = stripped_arg.startswith(('"', "'"))
+    quote_char = stripped_arg[0] if quoted else '"'
     partial = arg.strip()
     if quoted and partial and partial[0] in '"\'':
         partial = partial[1:]
@@ -118,6 +121,7 @@ def file_command_context(line: str) -> Optional[FileCompletionContext]:
         command=command,
         partial_path=joined,
         quoted=quoted,
+        quote_char=quote_char,
     )
 
 
@@ -222,8 +226,17 @@ def compute_matches(
             completion = f'{directory}{os.sep}{item}'
         else:
             completion = item
-        if context.quoted and ' ' in completion:
-            completion = f'"{completion}"'
+        if context.quoted:
+            # The opening quote is part of the word readline/the line editor is
+            # replacing (quote chars aren't completer delimiters), so every
+            # candidate must start with it too or none of them will match.
+            # Directories stay open (os.sep already invites more typing);
+            # files close the quote since there's nothing left to type.
+            quote = context.quote_char
+            if item.endswith(os.sep):
+                completion = f'{quote}{completion}'
+            else:
+                completion = f'{quote}{completion}{quote}'
         candidates.append(completion)
 
     if not text:

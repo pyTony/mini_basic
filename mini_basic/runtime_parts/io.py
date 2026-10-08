@@ -642,7 +642,11 @@ class RuntimeIoMixin:
         if newline and text and text[-1] == '\n':
             newline = False
         if self._display_enabled():
-            if self._terminal_tee_enabled() or immediate:
+            # A non-positioned TerminalDisplay already streams straight to
+            # stdout from _display_write_vdu_string() below (see
+            # TerminalDisplay.write()); teeing here too would print every
+            # immediate-mode PRINT twice (e.g. REPL ``PRINT 1/FNfact(100)``).
+            if self._terminal_tee_enabled() or (immediate and not self._display_streams_to_stdout()):
                 if text:
                     self._tee_terminal_write(text)
                 if newline:
@@ -1263,6 +1267,13 @@ class RuntimeIoMixin:
         return width
 
     def _print_emit(self, text: str) -> str:
+        if self._print_esc_pending:
+            # A PRINT statement emits each ;-separated item through its own
+            # _print_emit call (CHR$27;"[0;";A%;"m ..."), so a CSI escape
+            # routinely arrives split across several calls. Stitch any
+            # carried-over partial sequence back onto the front here.
+            text = self._print_esc_pending + text
+            self._print_esc_pending = ''
         cols = self._text_cols()
         non_wrapping = len(text) > cols and bool(
             re.fullmatch(r'[-+]?[\dA-Fa-f.]+', text)
@@ -1271,12 +1282,22 @@ class RuntimeIoMixin:
         index = 0
         length = len(text)
         while index < length:
-            if text[index] == self._esc and index + 1 < length and text[index + 1] == '[':
+            if text[index] == self._esc and index + 1 >= length:
+                # Lone ESC at the very end of this chunk: may be the start
+                # of a CSI sequence completed by the next item. Buffer it
+                # instead of counting it as a printable column (that
+                # corrupted output with a hard-wrap mid-escape-sequence).
+                self._print_esc_pending = text[index:]
+                index = length
+                break
+            if text[index] == self._esc and text[index + 1] == '[':
                 end = text.find('m', index + 2)
                 if end == -1:
-                    parts.append(text[index])
-                    index += 1
-                    continue
+                    # Incomplete CSI (no terminating 'm' yet in this chunk):
+                    # buffer it whole and resume once more text arrives.
+                    self._print_esc_pending = text[index:]
+                    index = length
+                    break
                 parts.append(text[index:end + 1])
                 index = end + 1
                 continue
@@ -2167,4 +2188,94 @@ class RuntimeIoMixin:
         if not uses_gfx:
             self._revert_auto_pygame_display()
         return True
+
+    def _execute_library(
+        self,
+        rest: str,
+        line_num: int,
+        stmt_index: int,
+        *,
+        stmt_count: int = 1,
+        statement: Optional[str] = None,
+    ) -> None:
+        """LIBRARY / INSTALL — load another program's DEF PROC/FN into this one.
+
+        Only definitions are merged (installed under fresh, unused line
+        numbers); the library's own top-level code is never executed. This
+        mirrors real BBC BASIC, where INSTALL/LIBRARY make a file's
+        procedures and functions callable without running it.
+        """
+        rest = rest.strip()
+        if not rest:
+            self._runtime_error(
+                '? LIBRARY error: missing filename', line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            filename = self._eval_string_arg(rest)
+        except Exception as exc:
+            self._runtime_error(
+                self._error_message('? LIBRARY error', exc), line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            path = self.resolve_load_path(filename)
+        except ValueError as exc:
+            self._runtime_error(
+                self._error_message('? LIBRARY error', exc), line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        if not os.path.isfile(path):
+            self._runtime_error(
+                f'? LIBRARY error: file not found ({path})', line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            with open(path, 'rb') as f:
+                data = f.read()
+        except OSError as exc:
+            self._runtime_error(
+                f'? LIBRARY error: cannot read {path} ({type(exc).__name__}: {exc})',
+                line_num, stmt_index, stmt_count=stmt_count, statement=statement,
+            )
+            return
+        try:
+            from ..bbc_detokenize import bbc_binary_to_source, detect_bbc_binary_format
+
+            if detect_bbc_binary_format(data):
+                raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
+            else:
+                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
+        except Exception as exc:
+            self._runtime_error(
+                f'? LIBRARY error: cannot decode {path} ({type(exc).__name__}: {exc})',
+                line_num, stmt_index, stmt_count=stmt_count, statement=statement,
+            )
+            return
+        raw_lines, _hint = split_dialect_hints(raw_lines)
+        parsed = self._parse_program_file(raw_lines)
+        if parsed is None:
+            self._runtime_error(
+                f'? LIBRARY error: could not parse {path}', line_num, stmt_index,
+                stmt_count=stmt_count, statement=statement,
+            )
+            return
+        parsed_lines, _source_was_numbered = parsed
+        if not parsed_lines:
+            return
+        # Install the library's lines as a block, shifted to an unused range of
+        # line numbers above anything already in this program. Shifting (rather
+        # than renumbering individually) keeps any GOTO/GOSUB/loop targets that
+        # stay inside the library's own lines self-consistent.
+        existing_max = max(self.program.keys()) if self.program else 0
+        offset = ((existing_max // 100000) + 1) * 100000
+        for lib_line_num, lib_statement, lib_indent in parsed_lines:
+            new_line_num = offset + lib_line_num
+            if new_line_num in self.program:
+                continue
+            self.set_program_line(new_line_num, lib_statement, lib_indent)
 

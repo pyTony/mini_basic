@@ -13,14 +13,14 @@ DEFERRED_ROWS: List[DeferredRow] = [
     ('Inline ASM', 'CALL / USR machine code', 'register ABI and memory model'),
     ('Inline ASM', 'OPT FN / assembler labels', 'low-level linking'),
     ('OS integration', 'SYS Windows API calls', 'foreign function interface'),
-    ('OS integration', 'INSTALL libraries', 'tokenised library load'),
     ('Structures', 'DIM struct{} / TYPE', 'user-defined record types'),
     ('Structures', 'RETURN struct from FN', 'pass/return whole struct values'),
     ('Pointers', '? ! $ $$ indirection', 'byte/word/string pointers'),
     (
         'Sound',
-        'Real SOUND / ENVELOPE / ADVAL audio',
-        'multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait',
+        'ENVELOPE / ADVAL audio',
+        'SOUND plays an approximate tone/noise via pygame (see mini_basic/sound.py); '
+        'ENVELOPE remains a no-op, no amplitude/pitch sweep',
     ),
     # MODE 7 teletext: double-height + conceal implemented; boxed / full SAA5050 deferred.
     ('Teletext remainder', 'MODE 7 boxed / full SAA5050 remainder', 'extend existing teletext renderer'),

@@ -352,10 +352,15 @@ class BBCGraphics:
         if left > right or top > bottom:
             return
         mode, colour = gcol
-        # Mandelbrot tiles: GCOL 0 replace, no disc clip — one slice, not N plots.
+        # Mandelbrot tiles: GCOL 0 replace — one slice, not N plots. Unlike the
+        # triangle-fill path, this method's own per-pixel fallback below never
+        # consults `_clip_disc` (only `_fill_triangle_screen` does, for the
+        # soccerball disc-clip case) — so gating the fast path on it bought no
+        # correctness, only cost: any game drawing a sprite with CIRCLE FILL
+        # every frame (leaving `_clip_disc` set) silently lost the numpy fast
+        # path for every RECTANGLE FILL afterwards, for the rest of the run.
         if (
             mode == 0
-            and self._clip_disc is None
             and self._truecolour_rgb is None
         ):
             n = (right - left + 1) * (bottom - top + 1)
@@ -477,7 +482,12 @@ class BBCGraphics:
                 for sx in range(x0, x1 + 1):
                     rgb_row[sx] = trgb
                     self.rgb_dirty.add((sx, sy))
-            elif colour == 0 and self.rgb_pixels is not None:
+            elif self.rgb_pixels is not None:
+                # Plain (non-truecolour) fill: clear any stale per-pixel RGB a
+                # prior CLS/CLG baked into this span (e.g. a custom VDU 19
+                # background colour), whatever palette index we're filling
+                # with — not just colour 0 — otherwise the new index stays
+                # hidden under the old baked RGB. Mirrors _fill_disc_numpy.
                 rgb_row = self.rgb_pixels[sy]
                 for sx in range(x0, x1 + 1):
                     if rgb_row[sx] is not None:
@@ -906,6 +916,17 @@ class BBCGraphics:
                 sx, sy = x0 + dx, y0 + dy
                 rgb_pixels[sy][sx] = trgb
                 self.rgb_dirty.add((sx, sy))
+        elif self.rgb_pixels is not None:
+            # Plain (non-truecolour) fill: clear any stale per-pixel RGB a
+            # prior CLS/CLG baked into this region (e.g. a custom VDU 19
+            # background colour) so the new palette index actually shows —
+            # otherwise this disc stays invisible under the old baked RGB.
+            rgb_pixels = self.rgb_pixels
+            ys, xs = np.nonzero(mask[y0 : y1 + 1, x0 : x1 + 1])
+            for dy, dx in zip(ys.tolist(), xs.tolist()):
+                sx, sy = x0 + dx, y0 + dy
+                rgb_pixels[sy][sx] = None
+                self.rgb_dirty.discard((sx, sy))
         self._mark_pixel_dirty(x0, y0)
         self._mark_pixel_dirty(x1, y1)
         self.plot_count += int(mask.sum())

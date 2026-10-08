@@ -145,6 +145,7 @@ class RuntimeCoreMixin:
         self.if_stack: List[IfFrame] = []
         self.case_stack: List[CaseFrame] = []
         self._refresh_enabled = True
+        self._wait_statement_executed = False
         self.trace_enabled = False
         self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
@@ -209,6 +210,7 @@ class RuntimeCoreMixin:
         self.text_col = 0
         self.working_dir = os.path.normpath(os.getcwd())
         self._esc = '\033'
+        self._print_esc_pending = ''
         self._if_layout_cache: Dict[int, IfBlockLayout] = {}
         self._case_layout_cache: Dict[int, CaseBlockLayout] = {}
         self._run_line_nums: List[int] = []
@@ -708,9 +710,12 @@ class RuntimeCoreMixin:
         if sig_len > 0:
             # for limited sig, the pattern should match any longer name that
             # normalizes to this base (e.g. ABCD normalizes to AB)
-            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])'
+            # (?!\() so a same-named array's A(i) is left for
+            # _substitute_array_references instead of being clobbered by
+            # this bare scalar's value (DIM A(3) alongside scalar A).
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'[A-Za-z0-9_]*\b(?![%$!#&])(?!\()'
         else:
-            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])'
+            match_pat = r'(?<!\.)\b' + re.escape(name_root) + r'\b(?![%$!#&])(?!\()'
         if kind == 'int':
             if base in self._registered_int_vars:
                 # Already fully processed for this base (see the end of this
@@ -2326,6 +2331,7 @@ class RuntimeCoreMixin:
         self.data_pointer = 0
         self._rnd_last = 0.0
         self._refresh_enabled = True
+        self._wait_statement_executed = False
         self.stack.clear()
         self.if_stack.clear()
         self.gosub_stack.clear()

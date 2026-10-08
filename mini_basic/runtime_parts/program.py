@@ -2282,6 +2282,11 @@ class RuntimeProgramMixin:
                     handled = True
                     idx += 1
                     break
+                if end_line is None and idx + 1 < len(line_nums):
+                    # No ENDPROC and no following DEF header: the body runs
+                    # off the end of the program, which BBC BASIC treats as
+                    # an implicit ENDPROC (e.g. MatrixBrandy's ANSIColour.bbc).
+                    end_line = line_nums[-1]
                 if end_line is None or idx + 1 >= len(line_nums):
                     break
                 end_idx = self._line_index(end_line, line_nums)
