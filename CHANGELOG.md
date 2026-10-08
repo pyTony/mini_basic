@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-08
 
+- [#73](https://github.com/pyTony/mini_basic/pull/73) Speed up breakout.bbc game movements — Speed up breakout game movements and fix paddle collision
 - [#72](https://github.com/pyTony/mini_basic/pull/72) Breakout: quieter background music, 50% faster ball — `*MUSIC` volume is 20% (a bit more muted), and the ball moves 50% faster — both at serve and in the paddle-hit redirect. Wall and brick bounces just flip the sign of the existing velocity, so they needed no change.
 - [#70](https://github.com/pyTony/mini_basic/pull/70) Breakout: music/sample-sound update (missed by #67) + perf fix — &lt;!-- ccr-projects-attribution: {"github_login":"pyTony"} --&gt;
 
