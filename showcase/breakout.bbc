@@ -81,12 +81,12 @@ REM on the fast fill path) and leaves the panels/walls untouched under it.
 460 DEF PROCserveball
 470   ballx% = px% + pw%/2
 480   bally% = py% + ph% + br%
-490   IF INKEY(-99) THEN ballvx% = 7*3/2 : ballvy% = 9*3/2 : served% = TRUE
+490   IF INKEY(-99) THEN ballvx% = 7*3 : ballvy% = 9*3 : served% = TRUE
 500 ENDPROC
 510 :
 520 DEF PROCmovepaddle
-530   IF INKEY(-26) THEN px% -= 14
-540   IF INKEY(-122) THEN px% += 14
+530   IF INKEY(-26) THEN px% -= 28
+540   IF INKEY(-122) THEN px% += 28
 550   IF px% < fx0% THEN px% = fx0%
 560   IF px% > fx1% - pw% THEN px% = fx1% - pw%
 570 ENDPROC
@@ -96,7 +96,7 @@ REM on the fast fill path) and leaves the panels/walls untouched under it.
 610   IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : *PLAY "showcase/sfx_wall.wav",2
 620   IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : *PLAY "showcase/sfx_wall.wav",2
 630   IF bally% + br% >= sh% THEN bally% = sh%-br% : ballvy% = -ballvy% : *PLAY "showcase/sfx_wall.wav",2
-640   IF bally% - br% <= py% + ph% AND bally% >= py% AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit
+640   IF bally% - br% <= py% + ph% AND bally% >= py% - 30 AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit
 650   IF bally% + br% < 0 THEN PROClifelost
 660   PROCcheckbricks
 670 ENDPROC
@@ -104,8 +104,8 @@ REM on the fast fill path) and leaves the panels/walls untouched under it.
 690 DEF PROCpaddlehit
 700   ballvy% = -ballvy%
 710   hitpos% = (ballx% - px%) - pw%/2
-720   ballvx% = hitpos% * 3 / 20
-730   IF ballvx% = 0 THEN ballvx% = 6
+720   ballvx% = hitpos% * 3 / 10
+730   IF ballvx% = 0 THEN ballvx% = 12
 740   *PLAY "showcase/sfx_hit.wav",1
 750 ENDPROC
 760 :
