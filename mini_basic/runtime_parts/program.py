@@ -3028,6 +3028,12 @@ class RuntimeProgramMixin:
             if parsed:
                 numbered.append(parsed)
                 continue
+
+            # Bare line numbers without statements are ignored rather than causing syntax errors
+            bare_line_number = self._parse_bare_line_number(line)
+            if bare_line_number is not None:
+                continue
+
             parsed_unnumbered = self._parse_unnumbered_line(line)
             if not parsed_unnumbered:
                 continue

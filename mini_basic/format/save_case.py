@@ -203,6 +203,15 @@ def space_expr_segment(segment: str, fold: Fold = 'none') -> str:
     segment = re.sub(r'([\w)])([+\-])(?=[\w(])', r'\1 \2 ', segment)
     segment = re.sub(r'(?<![=<>!+\-*/])\s*=\s*(?!=)', ' = ', segment)
     segment = re.sub(r'\s+', ' ', segment)
+
+    # Re-glue OSCLI commands that were spaced apart (e.g. `THEN * PLAY` -> `THEN *PLAY`)
+    segment = re.sub(
+        r'(^|\bTHEN\b|\bELSE\b|[:])\s*\*\s*([A-Za-z])',
+        r'\1 *\2',
+        segment,
+        flags=re.IGNORECASE,
+    )
+
     return segment.strip()
 
 
