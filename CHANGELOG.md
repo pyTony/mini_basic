@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-09
 
+- [#76](https://github.com/pyTony/mini_basic/pull/76) Fix blank spacer line numbers breaking LOAD/LIST (tokenized .bbc fails, .bas shows ": N" garbling) — Same fix as #75, targeting `main` directly since the affected code (`mini_basic/runtime_parts/program.py`) is identical on both branches (no diff between `dev` and `main` for that file) and the loader bug affects any tokenized `.bbc` or spacer-line `.bas` program, not just the `dev`-only `examples/` assets.
 - [#78](https://github.com/pyTony/mini_basic/pull/78) Breakout: wire in sprite art (logo, ball, brick) — &lt;!-- ccr-projects-attribution: {"github_login":"pyTony"} --&gt;
 
 ## 2026-10-08
