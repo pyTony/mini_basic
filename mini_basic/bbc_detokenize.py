@@ -137,6 +137,10 @@ def detokenize_line_body(body: bytes, *, fmt: str = 'wilson') -> str:
     index = 0
     in_string = False
     after_rem = False
+    # True at the start of the line and right after a statement-separating
+    # ``:``, so a leading ``*`` can be recognised as an OSCLI star command
+    # (``*PLAY``, ``*MUSIC``, ...) rather than the multiply operator.
+    at_stmt_start = True
 
     while index < len(body):
         byte_val = body[index]
@@ -155,12 +159,33 @@ def detokenize_line_body(body: bytes, *, fmt: str = 'wilson') -> str:
         if byte_val == 0x22:
             in_string = True
             out.append('"')
+            at_stmt_start = False
             index += 1
             continue
         if byte_val == 0x8D:
             line, index = _decode_line_number_ref(body, index)
             out.append(str(line))
+            at_stmt_start = False
             continue
+        if byte_val == 0x2A and at_stmt_start:
+            # Star command: ``* PLAY"x"`` and ``*PLAY"x"`` are the same
+            # command: normalize away any space between ``*`` and its name.
+            out.append('*')
+            index += 1
+            while index < len(body) and body[index] in (0x20, 0x09):
+                index += 1
+            at_stmt_start = False
+            continue
+        if byte_val in (0x20, 0x09):
+            out.append(chr(byte_val))
+            index += 1
+            continue
+        if byte_val == 0x3A:
+            out.append(':')
+            at_stmt_start = True
+            index += 1
+            continue
+        at_stmt_start = False
         is_keyword = byte_val >= 0x80
         if fmt == 'russell' and 0x01 <= byte_val <= 0x1F:
             keyword = _BBC_EXTENDED_KEYWORDS_RUSSELL[byte_val]

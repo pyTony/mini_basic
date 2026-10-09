@@ -112,6 +112,25 @@ class BBCTokenizedLoadTests(unittest.TestCase):
         body = bytes([0xF5, 0x20, 0x0B, 0x20, 0x31, 0x20, 0x3A, 0x20, 0xFD, 0x2E])
         self.assertEqual(detokenize_line_body(body, fmt='russell'), 'REPEAT WAIT 1 : UNTIL FALSE')
 
+    def test_star_command_space_normalized(self):
+        """``* PLAY"x"`` and ``*PLAY"x"`` tokenize to the same bytes on real
+
+        BBC BASIC; mini_basic should always LIST the command name glued to
+        the ``*``, regardless of whether a space was typed before it.
+        """
+        body = b'A%=1 : * PLAY"x",2\r'
+        self.assertEqual(
+            detokenize_line_body(body, fmt='russell'),
+            'A%=1 : *PLAY"x",2',
+        )
+        body2 = b'*MUSIC OFF\r'
+        self.assertEqual(detokenize_line_body(body2, fmt='russell'), '*MUSIC OFF')
+
+    def test_star_command_space_not_confused_with_multiply(self):
+        """A mid-expression ``*`` (multiply) must not be touched."""
+        body = b'A%=1*2\r'
+        self.assertEqual(detokenize_line_body(body, fmt='russell'), 'A%=1*2')
+
     def test_load_sine_bbc_until_false(self):
         path = os.path.join(_ROOT, 'examples', 'graphics', 'sine.bbc')
         if not os.path.isfile(path):
