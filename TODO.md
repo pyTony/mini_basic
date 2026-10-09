@@ -12,6 +12,7 @@ merge to main.
 ## Recently merged PRs
 
 - [#78](https://github.com/pyTony/mini_basic/pull/78) Breakout: wire in sprite art (logo, ball, brick) (2026-10-09)
+- [#76](https://github.com/pyTony/mini_basic/pull/76) Fix blank spacer line numbers breaking LOAD/LIST (tokenized .bbc fails, .bas shows ": N" garbling) (2026-10-09)
 - [#75](https://github.com/pyTony/mini_basic/pull/75) Fix blank spacer line numbers breaking LOAD/LIST (tokenized .bbc fails, .bas shows ": N" garbling) (2026-10-09)
 - [#73](https://github.com/pyTony/mini_basic/pull/73) Speed up breakout.bbc game movements (2026-10-08)
 - [#72](https://github.com/pyTony/mini_basic/pull/72) Breakout: quieter background music, 50% faster ball (2026-10-08)
@@ -20,4 +21,3 @@ merge to main.
 - [#69](https://github.com/pyTony/mini_basic/pull/69) Fix Breakout perf regression: static panels + clip_disc fast-path bug (2026-10-08)
 - [#68](https://github.com/pyTony/mini_basic/pull/68) Breakout: loop background music, sample wall/break hits, fix layout (2026-10-07)
 - [#67](https://github.com/pyTony/mini_basic/pull/67) Backport: fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
-- [#66](https://github.com/pyTony/mini_basic/pull/66) Fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
