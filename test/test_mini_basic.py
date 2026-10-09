@@ -2456,10 +2456,11 @@ class MiniBASICTests(unittest.TestCase):
     def test_load_blank_spacer_line_is_not_mixed_error(self):
         """A bare line number with no statement (a blank spacer line, common
 
-        between PROC defs in BBC listings) must load as an empty program
-        line, not a fatal "Mixed numbered and unnumbered lines" error. This
-        is how BBCSDL-tokenized .bbc files detokenize such lines (flush
-        left, no indent).
+        between PROC defs in BBC listings) must load without a fatal
+        "Mixed numbered and unnumbered lines" error, and must not be
+        evaluated as a stray unnumbered statement. This is how
+        BBCSDL-tokenized .bbc files detokenize such lines (flush left, no
+        indent).
         """
         import os
         import tempfile
@@ -2476,14 +2477,14 @@ class MiniBASICTests(unittest.TestCase):
                 self.assertTrue(interp.load('spacer.bas'))
             self.assertNotIn('Mixed numbered and unnumbered', buf.getvalue())
             self.assertEqual(interp.program[10], 'PRINT "a"')
-            self.assertEqual(interp.program[20], '')
+            self.assertNotIn(20, interp.program)
             self.assertEqual(interp.program[30], 'PRINT "b"')
 
     def test_load_indented_blank_spacer_line_not_merged_as_continuation(self):
         """Same blank spacer line, but indented (as hand-typed BBC listings
 
-        usually are) must *also* stay its own empty line rather than being
-        glued onto the previous statement as ``STMT: 270``.
+        usually are) must *also* be dropped rather than being glued onto
+        the previous statement as ``STMT: 270``.
         """
         import os
         import tempfile
@@ -2498,7 +2499,7 @@ class MiniBASICTests(unittest.TestCase):
             with redirect_stdout(buf), redirect_stderr(io.StringIO()):
                 self.assertTrue(interp.load('spacer_indented.bas'))
             self.assertEqual(interp.program[260], 'END')
-            self.assertEqual(interp.program[270], '')
+            self.assertNotIn(270, interp.program)
             self.assertEqual(interp.program[280], 'PRINT "after"')
 
     def test_load_numbered_with_leading_preamble(self):
