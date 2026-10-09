@@ -69,3 +69,7 @@ WORK_LOG.txt
 .status_heartbeat_meta.json
 .status_sources_stamp.json
 .sync_counter
+docs/git/INDEPENDENT_FIXES.md
+test/test_agent_resource.py
+test/test_user_approval.py
+test/verify_user_approval.py
