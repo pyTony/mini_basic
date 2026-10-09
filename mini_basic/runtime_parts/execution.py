@@ -2893,7 +2893,15 @@ class RuntimeExecutionMixin:
         if coords_text:
             for piece in coords_text.replace(' ', '').split(','):
                 if piece:
-                    coords.append(int(round(float(piece))))
+                    try:
+                        value = float(piece)
+                    except ValueError:
+                        # Not a bare numeric literal -- evaluate it as a BASIC
+                        # expression (variables, arithmetic) so DISPLAY/GSAVE
+                        # can target a moving sprite's position, not just a
+                        # fixed literal rect.
+                        value = self._eval_numeric(piece)
+                    coords.append(int(round(float(value))))
         return filename, coords
 
     def _os_rect_to_screen(

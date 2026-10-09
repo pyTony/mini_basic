@@ -3,7 +3,7 @@
    20 *REFRESH OFF
    30 COLOUR 7
    40 CLS
-   50 PRINT TAB(14,10)"B R E A K O U T"
+   50 *DISPLAY "examples/games/logo.png" 260,780,760,116
    60 PRINT TAB(10,13)"Arrows move, SPACE serves"
    70 PRINT TAB(13,15)"Press SPACE to start"
    75 *REFRESH
@@ -55,12 +55,12 @@
   460 DEF PROCserveball
   470 ballx% = px% + pw%/2
   480 bally% = py% + ph% + br%
-  490 IF INKEY(-99) THEN ballvx% = 7 : ballvy% = 9 : served% = TRUE
+  490 IF INKEY(-99) THEN ballvx% = 7*3 : ballvy% = 9*3 : served% = TRUE
   500 ENDPROC
   510
   520 DEF PROCmovepaddle
-  530 IF INKEY(-26) THEN px% -= 14
-  540 IF INKEY(-122) THEN px% += 14
+  530 IF INKEY(-26) THEN px% -= 28
+  540 IF INKEY(-122) THEN px% += 28
   550 IF px% < fx0% THEN px% = fx0%
   560 IF px% > fx1% - pw% THEN px% = fx1% - pw%
   570 ENDPROC
@@ -70,7 +70,7 @@
   610 IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : *PLAY"examples/games/sfx_wall.wav",2
   620 IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : *PLAY"examples/games/sfx_wall.wav",2
   630 IF bally% + br% >= sh% THEN bally% = sh%-br% : ballvy% = -ballvy% : *PLAY"examples/games/sfx_wall.wav",2
-  640 IF bally% - br% <= py% + ph% AND bally% >= py% AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit
+  640 IF bally% - br% <= py% + ph% AND bally% >= py% - 30 AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit
   650 IF bally% + br% < 0 THEN PROClifelost
   660 PROCcheckbricks
   670 ENDPROC
@@ -78,8 +78,8 @@
   690 DEF PROCpaddlehit
   700 ballvy% = -ballvy%
   710 hitpos% = (ballx% - px%) - pw%/2
-  720 ballvx% = hitpos% / 10
-  730 IF ballvx% = 0 THEN ballvx% = 4
+  720 ballvx% = hitpos% * 3 / 10
+  730 IF ballvx% = 0 THEN ballvx% = 12
   740 *PLAY "examples/games/sfx_hit.wav",1
   750 ENDPROC
   760
@@ -124,9 +124,10 @@
  1026 DEF PROCdrawbricks
  1030 LOCAL c%, r%
  1040 FOR r% = 0 TO rows%-1
- 1050   GCOL 1 + (r% MOD 6)
  1060   FOR c% = 0 TO cols%-1
- 1070     IF brick(c%,r%) = 1 THEN RECTANGLE FILL bx0%+c%*(bw%+gap%), by0%-r%*(bh%+gap%), bw%, bh%
+ 1070     IF brick(c%,r%) = 1 THEN
+ 1071       *DISPLAY "examples/games/brick.png" bx0%+c%*(bw%+gap%), by0%-r%*(bh%+gap%), bw%, bh%
+ 1072     ENDIF
  1080   NEXT c%
  1090 NEXT r%
  1100 ENDPROC
@@ -137,8 +138,7 @@
  1150 ENDPROC
  1160
  1170 DEF PROCdrawball
- 1180 GCOL 7
- 1190 CIRCLE FILL ballx%, bally%, br%
+ 1190 *DISPLAY "examples/games/ball.png" ballx%-br%, bally%-br%, br%*2, br%*2
  1200 ENDPROC
  1210
  1220 DEF PROCdrawhud
