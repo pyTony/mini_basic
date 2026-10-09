@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-09
+
+- [#78](https://github.com/pyTony/mini_basic/pull/78) Breakout: wire in sprite art (logo, ball, brick) — &lt;!-- ccr-projects-attribution: {"github_login":"pyTony"} --&gt;
+
 ## 2026-10-08
 
 - [#73](https://github.com/pyTony/mini_basic/pull/73) Speed up breakout.bbc game movements — Speed up breakout game movements and fix paddle collision
