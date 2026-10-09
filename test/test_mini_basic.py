@@ -2453,6 +2453,54 @@ class MiniBASICTests(unittest.TestCase):
             self.assertIn('source line 2', out)
             self.assertEqual(interp.program[10], 'PRINT "keep"')
 
+    def test_load_blank_spacer_line_is_not_mixed_error(self):
+        """A bare line number with no statement (a blank spacer line, common
+
+        between PROC defs in BBC listings) must load as an empty program
+        line, not a fatal "Mixed numbered and unnumbered lines" error. This
+        is how BBCSDL-tokenized .bbc files detokenize such lines (flush
+        left, no indent).
+        """
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'spacer.bas')
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write('10 PRINT "a"\n20 \n30 PRINT "b"\n')
+            interp.working_dir = tmp
+            buf = io.StringIO()
+            err = io.StringIO()
+            with redirect_stdout(buf), redirect_stderr(err):
+                self.assertTrue(interp.load('spacer.bas'))
+            self.assertNotIn('Mixed numbered and unnumbered', buf.getvalue())
+            self.assertEqual(interp.program[10], 'PRINT "a"')
+            self.assertEqual(interp.program[20], '')
+            self.assertEqual(interp.program[30], 'PRINT "b"')
+
+    def test_load_indented_blank_spacer_line_not_merged_as_continuation(self):
+        """Same blank spacer line, but indented (as hand-typed BBC listings
+
+        usually are) must *also* stay its own empty line rather than being
+        glued onto the previous statement as ``STMT: 270``.
+        """
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'spacer_indented.bas')
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write('260 END\n  270\n280 PRINT "after"\n')
+            interp.working_dir = tmp
+            buf = io.StringIO()
+            with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+                self.assertTrue(interp.load('spacer_indented.bas'))
+            self.assertEqual(interp.program[260], 'END')
+            self.assertEqual(interp.program[270], '')
+            self.assertEqual(interp.program[280], 'PRINT "after"')
+
     def test_load_numbered_with_leading_preamble(self):
         import os
         import tempfile
