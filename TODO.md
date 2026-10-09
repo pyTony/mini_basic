@@ -11,13 +11,13 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#73](https://github.com/pyTony/mini_basic/pull/73) Speed up breakout.bbc game movements (2026-10-08)
+- [#72](https://github.com/pyTony/mini_basic/pull/72) Breakout: quieter background music, 50% faster ball (2026-10-08)
+- [#71](https://github.com/pyTony/mini_basic/pull/71) Breakout: quieter background music, 50% faster ball (2026-10-08)
+- [#70](https://github.com/pyTony/mini_basic/pull/70) Breakout: music/sample-sound update (missed by #67) + perf fix (2026-10-08)
+- [#69](https://github.com/pyTony/mini_basic/pull/69) Fix Breakout perf regression: static panels + clip_disc fast-path bug (2026-10-08)
+- [#68](https://github.com/pyTony/mini_basic/pull/68) Breakout: loop background music, sample wall/break hits, fix layout (2026-10-07)
 - [#67](https://github.com/pyTony/mini_basic/pull/67) Backport: fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
 - [#66](https://github.com/pyTony/mini_basic/pull/66) Fix breakout.bbc title text staying on screen, punchier hit sound (2026-10-07)
 - [#65](https://github.com/pyTony/mini_basic/pull/65) Fix window title bar pushed off screen when window is taller than the display (2026-10-07)
 - [#64](https://github.com/pyTony/mini_basic/pull/64) Backport: sample (WAV) playback and the Breakout demo game (2026-10-07)
-- [#63](https://github.com/pyTony/mini_basic/pull/63) Fix breakout.bbc stutter, narrow playfield, sampled paddle-hit sound (2026-10-07)
-- [#62](https://github.com/pyTony/mini_basic/pull/62) Fix breakout.bbc title screen never presenting (black window) (2026-10-06)
-- [#61](https://github.com/pyTony/mini_basic/pull/61) Add sample (WAV) playback and a Breakout demo game (2026-10-06)
-- [#60](https://github.com/pyTony/mini_basic/pull/60) Fix update-changelog's main→dev auto-merge dropping dev-only files (2026-10-06)
-- [#59](https://github.com/pyTony/mini_basic/pull/59) Fix docs implying graphics isn't for regular users (2026-10-05)
-- [#58](https://github.com/pyTony/mini_basic/pull/58) Fix SOUND producing no audio when a pygame display is active (2026-10-06)
