@@ -18,8 +18,8 @@
   130   GCOL 0: RECTANGLE FILL fx0%, 0, fw%, sh%
   140   PROCdrawbricks
   150   PROCmovepaddle
+  155   PROCdrawpaddle
   160   IF served% THEN PROCmoveball ELSE PROCserveball
-  170   PROCdrawpaddle
   180   PROCdrawball
   190   PROCdrawhud
   200   *REFRESH
@@ -48,6 +48,7 @@
   400 px% = fx0% + fw%/2 - pw%/2
   410 br% = 10
   420 score% = 0: lives% = 3
+  425 speedmul% = 100: ballsubsteps% = 3
   430 served% = FALSE
   435 PROCdrawsidepanels
   436 PROCdrawwalls
@@ -56,7 +57,7 @@
   460 DEF PROCserveball
   470 ballx% = px% + pw%/2
   480 bally% = py% + ph% + br%
-  490 IF INKEY(-99) THEN ballvx% = 16 : ballvy% = 20 : served% = TRUE
+  490 IF INKEY(-99) THEN ballvx% = 16 * speedmul% / 100 : ballvy% = 20 * speedmul% / 100 : served% = TRUE
   500 ENDPROC
   510
   520 DEF PROCmovepaddle
@@ -67,20 +68,27 @@
   570 ENDPROC
   580
   590 DEF PROCmoveball
-  600 ballx% += ballvx%: bally% += ballvy%
-  610 IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : *PLAY"examples/games/sfx_wall.wav",2
-  620 IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : *PLAY"examples/games/sfx_wall.wav",2
-  630 IF bally% + br% >= sh% THEN bally% = sh%-br% : ballvy% = -ballvy% : *PLAY"examples/games/sfx_wall.wav",2
-  640 IF bally% - br% <= py% + ph% AND bally% >= py% - 30 AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit
-  650 IF bally% + br% < 0 THEN PROClifelost
-  660 PROCcheckbricks
+  592 LOCAL i%, stepvx%, stepvy%
+  594 stepvx% = ballvx% / ballsubsteps%: stepvy% = ballvy% / ballsubsteps%
+  596 FOR i% = 1 TO ballsubsteps%
+  598   GCOL 0: RECTANGLE FILL ballx%-br%, bally%-br%, br%*2, br%*2
+  600   ballx% += stepvx%: bally% += stepvy%
+  610   IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : stepvx% = -stepvx% : *PLAY"examples/games/sfx_wall.wav",2
+  620   IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : stepvx% = -stepvx% : *PLAY"examples/games/sfx_wall.wav",2
+  630   IF bally% + br% >= sh% THEN bally% = sh%-br% : ballvy% = -ballvy% : stepvy% = -stepvy% : *PLAY"examples/games/sfx_wall.wav",2
+  640   IF bally% - br% <= py% + ph% AND bally% >= py% - 30 AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit : stepvx% = ballvx% / ballsubsteps% : stepvy% = ballvy% / ballsubsteps%
+  650   IF bally% + br% < 0 THEN PROClifelost
+  660   PROCcheckbricks
+  662   PROCdrawball
+  664   *REFRESH
+  666 NEXT i%
   670 ENDPROC
   680
   690 DEF PROCpaddlehit
   700 ballvy% = -ballvy%
   710 hitpos% = (ballx% - px%) - pw%/2
-  720 ballvx% = hitpos% * 9 / 40
-  730 IF ballvx% = 0 THEN ballvx% = 9
+  720 ballvx% = hitpos% * 9 * speedmul% / 4000
+  730 IF ballvx% = 0 THEN ballvx% = 9 * speedmul% / 100
   740 *PLAY "examples/games/sfx_hit.wav",1
   750 ENDPROC
   760
