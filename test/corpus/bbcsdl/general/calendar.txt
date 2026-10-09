@@ -1,0 +1,86 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Perpetual calendar, R.T.Russell 28-Dec-2008
+      
+      INSTALL @lib$+"datelib"
+      
+      VDU 23,22,450;430;25,25,16,136
+      
+      DIM Day$(6), Month$(12)
+      Day$() = "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+      Month$() = "", "January", "February", "March", "April", "May", "June",  \
+      \          "July", "August", "September", "October", "November", "December"
+      Month% = FN_month(FN_today)
+      Year% = FN_year(FN_today)
+      
+      VDU 5
+      OSCLI "FONT """+@lib$+"FreeSans"",16"
+      
+      ON MOUSE Click% = TRUE : RETURN
+      Click% = FALSE
+      
+      REPEAT
+        CLS
+        
+        FOR R% = 1 TO 7
+          LINE 100,R%*100,800,R%*100
+        NEXT
+        FOR C% = 1 TO 8
+          LINE C%*100,100,C%*100,700
+        NEXT
+        
+        FOR C% = 0 TO 6
+          MOVE C% * 100 + 150 - WIDTH(Day$(C%)) DIV 2,760
+          PRINT Day$(C%);
+        NEXT
+        
+        Date$ = Month$(Month%) + " " + STR$(Year%)
+        MOVE 450 - WIDTH(Date$) DIV 2,830
+        GCOL 4
+        PRINT Date$;
+        
+        OSCLI "FONT """+@lib$+"FreeSans"",21"
+        
+        V% = 670
+        W% = 0
+        FOR Day% = 1 TO FN_dim(Month%,Year%)
+          MJD% = FN_mjd(Day%, Month%, Year%)
+          Dow% = FN_dow(MJD%)
+          IF Dow% < W% V% -= 100
+          W% = Dow%
+          Day$ = STR$(Day%)
+          IF Dow% = 0 GCOL 1 ELSE GCOL 0
+          IF MJD% = FN_today GCOL 2
+          MOVE Dow%*100+150-WIDTH(Day$)DIV2, V%
+          PRINT Day$;
+        NEXT
+        
+        OSCLI "FONT """+@lib$+"FreeSans"",16"
+        
+        GCOL 0
+        MOVE 80,80  : VDU 226,134,144
+        MOVE 420,80 : VDU 226,134,146
+        MOVE 490,70 : VDU 226,134,147
+        MOVE 800,70 : VDU 226,134,145
+        MOVE 130,70 : PRINT "Change month";
+        MOVE 530,70 : PRINT "Change year";
+        
+        REPEAT UNTIL INKEY(0)=-1
+        REPEAT
+          K% = INKEY(10)
+          MOUSE X%,Y%,B%
+          temp% = FALSE
+          SWAP temp%, Click%
+          IF temp% THEN
+            MOUSE X%,Y%,B%
+            IF Y% < 100 IF X% < 245 K% = 136
+            IF Y% < 100 IF X% > 245 IF X% < 450 K% = 137
+            IF Y% < 100 IF X% > 450 IF X% < 640 K% = 138
+            IF Y% < 100 IF X% > 640 K% = 139
+          ENDIF
+          IF K% = 136 Month% -= 1 : IF Month% = 0 Month% = 12 : Year% -= 1
+          IF K% = 137 Month% += 1 : IF Month% = 13 Month% = 1 : Year% += 1
+          IF K% = 138 Year% -= 1
+          IF K% = 139 Year% += 1
+        UNTIL K% <> -1
+      UNTIL FALSE

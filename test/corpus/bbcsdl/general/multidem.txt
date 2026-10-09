@@ -1,0 +1,58 @@
+      REM Demonstration of multiple output windows using MULTIWIN library
+      
+      INSTALL @lib$+"multiwin"
+      
+      PROC_multiwin(4)
+      
+      SYS "SDL_GetWindowID", @hwnd% TO IDmain%
+      ON CLOSE IF @lparam% = 0 OR @lparam% = IDmain% PROCcleanup : QUIT ELSE RETURN
+      ON ERROR ON ERROR OFF : ERROR 0,REPORT$ : PROCcleanup : QUIT
+      
+      hw1%% = FN_createwin(1, "Window one", 100, 100, 400, 300, 0, 0, 0)
+      hw2%% = FN_createwin(2, "Window two", 200, 200, 400, 300, 0, 0, 0)
+      hw3%% = FN_createwin(3, "Window three", 300, 300, 400, 300, 0, 0, 0)
+      hw4%% = FN_createwin(4, "Window four", 400, 400, 400, 300, 0, 0, 0)
+      
+      PROC_selectwin(1)
+      OSCLI "FONT """ + @lib$ + "FreeSans"", 16"
+      PROC_selectwin(4)
+      VDU 23,23,3;0;0;0;
+      VDU 24,100;100;700;500;
+      
+      REPEAT
+        
+        WAIT 20
+        
+        PROC_selectwin(1)
+        COLOR RND(15)-1
+        PRINT '"Hello world!";
+        
+        PROC_selectwin(2)
+        GCOL RND(15)-1
+        RECTANGLE FILL RND(800),RND(600),RND(800),RND(600)
+        
+        PROC_selectwin(3)
+        GCOL RND(15)-1
+        CIRCLE FILL RND(800), RND(600), RND(200)
+        
+        PROC_selectwin(4)
+        GCOL RND(15)-1
+        DRAW RND(800), RND(600)
+        
+        PROC_selectwin(0)
+        *font
+        PRINT '"Main window "; N%;
+        N% += 1
+        
+      UNTIL FALSE
+      PROCcleanup
+      END
+      
+      DEF PROCcleanup
+      PROC_selectwin(0)
+      PROC_closewin(1)
+      PROC_closewin(2)
+      PROC_closewin(3)
+      PROC_closewin(4)
+      ENDPROC
+      

@@ -1,0 +1,128 @@
+      REM. Real-time audio spectrum analyser in BBC BASIC for SDL 2.0
+      REM. Richard Russell, 26th April 2023
+      
+      HIMEM = PAGE + 12 * 1024 * 1024
+      MODE 7
+      SYS "SDL_SetWindowTitle", @hwnd%, "Audio Spectrum Analyser", @memhdc%
+      
+      REM. Find number of audio capture devices:
+      SYS "SDL_GetNumAudioDevices", 1, @memhdc% TO numDevices%
+      IF numDevices% = 0 ERROR 100, "No audio capture devices are available"
+      
+      REM. List the capture device names and put them into an array:
+      DIM deviceName$(numDevices%)
+      PRINT "Available audio capture devices:"'
+      FOR index% = 1 TO numDevices%
+        SYS "SDL_GetAudioDeviceName", index%-1, 1, @memhdc% TO pname%%
+        IF @platform% AND &40 ELSE pname%% = !^pname%%
+        deviceName$(index%) = $$pname%%
+        PRINT ;index% ": " deviceName$(index%)
+      NEXT
+      PRINT
+      
+      REM. Get selected device from user:
+      REPEAT
+        INPUT "Enter device number: " index%
+      UNTIL index% >= 1 AND index% <= numDevices%
+      
+      MODE 8
+      OFF
+      
+      ON ERROR PROCcleanup : MODE 7 : PRINT REPORT$ : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      Window% = 1024
+      DIM In(Window%-1), Out(Window%-1), DFT(Window%-1, Window%-1), Hanning(Window%-1)
+      DIM want{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%%, userdata%%}
+      DIM have{} = want{}
+      want.freq% = 22050
+      want.format.h& = &80 : REM AUDIO_S16LSB
+      want.format.l& = &10 : REM AUDIO_S16LSB
+      want.channels& = 2
+      want.samples% = Window%
+      
+      SYS "SDL_OpenAudioDevice", deviceName$(index%), 1, want{}, have{}, 9, @memhdc% TO Device%
+      IF Device% = 0 ERROR 100, "Couldn't open audio device " + deviceName$(index%)
+      
+      SamplingRate% = have.freq%
+      
+      REM. Draw axes and labels:
+      ORIGIN 128,64
+      LINE -2,-2,-2,903  : REM Y-axis
+      LINE -2,-2,1022,-2 : REM X-axis
+      VDU 5
+      FOR F = 0 TO 11
+        X% = F/5.5125*512
+        LINE X%-2,-2,X%-2,-12      : REM X ticks
+        MOVE X%-10,-20 : PRINT ;F*SamplingRate%/11025/2; : REM X labels
+      NEXT
+      PRINT " kHz";
+      FOR D = 0 TO -90 STEP -10
+        Y% = 903 + D*10
+        LINE -2,Y%-2,-12,Y%-2      : REM Y ticks
+        MOVE -80,Y%+12 : PRINT ;D; : REM Y labels
+        IF D = 0 PRINT " dB";
+      NEXT
+      COLOR 1,128,255,128
+      GCOL 1
+      VDU 28,8,29,71,0     : REM Set text viewport
+      VDU 24,0;0;1022;958; : REM Set graphics viewport
+      
+      REM. Prepare DFT coefficients:
+      FOR I% = 0 TO Window%-2 STEP 2
+        r = -PI*I%/Window%
+        FOR J% = 0 TO Window%-1
+          DFT(I%+0,J%) = COS(r*J%)
+          DFT(I%+1,J%) = SIN(r*J%)
+        NEXT
+      NEXT I%
+      
+      REM. Prepare Hanning window function:
+      FOR I% = 0 TO Window%-1
+        Hanning(I%) = COS(PI*2*(I%/Window%-0.5))+1
+      NEXT
+      
+      *REFRESH OFF
+      REM. Wait for and process audio data:
+      SYS "SDL_PauseAudioDevice", Device%, 0, @memhdc%
+      REPEAT
+        PROCprocess(Device%, Window%)
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      Device% += 0
+      IF Device% THEN
+        SYS "SDL_PauseAudioDevice", Device%, 1, @memhdc%
+        SYS "SDL_CloseAudioDevice", Device%, @memhdc%
+        Device% = 0
+      ENDIF
+      ENDPROC
+      
+      REM. Acquire audio and perform Fourier Transform:
+      DEF PROCprocess(D%, N%)
+      LOCAL I%, L%, P%, R%, U%, V%, b%(), v
+      DIM b%(N%-1) : R% = N% * 4
+      REPEAT
+        SYS "SDL_DequeueAudio", D%, ^b%(P%), R%, @memhdc% TO I%
+        P% += I% DIV 4 : R% -= I%
+      UNTIL R% <= 0
+      FOR I% = 0 TO N%-1
+        U% = (b%(I%) << 16) >> 16 : V% = b%(I%) >> 16
+        In(I%) = (U% + V%)/N%
+      NEXT
+      REPEAT
+        SYS "SDL_DequeueAudio", D%, ^b%(0), N% * 4, @memhdc% TO I%
+      UNTIL I% = 0
+      In() *= Hanning()    : REM Window Function
+      Out() = DFT() . In() : REM Fourier Transform
+      CLS
+      P% = 4
+      FOR I% = 0 TO N%-2 STEP 2
+        v = Out(I%)^2 + Out(I%+1)^2
+        IF v=0 L%=0 ELSE L%=100*LOGv
+        PLOT P%,I%,L% : P%=5
+      NEXT
+      *REFRESH
+      ENDPROC

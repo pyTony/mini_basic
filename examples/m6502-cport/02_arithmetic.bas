@@ -1,0 +1,7 @@
+10 A=12
+20 B=5
+30 PRINT "A+B =";A+B
+40 PRINT "A-B =";A-B
+50 PRINT "A*B =";A*B
+60 PRINT "A/B =";A/B
+70 END

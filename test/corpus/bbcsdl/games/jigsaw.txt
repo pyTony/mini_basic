@@ -1,0 +1,849 @@
+      REM Jigsaw Puzzle program for 'BBC BASIC for SDL 2.0' (BBCSDL)
+      REM (C) Copyright Richard Russell, http://www.rtrussell.co.uk/
+      REM Version 0.41, 06-Nov-2023; 0.42, 03-Sep-2025
+      
+      REM Constants:
+      SSPEED = 9 : REM Spin speed: must be a sub-multiple of 90
+      PROX = 0.1 : REM How close pieces must be to snap together
+      DRAG = 10  : REM Minimum movement to start a drag (g.units)
+      LONG = 100 : REM Long-press duration 1.0 seconds
+      SAVE = 9000: REM Save puzzle state every 1.5 minutes
+      NCOLS = 3  : REM Number of columns in picture browser
+      BORDER = 1 : REM Border around pictures in browser (pixels)
+      MAXP = 999 : REM Maximum number of pictures to select from
+      BKGR = 100 : REM RGB background / surround colour
+      BKGG = 100
+      BKGB = 100
+      
+      REM User selections (default):
+      Autohide% = TRUE
+      Rotate% = TRUE
+      nPieces% = 24 : REM Approximate number of pieces
+      Picture$ = @dir$ + "jigsaw.jpg"
+      
+      REM Install libraries:
+      INSTALL @lib$ + "stringlib"
+      
+      REM Handle asynchronous events:
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON CLOSE PROCcleanup : QUIT
+      IF INSTR(@usr$, "rtrussell.jigsaw") OR INSTR(@lib$, @dir$) THEN *ESC OFF
+      
+      REM Switch to full-screen:
+      IF (@platform% AND 7) < 3 SYS "SDL_MaximizeWindow", @hwnd% : WAIT 20
+      COLOR 15 : COLOR 128 : VDU 26,12 : OFF
+      
+      REM Get 'screen' dimensions:
+      IF POS REM SDL thread sync
+      screenw% = @vdu%!208
+      screenh% = @vdu%!212
+      
+      REM If either dimension is > 2048 pixels switch to a windowed mode:
+      IF screenw% > 2048 OR screenh% > 2048 THEN
+        IF screenw% > 2048 screenw% = 2048
+        IF screenh% > 2048 screenh% = 2048
+        VDU 23,22,screenw%;screenh%;8,16,16,0
+        COLOR 15 : COLOR 128 : VDU 26,12 : OFF
+      ENDIF
+      
+      REM Set data file name and line thickness (both depend on dimensions):
+      COLOR 9, 255, 128, 0
+      COLOR 13, 255, 85, 255
+      IF screenw% > 1440 OR screenh% > 1280 VDU 23,23,2;0;0;0;
+      DatFile$ = @usr$ + "jigsaw" + STR$(screenw%) + "x" + STR$(screenh%) + ".dat"
+      
+      REM Get 'picture' dimensions:
+      IF NOT FNjpgsize(Picture$, imagew%, imageh%) ERROR 100, "Wrong picture file format"
+      
+      REM Scale picture so it occupies half the screen area:
+      scale = SQR(0.5 * screenw% * screenh% / (imagew% * imageh%))
+      scalew% = imagew% * scale + 0.5
+      scaleh% = imageh% * scale + 0.5
+      
+      REM Ensure the picture fits in its entirety:
+      IF scalew% > screenw% scaleh% *= screenw% / scalew% : scalew% = screenw%
+      IF scaleh% > screenh% scalew% *= screenh% / scaleh% : scaleh% = screenh%
+      
+      REM Display the scaled picture centrally:
+      px% = (screenw% - scalew% + 1) AND -2
+      py% = (screenh% - scaleh% + 1) AND -2
+      dx% = scalew% * 2
+      dy% = scaleh% * 2
+      
+      REM Display the opening screen:
+      OSCLI "DISPLAY """+Picture$+""" "+STR$px%+","+STR$py%+","+STR$dx%+","+STR$dy%
+      PROCcut(8, 6, px%, py%, dx%, dy%)
+      
+      REM Display title etc.
+      PROCdropshadow("Jigsaw Puzzle", 11, px% + dx%/2, py% + 0.8*dy%, dy%/11)
+      dat% = OPENIN(DatFile$)
+      IF dat% THEN
+        INPUT #dat%,pic$
+        CLOSE #dat%
+        dat% = OPENIN(pic$)
+        IF dat% THEN
+          CLOSE #dat%
+          PROCdropshadow("Load saved puzzle", 2, px% + dx%/2, py% + 0.45*dy%, dy%/18)
+        ENDIF
+      ENDIF
+      PROCdropshadow("Start a new puzzle", 9, px% + dx%/2, py% + 0.25*dy%, dy%/18)
+      
+      REM Await user response:
+      REPEAT WAIT 2
+        MOUSE X%,Y%,B%
+      UNTIL B% = FALSE
+      REPEAT WAIT 2
+        MOUSE X%,Y%,B%
+      UNTIL B%
+      IF dat% THEN
+        StartAfresh% = Y% < py% + 0.3*dy%
+      ELSE
+        StartAfresh% = TRUE
+      ENDIF
+      
+      IF StartAfresh% THEN
+        REM Copy the default pictures:
+        DIM image$(10)
+        num% = FNdirscan(image$(), "dir """ + @dir$ + "jigsa*.jpg""")
+        FOR I% = 1 TO num%-1
+          OSCLI "COPY """ + @dir$ + image$(I%) + """ """ + @usr$ + image$(I%) + """"
+        NEXT I%
+        
+        REM Select a picture:
+        COLOR 1,200,200,200
+        COLOR 128+1
+        Picture$ = FNbrowsejpg(@usr$, MAXP, dy%/32)
+        COLOR 128
+        
+        REM Get 'picture' dimensions:
+        IF NOT FNjpgsize(Picture$, imagew%, imageh%) ERROR 100, "Wrong picture file format"
+        
+        REM Scale picture so it occupies half the screen area:
+        scale = SQR(0.5 * screenw% * screenh% / (imagew% * imageh%))
+        scalew% = imagew% * scale + 0.5
+        scaleh% = imageh% * scale + 0.5
+        
+        REM Ensure the picture fits in its entirety:
+        IF scalew% > screenw% scaleh% *= screenw% / scalew% : scalew% = screenw%
+        IF scaleh% > screenh% scalew% *= screenh% / scaleh% : scaleh% = screenh%
+        
+        REM Display the scaled picture centrally:
+        px% = (screenw% - scalew% + 1) AND -2
+        py% = (screenh% - scaleh% + 1) AND -2
+        dx% = scalew% * 2
+        dy% = scaleh% * 2
+        
+        REM Request user preferences:
+        *REFRESH OFF
+        oldpieces% = 0
+        REPEAT
+          REM Determine actual number of pieces:
+          scale = SQR(nPieces% / (dx% * dy%))
+          Nx% = dx% * scale + 0.5
+          Ny% = dy% * scale + 0.5
+          Root% = 0
+          
+          CLS
+          IF nPieces% <> oldpieces% THEN
+            oldpieces% = nPieces%
+            OSCLI "DISPLAY """+Picture$+""" "+STR$px%+","+STR$py%+","+STR$dx%+","+STR$dy%
+            PROCcut(Nx%, Ny%, px%, py%, dx%, dy%)
+          ELSE
+            OSCLI "DISPLAY """ + @tmp$ + "jigsaw.tmp.bmp"" " + STR$px% + "," + STR$py%
+          ENDIF
+          
+          PROCdropshadow("Select approximate number of pieces:", 11, px% + dx%/2, py% + dy%*0.95, dy%/32)
+          PROCdropshadow("6 pieces",   9+7*(nPieces%=6),   px% + dx%*0.25, py% + dy%*0.85, dy%/32)
+          PROCdropshadow("12 pieces",  9+7*(nPieces%=12),  px% + dx%*0.75, py% + dy%*0.85, dy%/32)
+          PROCdropshadow("24 pieces",  9+7*(nPieces%=24),  px% + dx%*0.25, py% + dy%*0.75, dy%/32)
+          PROCdropshadow("35 pieces",  9+7*(nPieces%=35),  px% + dx%*0.75, py% + dy%*0.75, dy%/32)
+          PROCdropshadow("48 pieces",  9+7*(nPieces%=48),  px% + dx%*0.25, py% + dy%*0.65, dy%/32)
+          PROCdropshadow("63 pieces",  9+7*(nPieces%=63),  px% + dx%*0.75, py% + dy%*0.65, dy%/32)
+          PROCdropshadow("108 pieces", 9+7*(nPieces%=108), px% + dx%*0.25, py% + dy%*0.55, dy%/32)
+          PROCdropshadow("140 pieces", 9+7*(nPieces%=140), px% + dx%*0.75, py% + dy%*0.55, dy%/32)
+          IF Autohide% THEN
+            PROCdropshadow("Auto-hide enabled", 2, px% + dx%*0.5, py% + dy%*0.45, dy%/32)
+          ELSE
+            PROCdropshadow("Auto-hide disabled", 9, px% + dx%*0.5, py% + dy%*0.45, dy%/32)
+          ENDIF
+          IF Rotate% THEN
+            PROCdropshadow("Rotation enabled", 2, px% + dx%*0.5, py% + dy%*0.35, dy%/32)
+          ELSE
+            PROCdropshadow("Rotation disabled", 9, px% + dx%*0.5, py% + dy%*0.35, dy%/32)
+          ENDIF
+          PROCdropshadow("(Right-click or long-press to rotate)", 13, px% + dx%/2, py% + dy%*0.25, dy%/32)
+          PROCdropshadow("Start", 14, px% + dx%/2, py% + dy%*0.15, dy%/20)
+          *REFRESH
+          
+          REM Await user response:
+          REPEAT WAIT 2
+            MOUSE X%,Y%,B%
+          UNTIL B% = FALSE
+          REPEAT WAIT 2
+            MOUSE X%,Y%,B%
+          UNTIL B%
+          
+          CASE TRUE OF
+            WHEN Y% > py% + dy%*0.8 AND X% < px% + dx%*0.5: nPieces% = 6
+            WHEN Y% > py% + dy%*0.8: nPieces% = 12
+            WHEN Y% > py% + dy%*0.7 AND X% < px% + dx%*0.5: nPieces% = 24
+            WHEN Y% > py% + dy%*0.7: nPieces% = 35
+            WHEN Y% > py% + dy%*0.6 AND X% < px% + dx%*0.5: nPieces% = 48
+            WHEN Y% > py% + dy%*0.6 : nPieces% = 63
+            WHEN Y% > py% + dy%*0.5 AND X% < px% + dx%*0.5: nPieces% = 108
+            WHEN Y% > py% + dy%*0.5: nPieces% = 140
+            WHEN Y% > py% + dy%*0.4: Autohide% = NOT Autohide%
+            WHEN Y% > py% + dy%*0.3: Rotate% = NOT Rotate%
+          ENDCASE
+          
+        UNTIL Y% < py% + dy%*0.2
+        *REFRESH ON
+        
+      ELSE
+        PROCloadgame(DatFile$, 0)
+      ENDIF
+      
+      REM Cut puzzle into requested approximate number of pieces:
+      OSCLI "DISPLAY """+Picture$+""" "+STR$px%+","+STR$py%+","+STR$dx%+","+STR$dy%
+      DIM Tile{(Ny%*Nx%-1) x%, y%, w%, h%, u%, v%, l%, o%, p%%, a, f&}
+      TileDefined% = TRUE
+      PROCcut(Nx%, Ny%, px%, py%, dx%, dy%)
+      PROCdropshadow("Preparing puzzle...", 14, px% + dx%/2, py% + dy%/2 + dy%/36, dy%/18)
+      *REFRESH
+      
+      REM Separate into rectangular tiles big enough to contain each piece:
+      sx = dx% / Nx%
+      sy = dy% / Ny%
+      FOR y% = 0 TO Ny%-1
+        FOR x% = 0 TO Nx%-1
+          l% = (px%+(x%-0.5)*sx+3) AND -4 : IF l% < 0 l% = 0
+          b% = (py%+(y%-0.5)*sy+3) AND -4 : IF b% < 4 b% = 4
+          r% = (px%+(x%+1.5)*sx+3) AND -4 : IF r% > screenw%*2-4 r% = screenw%*2-4
+          t% = (py%+(y%+1.5)*sy+3) AND -4 : IF t% > screenh%*2-4 t% = screenh%*2-4
+          i% = y%*Nx%+x%
+          Tile{(i%)}.x% = (l% + r%) DIV 2 : Tile{(i%)}.w% = (r% - l%) DIV 2
+          Tile{(i%)}.y% = (b% + t%) DIV 2 : Tile{(i%)}.h% = (t% - b%) DIV 2
+          Tile{(i%)}.f& = 0
+          IF x% = 0     Tile{(i%)}.f& OR= %0001
+          IF x% = Nx%-1 Tile{(i%)}.f& OR= %0010
+          IF y% = 0     Tile{(i%)}.f& OR= %0100
+          IF y% = Ny%-1 Tile{(i%)}.f& OR= %1000
+        NEXT
+      NEXT y%
+      
+      FOR y% = 0 TO Ny%-1
+        FOR x% = 0 TO Nx%-1
+          i% = y%*Nx%+x%
+          IF x% < Nx%-1 Tile{(i%)}.u% = Tile{(i%+1)}.x% - Tile{(i%)}.x%
+          IF y% < Ny%-1 Tile{(i%)}.v% = Tile{(i%+Nx%)}.y% - Tile{(i%)}.y%
+        NEXT
+      NEXT y%
+      
+      REM Isolate and save the tiles:
+      *REFRESH OFF
+      GCOL 0
+      GCOL 136
+      CLG
+      COLOR 8, 0, 0, TINT(0,0) >> 16 : REM In case of reduced colour depth
+      FOR pass% = 0 TO 3
+        CLS
+        OSCLI "DISPLAY """ + @tmp$ + "jigsaw.tmp.bmp"" " + STR$px% + "," + STR$py%
+        
+        REM Isolate:
+        FOR y% = 0 TO Ny%-1
+          FOR x% = 0 TO Nx%-1
+            IF pass% <> (x% AND 1) + (y% AND 1)*2 THEN
+              i% = y%*Nx%+x%
+              l% = Tile{(i%)}.x% - Tile{(i%)}.w%
+              b% = Tile{(i%)}.y% - Tile{(i%)}.h%
+              r% = Tile{(i%)}.x% + Tile{(i%)}.w%
+              t% = Tile{(i%)}.y% + Tile{(i%)}.h%
+              VDU 24,l%;b%;r%;t%;
+              PLOT 143,px%+(x%+0.5)*sx,py%+(y%+0.5)*sy
+              FILL px%+(x%+0.5)*sx,py%+(y%+0.5)*sy
+            ENDIF
+          NEXT
+        NEXT y%
+        VDU 26
+        REM Save:
+        FOR y% = 0 TO Ny%-1
+          FOR x% = 0 TO Nx%-1
+            IF pass% = (x% AND 1) + (y% AND 1)*2 THEN
+              i% = y%*Nx%+x%
+              OSCLI "GSAVE """ + @tmp$ + "jigsaw" + STR$(i%) + """ " + \
+              \ STR$(Tile{(i%)}.x% - Tile{(i%)}.w%) + "," + \
+              \ STR$(Tile{(i%)}.y% - Tile{(i%)}.h%) + "," + \
+              \ STR$(Tile{(i%)}.w% * 2) + "," + STR$(Tile{(i%)}.h% * 2)
+            ENDIF
+          NEXT
+        NEXT y%
+      NEXT pass%
+      
+      IF StartAfresh% THEN
+        REM Move to random positions:
+        FOR i% = 0 TO Ny%*Nx%-1
+          Tile{(i%)}.x% = 2*RND(screenw% - sx / 2) + sx / 2
+          Tile{(i%)}.y% = 2*RND(screenh% - sy / 2) + sy / 2
+          IF Rotate% Tile{(i%)}.a = SSPEED * (RND(360 DIV SSPEED) - 1)
+          Tile{(i%)}.l% = i% : REM Link to self initially
+          IF i% = Ny%*Nx%-1 Tile{(i%)}.o% = TRUE ELSE Tile{(i%)}.o% = i% + 1
+        NEXT
+      ELSE
+        PROCloadgame(DatFile$, 1)
+      ENDIF
+      
+      REM Get a handle to each tile (must be after PROCloadgame):
+      FOR i% = 0 TO Nx%*Ny%-1
+        bmp$ = @tmp$ + "jigsaw" + STR$(i%) + ".bmp"
+        Tile{(i%)}.p%% = FNLoadTextureFromBMP(bmp$)
+        OSCLI "delete """ + bmp$ + """"
+      NEXT
+      
+      REM Main loop:
+      COLOR 7,BKGR,BKGG,BKGB
+      COLOR 135
+      CLS
+      SaveTime% = TIME
+      PROCdisplay(TRUE)
+      REPEAT
+        WAIT 2
+        MOUSE X%,Y%,B%
+        IF B% THEN
+          REM Find piece nearest mouse click / touch:
+          R% = &7FFFFFFF
+          FOR I%=0 TO Nx%*Ny%-1
+            D% = (X% - Tile{(I%)}.x%) ^ 2 + \
+            \    (Y% - Tile{(I%)}.y%) ^ 2
+            IF D% < R% R% = D% : N% = I%
+          NEXT
+          IF R% < sx*sy/2 THEN
+            IF B% AND 1 THEN
+              REM Rotate:
+              PROCspin(N%)
+              REPEAT WAIT 2
+                MOUSE X%,Y%,B%
+              UNTIL B%=FALSE
+            ENDIF
+            IF B% AND 4 THEN
+              REM Drag piece or group of pieces:
+              L% = TIME + LONG
+              REPEAT
+                MOUSE newX%,newY%,B%
+                dx% = newX% - X%
+                dy% = newY% - Y%
+                X% = newX%
+                Y% = newY%
+                
+                REM Check for 'long press':
+                IF ABS(dx%) >= DRAG OR ABS(dy%) >= DRAG THEN L% = &7FFFFFFF
+                IF TIME >= L% PROCspin(N%) : L% = TIME + LONG/2
+                
+                REM Check proximity to adjacent tiles:
+                F% = FALSE
+                G% = FALSE
+                
+                IF dx% = 0 IF dy% = 0 THEN
+                  I% = N%
+                  REPEAT
+                    REM Check tile to the left:
+                    IF F%=FALSE IF (Tile{(I%)}.f& AND %0001) = 0 THEN
+                      IF ABS(Tile{(I%)}.x% + dx% - Tile{(I%-1)}.x% - Tile{(I%-1)}.u%*COSRADTile{(I%)}.a) <= sx*PROX THEN
+                        IF ABS(Tile{(I%)}.y% + dy% - Tile{(I%-1)}.y% + Tile{(I%-1)}.u%*SINRADTile{(I%)}.a) <= sy*PROX THEN
+                          IF Tile{(I%)}.a = Tile{(I%-1)}.a IF NOT FNjoined(I%, I%-1) THEN
+                            dx% = Tile{(I%-1)}.x% + Tile{(I%-1)}.u%*COSRADTile{(I%)}.a - Tile{(I%)}.x%
+                            dy% = Tile{(I%-1)}.y% - Tile{(I%-1)}.u%*SINRADTile{(I%)}.a - Tile{(I%)}.y%
+                            F% = I% : G% = I%-1
+                            EXIT REPEAT
+                          ENDIF
+                        ENDIF
+                      ENDIF
+                    ENDIF
+                    REM Check tile to the right:
+                    IF F%=FALSE IF (Tile{(I%)}.f& AND %0010) = 0  THEN
+                      IF ABS(Tile{(I%)}.x% + dx% + Tile{(I%)}.u%*COSRADTile{(I%)}.a - Tile{(I%+1)}.x%) <= sx*PROX THEN
+                        IF ABS(Tile{(I%)}.y% + dy% - Tile{(I%)}.u%*SINRADTile{(I%)}.a - Tile{(I%+1)}.y%) <= sy*PROX THEN
+                          IF Tile{(I%)}.a = Tile{(I%+1)}.a IF NOT FNjoined(I%, I%+1) THEN
+                            dx% = Tile{(I%+1)}.x% - Tile{(I%)}.u%*COSRADTile{(I%)}.a - Tile{(I%)}.x%
+                            dy% = Tile{(I%+1)}.y% + Tile{(I%)}.u%*SINRADTile{(I%)}.a - Tile{(I%)}.y%
+                            F% = I% : G% = I%+1
+                            EXIT REPEAT
+                          ENDIF
+                        ENDIF
+                      ENDIF
+                    ENDIF
+                    REM Check tile below:
+                    IF F%=FALSE IF (Tile{(I%)}.f& AND %0100) = 0  THEN
+                      IF ABS(Tile{(I%)}.y% + dy% - Tile{(I%-Nx%)}.y% - Tile{(I%-Nx%)}.v%*COSRADTile{(I%)}.a) <= sy*PROX THEN
+                        IF ABS(Tile{(I%)}.x% + dx% - Tile{(I%-Nx%)}.x% - Tile{(I%-Nx%)}.v%*SINRADTile{(I%)}.a) <= sx*PROX THEN
+                          IF Tile{(I%)}.a = Tile{(I%-Nx%)}.a IF NOT FNjoined(I%, I%-Nx%) THEN
+                            dx% = Tile{(I%-Nx%)}.x% + Tile{(I%-Nx%)}.v%*SINRADTile{(I%)}.a - Tile{(I%)}.x%
+                            dy% = Tile{(I%-Nx%)}.y% + Tile{(I%-Nx%)}.v%*COSRADTile{(I%)}.a - Tile{(I%)}.y%
+                            F% = I% : G% = I%-Nx%
+                            EXIT REPEAT
+                          ENDIF
+                        ENDIF
+                      ENDIF
+                    ENDIF
+                    REM Check tile above:
+                    IF F%=FALSE IF (Tile{(I%)}.f& AND %1000) = 0  THEN
+                      IF ABS(Tile{(I%)}.y% + dy% + Tile{(I%)}.v%*COSRADTile{(I%)}.a - Tile{(I%+Nx%)}.y%) <= sy*PROX THEN
+                        IF ABS(Tile{(I%)}.x% + dx% + Tile{(I%)}.v%*SINRADTile{(I%)}.a - Tile{(I%+Nx%)}.x%) <= sx*PROX THEN
+                          IF Tile{(I%)}.a = Tile{(I%+Nx%)}.a IF NOT FNjoined(I%, I%+Nx%) THEN
+                            dx% = Tile{(I%+Nx%)}.x% - Tile{(I%)}.v%*SINRADTile{(I%)}.a - Tile{(I%)}.x%
+                            dy% = Tile{(I%+Nx%)}.y% - Tile{(I%)}.v%*COSRADTile{(I%)}.a - Tile{(I%)}.y%
+                            F% = I% : G% = I%+Nx%
+                            EXIT REPEAT
+                          ENDIF
+                        ENDIF
+                      ENDIF
+                    ENDIF
+                    
+                    REM Next in group:
+                    I% = Tile{(I%)}.l%
+                  UNTIL I% = N%
+                ENDIF
+                
+                REM Move tile or group of tiles (first):
+                I% = N%
+                REPEAT
+                  Tile{(I%)}.x% += dx%
+                  Tile{(I%)}.y% += dy%
+                  I% = Tile{(I%)}.l%
+                UNTIL I% = N%
+                
+                REM Join tiles or groups of tiles (second):
+                IF F% OR G% PROCjoin(F%, G%)
+                
+                REM Refresh display:
+                PROCdisplay(N%)
+                
+              UNTIL B% = FALSE
+            ENDIF
+          ENDIF
+          PROCdisplay(TRUE)
+        ELSE
+          IF TIME > (SaveTime% + SAVE) OR TIME < SaveTime% THEN
+            SaveTime% = TIME : PROCsavegame(DatFile$)
+          ENDIF
+        ENDIF
+      UNTIL FALSE
+      END
+      
+      DEF PROCcut(nx%, ny%, px%, py%, dx%, dy%)
+      LOCAL I%, n%, r(), i(), r, x, y, x0, y0, sx, sy, scale
+      
+      REM Ensure there is no true 'black' in the picture:
+      VDU 24,px%;py%;px%+dx%;py%+dy%;
+      COLOR 8, 0, 0, 17
+      GCOL 1,128+8 : CLG
+      VDU 26
+      
+      REM Jigsaw cut equation coefficients:
+      RESTORE +1
+      DIM r(6), i(6)
+      FOR I% = 1 TO 6
+        READ r(I%), i(I%)
+      NEXT
+      r() /= 64 : i() /= 64
+      
+      DATA   131.0,  3192.4
+      DATA   147.7,  1757.0
+      DATA  -296.6, -2380.0
+      DATA   174.1,  1079.0
+      DATA    66.5,   377.9
+      DATA  -210.1,  -822.5
+      
+      REM Make vertical cuts:
+      GCOL 0
+      scale = dy% / ny% / 320
+      sx = dx% / nx%
+      FOR I% = 1 TO nx%-1
+        x0 = px% + I% * sx
+        FOR n% = -10 TO 64 * ny% + 10
+          i(2) = 5 * (7 + COSRAD(x0+n%))
+          r = n%/128 * 2*PI + SINRAD(x0+n%) * 0.2
+          x = r(1) * COS(r)   + i(1) * SIN(r)   + r(3) * COS(3*r) + i(3) * SIN(3*r) + r(5) * COS(5*r) + i(5) * SIN(5*r)
+          y = r(2) * COS(2*r) + i(2) * SIN(2*r) + r(4) * COS(4*r) + i(4) * SIN(4*r) + r(6) * COS(6*r) + i(6) * SIN(6*r)
+          
+          y += n% * 5
+          IF I% AND 1 x = -x
+          
+          IF n%>-10 DRAW x0+x*scale,py%+y*scale ELSE MOVE x0+x*scale,py%+y*scale
+        NEXT
+      NEXT I%
+      
+      REM Make horizontal cuts:
+      scale = dx% / nx% / 320
+      sy = dy% / ny%
+      FOR I% = 1 TO ny%-1
+        y0 = py% + I% * sy
+        FOR n% = -10 TO 64 * nx% + 10
+          i(2) = 5 * (7 + COSRAD(y0+n%))
+          r = n%/128 * 2*PI + SINRAD(y0+n%) * 0.2
+          y = r(1) * COS(r)   + i(1) * SIN(r)   + r(3) * COS(3*r) + i(3) * SIN(3*r) + r(5) * COS(5*r) + i(5) * SIN(5*r)
+          x = r(2) * COS(2*r) + i(2) * SIN(2*r) + r(4) * COS(4*r) + i(4) * SIN(4*r) + r(6) * COS(6*r) + i(6) * SIN(6*r)
+          
+          x += n% * 5
+          IF (I% AND 1) = 0 y = -y
+          
+          IF n%>-10 DRAW px%+x*scale,y0+y*scale ELSE MOVE px%+x*scale,y0+y*scale
+        NEXT
+      NEXT I%
+      
+      REM Save for later:
+      OSCLI "GSAVE """ + @tmp$ + "jigsaw.tmp.bmp"" " + \
+      \     STR$px% + "," + STR$py% + "," + STR$dx% + "," + STR$dy%
+      ENDPROC
+      
+      REM Draw centred, coloured, text with drop shadow:
+      DEF PROCdropshadow(t$, c%, x%, y%, h%)
+      LOCAL I%
+      PRIVATE H%
+      IF h% <> H% THEN
+        @vdu%!220 = -h%
+        OSCLI "FONT """ + @lib$ + "DejaVuSans"""
+        H% = h%
+      ENDIF
+      VDU 5
+      FOR I% = 2 TO h%/6 STEP 2
+        MOVE x% - WIDTH(t$) / 2 + I%, y% + h% / 2 - I% : GCOL 0 : PRINT t$;
+      NEXT
+      MOVE x% - WIDTH(t$) / 2, y% + h% / 2 : GCOL c% : PRINT t$;
+      ENDPROC
+      
+      REM Check if two pieces are joined (i.e. in the same group):
+      DEF FNjoined(I%, J%)
+      LOCAL N%
+      N% = I%
+      REPEAT
+        N% = Tile{(N%)}.l%
+        IF N% = J% THEN = TRUE
+      UNTIL N% = I%
+      = FALSE
+      
+      REM Join two pieces or groups of pieces:
+      DEF PROCjoin(I%, J%)
+      IF I%<0 OR J%<0 OR I%>=Nx%*Ny% OR J%>=Nx%*Ny% ENDPROC
+      IF FNjoined(I%, J%) ENDPROC
+      SWAP Tile{(I%)}.l%, Tile{(J%)}.l%
+      PROCdisplay(J%)
+      ENDPROC
+      
+      REM Rotate a piece or group of pieces about its centre:
+      DEF PROCspin(N%) : IF NOT Rotate% ENDPROC
+      LOCAL I%, K%, a, x, y, x(), y()
+      DIM x(Nx%*Ny%-1), y(Nx%*Ny%-1)
+      I% = N%
+      REPEAT
+        x(I%) = Tile{(I%)}.x%
+        y(I%) = Tile{(I%)}.y%
+        K% += 1
+        I% = Tile{(I%)}.l%
+      UNTIL I% = N%
+      x = SUM(x()) / K%
+      y = SUM(y()) / K%
+      x() -= x : y() -= y
+      REPEAT
+        a += SSPEED
+        REPEAT
+          Tile{(I%)}.a = (Tile{(I%)}.a + SSPEED) MOD 360
+          Tile{(I%)}.x% = (x + x(I%)*COSRADa + y(I%)*SINRADa + 1.5) AND -2
+          Tile{(I%)}.y% = (y + y(I%)*COSRADa - x(I%)*SINRADa + 1.5) AND -2
+          I% = Tile{(I%)}.l%
+        UNTIL I% = N%
+        PROCdisplay(N%)
+      UNTIL (Tile{(N%)}.a MOD 90) = 0
+      ENDPROC
+      
+      REM Refresh the display and bring the specified piece(s) to the front:
+      DEF PROCdisplay(T%)
+      LOCAL I%, dst{}, a#
+      PRIVATE E%, F%
+      DIM dst{x%, y%, w%, h%}
+      IF Autohide% IF T%<>TRUE IF Tile{(T%)}.f& IF Tile{(T%)}.l% = T% E% = TRUE
+      IF T%=TRUE E% = FALSE
+      IF T%<>TRUE IF F%<>NOT T% THEN
+        F% = NOT T%
+        I% = T%
+        REPEAT
+          PROCfront(I%)
+          I% = Tile{(I%)}.l%
+        UNTIL I% = T%
+      ENDIF
+      *REFRESH OFF
+      CLS
+      I% = Root%
+      REPEAT
+        dst.w% = Tile{(I%)}.w%
+        dst.h% = Tile{(I%)}.h%
+        dst.x% = Tile{(I%)}.x% DIV 2 - dst.w% DIV 2
+        dst.y% = @vdu%!212 - Tile{(I%)}.y% DIV 2 - dst.h% DIV 2
+        IF NOT E% OR Tile{(I%)}.f& THEN
+          a# = Tile{(I%)}.a
+          IF @platform% AND &40 THEN
+            IF a#=0 ?(^a#+7)=&80
+            SYS "SDL_RenderCopyEx",@memhdc%,Tile{(I%)}.p%%,FALSE,dst{},a#,FALSE,FALSE
+          ELSE
+            SYS "SDL_RenderCopyEx",@memhdc%,Tile{(I%)}.p%%,FALSE,dst{},!^a#,!(^a#+4),FALSE,FALSE
+          ENDIF
+        ENDIF
+        I% = Tile{(I%)}.o%
+      UNTIL I% = TRUE
+      *REFRESH ON
+      *REFRESH
+      ENDPROC
+      
+      REM Bring piece to front:
+      DEF PROCfront(T%)
+      LOCAL I%
+      I% = Root%
+      REPEAT
+        IF T% = Root% Root% = Tile{(T%)}.o% ELSE IF T% = Tile{(I%)}.o% Tile{(I%)}.o% = Tile{(T%)}.o%
+        IF Tile{(I%)}.o% = TRUE Tile{(I%)}.o% = T% : Tile{(T%)}.o% = TRUE
+        I% = Tile{(I%)}.o%
+      UNTIL I% = TRUE
+      ENDPROC
+      
+      REM Return width and height of a JPEG image:
+      DEF FNjpgsize(jpg$, RETURN W%, RETURN H%)
+      LOCAL F%
+      F% = OPENIN(jpg$) : IF F% = 0 THEN = FALSE
+      PTR#F% = 4
+      REPEAT PTR#F% = PTR#F% + 256 * BGET#F% + BGET#F%
+      UNTIL BGET#F% = &FF AND (BGET#F% AND &F0) = &C0 OR EOF#F%
+      PTR#F% = PTR#F% + 3
+      H% = 256 * BGET#F% + BGET#F%
+      W% = 256 * BGET#F% + BGET#F%
+      CLOSE #F%
+      = W% <> 0 AND H% <> 0
+      
+      REM Get a handle to a texture (black is transparent):
+      DEF FNLoadTextureFromBMP(path$)
+      LOCAL r%%, s%%, t%%
+      SYS "SDL_RWFromFile", path$, "rb" TO r%%
+      IF @platform% AND &40 ELSE r%% = !^r%%
+      IF r%%=0 ERROR 103, "Unable to load " + path$
+      SYS "SDL_LoadBMP_RW", r%%, 1 TO s%%
+      IF @platform% AND &40 ELSE s%% = !^s%%
+      IF s%%=0 ERROR 104, "Unable to create surface from " + path$
+      SYS "SDL_SetColorKey", s%%, 1, FALSE
+      SYS "SDL_CreateTextureFromSurface", @memhdc%, s%% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      IF t%%=0 ERROR 105, "Unable to create texture from " + path$
+      SYS "SDL_FreeSurface", s%%
+      = t%%
+      
+      REM Save the current state of the puzzle:
+      DEF PROCsavegame(f$)
+      LOCAL F%, P%, p$
+      F% = OPENOUT(f$)
+      IF F% = 0 ENDPROC
+      p$ = "x" : P% = !^p$
+      PRINT #F%, Picture$, Rotate%, Autohide%, Nx%, Ny%, Root%
+      !^p$ = Tile{(0)} - (PTR(p$) - P%)
+      !(^p$+4) = Nx% * Ny% * DIM(Tile{(0)})
+      BPUT#F%, p$;
+      CLOSE #F%
+      !^p$ = P% : !(^p$+4) = 1
+      ENDPROC
+      
+      REM Load a saved puzzle:
+      DEF PROCloadgame(f$, T%)
+      LOCAL F%, P%, p$
+      F% = OPENIN(f$)
+      IF F% = 0 ENDPROC
+      p$ = "x" : P% = !^p$
+      INPUT #F%, Picture$, Rotate%, Autohide%, Nx%, Ny%, Root%
+      IF T% = 0 CLOSE #F% : ENDPROC
+      !^p$ = Tile{(0)} - (PTR(p$) - P%)
+      !(^p$+4) = Nx% * Ny% * DIM(Tile{(0)})
+      p$ = GET$#F% BY !(^p$+4)
+      CLOSE #F%
+      !^p$ = P% : !(^p$+4) = 1
+      ENDPROC
+      
+      REM Clean up on error or exit:
+      DEF PROCcleanup
+      LOCAL I%, p%%
+      *REFRESH ON
+      TileDefined% += 0 : IF NOT TileDefined% ENDPROC
+      PROCsavegame(DatFile$)
+      FOR I% = 0 TO Nx%*Ny%-1
+        p%% = Tile{(I%)}.p%%
+        IF p%% SYS "SDL_DestroyTexture", p%%, @memhdc%
+      NEXT
+      ENDPROC
+      
+      REM Browse for a picture:
+      DEF FNbrowsejpg(dir$, max%, header%)
+      LOCAL B%, H%, I%, W%, X%, Y%, texture%%
+      LOCAL col%, num%, pitch%, row%, scroll%
+      LOCAL drag%, oldy%, tuch%, refy%, reft%, refresh%, select%, speed
+      LOCAL image$(), image{()}, dst{}
+      DIM image$(max%), dst{x%,y%,w%,h%}
+      IF @platform% AND &40 THEN
+        DIM image{(max%) texture%%, w%, h%}
+      ELSE
+        DIM image{(max%) texture%, w%, h%}
+      ENDIF
+      ON ERROR LOCAL PROCrelease(image{()}) : RESTORE LOCAL : ERROR ERR, REPORT$
+      ON CLOSE LOCAL PROCrelease(image{()}) : QUIT
+      
+      pitch% = @vdu%!208 DIV NCOLS
+      num% = FNdirscan(image$(), "dir """ + dir$ + "*.jpg""")
+      FOR I% = 1 TO num%-1
+        IF FNjpgsize(dir$ + image$(I%) + CHR$0, W%, H%) THEN
+          IF W%/H% > 1 THEN
+            image{(I%)}.w% = pitch% / SQR2 + 0.5
+            image{(I%)}.h% = pitch% * H% / W% / SQR2 + 0.5
+          ELSE
+            image{(I%)}.w% = pitch% * W% / H% / SQR2 + 0.5
+            image{(I%)}.h% = pitch% / SQR2 + 0.5
+          ENDIF
+        ENDIF
+      NEXT I%
+      
+      REPEAT
+        MOUSE X%,Y%,B%
+        WAIT 2
+      UNTIL B%=FALSE
+      oldy% = Y%
+      
+      *refresh off
+      refresh% = TRUE
+      REPEAT
+        MOUSE X%,Y%,B%
+        IF B% AND 4 THEN
+          IF NOT tuch% THEN
+            refy% = Y%
+            reft% = TIME
+            tuch% = TRUE
+            speed = 0
+          ELSE
+            scroll% += (Y% - oldy%) DIV 2
+            IF ABS(Y% - refy%) >= DRAG drag% = TRUE
+            IF Y% <> oldy% refresh% = TRUE
+          ENDIF
+        ELSE
+          IF tuch% THEN
+            I% = (scroll% + @vdu%!212 - Y% DIV 2) DIV pitch% * NCOLS + (X% DIV 2 DIV pitch%) + 1
+            IF (TIME - reft%) < 30 IF NOT drag% IF I% < num% select% = I% : EXIT REPEAT
+            IF TIME - reft% speed = 2 * (Y% - refy%) / (TIME - reft%)
+            tuch% = FALSE
+          ENDIF
+          drag% = FALSE
+          scroll% += speed * 0.98 ^ (TIME - reft%)
+          IF (TIME - reft%) > 300 speed = 0 ELSE refresh% = TRUE
+        ENDIF
+        
+        IF scroll% < 0 scroll% = 0
+        
+        IF refresh% THEN
+          refresh% = FALSE
+          CLS
+          I% = (scroll% DIV pitch%) * NCOLS + 1
+          row% = 0
+          REPEAT
+            FOR col% = 0 TO NCOLS - 1
+              IF I% >= num% EXIT REPEAT
+              dst.w% = image{(I%)}.w% + 2*BORDER
+              dst.h% = image{(I%)}.h% + 2*BORDER
+              dst.x% = col% * pitch% + (pitch% - dst.w%) / 2
+              dst.y% = row% * pitch% - (scroll% MOD pitch%) + header%*2
+              
+              SYS "SDL_SetRenderDrawColor", @memhdc%, 0, 0, 0, &FF
+              SYS "SDL_RenderFillRect", @memhdc%, dst{}
+              MOUSE X%,Y%,B%
+              IF B% = FALSE IF refresh% = FALSE IF image{(I%)}.texture% = FALSE THEN
+                SYS "STBIMG_LoadTexture", @memhdc%, dir$ + image$(I%) TO texture%%
+                IF @platform% AND &40 ELSE texture%% = !^texture%%
+                image{(I%)}.texture% = FNresizetexture(texture%%, image{(I%)}.w%, image{(I%)}.h%)
+                refresh% = TRUE
+              ENDIF
+              IF image{(I%)}.texture% THEN
+                dst.x% += BORDER
+                dst.y% += BORDER
+                dst.w% -= 2*BORDER
+                dst.h% -= 2*BORDER
+                SYS "SDL_RenderCopy", @memhdc%, image{(I%)}.texture%, FALSE, dst{}
+              ENDIF
+              I% += 1
+            NEXT col%
+            row% += 1
+          UNTIL dst.y% >= @vdu%!212
+          
+          PROCdropshadow("Choose a picture", 11, @vdu%!208, 2*@vdu%!212 - header%, header%)
+        ENDIF
+        
+        oldy% = Y%
+        *refresh
+      UNTIL FALSE
+      
+      PROCrelease(image{()})
+      CLS
+      *refresh on
+      *refresh
+      = dir$ + image$(select%)
+      
+      REM Release textures used by picture browser:
+      DEF PROCrelease(i{()})
+      LOCAL I%
+      FOR I% = 0 TO DIM(i{()},1)
+        IF i{(I%)}.texture% SYS "SDL_DestroyTexture", i{(I%)}.texture%, @memhdc%
+        i{(I%)}.texture% = FALSE
+      NEXT
+      ENDPROC
+      
+      REM Scan a directory for files of a certain type:
+      DEF FNdirscan(name$(), dircmd$)
+      LOCAL F%, N%, a$, d$
+      
+      REM Spool *DIR output to a temporary file:
+      WIDTH 20
+      VDU 21
+      ON ERROR LOCAL IF FALSE THEN
+        OSCLI "spool """ + @tmp$ + "dir.tmp.txt"""
+        OSCLI dircmd$
+      ENDIF : RESTORE ERROR
+      *spool
+      VDU 6
+      WIDTH 0
+      
+      REM Parse the file to extract directories and filenames.
+      REM Cope with long filenames if they have split between lines
+      N% = 0
+      name$() = ""
+      F% = OPENIN(@tmp$ + "dir.tmp.txt")
+      REPEAT
+        a$ = GET$#F%
+        IF a$<>STRING$(20," ") THEN
+          IF LEFT$(a$,2)="  " OR LEFT$(a$,2)="* " OR EOF#F% OR N% = DIM(name$(),1) THEN
+            name$(N%) = FN_trim(name$(N%))
+            d$ = FN_lower(name$(N%))
+            IF LENd$ > 3 N% += 1
+            IF N% = 0 N% += 1 : REM Zeroth index holds *DIR title string
+            name$(N%) = MID$(a$,3)
+          ELSE
+            name$(N%) += a$
+          ENDIF
+        ENDIF
+      UNTIL EOF#F% OR N% = DIM(name$(),1)
+      CLOSE #F%
+      = N%
+      
+      REM Resize a texture (usually making it smaller):
+      DEF FNresizetexture(t%%, W%, H%)
+      LOCAL n%%, o%%
+      SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, W%, H% TO n%%
+      SYS "SDL_GetRenderTarget", @memhdc% TO o%%
+      IF @platform% AND &40 ELSE n%% = !^n%% : o%% = !^o%%
+      ON ERROR LOCAL IF FALSE THEN
+        SYS "SDL_SetRenderTarget", @memhdc%, n%%
+        SYS "SDL_RenderCopy", @memhdc%, t%%, FALSE, FALSE
+        SYS "SDL_SetRenderTarget", @memhdc%, o%%
+      ELSE
+        SYS "SDL_SetRenderTarget", @memhdc%, o%%
+      ENDIF : RESTORE ERROR
+      SYS "SDL_DestroyTexture", t%%, @memhdc%
+      = n%%
+      

@@ -1,0 +1,57 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Solve simultaneous equations using matrix inversion
+      
+      INSTALL @lib$+"arraylib"
+      INSTALL @lib$+"dlglib"
+      
+      REPEAT
+        INPUT "Enter number of unknowns (2-8): "U%
+      UNTIL U%>=2 AND U%<=8
+      
+      VDU 23,22,720;368;8,16,16,128:OFF
+      DIM M(U%-1,U%-1),V(U%-1,0),H%(U%-1,U%)
+      
+      REM Set colour palette:
+      PROC_setdialogpalette
+      
+      DIM click%(2)
+      ON MOUSE click%() = @msg%,@wparam%,@lparam% : RETURN
+      
+      container% = FN_newdialog("", 0, 0)
+      FOR R% = 0 TO U%-1
+        PRINT
+        FOR C% = 0 TO U%
+          IF C%<U% PRINT CHR$(C%+97)".      "; ELSE PRINT " = "
+          H%(R%,C%) = &100 + (R% << 4) + C%
+          PROC_textbox(container%, "0", H%(R%,C%), C%*160+36, R%*64+32, 84, 44, 0)
+          IF C%<U%-1 PRINT "+ ";
+        NEXT
+      NEXT
+      
+      PROC_button(container%, "SOLVE", FN_setproc(PROCsolve()), 656, U%*64+32, 128, 44, 0)
+      PROC_refreshdialog(container%)
+      
+      PRINT TAB(24,2*U%+3)"Enter values in boxes then click on SOLVE"''
+      *OSK ON
+      REPEAT
+        res% = FN_polldialog(container%, INKEY(4), click%())
+      UNTIL FALSE
+      
+      DEF PROCsolve(D%,I%)
+      PRINT TAB(0,2*U%+5) SPC170 TAB(0,2*U%+5) CHR$13;
+      
+      FOR R% = 0 TO U%-1
+        FOR C% = 0 TO U%
+          T$ = FN_getdlgitemtext(container%, H%(R%,C%))
+          IF C%<U% M(R%,C%) = VALT$ ELSE V(R%,0) = VALT$
+        NEXT
+      NEXT
+      IF FN_det(M())=0 PRINT "No unique solution":ENDPROC
+      
+      PROC_invert(M())
+      V() = M().V()
+      FOR C% = 0 TO U%-1
+        PRINT ,CHR$(C%+97)" = ";V(C%,0)" ";
+      NEXT
+      ENDPROC

@@ -1,0 +1,57 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Polydots by Richard Russell, http://www.rtrussell.co.uk/
+      REM Adapted from a GIF animation by @beesandbombs on Twitter
+      
+      MIN = 3
+      MAX = 13
+      DOT = 10
+      CYCLE = 17
+      SCALE = 5000
+      SPEED = 5
+      
+      VDU 23,22,640;500;8,20,16,128
+      ORIGIN 640,500
+      OFF
+      DIM x(MAX,MAX), y(MAX,MAX), t(MAX), s%(MAX), x%(MAX), y%(MAX)
+      
+      FOR sides% = MIN TO MAX
+        edge = SCALE / (CYCLE - sides%) / sides%
+        radius = edge / 2 / SIN(PI / sides%)
+        GCOL sides% - MIN
+        FOR vertex% = 0 TO sides%
+          a = 2 * PI * (vertex% + 0.5) / sides%
+          x(sides%, vertex%) = radius * SIN(a)
+          y(sides%, vertex%) = -radius * COS(a)
+          x% = INT(x(sides%, vertex%) + 0.5)
+          y% = INT(y(sides%, vertex%) + 0.5)
+          IF vertex% = 0 MOVE x%*2,y%*2 ELSE DRAW x%*2,y%*2
+        NEXT
+        t(sides%) = edge / 2
+        s%(sides%) = sides% - 1
+      NEXT
+      
+      GCOL 3,15
+      *REFRESH OFF
+      CIRCLE FILL 0, 0, DOT
+      REPEAT
+        FOR sides% = MIN TO MAX
+          edge = SCALE / (CYCLE - sides%) / sides%
+          IF t(sides%) >= edge THEN
+            t(sides%) -= edge
+            s%(sides%) = (s%(sides%) + 1) MOD sides%
+          ENDIF
+          x1 = x(sides%, s%(sides%))
+          y1 = y(sides%, s%(sides%))
+          x2 = x(sides%, s%(sides%) + 1)
+          y2 = y(sides%, s%(sides%) + 1)
+          p = t(sides%) / edge
+          CIRCLE FILL x%(sides%)*2, y%(sides%)*2, DOT
+          x%(sides%) = INT((1 - p) * x1 + p * x2 + 0.5)
+          y%(sides%) = INT((1 - p) * y1 + p * y2 + 0.5)
+          CIRCLE FILL x%(sides%)*2, y%(sides%)*2, DOT
+          t(sides%) += SPEED
+        NEXT
+        *REFRESH
+        IF INKEY$(-256)="W" WAIT 2
+      UNTIL FALSE

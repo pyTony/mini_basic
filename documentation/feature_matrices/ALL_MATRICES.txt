@@ -1,0 +1,153 @@
+=== Dialect structure compatibility ===
+  mits=ELIZA  commodore=C64  tiny=1975  bbc=BETH  mini=superset
+
+  Feature                          mits  com tiny  bbc  mini
+  -------------------------------- ----  --- ----  ---  ----
+  Numbered lines                    +     +   +     -    +  
+  Unnumbered lines                  -     -   -     +    +  
+  GOTO / GOSUB / RETURN             +     +   +     +    +  
+  IF ... GOTO nn                    +     +   -     -    +  
+  IF ... THEN nn (implicit GOTO)    +     +   -     +    +  
+  ON GOTO / ON GOSUB                +     +   +     +    +  
+  ON ERROR GOTO/GOSUB / RESUME      +     +   +     +    +  
+  IF/ENDIF / ELSEIF                 -     -   -     +    +  
+  WHILE / ENDWHILE (BBC V)          -     -   -     +    +  
+  REPEAT / UNTIL                    -     -   -     +    +  
+  EXIT FOR/WHILE/REPEAT             -     -   -     +    +
+  ON CLOSE (SDL)                    -     -   -     -    +  
+  COLOUR fg,bg two-arg (SDL)        -     -   -     -    +  
+  INKEY(-n) scan (SDL)              -     -   -     -    +  
+  PROC / DEF PROC / ENDPROC         -     -   -     +    +  
+  BREAK / CONTINUE (mini ext)       -     -   -     -    +  
+  INSTR                             -     -   -     +    +  
+  DEF FN one-line                   +     +   +     +    +  
+  DEF FN ... END DEF                -     -   -     ~    +  
+  ? shorthand (PRINT)               +     +   +     +    +  
+  TRUE/FALSE (-1/0)                 +     +   +     +    +  
+  ARG / CLI args                    -     -   -     -    +  
+  FG$ / BG$ / ANSI colors           -     -   -     -    +  
+  TIME (centisecond clock)          +     +   +     +    +  
+  Case-sensitive names              -     -   -     +    +  
+  LIST/SAVE detokenize              +     +   +     +    -  
+
+  + = yes   - = rejected in strict dialect   ~ = extension
+
+=== BBC BASIC family dialects (Beeb / RISC OS / BB4W / SDL / mini) ===
+  Beeb=BBC Micro MOS   ROS=Archimedes BASIC V/VI
+  BB4W=BBC BASIC for Windows   SDL=BBC BASIC for SDL   mini=this app (bbc mode)
+
+  Feature                      Beeb ROS  BB4W SDL  mini  notes
+  ---------------------------- ---- ---- ---- ---- ----  -----
+  PROC/FN glued to name         +    +    +    +    +    No space: PROCfoo not PROC foo (ROS: Bad call if spaced)
+  DEFPROC / DEF PROC            +    +    +    +    +    Both forms; PROC still glued to name after DEF
+  LIST spacing PROC name        +    +    +    +    +    Export must re-glue; mini LIST now glues for ROS paste
+  CASE / WHEN / OF              -    +    +    +    +    Not on classic Beeb MOS
+  WHILE / ENDWHILE              -    +    +    +    +    Beeb: REPEAT only
+  SYS / OSCLI *                 ~    +    +    +    ~    mini: OSCLI REFRESH/GSAVE/DISPLAY; SYS unimplemented
+  @lib$ @dir$ path vars         -    -    +    +    ~    BB4W/SDL; mini stubs some
+  INSTALL / LIBRARY             -    ~    +    +    ~    BB4W/SDL library path
+  MODE 0–7 Beeb                 +    ~    +    +    +    ROS modes differ; MODE 7 teletext ROS ≠ Beeb
+  MODE 8+ (PC/SDL)              -    -    +    +    +    BB4W/SDL extended modes
+  VDU 5 graphics text           +    +    +    +    +    Cursor = top-left of cell (welcome letters)
+  VDU 23 redefine char          +    +    +    +    +    welcome CHR$255 solid block
+  VDU 24 graphics window        +    +    +    +    +    CLG clips to window (welcome red frame)
+  ORIGIN / VDU 29               +    +    +    +    +    welcome disc icon origin
+  PLOT 0–255 Beeb set           +    +    +    +    ~    mini subset + BB4W extras (CIRCLE…)
+  CIRCLE / ELLIPSE keywords     -    ~    +    +    +    Beeb: PLOT codes; ROS has some
+  GCOL action 0–7               +    +    +    +    +    Invert = PLOT …6; welcome zaps
+  Colour 7 = white              +    +    +    +    +    Not VGA gray; letters GCOL 0,7
+  INKEY / INKEY$                +    +    +    +    +    INKEY n cs; INKEY1 glued → INKEY(1)
+  ENVELOPE / SOUND              +    ~    +    +    ~    ENVELOPE no-op; SOUND silent + optional wait (no audio)
+  MOUSE                         -    +    +    +    +    Desktop / BB4W/SDL
+  ON CLOSE                      -    ~    +    +    +    Window close trap (SDL/BB4W)
+  Integer % vars                +    +    +    +    +    32-bit on classic; mini bigint option
+  DIV toward zero               +    +    +    +    ~    mini historically floor-div; check suite
+  TRUE = -1                     +    +    +    +    +    All BBC family
+  Line numbers required         +    -    -    -    ~    Beeb classic; ROS/BB4W unnumbered OK
+  Tokenized program files       +    +    +    +    +    Formats differ; mini detokenizes Beeb/SDL
+  welcome.bbc corpus            ~    ~    +    +    +    Written for SDL; ROS needs glued PROC LIST
+  Bare IF cond: body            +    +    +    +    +    IF(I%AND1)=0:PLOT… (no THEN)
+  ASC"B" without ( )            +    +    +    +    +    Glued string literal form
+
+  + = yes   - = no   ~ = partial / different
+
+  Archimedes paste tip: use  --list --dialect bbc --display none
+  (LIST re-glues PROCname). Do not hand-edit spaces into PROC names.
+  "Bad call of function/procedure" almost always means PROC Name with a space.
+
+=== Trigonometry units ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  SIN/COS/TAN argument         degrees (BB4W)         degrees   yes     test_math_trig_and_pi
+  SINRAD/COSRAD/TANRAD         radians (BB4W/SDL)     radians   yes     test_sinrad_cosrad_radians
+  ASN/ACS/ATN result           radians                radians   partial  no dedicated test yet
+  DEG/RAD functions            convert units (math.degrees/radians) yes    yes     test_math_trig_and_pi + runtime builtin
+  PI function                  no-arg builtin         yes    yes     test_math_trig_and_pi
+
+=== Graphics statements ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  CIRCLE x,y,r                 outline (BB4W ch.3)    PLOT 149   yes     pixel outline count test
+  CIRCLE FILL x,y,r            filled disc            MOVE+plot 156   yes     pi*r^2 area test
+  CIRCLEFILL alias             one word               normalized   yes     test_circlefill_alias
+  RECTANGLE FILL               BBC SDL                yes    yes     prior corpus tests
+  MOVE / DRAW / PLOT           BBC graphics           yes    yes     bbc_graphics_demo
+  MODE 8 OS scaling            2x pixel scale         yes    yes     circle tests use x_scale
+  ORIGIN / bottom-left Y       BB4W ch.3 coords       yes    yes     test_wheel_spokes_cluster
+  GCOL action 0-7              plot/OR/AND/XOR/invert yes    yes     test_gcol_xor_mode_erases
+  OFF                          hide text cursor       yes    yes     VDU 23,1,0
+  COLOR RGB                    physical colour        yes    partial  wheel PROCbow
+  @ispal% guard                0=high color           stub=0   yes     test_ispal_percent_stub
+  ELLIPSE [FILL] x,y,a,b[,angle] BB4W graphics          yes    yes     test_ellipse_statement
+  FLOOD                        flood fill             missing   no      not yet implemented
+
+=== Array / matrix ops ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  b() = v1, v2, ...            row-major init (BB4W)  yes    yes     test_matrix_comma_fill
+  c() = a() . b()              matrix multiply        yes    yes     in-place dest fix
+  SUM(a())                     whole 1D array         yes    partial  1D only
+  SUM(a(i TO j))               slice                  yes    yes     test_sum_array_slice
+  a() = b() copy               whole array            yes    yes     test_whole_array_copy
+  a() = scalar fill            broadcast              yes    yes     binary literal fill test
+  scalar + array same name     b and b()              coexist   yes     soccerball pattern
+  array slicing assign         a() = b(i TO j)        missing   no      deferred
+
+=== DATA / READ ===
+  Feature                      BB4W / dialect spec    mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  DATA numeric literal         stored at parse        yes    yes     existing READ tests
+  DATA expr at READ            deferred eval          yes    yes     test_data_deferred_*
+  DATA quoted string           literal str            yes    yes     test_read_string_data
+  READ multi-var               comma vars             yes    yes     soccerball DATA lines
+  RESTORE +n                   relative offset        yes    partial  animal.txt uses
+
+=== Implementation status (user verify) ===
+  Feature                      Target                 mini   tested  notes
+  ---------------------------- ---------------------- ----   ------  -----
+  soccerball.txt               graphics corpus        runs 0 errors   yes     rotation tmp vs xyz
+  wheel.txt                    graphics corpus        runs 0 errors   yes     spoke coords verified
+  PRINT array subscript        PRINT a(i)             expanded   yes     PRINT A(0); A$(i); A%(i,j)
+  Corpus ALL runnable 24       audit list             auditing   partial  corpus_audit_probe
+
+=== Deferred feature sets (intentionally not in scope yet) ===
+  Complete corpus + core BBC language first; revisit when stable.
+
+  Area                 Feature                          reason
+  -------------------- -------------------------------- ------
+  RISC OS WIMP         MENU / ATTACH / DETACH           desktop GUI toolkit
+  RISC OS WIMP         ICON / WINDOW / WIMP_*           sprite icons and window ops
+  RISC OS WIMP         MOUSE click handlers ON MOUSE    event-driven UI
+  Inline ASM           OSASM / [ / ] assembler          ARM/x86 inline assembly
+  Inline ASM           CALL / USR machine code          register ABI and memory model
+  Inline ASM           OPT FN / assembler labels        low-level linking
+  OS integration       SYS Windows API calls            foreign function interface
+  OS integration       INSTALL libraries                tokenised library load
+  Structures           DIM struct{} / TYPE              user-defined record types
+  Structures           RETURN struct from FN            pass/return whole struct values
+  Pointers             ? ! $ $$ indirection             byte/word/string pointers
+  Sound                Real SOUND / ENVELOPE / ADVAL audio multi-channel synthesis; stubs today: ENVELOPE no-op, SOUND silent+wait
+  Teletext remainder   MODE 7 double-height / conceal / boxed extend existing teletext renderer
+  Physics              FN_b2* Box2D bindings            corpus physics tier
+  Network              URL fetch / Ceefax remote        needs HTTP client
+  Compiler             BBC BASIC compiler / Crunch      not interpreter scope

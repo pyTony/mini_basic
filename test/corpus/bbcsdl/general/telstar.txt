@@ -1,0 +1,633 @@
+      REM Telnet Videotex terminal for use with online services such as Telstar
+      REM Version 0.31, 28-Jul-2022, (C) R.T.Russell http://www.rtrussell.co.uk
+      REM This program requires BBCSDL v1.13a or later, or BB4W v6.14a or later
+      REM owing to the use of the built-in MODE 7 font and the MODE7LIB library
+      
+      REM Program constants:
+      Version$ = "0.31"
+      BUFLEN = 256
+      BB4W = INKEY$(-256) == "W"
+      HIMEM = PAGE + 32000000
+      
+      REM List of services (name, URL, port):
+      DATA "Telstar (CURRER)", "glasstty.com", "6502"
+      DATA "Telstar (ELLIS)", "glasstty.com", "6503"
+      DATA "Telstar (ACTON)", "glasstty.com", "6504"
+      DATA "Tetrachloromethane", "fish.ccl4.org", "23"
+      DATA "NXtel","nx.nxtel.org","23280"
+      DATA "Teefax","teletext.matrixnetwork.co.uk","6502"
+      DATA "ANSItex BBS","alterant.leenooks.net","516"
+      DATA "End of the Line BBS","endofthelinebbs.com","6502"
+      DATA "The Gongpit","bbs.gongpit.com","2323"
+      
+      REM Read services into arrays:
+      DIM service$(9), url$(9), port$(9)
+      FOR I% = 1 TO 9
+        READ service$(I%), url$(I%), port$(I%)
+        service$(I%) = " " + service$(I%)
+      NEXT
+      
+      REM Install and initialise libraries:
+      INSTALL @lib$+"mode7lib"
+      INSTALL @lib$+"socklib"
+      PROC_initsockets
+      
+      REM Disable Back button if running as a self-contained Android or iOS app:
+      IF INSTR(@usr$, "telstar") THEN *ESC OFF
+      
+      REM Trap errors and closing the window:
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR IF ERR=17 PROCcleanup : CHAIN @lib$+"../examples/tools/touchide" ELSE PROCerror(REPORT$)
+      
+      REM Initialise fonts etc.:
+      IF BB4W THEN
+        SYS "SetWindowText", @hwnd%, "TELSTAR terminal version " + Version$
+        SYS "GetWindowLong", @hwnd%, -16 TO ws%
+        SYS "SetWindowLong", @hwnd%, -16, ws% AND NOT &50000
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%, "TELSTAR terminal version " + Version$, @memhdc%
+        IF @platform% >= &2000500 SYS "SDL_SetWindowResizable", @hwnd%, FALSE, @memhdc%
+      ENDIF
+      
+      REM Initialise screen:
+      VDU 23,22,640;500;16,20,16,0 : REM Clear UTF-8 flag for safety
+      VDU 23,32,0,34,34,50,42,38,34,34,23,33,124,66,66,124,66,66,124,0 : REM NB
+      VDU 23,34,0,60,34,34,34,34,34,60,23,35,64,64,64,64,64,64,124,0   : REM DL
+      MODE 7
+      PROC_saa5050(0) : PROC_saa5050(1)
+      @vdu.m.c& AND= %10111111
+      
+      REM Trap mouse clicks and taps:
+      ON MOUSE PROCmouse : RETURN
+      
+      REM Display the Select Service screen:
+      service$(0) = CHR$130 + "Command help"
+      REPEAT
+        choose% = FNmenu(service$(), "Select Service")
+        IF choose% = 0 PROCcommands
+      UNTIL choose% <> 0 AND service$(choose%) <> " "
+      
+      REM Initiate the connection:
+      CLS
+      PRINT "Connecting to";CHR$131; service$(choose%); "..."
+      Socket% = FN_tcpconnect(url$(choose%), port$(choose%))
+      IF Socket% = FALSE OR Socket% = TRUE THEN
+        PROCerror("Connection failed")
+      ENDIF
+      
+      REM Start the telnet negotiation:
+      init$ = CHR$255 + CHR$253 + CHR$3 : REM IAC DO SUPPRESS-GO-AHEAD
+      PROCout(init$)
+      
+      REM Print the footer:
+      Footer$ = CHR$129 + CHR$157 + CHR$135 + "*  1  2  3  4  5  6  7  8  9  0  #  "
+      PRINT TAB(0,24) Footer$ ;
+      
+      REM Set a text viewport that excludes the bottom row:
+      VDU 28,0,23,39,0
+      
+      REM Main loop:
+      Touch$ = ""
+      scan% = FALSE
+      downloading% = FALSE
+      CLS
+      OFF
+      REPEAT
+        WAIT 5
+        
+        REM Handle input from user:
+        out$ = ""
+        REPEAT
+          K% = ASC(Touch$)
+          IF K%=TRUE K% = INKEY(9) ELSE Touch$ = MID$(Touch$,2)
+          CASE K% OF
+            WHEN TRUE: REM No key
+            WHEN 13:  out$ += "_"    : REM Enter
+            WHEN 130: out$ += "*0_"  : REM Home
+            WHEN 131: out$ += "*90_" : REM End
+            WHEN 132: out$ += "*_"   : REM PgUp
+            WHEN 133: out$ += "_"    : REM PgDn
+            WHEN 145: PROCreveal     : REM F1
+            WHEN 146: PROCconceal    : REM F2
+            WHEN 147: PROCshowcodes : scan% = TRUE : REM F3
+            WHEN 148: PROCload : scan% = TRUE : REM F4
+            WHEN 149: downloading% = TRUE : REM F5
+            WHEN 150: PROCexport     : REM F6
+            WHEN 151: PROCsave       : REM F7
+            WHEN 152: PROCdump       : REM F8
+            WHEN 153: PROCerror("Disconnected") : REM F9
+            WHEN 154: PROCcommands   : REM F10
+            WHEN 155: out$ += CHR$(13) : REM F11
+            WHEN 35:  out$ += "_"
+            WHEN 95:  out$ += "`"
+            WHEN 194: out$ += "#"
+            OTHERWISE: out$ += CHR$(K%)
+          ENDCASE
+        UNTIL K%=TRUE
+        IF out$ <> "" downloading% = FALSE : PROCout(out$)
+        
+        REM Handle input from telnet:
+        REPEAT
+          C% = FNin(Socket%)
+          CASE C% OF
+            WHEN -1
+            WHEN 12,13,30: VDU C%
+            WHEN 8: IF POS=0 IF VPOS=0 VDU 31,39,23 ELSE VDU 8
+            WHEN 9: IF POS=39 IF VPOS=23 VDU 30 ELSE VDU 9
+            WHEN 10: IF VPOS<23 VDU 10 ELSE VDU 31,POS,0
+            WHEN 11: IF VPOS>0 VDU 11 ELSE VDU 31,POS,23
+            WHEN 17: ON  : PROCoskon
+            WHEN 20: OFF : PROCoskoff
+            WHEN 27: REPEAT C% = FNin(Socket%) UNTIL C% <> TRUE : C% = C% AND &1F OR &80
+              IF BB4W IF C%=&81 OR C%=&8D OR C%=&8F C% AND= &7F
+              VDU 27,C% : scan% = TRUE : IF POS=40 IF VPOS=23 VDU 30
+            WHEN 28:
+              REPEAT Y% = FNin(Socket%) UNTIL Y% <> TRUE
+              REPEAT X% = FNin(Socket%) UNTIL X% <> TRUE
+              IF X%>=&40 IF Y%>=&40 IF X%<&80 IF Y%<&80 VDU 31,X% AND &3F,Y% AND &3F
+            WHEN 255: REM IAC
+              CASE FNin(Socket%) OF
+                WHEN 251: REM WILL
+                  option% = FNin(Socket%)
+                WHEN 252: REM WON'T
+                  option% = FNin(Socket%)
+                WHEN 253: REM DO
+                  option% = FNin(Socket%)
+                WHEN 254: REM DON'T
+                  option% = FNin(Socket%)
+              ENDCASE
+            OTHERWISE: IF C% >= 32 VDU 27,C% OR &80 : IF POS=40 IF VPOS=23 VDU 30
+          ENDCASE
+        UNTIL C%=-1
+        
+        REM Duplicate double-height rows if necessary:
+        IF scan% THEN
+          scan% = FALSE
+          PROCscan
+          *refresh
+        ENDIF
+        
+        REM If downloading telesoftware process (possibly incomplete) frame:
+        IF downloading% PROCtelesoft(downloading%)
+        
+      UNTIL FALSE
+      END
+      
+      REM!Eject Procedures to handle items in command menu
+      
+      REM Reveal 'hidden' text:
+      DEF PROCreveal:LOCAL N%,X%,Y%
+      X%=POS:Y%=VPOS
+      FOR N%=0 TO 24*40-1
+        IF GET(N%MOD40,N%DIV40)=&98 VDU 31,N%MOD40,N%DIV40,27,&9B
+      NEXT
+      PRINT TAB(X%,Y%);
+      ENDPROC
+      
+      REM Conceal 'hidden' text:
+      DEF PROCconceal:LOCAL N%,X%,Y%
+      X%=POS:Y%=VPOS
+      FOR N%=0 TO 24*40-1
+        IF GET(N%MOD40,N%DIV40)=&9B VDU 31,N%MOD40,N%DIV40,27,&98
+      NEXT
+      PRINT TAB(X%,Y%);
+      ENDPROC
+      
+      REM Alternately show control codes as mnemonics or action them:
+      DEF PROCshowcodes
+      LOCAL C%,N%,X%,Y%,save$
+      PRIVATE show%
+      show% = NOT show%
+      X%=POS:Y%=VPOS
+      FOR N% = 0 TO 25*40-1
+        C% = GET(N%MOD40, N%DIV40) OR &80
+        IF BB4W IF C%=&81 OR C%=&8D OR C%=&8F C% AND= &7F
+        save$ += CHR$(27) + CHR$(C%)
+      NEXT
+      IF show% THEN
+        @vdu.m.a& = 6
+      ELSE
+        @vdu.m.a& = 7
+      ENDIF
+      VDU 28,0,24,39,0,20,17,15,12
+      PRINT save$;TAB(X%,Y%);
+      VDU 28,0,23,39,0
+      ENDPROC
+      
+      REM Download and (try to) run telesoftware:
+      DEF PROCtelesoft(RETURN more%)
+      LOCAL F%, I%, stat&, frame&, temp&, temp$, message$()
+      PRIVATE wanted&, offset&, timeout%, retries%, name$, soft$
+      IF timeout% = 0 timeout% = 20
+      IF retries% = 0 retries% = 5
+      DIM message$(4)
+      IF more% = TRUE THEN offset& = 0 : wanted& = 0
+      frame& = wanted&
+      temp& = offset&
+      temp$ = FNframe(frame&, temp&, stat&)
+      CASE TRUE OF
+        WHEN stat& > 1: REM No telesoftware, or incomplete frame, or checksum error
+          IF more% = TRUE IF stat& AND %00010 more% = 0 : ENDPROC : REM Not the start frame
+          timeout% -= 1
+          IF timeout% <= 0 THEN
+            timeout% = 20
+            retries% -= 1
+            IF retries% THEN
+              CLS
+              PROCout("*00") : REM Request repeat
+            ELSE
+              message$(1) = ""
+              message$(2) = "Too many retries: download aborted"
+              message$(3) = ""
+              IF FNmessage(message$())
+              more% = 0
+            ENDIF
+          ENDIF
+          ENDPROC
+        WHEN more% = TRUE :    REM Start frame:
+          I% = INSTR(temp$, CHR$&D)
+          name$ = LEFT$(temp$, I%-1)
+          more% = VALMID$(temp$, I%+1)
+          IF more% = 999 more% = &7FFFFFFF
+          IF I% = 0 OR name$ = "" more% = 0
+          I% = INSTR(name$, "/")
+          IF I% MID$(name$, I%, 1) = "."
+          offset& = 0
+          IF frame& wanted& = frame& + 1
+          timeout% = 20
+          retries% = 5
+          soft$ = ""
+        WHEN wanted& <> 0 AND frame& < wanted&: REM Request next frame
+          CLS
+          PROCout("_") :
+          ENDPROC
+        WHEN wanted& <> 0 AND frame& > wanted&: REM Request previous frame
+          CLS
+          PROCout("*_")
+          ENDPROC
+        OTHERWISE : REM good frame
+          soft$ += temp$
+          offset& = temp&
+          IF stat& = 1 THEN
+            
+            REM Save downloaded file:
+            F% = OPENOUT(@usr$ + name$ + ".dat")
+            BPUT #F%,soft$;
+            CLOSE #F%
+            
+            REM Try converting from Acorn format:
+            IF LEN(soft$) < 1000000 THEN
+              temp$ = FNconvertacorn(soft$)
+              IF FNvalidbbc(soft$) > LEN(temp$) temp$ = soft$
+            ELSE
+              temp$ = ""
+            ENDIF
+            soft$ = ""
+            
+            message$(1) = "Telesoftware data saved as:"
+            message$(2) = LEFT$(@usr$, 30-LENname$) + "..." + name$ + ".dat"
+            message$(3) = "Press a key or tap to continue"
+            IF temp$ <> "" message$(3) = "Run this BBC BASIC program: No / Yes?"
+            
+            REM If either Acorn or .BBC format, ask whether to run program:
+            
+            IF FNmessage(message$()) AND temp$ <> "" THEN
+              F% = OPENOUT(@tmp$ + name$)
+              BPUT #F%,temp$;
+              CLOSE #F%
+              
+              PROCcleanup
+              VDU 28,0,24,39,0,12
+              ON
+              CHAIN @tmp$ + name$
+            ENDIF
+            
+            more% = 0
+          ELSE
+            more% -= 1
+            IF frame& wanted& = frame& + 1
+            IF wanted& >= 27 wanted& = 1
+          ENDIF
+      ENDCASE
+      IF more% PROCout("_") : retries% = 5 : timeout% = 20 : REM Request next page
+      ENDPROC
+      
+      REM Export the current frame to edit.tf:
+      DEF PROCexport
+      LOCAL I%,N%,X%,Y%,t%%,h$,s$
+      s$ = "0:"
+      h$ = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+      X%=POS:Y%=VPOS:VDU30
+      FOR N% = 0 TO 24*40-5 STEP 6
+        FOR I% = 0 TO 5
+          t%% = t%% <<< 7
+          t%% OR= FNget(N%+I%)
+        NEXT
+        FOR I% = 0 TO 6
+          t%% = t%% <<< 6
+          s$ += MID$(h$,((t%% >> 42) AND &3F) + 1,1)
+        NEXT
+      NEXT
+      PRINT TAB(X%,Y%);
+      PROCopenurl("https://edit.tf#" + s$)
+      ENDPROC
+      
+      REM Dump as a graphics image (BMP file)
+      DEF PROCdump
+      LOCAL C%,N%,X%,Y%,name$,message$()
+      DIM message$(4)
+      X%=POS:Y%=VPOS
+      FOR N% = 0 TO 39
+        C% = GET(N%MOD40,N%DIV40) AND &7F
+        IF C% > 32 IF C% < 127 IF C% <> 58 IF C% <> 47 IF C% <> 92 name$ += CHR$(C%)
+      NEXT
+      OSCLI "GSAVE """ + @usr$ + name$ + """ 0,40,1280,960"
+      message$(1) = "Frame saved as a bitmap image to:"
+      message$(2) = LEFT$(@usr$, 30-LENname$) + "..." + name$ + ".bmp"
+      message$(3) = "Press a key or tap to continue"
+      C% = FNmessage(message$())
+      PRINT TAB(X%,Y%);
+      ENDPROC
+      
+      REM Load frame from raw data file @usr$ + "telstar.vdt":
+      DEF PROCload
+      LOCAL F%,N%
+      F% = OPENIN(@usr$ + "telstar.vdt")
+      IF F% = 0 ENDPROC
+      CLS
+      FOR N% = 1 TO 40*24 : VDU BGET#F% OR &80 : NEXT
+      CLOSE #F%
+      ENDPROC
+      
+      REM Save as raw data:
+      DEF PROCsave
+      LOCAL C%,F%,N%,X%,Y%,name$,save$,message$()
+      DIM message$(4)
+      X%=POS:Y%=VPOS
+      FOR N% = 0 TO 24*40-1
+        C% = GET(N%MOD40,N%DIV40) AND &7F : save$ += CHR$(C%)
+        IF N%<40 IF C%>32 IF C%<127 IF C%<>58 IF C%<>47 IF C%<>92 name$ += CHR$(C%)
+      NEXT
+      F% = OPENOUT(@usr$ + name$ +  ".vdt")
+      BPUT#F%,save$;
+      CLOSE #F%
+      message$(1) = "Frame saved as raw data to:"
+      message$(2) = LEFT$(@usr$, 30-LENname$) + "..." + name$ + ".vdt"
+      message$(3) = "Press a key or tap to continue"
+      C% = FNmessage(message$())
+      PRINT TAB(X%,Y%);
+      ENDPROC
+      
+      REM Display command menu:
+      DEF PROCcommands
+      LOCAL choose%,command$()
+      DIM command$(9)
+      command$() = " Cancel", " Reveal hidden text (f1)", " Conceal hidden text (f2)", \
+      \ " Show control codes (toggle, f3)",  " Load frame as raw data (f4)", \
+      \ " Download telesoftware (f5)", " Export frame to 'edit.tf' (f6)", \
+      \ " Save frame as raw data (f7)", " Dump frame as graphics (f8)", " Disconnect (f9)"
+      choose% = FNmenu(command$(), "Command menu")
+      IF choose% IF command$(choose%) <> "" Touch$ += CHR$(choose% + 144)
+      ENDPROC
+      
+      REM!Eject Support functions
+      
+      REM Open a URL in the default browser:
+      DEF PROCopenurl(url$)
+      IF BB4W THEN
+        SYS "ShellExecute", @hwnd%, "open", url$, 0, 0, 1
+      ELSE
+        CASE @platform% AND &F OF
+          WHEN 0:
+            SYS "system", "start " + url$ + "&"
+          WHEN 1:
+            SYS "system", "xdg-open " + url$ + "&"
+          WHEN 2:
+            SYS "system", "open " + url$ + "&"
+        ENDCASE
+      ENDIF
+      ENDPROC
+      
+      REM Display a menu of up to 10 items:
+      DEF FNmenu(menu$(), title$)
+      LOCAL B%,K%,N%,P%,X%,Y%,savevdu{},save$
+      ON MOUSE LOCAL OFF
+      DIM savevdu{} = @vdu{}
+      P% = POS : savevdu{} = @vdu{} : P% = POS
+      VDU 28,0,24,39,0
+      FOR N% = 0 TO 25*40-1
+        save$ += CHR$27 + CHR$GET(N%MOD40,N%DIV40)
+      NEXT
+      CLS
+      title$ = CHR$27+CHR$29+CHR$27+CHR$13+CHR$27+CHR$4+STRING$(17-LEN(title$)/2, " ")+title$
+      PRINT TAB(0,0) title$;
+      PRINT TAB(0,1) title$;
+      FOR N% = 1 TO 10
+        PRINT TAB(0,N%*2+1) CHR$27 CHR$3 ;N% MOD 10; "." menu$(N% MOD 10);
+      NEXT
+      PRINT TAB(0,23) CHR$27 CHR$6 CHR$27 CHR$13 "Key a number or tap on the selection";
+      PRINT TAB(0,24) CHR$27 CHR$6 CHR$27 CHR$13 "Key a number or tap on the selection";
+      N% = -1
+      REPEAT
+        WAIT 2
+        MOUSE X%,Y%,B%
+      UNTIL B% = 0
+      REPEAT
+        K% = INKEY(2)
+        IF K%<>TRUE N% = K% - 48
+        IF K%>=145 IF K%<=154 N% = K%-144
+        MOUSE X%,Y%,B%
+        IF B% N% = (1000 - Y%) DIV 80 MOD 10
+      UNTIL N% >= 0 AND N% <= 9
+      CLS : PRINT save$;
+      P% = POS : @vdu{} = savevdu{} : P% = POS
+      = N%
+      
+      DEF FNmessage(msg$())
+      LOCAL B%,I%,K%,N%,X%,Y%,save$
+      ON MOUSE LOCAL OFF
+      FOR N% = 0 TO 24*40-1
+        save$ += CHR$27 + CHR$GET(N%MOD40,N%DIV40)
+      NEXT
+      N% = DIM(msg$(),1)
+      FOR I% = 0 TO N%
+        PRINT TAB(0,12 - N%DIV 2 + I%) CHR$157; CHR$132; msg$(I%) SPC(38-LENmsg$(I%));
+      NEXT
+      REPEAT
+        WAIT 2
+        MOUSE X%,Y%,B%
+      UNTIL B% = 0
+      REPEAT
+        K% = INKEY(2)
+        MOUSE X%,Y%,B%
+      UNTIL K%<>TRUE OR B%
+      Touch$ = ""
+      PRINT TAB(0,0)save$;
+      = (K% = ASC"Y") OR (K% = ASC"y") OR (B% <> 0) AND (X% > 1050)
+      
+      REM Enable or disable On Screen Keyboard, but only on a mobile device:
+      DEF PROCoskon
+      IF NOT BB4W IF (@platform% AND 7)>2 THEN *osk on
+      ENDPROC
+      
+      DEF PROCoskoff
+      IF NOT BB4W IF (@platform% AND 7)>2 THEN *osk off
+      ENDPROC
+      
+      REM Output a string to the telnet stream:
+      DEF PROCout(s$)
+      LOCAL R%
+      IF s$="" ENDPROC
+      R% = FN_writesocket(Socket%, PTR(s$), LEN(s$))
+      IF R% < 0 THEN PROCerror("Send failed")
+      ENDPROC
+      
+      REM Input a character from the telnet stream:
+      DEF FNin(S%)
+      LOCAL C%
+      PRIVATE N%, b%%, p%%
+      IF b%% = FALSE DIM b%% BUFLEN
+      IF N%=FALSE THEN
+        p%% = b%%
+        N% = FN_readsocket(S%, b%%, BUFLEN)
+        IF N%=TRUE THEN PROCerror("Connection closed")
+      ENDIF
+      IF N%=FALSE THEN = TRUE
+      C% = ?p%% AND &7F
+      p%% += 1
+      N% -= 1
+      = C%
+      
+      REM Duplicate rows containing a double-height character:
+      DEF PROCscan:LOCAL N%,R%,X%,Y%,o$
+      X%=POS:Y%=VPOS
+      FOR R%=0 TO 23
+        o$ = ""
+        FOR N%=0 TO 39 : o$ += CHR$27 + CHR$GET(N%,R%) : NEXT
+        IF INSTR(o$,CHR$&8D) OR INSTR(o$,CHR$&D) IF R% < 23 R% += 1 : PRINT TAB(0,R%) o$;
+      NEXT R%
+      VDU 31,X%,Y%;
+      REM In BB4W draw &90 ('DL') and &9D ('NB') characters:
+      IF BB4W IF @vdu.m.a& = 6 THEN
+        @vdu.d.x% = 1 : @vdu.d.y% = 1
+        FOR Y% = 0 TO 24
+          FOR X% = 0 TO 39
+            N% = GET(X%,Y%) AND &7F
+            IF N% = 29 VDU 5,25,4,X%*32+2;998-Y%*40;32,25,0,-20;-14;33,8,27,157,4
+            IF N% = 16 VDU 5,25,4,X%*32+2;998-Y%*40;34,25,0,-20;-14;35,8,27,144,4
+          NEXT
+        NEXT Y%
+        @vdu.d.x% = 2 : @vdu.d.y% = 2
+      ENDIF
+      ENDPROC
+      
+      REM Report an error in the bottom row and wait until closed:
+      DEF PROCerror(s$)
+      LOCAL B%,K%,X%,Y%
+      VDU 28,0,24,39,0
+      PRINT TAB(0,24) CHR$157 CHR$129 s$ ", tap or press a key" STRING$(18-LEN(s$), " ");
+      PROCscan
+      PROCoskoff
+      REPEAT
+        K% = INKEY(2)
+        MOUSE X%,Y%,B%
+      UNTIL K% <> TRUE OR B%
+      PROCcleanup
+      RUN
+      
+      REM Process mouse clicks and taps:
+      DEF PROCmouse
+      LOCAL X%, Y%, B%
+      MOUSE X%, Y%, B%
+      IF Y% < 60 THEN
+        CASE TRUE OF
+          WHEN X% < 160:  Touch$ += "*"
+          WHEN X% > 1120: Touch$ += "#"
+          OTHERWISE: Touch$ += CHR$(&30 + (X% - 64) DIV 96 MOD 10)
+        ENDCASE
+      ELSE
+        Touch$ += CHR$(154)
+      ENDIF
+      ENDPROC
+      
+      REM Cleanup after an error or clicking Close:
+      DEF PROCcleanup
+      PROC_exitsockets
+      ENDPROC
+      
+      REM Extract encoded data (e.g. telesoftware) from a frame:
+      REM Bits in stat& are as follows:
+      REM  bit 0: End-of-file (|F) detected
+      REM  bit 1: Awaiting |A
+      REM  bit 2: Awaiting |I
+      REM  bit 3: Awaiting |Z
+      REM  bit 4: Checksum error
+      REM  bit 7: | detected
+      DEF FNframe(RETURN frame&, RETURN offset&, RETURN stat&)
+      LOCAL ch&, bcc&, dst$, P%
+      stat& = %1010 : REM awaiting |A and |Z
+      FOR P% = 40 TO 24*40-1
+        ch& = FNget(P%)
+        bcc& EOR= ch& : REM update check code
+        IF stat& AND &80 THEN
+          stat& AND= &7F
+          IF ch& = ASC"A" OR (stat& AND %0010)=0 THEN
+            CASE ch& OF
+              WHEN &30,&32,&33,&34,&35: offset& = ch& << 5
+              WHEN &31:    offset& = 192
+              WHEN ASC"A": stat& = %1000 : bcc& = 0 : dst$ = ""
+              WHEN ASC"}": dst$ += "}"
+              WHEN ASC"E": dst$ += "|"
+              WHEN ASC"L": dst$ += CHR$13
+              WHEN ASC"F": stat& OR= %0001 : REM end-of-file
+              WHEN ASC"I": stat& AND= NOT %0100
+              WHEN ASC"G": stat& OR= %0100 : P% += 1
+                ch& = FNget(P%)
+                bcc& EOR= ch& : REM update check code
+                frame& = ch& AND &1F
+              WHEN ASC"Z": stat& AND= NOT %1000
+                bcc& EOR= ch& EOR ASC"|"
+                bcc& EOR= 100*(FNget(P%+1)AND&F) + 10*(FNget(P%+2)AND&F) + (FNget(P%+3)AND&F)
+                IF bcc& THEN stat& OR= %10000
+                EXIT FOR
+              OTHERWISE: stat& OR= %0100 : REM unrecognised sequence
+            ENDCASE
+          ENDIF
+        ELSE
+          IF ch& = ASC"|" THEN
+            stat& OR= &80
+          ELSE
+            IF (stat& AND %1111) = %1000 THEN
+              IF ch& = ASC"}" ch& = 32
+              dst$ += CHR$(ch& + offset&)
+            ENDIF
+          ENDIF
+        ENDIF
+      NEXT P%
+      = dst$
+      
+      DEF FNget(P%) = GET(P% MOD 40, P% DIV 40) AND &7F
+      
+      REM Convert from acorn tokenised format to .bbc format:
+      DEF FNconvertacorn(prog$)
+      LOCAL h&,l&,n&,lin$,bbc$
+      REPEAT
+        IF ASCprog$ <> &D THEN = "" : REM Not Acorn format
+        h& = ASCMID$(prog$,2) : l& = ASCMID$(prog$,3) : n& = ASCMID$(prog$,4)
+        IF h& = &FF bbc$ += CHR$0 + CHR$&FF + CHR$&FF : EXIT REPEAT
+        lin$ = $(PTR(prog$) + 4) : prog$ = MID$(prog$, n& + 1)
+        WHILE ASClin$ = &20 lin$ = MID$(lin$,2) : n& -= 1 : ENDWHILE
+        bbc$ += CHR$n& + CHR$l& + CHR$h& + lin$ + CHR$&D
+      UNTIL FALSE
+      = bbc$
+      
+      REM Check for valid .BBC tokenised format:
+      DEF FNvalidbbc(prog$)
+      LOCAL n&,L%
+      REPEAT
+        n& = ASCprog$ : IF n& = 0 L% += 3 : EXIT REPEAT
+        IF n& <> INSTR(prog$, CHR$&D, 4) THEN = 0
+        prog$ = MID$(prog$, n&+1) : L% += n&
+      UNTIL FALSE
+      = L%
+      

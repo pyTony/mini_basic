@@ -1,0 +1,113 @@
+      REM. Demonstration of anti-aliased graphics library for BBC BASIC for SDL 2.0
+      INSTALL @lib$ + "aagfxlib"
+      
+      LineEndTriangle = 1
+      LineEndRound = 2
+      LineEndArrow = 3
+      
+      LineStartTriangle = &100
+      LineStartRound = &200
+      LineStartArrow = &300
+      
+      LineDot = &10000
+      LineDash = &20000
+      LineDashDot = &30000
+      
+      ON ERROR OSCLI "REFRESH ON" : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      
+      VDU 23,22,640;480;8,16,16,128
+      OFF
+      
+      *REFRESH OFF
+      REPEAT
+        angle += 0.01
+        
+        CLS
+        
+        REM Near-horizontal line to demonstrate antialiasing
+        pencolour% = &FF0000FF : REM. Opaque red
+        penstyle% = LineStartArrow + LineEndArrow
+        penwidth = 4.0
+        PROC_aaline(0, 200, 1280, 210, penwidth, pencolour%, penstyle%)
+        
+        REM Near vertical line to demonstrate antialiasing
+        pencolour% = &FF008000 : REM. Opaque dark green
+        penstyle% = LineEndTriangle + LineDashDot
+        penwidth = 2.5
+        PROC_aaline(200, 0, 210, 960, penwidth, pencolour%, penstyle%)
+        
+        REM Thick lines to illustrate end-point options
+        pencolour% = &FF0080C0 : REM brown
+        penstyle% = LineEndRound + LineStartArrow
+        penwidth = 16.0
+        PROC_aaline(100, 400, 90, 800, penwidth, pencolour%, penstyle%)
+        pencolour% = &50FF0000 : REM translucent blue
+        penstyle% = LineEndTriangle
+        PROC_aaline(500, 100, 900, 90, penwidth, pencolour%, penstyle%)
+        
+        REM Cubic Bezier curve from four control points
+        pencolour% = &FFFF0000 : REM. Opaque blue
+        penstyle% = LineStartRound + LineEndArrow
+        penwidth = 5.0
+        PROC_aabezier(20, 20, 200, 200, 400, 600, 800, 600, penwidth, pencolour%, penstyle%)
+        
+        REM Ellipse made from 360-degree arc
+        pencolour% = &A00080FF : REM. Translucent orange
+        penstyle% = LineStartArrow + LineEndArrow
+        penwidth = 3.0
+        PROC_aaarc(500, 500, 150, 100, DEG(angle), 360, penwidth, pencolour%, penstyle%)
+        LINE 500, 500, 500, 500
+        
+        REM Filled sector, 3/4 of an ellipse
+        brushcolour% = &FFFF00FF : REM. Opaque magenta
+        PROC_aasector(900, 800, 100, 150, 90+DEG(angle), 270, brushcolour%)
+        LINE 900, 800, 900, 800
+        
+        REM Filled five-pointed star (alternate)
+        brushcolour% = &FF808080 : REM. Opaque grey
+        DIM X(4), Y(4)
+        X() = 1100,900,1060,1000,940
+        Y() = 430,430,320,500,320
+        PROC_aapolygon(5, X(), Y(), brushcolour%)
+        
+        REM Square drawn with polyline
+        pencolour% = &FF000000 : REM. Opaque black
+        penstyle% = LineEndArrow + LineStartArrow
+        penwidth = 6.0
+        DIM xx(4), yy(4)
+        x = 600 : y = 800
+        FOR I% = 0 TO 3
+          xx(I%) = x + 80 * COS(I% * PI / 2 + angle / 2)
+          yy(I%) = y + 80 * SIN(I% * PI / 2 + angle / 2)
+        NEXT
+        xx(4) = xx(0) : yy(4) = yy(0)
+        PROC_aapolyline(5, xx(), yy(), penwidth, pencolour%, penstyle%)
+        
+        REM Angled outline ellipse
+        pencolour% = &FF00C000 : REM. Opaque bright green
+        penwidth = 2.0
+        PROC_aaellipse(350, 800, 70, 100, penwidth, -angle, pencolour%)
+        x = 70 * COS(2 * angle) : y = 100 * SIN(2 * angle)
+        xx = x * COS(angle) + y * SIN(angle) : yy = y * COS(angle) - x * SIN(angle)
+        PROC_aaline(350, 800, 350 + xx, 800 + yy, 2.5, &80C000C0, &20202)
+        
+        REM Angled solid ellipse
+        brushcolour% = &C0808000 : REM. Cyan
+        PROC_aaellipsefill(1100, 600, 50, 140, angle, brushcolour%)
+        
+        REM Heart shape from polybezier
+        pencolour% = &FF2B39C0 : REM. opaque red
+        brushcolour% = &200000FF : REM. pink
+        penstyle% = LineEndTriangle + LineStartTriangle
+        penwidth = 3.0
+        x = 750 : y = 330
+        DIM x(12), y(12)
+        x() = x, x,    x-100, x-100, x-100, x,    x,     x,    x+100, x+100, x+100, x,    x
+        y() = y, y+60, y+60,  y,     y-60,  y-70, y-110, y-70, y-60,  y,     y+60,  y+60, y
+        PROC_aafillbezier(13, x(), y(), brushcolour%)
+        PROC_aapolybezier(13, x(), y(), penwidth, pencolour%, penstyle%)
+        
+        *REFRESH
+        
+      UNTIL FALSE
+      END

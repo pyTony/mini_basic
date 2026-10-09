@@ -1,0 +1,1040 @@
+      REM "Rainbow Snake" by David Williams
+      REM 100% BASIC version by Richard Russell
+      REM Version 1.04 // 22-Sep-2020
+      
+      F% = OPENIN(@lib$+"../examples/tools/touchide")
+      IF F% CLOSE #F% ELSE *ESC OFF
+      
+      MODE 8 : OFF
+      
+      ProgTitle$ = "Rainbow Snake"
+      ProgVer$   = "1.02"
+      
+      OSCLI "SYS 4"  : REM Effectively disable SDL_MULTIGESTURE (prevents zooming & panning)
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : PROCerror( REPORT$ + " at line " + STR$ERL )
+      
+      HIMEM = LOMEM + 8*&100000
+      HIMEM = (HIMEM + 3) AND -4
+      
+      ShowFPS% = FALSE : REM set to TRUE to display the frame rate during the game
+      
+      SYS "SDL_SetWindowTitle", @hwnd%, ProgTitle$ + " " + ProgVer$, @memhdc%
+      
+      ScrW% = 360 : REM Screen/window width in pixels
+      ScrH% = 540
+      
+      REM Set the dimensions for our main rendering surface:
+      VDU 26
+      IF POS REM SDL thread sync
+      IF @vdu%!212 / @vdu%!208 > ScrH% / ScrW% THEN
+        ScrH% = (ScrW% * @vdu%!212 / @vdu%!208 + 1) AND -2 : REM ensure ScrH% is divisible by 2
+      ELSE
+        ScrW% = (ScrH% * @vdu%!208 / @vdu%!212 + 1) AND -2 : REM ensure ScrW% is divisible by 2
+      ENDIF
+      
+      PROCFixWindowSize
+      
+      VDU 23, 22, ScrW%; ScrH%; 16, 16, 16, 0 : OFF
+      
+      REM Get addresses of API routines:
+      `SDL_GetTicks`           = FNGetProcAddress("SDL_GetTicks")
+      `SDL_LoadWAV_RW`         = FNGetProcAddress("SDL_LoadWAV_RW")
+      `SDL_QueueAudio`         = FNGetProcAddress("SDL_QueueAudio")
+      `SDL_ClearQueuedAudio`   = FNGetProcAddress("SDL_ClearQueuedAudio")
+      `SDL_PauseAudioDevice`   = FNGetProcAddress("SDL_PauseAudioDevice")
+      `SDL_RenderCopy`         = FNGetProcAddress("SDL_RenderCopy")
+      `SDL_RenderCopyEx`       = FNGetProcAddress("SDL_RenderCopyEx")
+      `SDL_SetTextureAlphaMod` = FNGetProcAddress("SDL_SetTextureAlphaMod")
+      `SDL_SetTextureColorMod` = FNGetProcAddress("SDL_SetTextureColorMod")
+      
+      REM Load the single, combined resource file (graphics, sound effects, etc.):
+      DataFile$ = @dir$ + "RainbowSnakeData.dat"
+      F% = OPENIN( DataFile$ )
+      IF F% = 0 THEN PROCerror( "Can't find file RainbowSnakeData.dat" )
+      S% = EXT#F%
+      CLOSE#F%
+      DIM Data%% S%+3
+      Data%% = (Data%% + 3) AND -4
+      *HEX 64
+      OSCLI "LOAD """ + DataFile$ + """ " + STR$~Data%%
+      
+      HiScoreFile$ = @usr$ + "rainbowsnakehiscore.DAT"
+      REM Load the 'Hi-Score' data file (or create a new one if it doesn't already exist):
+      HiScore% = 0
+      F% = OPENIN( HiScoreFile$ )
+      IF F% <> 0 THEN
+        INPUT#F%, HiScore%
+      ELSE
+        CLOSE#F%
+        F% = OPENOUT( HiScoreFile$ )
+        HiScore% = 10
+        PRINT#F%, HiScore%
+      ENDIF
+      CLOSE#F%
+      
+      REM Create 'rainbow' colour table from which the snake's body segments get their colour.
+      DIM ColTbl%(15)
+      ColTbl%(0)  = &FF0000
+      ColTbl%(1)  = &FF0065
+      ColTbl%(2)  = &FF00E1
+      ColTbl%(3)  = &D600FF
+      ColTbl%(4)  = &6D00FF
+      ColTbl%(5)  = &1000FF
+      ColTbl%(6)  = &003CFF
+      ColTbl%(7)  = &00B5FF
+      ColTbl%(8)  = &00FFF6
+      ColTbl%(9)  = &00FF9E
+      ColTbl%(10) = &00FF34
+      ColTbl%(11) = &11FF00
+      ColTbl%(12) = &76FF00
+      ColTbl%(13) = &E1FF00
+      ColTbl%(14) = &FFD300
+      ColTbl%(15) = &FF5D00
+      
+      REM Get the various bitmaps:
+      PROCGetBMP24(Data%%, "splashscreen",       SplashScreenBm{} )
+      PROCGetBMP24(Data%%, "startscreen",        StartScreenBm{} )
+      PROCGetBMP24(Data%%, "startbutton",        StartButtonBm{} )
+      PROCGetBMP24(Data%%, "snakehead",          SnakeHeadBm{} )
+      PROCGetBMP24(Data%%, "snakebody",          SnakeBodyBm{} )
+      PROCGetBMP24(Data%%, "strawb",             StrawbBm{} )
+      PROCGetBMP24(Data%%, "clockwisearrow",     ClockwiseArrowBm{} )
+      PROCGetBMP24(Data%%, "anticlockwisearrow", AnticlockwiseArrowBm{} )
+      PROCGetBMP24(Data%%, "particle",           ParticleBm{} )
+      PROCGetBMP24(Data%%, "point",              TrailDotBm{} )
+      PROCGetBMP24(Data%%, "digit_0_20x27",      ScoreDigit0Bm{} )
+      PROCGetBMP24(Data%%, "digit_1_20x27",      ScoreDigit1Bm{} )
+      PROCGetBMP24(Data%%, "digit_2_20x27",      ScoreDigit2Bm{} )
+      PROCGetBMP24(Data%%, "digit_3_20x27",      ScoreDigit3Bm{} )
+      PROCGetBMP24(Data%%, "digit_4_20x27",      ScoreDigit4Bm{} )
+      PROCGetBMP24(Data%%, "digit_5_20x27",      ScoreDigit5Bm{} )
+      PROCGetBMP24(Data%%, "digit_6_20x27",      ScoreDigit6Bm{} )
+      PROCGetBMP24(Data%%, "digit_7_20x27",      ScoreDigit7Bm{} )
+      PROCGetBMP24(Data%%, "digit_8_20x27",      ScoreDigit8Bm{} )
+      PROCGetBMP24(Data%%, "digit_9_20x27",      ScoreDigit9Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_0_26x37",   BigScoreDigit0Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_1_26x37",   BigScoreDigit1Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_2_26x37",   BigScoreDigit2Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_3_26x37",   BigScoreDigit3Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_4_26x37",   BigScoreDigit4Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_5_26x37",   BigScoreDigit5Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_6_26x37",   BigScoreDigit6Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_7_26x37",   BigScoreDigit7Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_8_26x37",   BigScoreDigit8Bm{} )
+      PROCGetBMP24(Data%%, "bigdigit_9_26x37",   BigScoreDigit9Bm{} )
+      PROCGetBMP24(Data%%, "eye",                EyeBm{} )
+      PROCGetBMP24(Data%%, "tongue",             TongueBm{} )
+      PROCGetBMP24(Data%%, "splash",             SplashBm{} )
+      PROCGetBMP24(Data%%, "score",              ScoreBm{} )
+      PROCGetBMP24(Data%%, "hiscore",            HiScoreBm{} )
+      PROCGetBMP24(Data%%, "welldone",           WellDoneBm{} )
+      PROCGetBMP24(Data%%, "canyoubeat",         CanYouBeatBm{} )
+      PROCGetBMP24(Data%%, "soundon",            SoundOnBm{} )
+      PROCGetBMP24(Data%%, "soundoff",           SoundOffBm{} )
+      
+      SoundFX% = TRUE
+      
+      DIM ss{w%%,s%,p%%}, SoundSample{ slurp{}=ss{}, hiss{}=ss{}, pop{}=ss{}, click{}=ss{}, ding{}=ss{} }
+      
+      REM .w%% --> WAV file address
+      REM .s%  --> size of WAV file
+      REM .p%% --> pointer to (possibly converted) WAV file
+      
+      SoundSample.slurp.w%% = FNGetDataAddr( Data%%, "slurp" )
+      SoundSample.slurp.s%  = FNGetDataChunkSize( Data%%, "slurp" )
+      SoundSample.hiss.w%%  = FNGetDataAddr( Data%%, "hiss" )
+      SoundSample.hiss.s%   = FNGetDataChunkSize( Data%%, "hiss" )
+      SoundSample.pop.w%%   = FNGetDataAddr( Data%%, "pop" )
+      SoundSample.pop.s%    = FNGetDataChunkSize( Data%%, "pop" )
+      SoundSample.click.w%% = FNGetDataAddr( Data%%, "click" )
+      SoundSample.click.s%  = FNGetDataChunkSize( Data%%, "click" )
+      SoundSample.ding.w%%  = FNGetDataAddr( Data%%, "ding" )
+      SoundSample.ding.s%   = FNGetDataChunkSize( Data%%, "ding" )
+      
+      IF @platform% AND &40 THEN
+        DIM AudioSpec{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%%, userdata%%}
+      ELSE
+        DIM AudioSpec{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%, userdata%}
+      ENDIF
+      AudioSpec.freq% = 44100
+      AudioSpec.format.h& = &80 : REM AUDIO_S16LSB
+      AudioSpec.format.l& = &10
+      AudioSpec.channels& = 2
+      
+      SoundSample.slurp.p%% = FNLoadSoundFromMem( SoundSample.slurp.w%%, SoundSample.slurp.s% )
+      SoundSample.hiss.p%%  = FNLoadSoundFromMem( SoundSample.hiss.w%%,  SoundSample.hiss.s%  )
+      SoundSample.pop.p%%   = FNLoadSoundFromMem( SoundSample.pop.w%%,   SoundSample.pop.s%   )
+      SoundSample.click.p%% = FNLoadSoundFromMem( SoundSample.click.w%%, SoundSample.click.s% )
+      SoundSample.ding.p%%  = FNLoadSoundFromMem( SoundSample.ding.w%%,  SoundSample.ding.s%  )
+      
+      DIM ScoreDigitBm%%(9)
+      ScoreDigitBm%%(0) = ScoreDigit0Bm{}.t%%
+      ScoreDigitBm%%(1) = ScoreDigit1Bm{}.t%%
+      ScoreDigitBm%%(2) = ScoreDigit2Bm{}.t%%
+      ScoreDigitBm%%(3) = ScoreDigit3Bm{}.t%%
+      ScoreDigitBm%%(4) = ScoreDigit4Bm{}.t%%
+      ScoreDigitBm%%(5) = ScoreDigit5Bm{}.t%%
+      ScoreDigitBm%%(6) = ScoreDigit6Bm{}.t%%
+      ScoreDigitBm%%(7) = ScoreDigit7Bm{}.t%%
+      ScoreDigitBm%%(8) = ScoreDigit8Bm{}.t%%
+      ScoreDigitBm%%(9) = ScoreDigit9Bm{}.t%%
+      
+      DIM BigScoreDigitBm%%(9)
+      BigScoreDigitBm%%(0) = BigScoreDigit0Bm{}.t%%
+      BigScoreDigitBm%%(1) = BigScoreDigit1Bm{}.t%%
+      BigScoreDigitBm%%(2) = BigScoreDigit2Bm{}.t%%
+      BigScoreDigitBm%%(3) = BigScoreDigit3Bm{}.t%%
+      BigScoreDigitBm%%(4) = BigScoreDigit4Bm{}.t%%
+      BigScoreDigitBm%%(5) = BigScoreDigit5Bm{}.t%%
+      BigScoreDigitBm%%(6) = BigScoreDigit6Bm{}.t%%
+      BigScoreDigitBm%%(7) = BigScoreDigit7Bm{}.t%%
+      BigScoreDigitBm%%(8) = BigScoreDigit8Bm{}.t%%
+      BigScoreDigitBm%%(9) = BigScoreDigit9Bm{}.t%%
+      
+      DIM Dst{x%,y%,w%,h%}
+      
+      MaxTrailDots% = 200
+      DIM TrailDot{(MaxTrailDots%-1) active%, x%, y%, r&, g&, b&, opacity, d}
+      
+      MaxSegments% = 500
+      DIM segX(MaxSegments%-1), segY(MaxSegments%-1), segD(MaxSegments%-1)
+      segDist% = 12 : REM body segment separation distance
+      REM segD() is a segment's distance to the next body segment (will usually be equal to segDist%)
+      
+      MaxExpParticles% = 10 * MaxSegments%
+      DIM ExpParticleX( MaxExpParticles%-1 )
+      DIM ExpParticleY( MaxExpParticles%-1 )
+      DIM ExpParticleXV( MaxExpParticles%-1 )
+      DIM ExpParticleYV( MaxExpParticles%-1 )
+      DIM ExpParticleCol%( MaxExpParticles%-1 )
+      
+      NumFoodExpParticles% = 50
+      DIM FoodParticle{( NumFoodExpParticles% ) active%, x, y, dx, dy, scale, dscale }
+      
+      PROCShowBlankScreen(100)
+      PROCShowSplashScreen(300)
+      
+      REPEAT
+        PROCShowBlankScreen(50)
+        PROCStartScreen
+        PROCShowBlankScreen(50)
+        PROCMain
+      UNTIL FALSE
+      END
+      :
+      :
+      :
+      :
+      DEF PROCMain
+      
+      LOCAL A%, B%, C%, D%, E%, F%, G%, H%, I%, J%, K%, L%, M%
+      LOCAL N%, O%, P%, Q%, R%, S%, T%, U%, V%, W%, X%, Y%, Z%
+      LOCAL dead%, frames%, frameRate%, flushKbBuf%
+      LOCAL Time%, time0%, time00%, dt
+      LOCAL score%, segments%
+      LOCAL dx, dy, dxn, dyn, d, l
+      LOCAL snake{}, food{}, welldone{}, tongue{}
+      
+      DIM snake{ x, y, angle, speed }
+      DIM food{new%, delay%, active%, x%, y%, scale, dscale, ddscale}
+      DIM welldone{active%, theta, dtheta}
+      DIM tongue{active%, delay%, theta, dtheta}
+      
+      PROCResetSnake
+      
+      dead% = FALSE
+      
+      frames% = 0
+      frameRate% = 0
+      
+      flushKbBuf% = 0
+      
+      welldone.active% = FALSE
+      welldone.theta = 0
+      welldone.dtheta = 0.5
+      
+      hiscorebeaten% = FALSE
+      
+      tongue.active% = FALSE
+      tongue.delay% = 0
+      tongue.theta = 0
+      tongue.dtheta = 4.0
+      
+      FOR I% = 0 TO MaxTrailDots%-1
+        TrailDot{(I%)}.active% = FALSE
+      NEXT I%
+      pointindex% = 0
+      
+      
+      *REFRESH OFF
+      
+      SYS `SDL_GetTicks` TO time0%
+      time00% = time0%
+      
+      REPEAT
+        
+        SYS `SDL_GetTicks` TO Time%
+        dt = (Time% - time0%) / 500
+        time0% = Time%
+        
+        REM Enter a CPU-friendly spin loop if window loses focus:
+        IF NOT FNCheckForWindowFocus THEN
+          SYS `SDL_GetTicks` TO time0%
+          *REFRESH OFF
+        ENDIF
+        
+        REM Clear screen:
+        COLOR 1,16,36,120 : COLOR 128+1 : CLS
+        
+        REM Draw the fading colour 'points' shed by the snake segments:
+        Dst.w% = TrailDotBm.w%
+        Dst.h% = TrailDotBm.h%
+        FOR I% = 0 TO MaxTrailDots%-1
+          IF TrailDot{(I%)}.active% THEN
+            Dst.x% = TrailDot{(I%)}.x%
+            Dst.y% = ScrH% - Dst.h% - TrailDot{(I%)}.y%
+            SYS `SDL_SetTextureColorMod`, TrailDotBm.t%%, TrailDot{(I%)}.r&, TrailDot{(I%)}.g&, TrailDot{(I%)}.b&
+            SYS `SDL_SetTextureAlphaMod`, TrailDotBm.t%%, INT(TrailDot{(I%)}.opacity)
+            SYS `SDL_RenderCopy`, @memhdc%, TrailDotBm.t%%, FALSE, Dst{}
+            TrailDot{(I%)}.opacity -= TrailDot{(I%)}.d * dt
+            IF TrailDot{(I%)}.opacity <= 0 THEN
+              TrailDot{(I%)}.active% = FALSE
+            ENDIF
+          ENDIF
+        NEXT
+        
+        REM Update snake segment positions:
+        FOR I% = segments%-1 TO 1 STEP -1
+          dx = segX(I%-1) - segX(I%)
+          dy = segY(I%-1) - segY(I%)
+          l = SQR( dx^2 + dy^2 )
+          dxn = dx / l
+          dyn = dy / l
+          d = segD(I%)
+          segX(I%-1) = segX(I%) + d*dxn
+          segY(I%-1) = segY(I%) + d*dyn
+          IF d < segDist% THEN
+            segD(I%) += 5.0 * dt
+          ENDIF
+        NEXT
+        
+        REM Handle our snake's tongue:
+        IF tongue.active% THEN
+          r = 24 - 40*ABSSIN(tongue.theta)
+          scale = 0.3 : REM scale
+          angle# = DEG(snake.angle)
+          Dst.w% = TongueBm.w% * scale
+          Dst.h% = TongueBm.h% * scale
+          Dst.x% = segX(segments%-1) - r*SIN(snake.angle) - Dst.w%/2
+          Dst.y% = ScrH% - segY(segments%-1) + r*COS(snake.angle) - Dst.h%/2
+          IF @platform% AND &40 THEN
+            IF angle#=0 ?(^angle#+7)=&80
+            SYS `SDL_RenderCopyEx`, @memhdc%, TongueBm.t%%, FALSE, Dst{}, angle#, FALSE, FALSE
+          ELSE
+            SYS `SDL_RenderCopyEx`, @memhdc%, TongueBm.t%%, FALSE, Dst{}, !^angle#, !(^angle#+4), FALSE, FALSE
+          ENDIF
+          tongue.theta += tongue.dtheta * dt
+          IF tongue.theta > PI THEN
+            tongue.active% = FALSE
+          ENDIF
+        ELSE
+          IF Time% >= tongue.delay% THEN
+            IF (segX(segments%-1)-food.x%)^2 + (segY(segments%-1)-food.y%)^2 > 2000 THEN
+              PROCPlaySoundEffect( SoundSample.hiss.p%% )
+              tongue.active% = TRUE
+              tongue.delay% = Time% + 1000 + RND(4000)
+              tongue.theta = 0
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        REM Draw snake body segments (not the head):
+        Dst.w% = SnakeBodyBm.w%
+        Dst.h% = SnakeBodyBm.h%
+        M% = SQR(2 * (SnakeBodyBm.w%/2)^2)
+        S% = SnakeBodyBm.w%/2
+        FOR I% = 0 TO segments%-2
+          Dst.x% = segX(I%) - S%
+          Dst.y% = ScrH% - segY(I%) - S%
+          K% = ColTbl%(I% AND &F)
+          SYS `SDL_SetTextureColorMod`, SnakeBodyBm.t%%, K% >>> 16, (K% >> 8) AND &FF, K% AND &FF
+          SYS `SDL_RenderCopy`, @memhdc%, SnakeBodyBm.t%%, FALSE, Dst{}
+          IF RND(50)=1 THEN
+            J% = pointindex%
+            a = 2*PI*RND(1)
+            r = M%*RND(1)
+            TrailDot{(J%)}.active% = TRUE
+            TrailDot{(J%)}.x% = segX(I%) + r*SINa
+            TrailDot{(J%)}.y% = segY(I%) + r*COSa
+            TrailDot{(J%)}.r& = K% >>> 16
+            TrailDot{(J%)}.g& = (K% >> 8) AND &FF
+            TrailDot{(J%)}.b& = K% AND &FF
+            TrailDot{(J%)}.opacity = 255
+            TrailDot{(J%)}.d = 30 + 50*RND(1) : REM opacity decrement
+            pointindex% += 1
+            IF pointindex% = MaxTrailDots% THEN
+              pointindex% = 0
+            ENDIF
+          ENDIF
+        NEXT
+        
+        REM Draw the food and check for collisions with it:
+        IF food.active% THEN
+          PROCDrawFood
+          PROCHandleSnakeFoodCollision
+        ENDIF
+        
+        REM Draw the snake's head:
+        Dst.w% = SnakeHeadBm.w%
+        Dst.h% = SnakeHeadBm.w%
+        S% = SnakeHeadBm.w%/2
+        Dst.x% = segX(segments%-1) - S%
+        Dst.y% = ScrH% - segY(segments%-1) - S%
+        SYS `SDL_RenderCopy`, @memhdc%, SnakeHeadBm.t%%, FALSE, Dst{}
+        
+        REM Draw snake's eyes:
+        Dst.w% = EyeBm.w%
+        Dst.h% = EyeBm.h%
+        xx% = segX(segments%-1) - Dst.w%/2
+        yy% = segY(segments%-1) - Dst.h%/2
+        Dst.x% = xx% + 16*SIN(snake.angle-0.5)
+        Dst.y% = ScrH% - Dst.h% - yy% - 16*COS(snake.angle-0.5)
+        SYS `SDL_RenderCopy`, @memhdc%, EyeBm.t%%, FALSE, Dst{}
+        Dst.x% = xx% + 16*SIN(snake.angle+0.5)
+        Dst.y% = ScrH% - Dst.h% - yy% - 16*COS(snake.angle+0.5)
+        SYS `SDL_RenderCopy`, @memhdc%, EyeBm.t%%, FALSE, Dst{}
+        
+        REM Create new food if food.new% flag is true, and time delay has expired:
+        IF food.new% THEN
+          IF food.delay% < Time% THEN
+            PROCNewFood
+          ENDIF
+        ENDIF
+        
+        dir% = 0 : REM 0 = no direction button pressed, 1 = anticlockwise, 2 = clockwise
+        
+        PROCDrawCtrlButtons
+        REM Check if arrow buttons have been clicked on/pressed:
+        MOUSE msX%, msY%, msBtn%
+        IF msBtn% <> 0 THEN
+          msX% /= 2
+          msY% /= 2
+          REM check left direction (anticlockwise rotation) button:
+          X% = AnticlockwiseArrowBm.w%/2
+          Y% = (ScrH% DIV 3) + AnticlockwiseArrowBm.h%/2
+          IF (msX% - X%)^2 + (msY% - Y%)^2 < 64^2 THEN
+            dir% = 1
+          ELSE
+            REM check right direction (clockwise rotation) button:
+            X% = ScrW% - ClockwiseArrowBm.w%/2
+            Y% = (ScrH% DIV 3) + ClockwiseArrowBm.h%/2
+            IF (msX% - X%)^2 + (msY% - Y%)^2 < 64^2 THEN
+              dir% = 2
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        REM Check left arrow key:
+        IF INKEY-26 OR (dir% = 1) THEN
+          snake.angle -= 1.25 * dt
+        ENDIF
+        
+        REM Check right arrow key:
+        IF INKEY-122 OR (dir% = 2) THEN
+          snake.angle += 1.25 * dt
+        ENDIF
+        
+        REM Check for collision of snake head with body segments:
+        X% = segX(segments%-1)
+        Y% = segY(segments%-1)
+        D% = 16^2
+        FOR I% = segments%-5 TO 0 STEP -1
+          IF (X%-segX(I%))^2 + (Y%-segY(I%))^2 <= D% THEN
+            dead% = TRUE
+          ENDIF
+        NEXT
+        
+        REM Game over if snake head breaches the boundaries:
+        X% = segX(segments%-1)
+        Y% = segY(segments%-1)
+        IF X% < 0 OR X% >= ScrW% OR Y% < 0 OR Y% >= ScrH% THEN
+          dead% = TRUE
+        ENDIF
+        
+        segX(segments%-1) += snake.speed * SIN(snake.angle) * dt
+        segY(segments%-1) += snake.speed * COS(snake.angle) * dt
+        
+        FOR I% = 0 TO NumFoodExpParticles%-1
+          IF FoodParticle{(I%)}.active% THEN
+            S% = 32 * FoodParticle{(I%)}.scale
+            Dst.w% = S%
+            Dst.h% = S%
+            Dst.x% = FoodParticle{(I%)}.x - 0.5*S%
+            Dst.y% = ScrH% - FoodParticle{(I%)}.y - 0.5*S%
+            SYS `SDL_RenderCopy`, @memhdc%, SplashBm.t%%, FALSE, Dst{}
+            FoodParticle{(I%)}.x += FoodParticle{(I%)}.dx * dt
+            FoodParticle{(I%)}.y += FoodParticle{(I%)}.dy * dt
+            FoodParticle{(I%)}.scale -= FoodParticle{(I%)}.dscale * dt
+            IF FoodParticle{(I%)}.scale < 0.1 THEN
+              FoodParticle{(I%)}.active% = FALSE
+            ENDIF
+          ENDIF
+        NEXT
+        
+        PROCPrintScore
+        PROCPrintHiScore
+        IF ShowFPS% PROCPrintFPS
+        
+        IF score% > HiScore% AND hiscorebeaten% = FALSE THEN
+          PROCSaveHiScore( score% )
+          welldone.active% = TRUE
+          hiscorebeaten% = TRUE
+          PROCPlaySoundEffect( SoundSample.ding.p%% )
+        ENDIF
+        
+        IF welldone.active% THEN
+          scale = 0.1 + 0.9*SIN(welldone.theta)
+          Dst.w% = scale * WellDoneBm.w% : REM scaled width
+          Dst.h% = scale * WellDoneBm.h% : REM scaled height
+          Dst.x% = (ScrW% - Dst.w%)/2
+          Dst.y% = 0.4*ScrH% - Dst.h%/2
+          SYS `SDL_SetTextureAlphaMod`, WellDoneBm.t%%, INT(255*SQRscale) : REM opacity
+          SYS `SDL_RenderCopy`, @memhdc%, WellDoneBm.t%%, FALSE, Dst{}
+          IF welldone.theta <= PI/2 THEN
+            welldone.theta += 0.9 * welldone.dtheta * dt
+          ELSE
+            welldone.theta += welldone.dtheta * dt
+          ENDIF
+          IF welldone.theta >= PI THEN
+            welldone.active% = FALSE
+          ENDIF
+        ENDIF
+        
+        REM Display the canvas:
+        *REFRESH
+        
+        frames% += 1
+        
+        REM Flush keyboard buffer every 100 frames:
+        IF flushKbBuf% > 0 THEN
+          flushKbBuf% -= 1
+        ELSE
+          *FX 21,0
+          flushKbBuf% = 25
+        ENDIF
+        
+        IF Time% - time00% >= 1000 THEN
+          frameRate% = frames%
+          frames% = 0
+          SYS `SDL_GetTicks` TO time00%
+        ENDIF
+        
+        IF INKEY-113 dead% = TRUE
+        
+      UNTIL dead%
+      
+      IF dead% THEN PROCDead
+      
+      ENDPROC
+      
+      DEF PROCDead
+      LOCAL I%, J%, K%, N%, T%, X%, Y%, Z%, a, r, s
+      
+      PROCSaveHiScore( score% )
+      
+      IF score% > HiScore% THEN HiScore% = score%
+      
+      FOR I% = 0 TO segments%-1
+        X% = segX(I%)-4
+        Y% = segY(I%)-4
+        FOR J% = 1 TO 10
+          a = 2*PI*RND(1)
+          r = 2*RND(1)
+          s = 5+10*RND(1)
+          ExpParticleX(N%) = X% + r*SINa
+          ExpParticleY(N%) = Y% + r*COSa
+          ExpParticleXV(N%) = s*SINa
+          ExpParticleYV(N%) = s*COSa
+          ExpParticleCol%(N%) = ColTbl%(I% AND 15)
+          N% += 1
+        NEXT
+      NEXT
+      
+      SYS `SDL_GetTicks` TO time0%
+      T% = time0%+2500
+      Z% = FALSE
+      
+      REPEAT
+        SYS `SDL_GetTicks` TO Time%
+        dt = (Time% - time0%) / 500
+        time0% = Time%
+        
+        REM Enter a CPU-friendly spin loop if window loses focus:
+        IF NOT FNCheckForWindowFocus THEN
+          SYS `SDL_GetTicks` TO time0%
+          T% += (time0% - Time%)
+          *REFRESH OFF
+        ENDIF
+        
+        REM Clear screen:
+        COLOR 1,16,36,120 : COLOR 128+1 : CLS
+        
+        Dst.w% = ParticleBm.w%
+        Dst.h% = ParticleBm.h%
+        FOR I% = 0 TO N%-1
+          Dst.x% = ExpParticleX(I%)
+          Dst.y% = ScrH% - Dst.h% - ExpParticleY(I%)
+          K% = ExpParticleCol%(I%)
+          SYS `SDL_SetTextureColorMod`, ParticleBm.t%%, K% >>> 16, (K% >> 8) AND &FF, K% AND &FF
+          SYS `SDL_RenderCopy`, @memhdc%, ParticleBm.t%%, FALSE, Dst{}
+          ExpParticleX(I%)+=ExpParticleXV(I%)*dt
+          ExpParticleY(I%)+=ExpParticleYV(I%)*dt
+        NEXT
+        
+        REM Display the canvas:
+        *REFRESH
+        
+        IF NOT Z% THEN PROCPlaySoundEffect( SoundSample.pop.p%% ) : Z% = TRUE
+        
+      UNTIL Time% >= T%
+      ENDPROC
+      
+      DEF PROCSaveHiScore( S% )
+      LOCAL F%
+      IF S% > HiScore% THEN
+        REM HiScore% = S%
+        F% = OPENOUT( HiScoreFile$ )
+        PRINT#F%, S%
+        CLOSE#F%
+      ENDIF
+      ENDPROC
+      
+      DEF PROCNewFood
+      LOCAL I%, D%, V%, X%, Y%
+      REPEAT
+        V% = TRUE
+        X% = 32 + RND(ScrW% - 64)
+        Y% = 32 + RND(ScrH% - 64)
+        FOR I% = 0 TO segments%-1
+          IF I% < segments%-1 THEN
+            D% = 50
+          ELSE
+            D% = 100
+          ENDIF
+          IF SQR( (X%-segX(I%))^2 + (Y%-segY(I%))^2 ) < D% THEN
+            V% = FALSE
+            EXIT FOR
+          ENDIF
+        NEXT
+      UNTIL V%
+      food.x%      = X%
+      food.y%      = Y%
+      food.new%    = FALSE
+      food.active% = TRUE
+      food.scale   = 1.0
+      food.dscale  = 0.5
+      food.ddscale = 1.5 : REM constant
+      ENDPROC
+      
+      DEF PROCHandleSnakeFoodCollision
+      LOCAL I%, J%, a, s, d
+      d = (segX(segments%-1)-food.x%)^2 + (segY(segments%-1)-food.y%)^2
+      IF d <= 24^2 THEN
+        segX(segments%) = segX(segments%-1)
+        segY(segments%) = segY(segments%-1)
+        segD(segments%) = 0.1
+        segX(segments%-1) = (segX(segments%-1) + segX(segments%-2)) / 2
+        segY(segments%-1) = (segY(segments%-1) + segY(segments%-2)) / 2
+        segments% += 1
+        food.new% = TRUE
+        food.delay% = Time% + 1000
+        food.active% = FALSE
+        score% += 1
+        PROCPlaySoundEffect( SoundSample.slurp.p%% )
+        I% = FoodParticleIndex%
+        FOR J% = 1 TO 20+RND(10)
+          a = 2*PI*RND(1)
+          s = 20 + 30*RND(1)
+          FoodParticle{(I%)}.active% = TRUE
+          FoodParticle{(I%)}.x = food.x%
+          FoodParticle{(I%)}.y = food.y%
+          FoodParticle{(I%)}.dx = s * SINa
+          FoodParticle{(I%)}.dy = s * COSa
+          FoodParticle{(I%)}.scale = 0.125 + 0.5*RND(1)
+          FoodParticle{(I%)}.dscale = 0.1 + 0.5*RND(1)
+          I% += 1
+          IF I% = NumFoodExpParticles% THEN
+            I% = 0
+          ENDIF
+        NEXT
+        FoodParticleIndex% = I%
+      ENDIF
+      ENDPROC
+      
+      REM Draw clockwise & anticlockwise control buttons:
+      DEF PROCDrawCtrlButtons
+      Dst.w% = AnticlockwiseArrowBm.w%
+      Dst.h% = AnticlockwiseArrowBm.h%
+      Dst.x% = 0
+      Dst.y% = 2 * ScrH% DIV 3 - Dst.h%
+      SYS `SDL_SetTextureAlphaMod`, AnticlockwiseArrowBm.t%%, &80
+      SYS `SDL_RenderCopy`, @memhdc%, AnticlockwiseArrowBm.t%%, FALSE, Dst{}
+      Dst.w% = ClockwiseArrowBm.w%
+      Dst.h% = ClockwiseArrowBm.h%
+      Dst.x% = ScrW% - Dst.w%
+      Dst.y% = 2 * ScrH% DIV 3 - Dst.h%
+      SYS `SDL_SetTextureAlphaMod`, ClockwiseArrowBm.t%%, &80
+      SYS `SDL_RenderCopy`, @memhdc%, ClockwiseArrowBm.t%%, FALSE, Dst{}
+      ENDPROC
+      
+      REM Print/draw score:
+      DEF PROCPrintScore
+      LOCAL I%, L%, X%, s$
+      Dst.w% = ScoreBm.w%
+      Dst.h% = ScoreBm.h%
+      Dst.x% = ScrW%-Dst.w%
+      Dst.y% = 0
+      SYS `SDL_RenderCopy`, @memhdc%, ScoreBm.t%%, FALSE, Dst{}
+      Dst.w% = 20 : REM bitmap width
+      Dst.h% = 27 : REM bitmap height
+      Dst.y% = 15 : REM Y pos
+      s$ = STR$score%
+      L% = LENs$
+      X% = ScrW% - 20*L% - 8
+      FOR I% = 1 TO L%
+        Dst.x% = X% + 20*(I%-1)
+        SYS `SDL_RenderCopy`, @memhdc%, ScoreDigitBm%%(VALMID$(s$,I%,1)), FALSE, Dst{}
+      NEXT
+      ENDPROC
+      
+      DEF PROCPrintHiScore
+      LOCAL I%, X%, s$
+      Dst.w% = HiScoreBm.w%
+      Dst.h% = HiScoreBm.h%
+      Dst.x% = 0
+      Dst.y% = 0
+      SYS `SDL_RenderCopy`, @memhdc%, HiScoreBm.t%%, FALSE, Dst{}
+      Dst.w% = 20 : REM bitmap width
+      Dst.h% = 27 : REM bitmap height
+      Dst.y% = 15 : REM Y pos
+      s$ = STR$HiScore%
+      X% = 8
+      FOR I% = 1 TO LENs$
+        Dst.x% = X% + 20*(I%-1)
+        SYS `SDL_RenderCopy`, @memhdc%, ScoreDigitBm%%(VALMID$(s$,I%,1)), FALSE, Dst{}
+      NEXT
+      ENDPROC
+      
+      REM Print/draw frame rate:
+      DEF PROCPrintFPS
+      VDU 5
+      MOVE ScrW%*2 - 96,40
+      GCOL 10
+      PRINT ;frameRate%;
+      ENDPROC
+      
+      DEF PROCDrawFood
+      REM Draw the underlaying expanding food sprite (opacity inversely proportional to scale):
+      IF food.scale < 3 THEN
+        Dst.w% = food.scale * StrawbBm.w% : REM scaled width
+        Dst.h% = food.scale * StrawbBm.h% : REM scaled height
+        Dst.x% = food.x% - Dst.w%/2
+        Dst.y% = ScrH% - food.y% - Dst.h%/2
+        SYS `SDL_SetTextureAlphaMod`, StrawbBm.t%%, INT(255 * (1 - food.scale/3))
+        SYS `SDL_RenderCopy`, @memhdc%, StrawbBm.t%%, FALSE, Dst{}
+        food.scale += food.dscale * dt
+        food.dscale += food.ddscale * dt
+      ENDIF
+      
+      REM Draw the overlaying non-scaled food sprite:
+      Dst.w% = StrawbBm.w%
+      Dst.h% = StrawbBm.h%
+      Dst.x% = food.x% - Dst.w%/2
+      Dst.y% = ScrH% - food.y% - Dst.h%/2
+      SYS `SDL_SetTextureAlphaMod`, StrawbBm.t%%, &FF
+      SYS `SDL_RenderCopy`, @memhdc%, StrawbBm.t%%, FALSE, Dst{}
+      ENDPROC
+      
+      DEF PROCResetSnake
+      LOCAL I%, T%
+      SYS `SDL_GetTicks` TO T%
+      score% = 0
+      food.new% = TRUE
+      food.delay% = T% + 2000
+      food.active% = FALSE
+      snake.x = ScrW% / 2
+      snake.y = ScrH% / 4
+      snake.angle = 0.0
+      snake.speed = 60.0
+      segments% = 10
+      FOR I% = 0 TO segments%-1
+        segX(I%) = snake.x + 2.0*(segments%-I%+1)*segDist%
+        segY(I%) = snake.y - (segments%-I%+1)*segDist%
+        segD(I%) = segDist%
+      NEXT I%
+      FoodParticleIndex% = 0
+      FOR I% = 0 TO NumFoodExpParticles%-1
+        FoodParticle{(I%)}.active% = FALSE
+      NEXT I%
+      ENDPROC
+      
+      DEF PROCStartScreen
+      LOCAL F%, I%, X%, Y%, t%%
+      LOCAL msX%, msY%, msBtn%
+      LOCAL go%, s$
+      
+      ON MOUSE LOCAL IF @msg%=513 IF @lparam%<&320000 SoundFX% = NOT SoundFX% : RETURN ELSE RETURN
+      
+      *REFRESH OFF
+      
+      X% = ScrW% / 2
+      Y% = ScrH% / 5
+      COLOR 1,16,40,123
+      COLOR 128+1
+      REPEAT
+        CLS
+        Dst.w% = StartScreenBm.w%
+        Dst.h% = StartScreenBm.h%
+        Dst.x% = (ScrW% - Dst.w%) / 2 : REM X co-ord
+        Dst.y% = (ScrH% - Dst.h%) / 2 : REM Y co-ord
+        SYS `SDL_RenderCopy`, @memhdc%, StartScreenBm.t%%, FALSE, Dst{}
+        
+        Dst.w% = StartButtonBm.w%
+        Dst.h% = StartButtonBm.h%
+        Dst.x% = X% - Dst.w% / 2
+        Dst.y% = ScrH% - Y% - Dst.h% / 2
+        SYS `SDL_RenderCopy`, @memhdc%, StartButtonBm.t%%, FALSE, Dst{}
+        
+        Dst.w% = 32
+        Dst.h% = 32
+        Dst.x% = ScrW% - Dst.w% - 10
+        Dst.y% = 10
+        IF SoundFX% THEN
+          SYS `SDL_RenderCopy`, @memhdc%, SoundOnBm.t%%, FALSE, Dst{}
+        ELSE
+          SYS `SDL_RenderCopy`, @memhdc%, SoundOffBm.t%%, FALSE, Dst{}
+        ENDIF
+        
+        Dst.w% = CanYouBeatBm.w%
+        Dst.h% = CanYouBeatBm.h%
+        Dst.x% = (ScrW% - Dst.w%) / 2 - 2
+        Dst.y% = (ScrH% - Dst.h%) / 2 - 16 + 2
+        SYS `SDL_SetTextureColorMod`, CanYouBeatBm.t%%, 0, 0, 0
+        SYS `SDL_RenderCopy`, @memhdc%, CanYouBeatBm.t%%, FALSE, Dst{}
+        Dst.x% += 2
+        Dst.y% -= 2
+        SYS `SDL_SetTextureColorMod`, CanYouBeatBm.t%%, &FF, &FF, &FF
+        SYS `SDL_RenderCopy`, @memhdc%, CanYouBeatBm.t%%, FALSE, Dst{}
+        
+        Dst.w% = 26
+        Dst.h% = 37
+        s$ = STR$HiScore%
+        X% = (ScrW% - (26+4)*LENs$) / 2
+        FOR I% = 0 TO LENs$-1
+          t%% = BigScoreDigitBm%%(VALMID$(s$,I%+1,1))
+          Dst.x% = X% + (26+4)*I%
+          Dst.y% = (ScrH% - CanYouBeatBm.h%)/2 + 37 - 4
+          SYS `SDL_SetTextureColorMod`, t%%, 0, 0, 0
+          SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, Dst{}
+          Dst.x% += 2
+          Dst.y% -= 2
+          SYS `SDL_SetTextureColorMod`, t%%, &FF, &FF, &FF
+          SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, Dst{}
+        NEXT
+        
+        *REFRESH
+        
+        IF (INKEY(0) AND &5F) = &53 SoundFX% = NOT SoundFX%
+        go% = FALSE
+        X% = ScrW% / 2
+        Y% = ScrH% / 5
+        
+        REM Enter a CPU-friendly spin loop if window loses focus:
+        F% = FNCheckForWindowFocus
+        
+        MOUSE msX%, msY%, msBtn%
+        msX% /= 2
+        msY% /= 2
+        IF msBtn% = 4 THEN
+          IF SQR((msX% - X%)^2 + (msY% - Y%)^2) <= 36 THEN
+            go% = TRUE
+            PROCPlaySoundEffect( SoundSample.click.p%% )
+          ENDIF
+        ENDIF
+        IF INKEY-99 OR INKEY-74 THEN go% = TRUE
+      UNTIL go%
+      *REFRESH ON
+      
+      ENDPROC
+      
+      DEF PROCShowSplashScreen(T%)
+      COLOR 1,16,40,123
+      COLOR 128+1
+      CLS
+      Dst.w% = SplashScreenBm.w%
+      Dst.h% = SplashScreenBm.h%
+      Dst.x% = (ScrW% - Dst.w%) / 2
+      Dst.y% = (ScrH% - Dst.h%) / 2
+      SYS `SDL_RenderCopy`, @memhdc%, SplashScreenBm.t%%, FALSE, Dst{}
+      WAIT T%
+      ENDPROC
+      
+      DEF PROCShowBlankScreen(T%)
+      COLOR 1,16,40,123
+      COLOR 128+1
+      CLS
+      WAIT T%
+      ENDPROC
+      
+      DEF FNCheckForWindowFocus
+      REM Return TRUE if window has input focus when first checked (i.e. no spin/wait loop entered)
+      REM Return FALSE if window didn't have input focus (and therefore entered a spin loop until it did gain focus)
+      LOCAL F%, R%
+      F% = TRUE
+      REM SDL_WINDOW_INPUT_FOCUS = 0x00000200,        /**< window has input focus */
+      REM SDL_WINDOW_MOUSE_FOCUS = 0x00000400,        /**< window has mouse focus */
+      SYS "SDL_GetWindowFlags", @hwnd% TO R%
+      IF (R% AND &200) = 0 THEN
+        *REFRESH ON
+        REPEAT
+          SYS "SDL_GetWindowFlags", @hwnd% TO R%
+          WAIT 2
+        UNTIL R% AND &200
+        F% = FALSE
+      ENDIF
+      = F%
+      
+      DEF PROCGetBMP24(d%%, name$, RETURN bmp{})
+      LOCAL A%, F%
+      DIM bmp{t%%, w%, h%}
+      bmp.t%% = FNLoadTextureFromMem(FNGetDataAddr(d%%, name$), FNGetDataChunkSize(d%%, name$))
+      SYS "SDL_QueryTexture", bmp.t%%, ^F%, ^A%, ^bmp.w%, ^bmp.h%
+      ENDPROC
+      
+      DEF FNLoadTextureFromMem(mem%%, size%)
+      LOCAL r%%, s%%, t%%
+      SYS "SDL_RWFromMem", mem%%, size% TO r%%
+      IF @platform% AND &40 ELSE r%% = !^r%%
+      IF r%%=0 ERROR 103, "Unable to load BMP data"
+      SYS "SDL_LoadBMP_RW", r%%, 1 TO s%%
+      IF @platform% AND &40 ELSE s%% = !^s%%
+      IF s%%=0 ERROR 104, "Unable to create surface"
+      SYS "SDL_SetColorKey", s%%, 1, FALSE
+      SYS "SDL_CreateTextureFromSurface", @memhdc%, s%% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      IF t%%=0 ERROR 105, "Unable to create texture"
+      SYS "SDL_FreeSurface", s%%
+      = t%%
+      
+      DEF FNGetDataAddr( d%%, name$ )
+      LOCAL I%, s$
+      REPEAT
+        s$ = $$(d%% + 40*I%)
+        I% += 1
+      UNTIL s$ = "*" OR s$ = name$
+      IF s$ = "*" THEN ERROR 0, "FNGetDataAddr: Can't find " + name$
+      = d%% + d%%!(40*(I%-1) + 36)
+      
+      DEF FNGetDataChunkSize( d%%, name$ )
+      LOCAL I%, s$
+      REPEAT
+        s$ = $$(d%% + 40*I%)
+        I% += 1
+      UNTIL s$ = "*" OR s$ = name$
+      IF s$ = "*" THEN ERROR 0, "FNGetDataChunkSize: Can't find " + name$
+      = d%%!(40*(I%-1) + 32)
+      
+      DEF PROCFixWindowSize
+      REM If Windows, Linux, or MacOS then prevent window resize:
+      IF (@platform% AND &F) < 3 IF @platform% >= &2000500 THEN
+        SYS "SDL_SetWindowResizable", @hwnd%, 0, @memhdc%
+      ENDIF
+      ENDPROC
+      
+      DEF PROCerror( s$ )
+      OSCLI "REFRESH ON"
+      IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide"
+      CLS : OFF : VDU 7
+      COLOR 9  : PRINT '" *** ERROR ***" : WAIT 100
+      COLOR 11 : PRINT '" " + s$; : WAIT 250
+      COLOR 7  : PRINT '''" Closing in 5 seconds...";
+      WAIT 500
+      QUIT
+      ENDPROC
+      
+      REM The following function (FNGetProcAddress) is the work of RTR
+      DEF FNGetProcAddress(p$)
+      LOCAL p%%
+      p%% = SYS(p$)
+      IF p%% = 0 ERROR 51, "No such system call " + p$
+      = p%%
+      
+      REM The following function (FNLoadSoundFromMem) is based on the work of RTR
+      DEF FNLoadSoundFromMem(d%%, S%) : REM D% = WAV data address, S% = WAV size (in bytes)
+      LOCAL a%%, p%%, r%%
+      DIM p%% 11 : REM allocate from heap
+      SYS "SDL_RWFromMem", d%%, S% TO r%%
+      IF @platform% AND &40 ELSE r%% = !^r%%
+      IF r%% = 0 ERROR 118, "Couldn't open WAV file from memory address"
+      SYS `SDL_LoadWAV_RW`, r%%, 1, AudioSpec{}, p%%, p%%+8 TO a%%
+      IF @platform% AND &40 ELSE a%% = !^a%%
+      IF a%% = FALSE ERROR 119, "Couldn't buffer sound"
+      = p%%
+      
+      REM The following function (PROCPlaySoundEffect) is based on the work of RTR
+      DEF PROCPlaySoundEffect(p%%)
+      IF NOT SoundFX% ENDPROC
+      IF @hwo% = FALSE SYS "SDL_OpenAudioDevice", FALSE, FALSE, AudioSpec{}, 0, 0, @memhdc% TO @hwo%
+      IF @hwo% = FALSE ERROR 117, "Couldn't open audio device"
+      SYS `SDL_ClearQueuedAudio`, @hwo%, @memhdc%
+      IF @platform% AND &40 THEN
+        SYS `SDL_QueueAudio`, @hwo%, ]p%%, p%%!8, @memhdc%
+      ELSE
+        SYS `SDL_QueueAudio`, @hwo%, !p%%, p%%!8, @memhdc%
+      ENDIF
+      SYS `SDL_PauseAudioDevice`, @hwo%, FALSE, @memhdc%
+      ENDPROC
+      
+      REM Destroy textures prior to exit:
+      DEF PROCcleanup
+      !^SplashScreenBm{} += 0   IF !^SplashScreenBm{}   SYS "SDL_DestroyTexture", SplashScreenBm.t%%, @memhdc%
+      !^StartScreenBm{} += 0    IF !^StartScreenBm{}    SYS "SDL_DestroyTexture", StartScreenBm.t%%, @memhdc%
+      !^StartButtonBm{} += 0    IF !^StartButtonBm{}    SYS "SDL_DestroyTexture", StartButtonBm.t%%, @memhdc%
+      !^SnakeHeadBm{} += 0      IF !^SnakeHeadBm{}      SYS "SDL_DestroyTexture", SnakeHeadBm.t%%, @memhdc%
+      !^SnakeBodyBm{} += 0      IF !^SnakeBodyBm{}      SYS "SDL_DestroyTexture", SnakeBodyBm.t%%, @memhdc%
+      !^StrawbBm{} += 0         IF !^StrawbBm{}         SYS "SDL_DestroyTexture", StrawbBm.t%%, @memhdc%
+      !^ClockwiseArrowBm{} += 0 IF !^ClockwiseArrowBm{} SYS "SDL_DestroyTexture", ClockwiseArrowBm.t%%, @memhdc%
+      !^AnticlockwiseArrowBm{} += 0 IF !^AnticlockwiseArrowBm{} SYS "SDL_DestroyTexture", AnticlockwiseArrowBm.t%%, @memhdc%
+      !^ParticleBm{} += 0       IF !^ParticleBm{}       SYS "SDL_DestroyTexture", ParticleBm.t%%, @memhdc%
+      !^TrailDotBm{} += 0       IF !^TrailDotBm{}       SYS "SDL_DestroyTexture", TrailDotBm.t%%, @memhdc%
+      !^ScoreDigit0Bm{} += 0    IF !^ScoreDigit0Bm{}    SYS "SDL_DestroyTexture", ScoreDigit0Bm.t%%, @memhdc%
+      !^ScoreDigit1Bm{} += 0    IF !^ScoreDigit1Bm{}    SYS "SDL_DestroyTexture", ScoreDigit1Bm.t%%, @memhdc%
+      !^ScoreDigit2Bm{} += 0    IF !^ScoreDigit2Bm{}    SYS "SDL_DestroyTexture", ScoreDigit2Bm.t%%, @memhdc%
+      !^ScoreDigit3Bm{} += 0    IF !^ScoreDigit3Bm{}    SYS "SDL_DestroyTexture", ScoreDigit3Bm.t%%, @memhdc%
+      !^ScoreDigit4Bm{} += 0    IF !^ScoreDigit4Bm{}    SYS "SDL_DestroyTexture", ScoreDigit4Bm.t%%, @memhdc%
+      !^ScoreDigit5Bm{} += 0    IF !^ScoreDigit5Bm{}    SYS "SDL_DestroyTexture", ScoreDigit5Bm.t%%, @memhdc%
+      !^ScoreDigit6Bm{} += 0    IF !^ScoreDigit6Bm{}    SYS "SDL_DestroyTexture", ScoreDigit6Bm.t%%, @memhdc%
+      !^ScoreDigit7Bm{} += 0    IF !^ScoreDigit7Bm{}    SYS "SDL_DestroyTexture", ScoreDigit7Bm.t%%, @memhdc%
+      !^ScoreDigit8Bm{} += 0    IF !^ScoreDigit8Bm{}    SYS "SDL_DestroyTexture", ScoreDigit8Bm.t%%, @memhdc%
+      !^ScoreDigit9Bm{} += 0    IF !^ScoreDigit9Bm{}    SYS "SDL_DestroyTexture", ScoreDigit9Bm.t%%, @memhdc%
+      !^BigScoreDigit0Bm{} += 0 IF !^BigScoreDigit0Bm{} SYS "SDL_DestroyTexture", BigScoreDigit0Bm.t%%, @memhdc%
+      !^BigScoreDigit1Bm{} += 0 IF !^BigScoreDigit1Bm{} SYS "SDL_DestroyTexture", BigScoreDigit1Bm.t%%, @memhdc%
+      !^BigScoreDigit2Bm{} += 0 IF !^BigScoreDigit2Bm{} SYS "SDL_DestroyTexture", BigScoreDigit2Bm.t%%, @memhdc%
+      !^BigScoreDigit3Bm{} += 0 IF !^BigScoreDigit3Bm{} SYS "SDL_DestroyTexture", BigScoreDigit3Bm.t%%, @memhdc%
+      !^BigScoreDigit4Bm{} += 0 IF !^BigScoreDigit4Bm{} SYS "SDL_DestroyTexture", BigScoreDigit4Bm.t%%, @memhdc%
+      !^BigScoreDigit5Bm{} += 0 IF !^BigScoreDigit5Bm{} SYS "SDL_DestroyTexture", BigScoreDigit5Bm.t%%, @memhdc%
+      !^BigScoreDigit6Bm{} += 0 IF !^BigScoreDigit6Bm{} SYS "SDL_DestroyTexture", BigScoreDigit6Bm.t%%, @memhdc%
+      !^BigScoreDigit7Bm{} += 0 IF !^BigScoreDigit7Bm{} SYS "SDL_DestroyTexture", BigScoreDigit7Bm.t%%, @memhdc%
+      !^BigScoreDigit8Bm{} += 0 IF !^BigScoreDigit8Bm{} SYS "SDL_DestroyTexture", BigScoreDigit8Bm.t%%, @memhdc%
+      !^BigScoreDigit9Bm{} += 0 IF !^BigScoreDigit9Bm{} SYS "SDL_DestroyTexture", BigScoreDigit9Bm.t%%, @memhdc%
+      !^EyeBm{} += 0            IF !^EyeBm{}            SYS "SDL_DestroyTexture", EyeBm.t%%, @memhdc%
+      !^TongueBm{} += 0         IF !^TongueBm{}         SYS "SDL_DestroyTexture", TongueBm.t%%, @memhdc%
+      !^SplashBm{} += 0         IF !^SplashBm{}         SYS "SDL_DestroyTexture", SplashBm.t%%, @memhdc%
+      !^ScoreBm{} += 0          IF !^ScoreBm{}          SYS "SDL_DestroyTexture", ScoreBm.t%%, @memhdc%
+      !^HiScoreBm{} += 0        IF !^HiScoreBm{}        SYS "SDL_DestroyTexture", HiScoreBm.t%%, @memhdc%
+      !^WellDoneBm{} += 0       IF !^WellDoneBm{}       SYS "SDL_DestroyTexture", WellDoneBm.t%%, @memhdc%
+      !^CanYouBeatBm{} += 0     IF !^CanYouBeatBm{}     SYS "SDL_DestroyTexture", CanYouBeatBm.t%%, @memhdc%
+      ENDPROC
+      

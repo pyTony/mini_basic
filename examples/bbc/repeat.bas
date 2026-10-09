@@ -1,0 +1,9 @@
+REM BBC REPEAT/UNTIL and EXIT REPEAT
+N = 0
+REPEAT
+  N = N + 1
+  PRINT N;
+  IF N = 3 THEN EXIT REPEAT
+UNTIL N >= 5
+PRINT ""
+PRINT "Stopped at N ="; N

@@ -1,0 +1,192 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Animated sliderule, inspired by Anatoly Sheyanov's LB program
+      REM By Richard Russell, http://www.rtrussell.co.uk/, 17-Dec-2013
+      
+      VDU 23,22,960;256;16,16,16,8
+      VDU 5
+      Margin% = 20
+      size = 924
+      @%=&90A
+      
+      CLS
+      REM Create the mottled cursor sprite:
+      FOR C% = 9 TO 15
+        COLOR C%, 160+2*C%, 160+2*C%, 160+2*C%
+      NEXT
+      FOR X% = 2 TO 294 STEP 4
+        FOR Y% = 0 TO 64 STEP 4 : GCOL 8+RND(7) : PLOT X%,Y% : NEXT
+        FOR Y% = 452 TO 508 STEP 4 : GCOL 8+RND(7) : PLOT X%,Y% : NEXT
+      NEXT
+      FOR Y% = 60 TO 448 STEP 4
+        FOR X% = 2 TO 18 STEP 4 : GCOL 8+RND(7) : PLOT X%,Y% : NEXT
+        FOR X% = 278 TO 294 STEP 4 : GCOL 8+RND(7) : PLOT X%,Y% : NEXT
+      NEXT
+      
+      GCOL 0 : RECTANGLE FILL 22,60,256,388
+      MOVE 0,-2 : MOVE 0,60 : PLOT 85,32,-2
+      MOVE 300,-2 : MOVE 300,60 : PLOT 85,268,-2
+      MOVE 0,508 : MOVE 0,444 : PLOT 85,32,508
+      MOVE 300,508 : MOVE 300,444 : PLOT 85,268,508
+      GCOL 1 : LINE 150,60,150,446
+      
+      cursor$ = @tmp$ + "cursor.bmp"
+      OSCLI "GSAVE """ + cursor$ + """ 2, 0, 296, 512"
+      
+      REM Create the slider sprite:
+      CLS
+      GCOL 1
+      COLOR 1, 230, 224, 72
+      RECTANGLE FILL 0,192,1920,128
+      GCOL 8
+      
+      REM B scale:
+      OSCLI "FONT """+@lib$+"FreeSans"",12,B"
+      MOVE 8,308 : PRINT "B"
+      start = 0
+      FOR C% = 0 TO 1
+        PROCscale(1 - (C%<>0)*0.02, 2.001, 0.02, 0.1, 318, -14, start, start+size/2, TRUE)
+        PROCscale(2.05, 5.001, 0.05, 0.1, 318, -14, start, start+size/2, TRUE)
+        PROCscale(5.1, 10.001, 0.1, 0.5, 318, -14, start, start+size/2, TRUE)
+        start += size/2
+      NEXT
+      
+      REM C scale:
+      OSCLI "FONT """+@lib$+"FreeSans"",12,B"
+      MOVE 8,232 : PRINT "C"
+      PROCscale(1, 2.001, 0.01, 0.05, 194, 14, 0, size, TRUE)
+      PROCscale(2.02, 4.001, 0.02, 0.1, 194, 14, 0, size, TRUE)
+      PROCscale(4.05, 10.001, 0.05, 0.1, 194, 14, 0, size, TRUE)
+      PROCpi(218, 12, size)
+      
+      slider$ = @tmp$ + "slider.bmp"
+      OSCLI "GSAVE """ + slider$ + """ 0, 194, 1920, 126"
+      
+      REM Draw the rest of the slide rule:
+      COLOR 0, 0, 80, 150
+      CLG
+      GCOL 1
+      RECTANGLE FILL 0,62,1920,128
+      RECTANGLE FILL 0,320,1920,128
+      GCOL 8
+      LINE 0, 62, 1920, 62 : LINE 0, 448, 1920, 448
+      LINE 0, 192, 1920, 192 : LINE 0, 320, 1920, 320
+      
+      REM K scale:
+      MOVE 8,420 : PRINT "K"
+      start = 0
+      FOR C% = 0 TO 2
+        PROCscale(1 - (C%<>0)*0.05, 3.001, 0.05, 0.1, 380, 14, start, start+size/3, TRUE)
+        PROCscale(3.1, 6.001, 0.1, 0.5, 380, 14, start, start+size/3, TRUE)
+        PROCscale(6.2, 10.001, 0.2, 1.0, 380, 14, start, start+size/3, TRUE)
+        start += size/3
+      NEXT
+      
+      REM A scale:
+      MOVE 8,362 : PRINT "A"
+      start = 0
+      FOR C% = 0 TO 1
+        PROCscale(1 - (C%<>0)*0.02, 2.001, 0.02, 0.1, 322, 14, start, start+size/2, TRUE)
+        PROCscale(2.05, 5.001, 0.05, 0.1, 322, 14, start, start+size/2, TRUE)
+        PROCscale(5.1, 10.001, 0.1, 0.5, 322, 14, start, start+size/2, TRUE)
+        start += size/2
+      NEXT
+      
+      REM D scale:
+      MOVE 8,182 : PRINT "D"
+      PROCscale(1, 2.001, 0.01, 0.05, 190, -14, 0, size, TRUE)
+      PROCscale(2.02, 4.001, 0.02, 0.1, 190, -14, 0, size, TRUE)
+      PROCscale(4.05, 10.001, 0.05, 0.1, 190, -14, 0, size, TRUE)
+      PROCpi(166, -12, size)
+      
+      REM L scale:
+      MOVE 8,120 : PRINT "L"
+      PROCscale(0, 1.001, 0.005, 0.01, 124, -14, 0, size, FALSE)
+      
+      rule$ = @tmp$ + "rule.bmp"
+      OSCLI "GSAVE """ + rule$ + """ 0, 0, 1920, 512"
+      
+      REM Animate the slide rule:
+      slider% = 20
+      cursor% = 100
+      capture% = 0
+      MOUSE oldX%,Y%,B%
+      *REFRESH OFF
+      A% = 0
+      REPEAT
+        CLS
+        MOUSE X%,Y%,B%
+        IF A% AND B% AND 4 IF Y%>0 IF Y%<512 THEN
+          IF X%<>oldX% THEN
+            delta% = X%-oldX%
+            IF capture%=1 OR capture%=0 AND X%>cursor% AND X%<cursor%+300 THEN
+              capture% = 1
+              cursor% += delta%
+              IF cursor% < -280 cursor% = -280
+              IF cursor% > 1900 cursor% = 1900
+            ELSE IF capture%=2 OR X%>slider% AND X%<slider%+1920 AND Y%>192 AND Y%<330 THEN;
+              capture% = 2
+              slider% += delta%
+              IF slider% < -1900 slider% = -1900
+              IF slider% > +1900 slider% = +1900
+            ENDIF
+          ENDIF
+        ELSE
+          capture% = 0
+        ENDIF
+        OSCLI "DISPLAY """ + rule$ + """"
+        OSCLI "DISPLAY """ + slider$ + """ " + STR$slider% + ",194"
+        OSCLI "DISPLAY """ + cursor$ + """ " + STR$cursor% + ",0,300,512,1000000"
+        A% = B%
+        oldX% = X%
+        *REFRESH
+        WAIT 4
+      UNTIL FALSE
+      END
+      
+      REM Plot one 'cycle' of a scale:
+      DEF PROCscale(v1, v2, vs, vl, y, l, x1, x2, f%)
+      LOCAL x, v, V%
+      FOR v = v1 TO v2 STEP vs
+        IF f% x = Margin%+x1+LOG(v)*(x2-x1) ELSE x = Margin%+x1+v*(x2-x1)
+        IF ABS(v/vl-INT(v/vl+0.5))<0.0001 THEN
+          PROCaaline(x,y,y+l*1.5,&48E0E6)
+          V% = INT(v*10+0.5)
+          IF vs <= 0.01 IF ABS(V%-v*10)<0.0001 IF V% MOD 10 THEN
+            IF l>0 MOVE BY -6,24 ELSE MOVE BY -6,0
+            OSCLI "FONT """+@lib$+"FreeSans"",10,B"
+            PRINT ; V% MOD 10 ;
+          ENDIF
+        ELSE
+          PROCaaline(x,y,y+l,&48E0E6)
+        ENDIF
+        V% = INT(v+0.5)
+        IF ABS(v-V%)<0.0001 THEN
+          IF l>0 MOVE BY -6,30 ELSE MOVE BY -6,0
+          OSCLI "FONT """+@lib$+"FreeSans"",12,B"
+          PRINT LEFT$(STR$V%,1) ;
+        ENDIF
+      NEXT
+      ENDPROC
+      
+      REM Plot the PI symbol:
+      DEF PROCpi(y, l, s)
+      LOCAL x
+      x = Margin%+LOG(PI)*s
+      PROCaaline(x,y,y+l,&48E0E6)
+      IF l>0 MOVE BY -8,30 ELSE MOVE BY -8,8
+      VDU &CF,&80
+      ENDPROC
+      
+      REM Plot an antialiased vertical line:
+      DEF PROCaaline(x, y1%, y2%, c%)
+      LOCAL X%
+      GCOL 2
+      X% = INT(x) : x -= X% : X% *= 2
+      COLOR 2, (c% AND &FF) * x, (c% >> 8 AND &FF) * x, (c% >> 16) * x
+      LINE X%, y1%, X%, y2%
+      x = 1 - x
+      COLOR 2, (c% AND &FF) * x, (c% >> 8 AND &FF) * x, (c% >> 16) * x
+      LINE X%+2, y1%, X%+2, y2%
+      GCOL 8
+      ENDPROC

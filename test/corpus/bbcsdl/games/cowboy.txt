@@ -1,0 +1,596 @@
+      REM. Cowboy Shootout
+      REM. Version 1.0
+      
+      REM. Disable Escape key if 'compiled'
+      IF INSTR(@lib$, @dir$) THEN *ESC OFF
+      
+      REM. Set up the error handler
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE CLS : ON : PRINT REPORT$ " at line "; ERL : END
+      ON CLOSE PROCcleanup : QUIT
+      
+      ProgTitle$ = "Cowboy Shootout"
+      ProgVersion$ = "1.0"
+      SDL_WINDOW_INPUT_FOCUS = &200
+      SCALE = 16 : REM Scaling factor for sub-pixel particle positions/velocities
+      TAPTIME = 20
+      
+      REM. Invoke 'screen mode' 8:  640x512
+      REM. and turn off the flashing cursor
+      MODE 8 : OFF
+      WinW% = 640 : WinH% = 512
+      
+      REM. Make 4 MB of RAM available for this program
+      HIMEM = PAGE + &400000
+      
+      REM. Set program window title bar text
+      SYS "SDL_SetWindowTitle", @hwnd%, ProgTitle$ + " v" + ProgVersion$, @memhdc%
+      
+      REM. Install and initialise libraries
+      INSTALL @lib$ + "audiolib"
+      INSTALL @lib$ + "gfxlib"
+      PROC_gfxInit
+      PROC_gfxCreateCanvas( WinW%, WinH% )
+      
+      REM. Load game graphics
+      REM. All bitmaps will be converted to the required 32 bpp format required by GFXLIB
+      cowboy1bm%%     = FN_gfxLoadTextureAndSurface( @dir$ + ".Cowboy/cowboy1_32x72x8.gif",     &FF000000, cowboy1_s%% )
+      cowboy2bm%%     = FN_gfxLoadTextureAndSurface( @dir$ + ".Cowboy/cowboy2_32x72x8.gif",     &FF000000, cowboy2_s%% )
+      cowboy1deadbm%% = FN_gfxLoadTextureAndSurface( @dir$ + ".Cowboy/cowboy1dead_32x72x8.gif", &FF000000, cowboy1dead_s%% )
+      cowboy2deadbm%% = FN_gfxLoadTextureAndSurface( @dir$ + ".Cowboy/cowboy2dead_32x72x8.gif", &FF000000, cowboy2dead_s%% )
+      wagonbm%%       = FN_gfxLoadTextureAndSurface( @dir$ + ".Cowboy/wagon_56x68x8.png",       &FF000000, wagon_s%% )
+      cactusbm%%      = FN_gfxLoadTextureAndSurface( @dir$ + ".Cowboy/cactus_48x80x8.gif",      &FF000000, cactus_s%% )
+      bulletbm%%      = FN_gfxLoadTexture( @dir$ + ".Cowboy/bullet_8x4x8.png",        &FF000000 )
+      heartbm%%       = FN_gfxLoadTexture( @dir$ + ".Cowboy/heart_24x22x8.png",       &FF000000 )
+      
+      REM. Load sound effect audio samples
+      DIM SoundEffect{ shoot%%, kill%%, bulletbounce%%, hitcactus%% }
+      SoundEffect.shoot%%        = FN_loadMP3( @dir$ + ".Cowboy/shoot.mp3",        22050, 1 )
+      SoundEffect.kill%%         = FN_loadMP3( @dir$ + ".Cowboy/kill.mp3",         22050, 1 )
+      SoundEffect.bulletbounce%% = FN_loadWAV( @dir$ + ".Cowboy/bulletbounce.wav", 22050, 1 )
+      SoundEffect.hitcactus%%    = FN_loadMP3( @dir$ + ".Cowboy/hitcactus.mp3",    22050, 1 )
+      Music%%                    = FN_loadMP3( @dir$ + ".Cowboy/silence.mp3",      22050, 1 )
+      MusicCopy%% = FN_copyMusic( Music%% )
+      
+      REM. Get addresses of SDL2 API calls into variables for faster access
+      `GetTicks`       = SYS( "SDL_GetTicks" )
+      `GetWindowFlags` = SYS( "SDL_GetWindowFlags" )
+      
+      REM. Define global game structs
+      DIM hero{ x%, y%, lives%, dead%, noFireFrameCount%}
+      DIM baddy{ x%, y%, ystep%, moving%, desty%, lives%, dead%}
+      DIM bullet{(1) active%, x%, y%, dx%}
+      DIM wagon{(1) x%, y%, dy%}
+      DIM cactus{(3) x%, y%}
+      
+      maxNumParticles% = 100
+      DIM particle{( maxNumParticles%-1 ) num%, life%, r&, g&, b&}
+      DIM particle_xywh%( maxNumParticles%-1, 3 ), particle_uvzz%( maxNumParticles%-1, 3 )
+      particle_xywh%() = SCALE * 2 : REM width and height
+      
+      REM. Create the main game background bitmap
+      *REFRESH OFF
+      background%% = FNcreateBackgroundBitmap
+      OSCLI "font """ + @lib$ + "DejaVuSans"", 31"
+      gameoverbm%% = FN_gfxCreateTextureFromText( "Game Over", 32,250,255, goW%, goH% )
+      
+      REM. Game loop
+      REPEAT
+        PROCtitle
+        PROCmain
+      UNTIL FALSE
+      END : REM. <--- not strictly necessary, but included for completeness!
+      :
+      :
+      :
+      :
+      DEF PROCtitle
+      LOCAL H%
+      *REFRESH OFF
+      PROC_gfxClr( 0, 0, 0 )
+      PROC_gfxPlotScale( background%%, 640, 512, 0, 0 )
+      PROC_gfxSubtract( 640, 512, 0, 0, 50 )
+      
+      VDU 23,24,3|
+      OSCLI "font """ + @lib$ + "DejaVuSans"", 31"
+      PROC_gfxDrawCentredText( "Cowboy Shootout",                   38, 200,180,0 )
+      OSCLI "font """ + @lib$ + "DejaVuSans"", 16"
+      PROC_gfxDrawCentredText( "You begin with six lives.",         130, 190,200,10 )
+      PROC_gfxDrawCentredText( "And so does the other guy.",        170, 190,200,10 )
+      PROC_gfxDrawCentredText( "But who's gonna win the shootout?", 210, 190,200,10 )
+      PROC_gfxDrawCentredText( "Game controls:",                    300, 230,255,10 )
+      PROC_gfxDrawCentredText( "Up & down arrows or drag to move",  350, 190,240,10 )
+      PROC_gfxDrawCentredText( "Press Z or tap to fire",            380, 190,240,10 )
+      PROC_gfxDrawCentredText( "Press Space Bar or touch to start", 470, 40,100,255 )
+      
+      *REFRESH ON
+      REPEAT
+        SYS `GetWindowFlags`, @hwnd% TO H%
+        IF (H% AND SDL_WINDOW_INPUT_FOCUS) = FALSE THEN
+          REPEAT
+            SYS `GetWindowFlags`, @hwnd% TO H%
+          UNTIL H% AND SDL_WINDOW_INPUT_FOCUS OR INKEY(4)=0
+        ENDIF
+        *REFRESH
+      UNTIL INKEY-10 OR INKEY-99
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROCmain
+      LOCAL B%, H%, I%, N%, P%, W%, X%, Y%, numFrames%, frameRate%, time0%, time1%, s$
+      LOCAL tuchtime%, tuchy%, fire%, gameover%, gameovercounter%, blockedByCactus%
+      LOCAL temp%() : DIM temp%( maxNumParticles% - 1, 3 )
+      
+      REM. Clear bullet active flags
+      bullet{(0)}.active% = FALSE
+      bullet{(1)}.active% = FALSE
+      
+      hero.x% = 8
+      hero.y% = 0
+      hero.lives% = 6
+      hero.dead% = 0
+      
+      baddy.x% = 640 - 40
+      baddy.y% = 512 - 80
+      baddy.ystep% = 6
+      baddy.moving% = FALSE
+      baddy.desty% = 0
+      baddy.lives% = 6
+      baddy.dead% = 0
+      
+      wagon{(0)}.x% = 200
+      wagon{(0)}.y% = 256
+      wagon{(0)}.dy% = 2
+      wagon{(1)}.x% = 640 - (200+64)
+      wagon{(1)}.y% = 256
+      wagon{(1)}.dy% = -2
+      
+      cactus{(0)}.x% = 100
+      cactus{(0)}.y% = 50
+      cactus{(1)}.x% = 100
+      cactus{(1)}.y% = 512 - (80+50)
+      cactus{(2)}.x% = 640 - (100+48)
+      cactus{(2)}.y% = 50
+      cactus{(3)}.x% = 640 - (100+48)
+      cactus{(3)}.y% = 512 - (80+50)
+      
+      numFrames% = 0
+      frameRate% = 0
+      gameover% = FALSE
+      gameovercounter% = 120
+      
+      REM. Reset particles
+      FOR I% = 0 TO maxNumParticles% - 1
+        PROCresetParticle( I% )
+      NEXT I%
+      
+      SYS `GetTicks` TO time0%
+      
+      *REFRESH OFF
+      
+      REPEAT
+        
+        REM. Check for input focus
+        SYS `GetWindowFlags`, @hwnd% TO H%
+        IF (H% AND SDL_WINDOW_INPUT_FOCUS) = FALSE THEN
+          REPEAT
+            SYS `GetWindowFlags`, @hwnd% TO H%
+          UNTIL H% AND SDL_WINDOW_INPUT_FOCUS OR INKEY(4)=0
+        ENDIF
+        
+        PROC_gfxClr( 0, 0, 0 )
+        PROC_gfxPlotScale( background%%, 640, 512, 0, 0 )
+        
+        IF hero.dead% = 0 THEN
+          REM. Draw the hero cowboy (i.e. you) and set bit 0 in the alpha byte of overwritten background pixels
+          PROC_gfxPlotScaleShapeHalfIntensity( cowboy1bm%%, 32, 72, hero.x%-4, WinH%-hero.y%-69 )
+          PROC_gfxPlotSetAlpha( cowboy1bm%%, cowboy1_s%%, hero.x%, WinH%-hero.y%-73, 1 )
+        ELSE
+          PROC_gfxPlotScaleShapeHalfIntensity( cowboy1deadbm%%, 72, 32, hero.x%-4, WinH%-hero.y%-29 )
+          PROC_gfxPlotSetAlpha( cowboy1deadbm%%, cowboy1dead_s%%, hero.x%, WinH%-hero.y%-33, 1 )
+          hero.dead% -= 1
+        ENDIF
+        
+        IF baddy.dead% = 0 THEN
+          REM. Draw the baddy cowboy (i.e. computer) and set bit 1 in the alpha byte of overwritten background pixels
+          PROC_gfxPlotScaleShapeHalfIntensity( cowboy2bm%%, 32, 72, baddy.x%-4, WinH%-baddy.y%-69 )
+          PROC_gfxPlotSetAlpha( cowboy2bm%%, cowboy2_s%%, baddy.x%, WinH%-baddy.y%-73, 2 )
+        ELSE
+          PROC_gfxPlotScaleShapeHalfIntensity( cowboy2deadbm%%, 72, 32, baddy.x%-28-4, WinH%-baddy.y%-29 )
+          PROC_gfxPlotSetAlpha( cowboy2deadbm%%, cowboy2dead_s%%, baddy.x%-28, WinH%-baddy.y%-33, 2 )
+          baddy.dead% -= 1
+        ENDIF
+        
+        FOR I% = 0 TO 3
+          REM. Cacti set bit 3 of alpha byte as collision bit
+          PROC_gfxPlotScaleShapeHalfIntensity( cactusbm%%, 48, 80, cactus{(I%)}.x%-6, WinH%-cactus{(I%)}.y%-75 )
+          PROC_gfxPlotSetAlpha( cactusbm%%, cactus_s%%, cactus{(I%)}.x%, WinH%-cactus{(I%)}.y%-81, 8 )
+        NEXT I%
+        
+        REM. Update baddy position
+        IF baddy.dead% = 0 AND baddy.lives% > 0 THEN
+          IF NOT baddy.moving% THEN
+            baddy.desty% += FNrndSgn * (32 + RND(200))
+            IF baddy.desty% < 0 THEN baddy.desty% = 0
+            IF baddy.desty% > 512-64 THEN baddy.desty% = 512-64
+            baddy.moving% = TRUE
+          ELSE
+            IF ABS(baddy.y% - baddy.desty%) <= baddy.ystep% THEN
+              baddy.moving% = FALSE
+            ELSE
+              baddy.y% += SGN(baddy.desty% - baddy.y%) * baddy.ystep%
+            ENDIF
+          ENDIF
+          
+          REM. Baddy only fires if less than 200 frames have passed since human player last fired
+          IF hero.noFireFrameCount% < 200 THEN
+            
+            REM. Don't bother continuing if baddy's bullet flag is set (since can only fire one bullet at a time)
+            IF NOT bullet{(1)}.active% THEN
+              
+              REM. Only fire if vertical distance between hero and baddy is less than 100 pixels
+              IF ABS(hero.y% - baddy.y%) < 100 THEN
+                
+                REM. Check if baddy's line of sight is blocked by cactus (if so then reduce probability of firing!)
+                blockedByCactus% = FALSE
+                FOR I% = 0 TO 3
+                  IF baddy.y% > cactus{(I%)}.y%-40 THEN
+                    IF baddy.y% < cactus{(I%)}.y%+40 THEN
+                      blockedByCactus% = TRUE
+                      I% = 3 : REM. Quick exit from loop since blockedByCactus% = TRUE
+                    ENDIF
+                  ENDIF
+                NEXT I%
+                
+                fire% = FALSE
+                IF NOT blockedByCactus% THEN
+                  IF RND(4) = 1 THEN fire% = TRUE
+                ELSE
+                  IF RND(8) = 1 THEN fire% = TRUE
+                ENDIF
+                
+                IF fire% THEN
+                  bullet{(1)}.active% = TRUE
+                  bullet{(1)}.x% = baddy.x% - 8
+                  bullet{(1)}.y% = baddy.y% + 42
+                  bullet{(1)}.dx% = -12
+                  PROC_mixSound( SoundEffect.shoot%%, Music%% )
+                  PROCcreateParticles( 10+RND(20), baddy.x%-8, baddy.y%+42, -1, 12, 4, 0, 15 )
+                ENDIF
+              ENDIF
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        REM. Draw wagons and update their positions
+        REM. The wagons set bit 2 in the alpha byte of all overwritten background pixels
+        FOR I% = 0 TO 1
+          PROC_gfxPlotScaleShapeHalfIntensity( wagonbm%%, 56, 68, wagon{(I%)}.x%-8, WinH%-wagon{(I%)}.y%-65 )
+          PROC_gfxPlotSetAlpha( wagonbm%%, wagon_s%%, wagon{(I%)}.x%, WinH%-wagon{(I%)}.y%-69, 4 )
+          wagon{(I%)}.y% += wagon{(I%)}.dy%
+          IF wagon{(I%)}.y% < 0 OR wagon{(I%)}.y% > 512-80 THEN
+            wagon{(I%)}.dy% *= -1
+          ENDIF
+        NEXT I%
+        
+        REM. Draw active bullets, check for collision, and update their positions
+        FOR I% = 0 TO 1
+          IF bullet{(I%)}.active% PROCprocessbullet( bullet{(I%)} )
+        NEXT I%
+        
+        IF hero.dead% = 0 AND NOT gameover% THEN
+          
+          REM. Test up arrow key
+          IF INKEY-58 THEN
+            hero.y% += 6
+            IF hero.y% > @vdu%!212 - 64 THEN hero.y% = @vdu%!212 - 64
+          ENDIF
+          
+          REM. Test down arrow key
+          IF INKEY-42 THEN
+            hero.y% -= 6
+            IF hero.y% < 0 THEN hero.y% = 0
+          ENDIF
+          
+          REM. Touchscreen control
+          fire% = FALSE
+          MOUSE X%, Y%, B%
+          IF B% THEN
+            Y% DIV= 2
+            B% = FALSE
+            IF tuchtime% <> 0 AND TIME > tuchtime% OR \
+            \  tuchy% <> 0 AND ABS(Y% - tuchy%) > 10 THEN
+              hero.y% += (Y% - hero.y%) DIV 3
+              tuchtime% = TIME
+            ENDIF
+            IF tuchtime% = 0 THEN
+              tuchtime% = TIME + TAPTIME
+              tuchy% = Y%
+            ENDIF
+          ELSE
+            IF TIME < tuchtime% fire% = TRUE
+            tuchtime% = FALSE
+            tuchy% = 0
+          ENDIF
+          
+          REM. Test fire (Z) key
+          IF NOT bullet{(0)}.active% THEN
+            IF INKEY-98 OR fire% THEN
+              bullet{(0)}.active% = TRUE
+              bullet{(0)}.x% = hero.x% + 36
+              bullet{(0)}.y% = hero.y% + 42
+              bullet{(0)}.dx% = 12
+              hero.noFireFrameCount% = 0
+              PROC_mixSound( SoundEffect.shoot%%, Music%% )
+              PROCcreateParticles( 10+RND(20), hero.x%+36, hero.y%+42, 1, 12, 4, 0, 15 )
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        I% = 0
+        P% = maxNumParticles%
+        temp%() = particle_xywh%() DIV SCALE
+        REPEAT
+          N% = particle{(I%)}.num%
+          IF N% = 0 EXIT REPEAT
+          IF N% > P% N% = P%
+          PROC_gfxPlotRectangleList( temp%(), N%, I%, particle{(I%)}.r&, particle{(I%)}.g&, particle{(I%)}.b& )
+          I% += N%
+          P% -= N%
+        UNTIL P% <= 0
+        
+        particle_xywh%() += particle_uvzz%()
+        FOR I% = 0 TO maxNumParticles%-1
+          IF particle{(I%)}.life% THEN
+            particle{(I%)}.life% -= 1
+            IF particle{(I%)}.life% = 0 THEN
+              PROCresetParticle( I% )
+            ENDIF
+          ENDIF
+        NEXT
+        
+        IF NOT bullet{(0)}.active% THEN
+          hero.noFireFrameCount% += 1
+        ENDIF
+        
+        IF hero.lives% > 0 THEN
+          FOR I% = 0 TO hero.lives%-1
+            PROC_gfxPlotScaleShapeHalfIntensity( heartbm%%, 24, 22, 8 + 24*I%, 12 )
+          NEXT I%
+          FOR I% = 0 TO hero.lives%-1
+            PROC_gfxPlotScale( heartbm%%, 24, 22, 12 + 24*I%, 4 )
+          NEXT I%
+        ENDIF
+        
+        IF baddy.lives% > 0 THEN
+          FOR I% = 0 TO baddy.lives%-1
+            PROC_gfxPlotScaleShapeHalfIntensity( heartbm%%, 24, 22, 640-24*(I%+1)-12, 12 )
+          NEXT I%
+          FOR I% = 0 TO baddy.lives%-1
+            PROC_gfxPlotScaleShape( heartbm%%, 24, 22, 640-24*(I%+1)-8, 4, &FF, &00, &00 )
+          NEXT I%
+        ENDIF
+        
+        s$ = STR$frameRate% + " fps"
+        W% = WIDTH(s$) DIV 2 + @vdu.w.d& * LEN(s$)
+        PROC_gfxDrawText( s$, 638 - W% - 2, 490, 0,32,0)
+        PROC_gfxDrawText( s$, 638 - W%,     488, 0,200,0)
+        
+        IF NOT gameover% THEN
+          IF hero.lives% = 0 OR baddy.lives% = 0 THEN
+            gameover% = TRUE
+            bullet{(0)}.active% = FALSE
+            bullet{(1)}.active% = FALSE
+          ENDIF
+        ELSE
+          IF hero.lives% = 0 THEN hero.dead% = 1
+          IF baddy.lives% = 0 THEN baddy.dead% = 1
+          gameovercounter% -= 1
+          PROC_gfxPlotScale( gameoverbm%%, goW%, goH%, 320 - goW% DIV 2, 188 )
+        ENDIF
+        
+        *REFRESH
+        
+        numFrames% += 1
+        
+        SYS `GetTicks` TO time1%
+        IF time1%-time0% >= 1000 THEN
+          SYS `GetTicks` TO time0%
+          frameRate% = numFrames%
+          *FX 21,0
+          PROC_trackMusic( Music%%, MusicCopy%%, 0, 3000 )
+          numFrames% = 0
+        ENDIF
+        
+      UNTIL gameover% AND gameovercounter% <= 0
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 31"
+      PROC_gfxClr( 20,20,20 )
+      IF baddy.lives% = 0 THEN
+        PROC_gfxDrawCentredText( "Congratulations!", 118, 40,255,10)
+        PROC_gfxDrawCentredText( "You won the shootout", 188, 230,230,10)
+      ELSE
+        PROC_gfxDrawCentredText( "You lost the shootout", 168, 240,40,20)
+      ENDIF
+      *REFRESH
+      *REFRESH ON
+      TIME = 0 : REPEAT UNTIL TIME >= 300 OR INKEY-10 OR INKEY(10) = 32
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROCprocessbullet( b{} )
+      LOCAL X%, Y%, alpha%
+      
+      PROC_gfxPlotScaleShapeHalfIntensity( bulletbm%%, 8, 4, b.x%-4, WinH%-b.y%-1 )
+      PROC_gfxPlotScale( bulletbm%%, 8, 4, b.x%, WinH%-b.y%-5 )
+      alpha% = FN_gfxDetectCollision( b.x%, WinH%-b.y%, b.dx%, 0, &FF, X%, Y% )
+      
+      REM. Check if you've been hit (test bit 0 of alpha%)
+      IF (alpha% AND 1) <> 0 THEN
+        b.active% = FALSE
+        hero.dead% = 50
+        hero.lives% -= 1
+        PROC_mixSound( SoundEffect.kill%%, Music%% )
+        PROCcreateParticles( 40+RND(30), hero.x%+48, b.y%, 1, 2, 4, 1, 40 )
+        PROCcreateParticles( 40+RND(30), hero.x%+48, b.y%, -1, 2, 4, 1, 40 )
+      ENDIF
+      
+      REM. Check if you've hit the baddy cowboy (test bit 1 of alpha%)
+      IF (alpha% AND 2) <> 0 AND b.active% THEN
+        b.active% = FALSE
+        baddy.dead% = 50
+        baddy.lives% -= 1
+        PROC_mixSound( SoundEffect.kill%%, Music%% )
+        PROCcreateParticles( 40+RND(30), baddy.x%-8, b.y%, 1, 2, 4, 1, 40 )
+        PROCcreateParticles( 40+RND(30), baddy.x%-8, b.y%, -1, 2, 4, 1, 40 )
+      ENDIF
+      
+      REM. Check if bullet has hit a cactus (test bit 3 of alpha%)
+      REM. If so, then deactivate bullet
+      IF (alpha% AND 8) <> 0 AND b.active% THEN
+        b.active% = FALSE
+        PROC_mixSound( SoundEffect.hitcactus%%, Music%% )
+        PROCcreateParticles( 20+RND(30), b.x%, b.y%, SGN(b.dx%), 2, 1, 2, 40 )
+      ENDIF
+      
+      REM. Check if bullet has hit a wagon (test bit 2 of alpha%)
+      REM. If so, reverse the direction of the bullet!
+      IF (alpha% AND 4) <> 0 AND b.active% THEN
+        b.dx% *= -1
+        b.x% += 3*b.dx%
+        PROC_mixSound( SoundEffect.bulletbounce%%, Music%% )
+        PROCcreateParticles( RND(20), b.x%, b.y%, SGN(b.dx%), 4, 10, 0, 15 )
+      ENDIF
+      
+      REM. Update bullet position (if it's still active)
+      IF b.active% THEN
+        b.x% += b.dx%
+        IF b.x% < 0 OR b.x% > 640 THEN b.active% = FALSE
+      ENDIF
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF FNcreateBackgroundBitmap
+      LOCAL bg%%, I% : PRIVATE dispVars{}
+      
+      REM. Reserve memory for the background bitmap
+      bg%% = FN_gfxCreateTexture( WinW%, WinH% )
+      
+      ON ERROR LOCAL PROC_gfxRestoreDispVars(dispVars{}) : RESTORE LOCAL : ERROR ERR,REPORT$
+      PROC_gfxSaveAndSetDispVars( dispVars{}, bg%% )
+      
+      PROC_gfxClr( 80, 80, 0 )
+      
+      FOR I% = 1 TO 1000
+        PROC_gfxPlotPoint(RND(23), RND(640), RND(512), RND(32),RND(32),RND(32))
+        PROC_gfxPlotPoint(RND(4), RND(640), RND(512), 128+RND(128),128+RND(128),0)
+      NEXT I%
+      
+      PROC_gfxBoxBlurNxN(WinW%, WinH%, 0, 0, 3)
+      
+      FOR I% = 1 TO 1000
+        PROC_gfxPlotPoint(RND(4), RND(640), RND(512), 128+RND(128),128+RND(128),0)
+      NEXT I%
+      
+      PROC_gfxBoxBlurNxN(WinW%, WinH%, 0, 0, 7)
+      
+      FOR I% = 1 TO 1000
+        PROC_gfxPlotPoint(RND(4), RND(640), RND(512), 128+RND(128),128+RND(128),0)
+      NEXT I%
+      
+      PROC_gfxBoxBlurNxN(WinW%, WinH%, 0, 0, 3)
+      PROC_gfxRestoreDispVars(dispVars{})
+      
+      = bg%%
+      :
+      :
+      :
+      :
+      DEF PROCcreateParticles( N%, X%, Y%, xSgn%, maxXVel%, maxYVel%, colSet%, maxLife% )
+      LOCAL I%, R%, G%, B%
+      PRIVATE P%
+      
+      CASE colSet% OF
+        WHEN 0: R% = 128+RND(127) : G% = R%       : B% = R%
+        WHEN 1: R% = 128+RND(127) : G% = RND(128) : B% = 0
+        WHEN 2: R% = RND(128) : G% = 230+RND(25)  : B% = 0
+      ENDCASE
+      
+      FOR I% = 0 TO N%-1
+        
+        particle_xywh%(P%,0) = SCALE * X%
+        particle_xywh%(P%,1) = SCALE * (WinH% - Y%)
+        particle_uvzz%(P%,0) = SCALE * xSgn% * (4.0 + maxXVel% * RND(1))
+        particle_uvzz%(P%,1) = SCALE * FNrndSgn * maxYVel% * RND(1)
+        
+        particle{(P%)}.r& = R%
+        particle{(P%)}.g& = G%
+        particle{(P%)}.b& = B%
+        particle{(P%)}.num% = N% - I%
+        particle{(P%)}.life% = RND(maxLife%)
+        
+        P% += 1
+        IF P% = maxNumParticles% THEN
+          P% = 0
+        ENDIF
+        
+      NEXT I%
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROCresetParticle( P% )
+      particle_xywh%(P%,0) = SCALE * -4.0
+      particle_xywh%(P%,1) = SCALE * -4.0
+      particle_uvzz%(P%,0) = 0
+      particle_uvzz%(P%,1) = 0
+      particle{(P%)}.life% = 0
+      ENDPROC
+      :
+      :
+      :
+      :
+      REM. Function to return a random sign (+1 or -1)
+      DEF FNrndSgn
+      IF RND(2)=2 THEN =1 ELSE =-1
+      :
+      :
+      :
+      :
+      DEF PROCcleanup
+      *REFRESH ON
+      ON ERROR OFF
+      
+      background%% += 0    : IF background%%    PROC_gfxDestroyTexture( background%% )
+      gameoverbm%% += 0    : IF gameoverbm%%    PROC_gfxDestroyTexture( gameoverbm%% )
+      cowboy1bm%% += 0     : IF cowboy1bm%%     PROC_gfxDestroyTexture( cowboy1bm%% )
+      cowboy2bm%% += 0     : IF cowboy2bm%%     PROC_gfxDestroyTexture( cowboy2bm%% )
+      cowboy1deadbm%% += 0 : IF cowboy1deadbm%% PROC_gfxDestroyTexture( cowboy1deadbm%% )
+      cowboy2deadbm%% += 0 : IF cowboy2deadbm%% PROC_gfxDestroyTexture( cowboy2deadbm%% )
+      wagonbm%% += 0       : IF wagonbm%%       PROC_gfxDestroyTexture( wagonbm%% )
+      cactusbm%% += 0      : IF cactusbm%%      PROC_gfxDestroyTexture( cactusbm%% )
+      bulletbm%% += 0      : IF bulletbm%%      PROC_gfxDestroyTexture( bulletbm%% )
+      heartbm%% += 0       : IF heartbm%%       PROC_gfxDestroyTexture( heartbm%% )
+      
+      cowboy1_s%% += 0     : IF cowboy1_s%%     PROC_gfxFreeSurface( cowboy1_s%% )
+      cowboy2_s%% += 0     : IF cowboy2_s%%     PROC_gfxFreeSurface( cowboy2_s%% )
+      cowboy1dead_s%% += 0 : IF cowboy1dead_s%% PROC_gfxFreeSurface( cowboy1dead_s%% )
+      cowboy2dead_s%% += 0 : IF cowboy2dead_s%% PROC_gfxFreeSurface( cowboy2dead_s%% )
+      cactus_s%% += 0      : IF cactus_s%%      PROC_gfxFreeSurface( cactus_s%% )
+      wagon_s%% += 0       : IF wagon_s%%       PROC_gfxFreeSurface( wagon_s%% )
+      
+      Music%% += 0         : IF Music%%         PROC_freeMP3( Music%% )
+      MusicCopy%% = 0      : IF MusicCopy%%     SYS "SDL_free", MusicCopy%%
+      IF !^SoundEffect{} THEN
+        IF SoundEffect.shoot%%                  PROC_freeMP3( SoundEffect.shoot%% )
+        IF SoundEffect.kill%%                   PROC_freeMP3( SoundEffect.kill%% )
+        IF SoundEffect.bulletbounce%%           PROC_freeWAV( SoundEffect.bulletbounce%% )
+        IF SoundEffect.hitcactus%%              PROC_freeMP3( SoundEffect.hitcactus%% )
+      ENDIF
+      ENDPROC

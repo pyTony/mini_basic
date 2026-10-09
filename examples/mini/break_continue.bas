@@ -1,0 +1,10 @@
+REM mini only — labeled BREAK and CONTINUE (bbc uses EXIT FOR/WHILE/REPEAT)
+OUTER: FOR I = 1 TO 3
+  FOR J = 1 TO 3
+    IF J = 2 THEN CONTINUE OUTER
+    PRINT I; J;
+  NEXT J
+  PRINT I; ";";
+NEXT I
+PRINT ""
+PRINT "done"

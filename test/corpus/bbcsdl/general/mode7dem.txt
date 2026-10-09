@@ -1,0 +1,40 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Program to demonstrate MODE 7
+      :
+      *TIMER 250
+      MODE 7
+      INSTALL @lib$ + "mode7lib"
+      PRINT "Please wait..."
+      PROC_saa5050(0)
+      PROC_saa5057(1)
+      :
+      file% = OPENIN(@dir$+"mode7dem.car")
+      IF file%=0 MODE 3:PRINT "File mode7dem.car not found":END
+      :
+      ON MOUSE click% = TRUE : RETURN
+      REPEAT
+        click% = FALSE
+        CLS : a$ = GET$#file% BY 960
+        IF EOF#file% THEN PTR#file%=0
+        IF INSTR(a$,CHR$&9B) VDU 23,18,3,1| ELSE VDU 23,18,3,0|
+        FOR N%=1 TO 960:VDU 27,&80 OR ASCMID$(a$,N%):NEXT
+        PRINT TAB(0,24)" Press F1 to reveal, F2 to conceal "TAB(0,0);
+        REPEAT
+          A% = 135 : C% = (&FF00 AND USR&FFF4) DIV 256
+          X%=POS:Y%=VPOS:PRINT TAB(37,24);RIGHT$("0"+STR$~C%,2);TAB(X%,Y%);
+          FOR I%=1 TO 100 : K%=INKEY(10) : IF click% OR K%<>-1 EXIT FOR ELSE NEXT
+          IF K%=-1 SOUND 1,-10,244,1
+          IF K%=145 PROCreveal ELSE IF K%=146 PROCconceal
+          IF K%=136 VDU8 ELSEIF K%=137 VDU9 ELSEIF K%=138 VDU10 ELSEIF K%=139 VDU11
+          IF K%=132 THEN PTR#file%=PTR#file%-1920+(EXT#file% AND (PTR#file%<1920))
+        UNTIL K%<=133
+      UNTIL FALSE
+      ;
+      DEF PROCreveal:OFF:X%=POS:Y%=VPOS:VDU30:FOR N%=1 TO 24*40
+        IF (&FF00 AND USR&FFF4) DIV 256=&98 VDU 27,&9B ELSE VDU 9
+      NEXT:PRINT TAB(X%,Y%);:ON:ENDPROC
+      ;
+      DEF PROCconceal:OFF:X%=POS:Y%=VPOS:VDU30:FOR N%=1 TO 24*40
+        IF (&FF00 AND USR&FFF4) DIV 256=&9B VDU 27,&98 ELSE VDU 9
+      NEXT:PRINT TAB(X%,Y%);:ON:ENDPROC

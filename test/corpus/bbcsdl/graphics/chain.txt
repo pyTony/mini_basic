@@ -1,0 +1,28 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Chain
+      REM by David A. Williams with modifications by Richard T. Russell
+      
+      balls% = 100
+      
+      DIM bmp%% 7000
+      *HEX 64
+      OSCLI "LOAD """+@dir$+"ball.bmp""" + STR$~bmp%%
+      
+      MODE 8
+      *REFRESH OFF
+      
+      t=0
+      OFF
+      REPEAT
+        CLS
+        FOR I%=1 TO balls%
+          C%=640+360*SINRAD(t/3+I%)*COSRAD(t+8*I%)
+          D%=512+360*COSRAD(t/4+2*I%)*SINRAD(t+10*I%)
+          t+=0.03
+          OSCLI "MDISPLAY "+STR$~bmp%%+" "+STR$C%+","+STR$D%+",0,0,000001"
+        NEXT I%
+        *REFRESH
+      UNTIL INKEY(2)=32
+      *REFRESH ON
+      QUIT

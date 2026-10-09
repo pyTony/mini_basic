@@ -1,0 +1,87 @@
+      ON ERROR IF ERR<>17 CLS : PRINT REPORT$ : END ELSE CHAIN @lib$ + "../examples/tools/touchide"
+      
+      REM. Penrose Stairs accompanied by an 'ever rising' musical scale
+      REM. Richard Russell, 23-Feb-2006 modified for BBCSDL 03-Mar-2018
+      
+      MODE 8 : OFF
+      VDU 24,0;0;1344;1022;
+      ORIGIN 0,120
+      COLOR 8,128,128,128
+      *TEMPO 133
+      *VOICE 0,4
+      *VOICE 1,4
+      *VOICE 2,4
+      *VOICE 3,4
+      *HEX 64
+      
+      REM. Load the ball graphic:
+      DIM bmp%% 7000
+      OSCLI "LOAD """+@dir$+"ball.bmp""" + STR$~bmp%%
+      
+      REM. Draw the walls:
+      GCOL 7 : MOVE 102,500 : DRAW 102,300 : PLOT 85,800,400 : PLOT 85,800,-40
+      GCOL 8 : MOVE 800,-40 : DRAW 1100,150 : PLOT 85,800,400 : PLOT 85,1100,550
+      MOVE 800,400 : DRAW 800,650 : PLOT 85,102,500 : PLOT 85,800,650
+      GCOL 7 : MOVE 1100,550 : PLOT 85,800,400
+      
+      REM. Draw the steps:
+      GCOL 3
+      FOR S% = 1 TO 2
+        MOVE 702+S%*100,380+S%*80 : MOVE BY 0,-24 : PLOT 113,96,-50
+      NEXT
+      FOR S% = 1 TO 2
+        MOVE 1002-S%*100,490+S%*70 : MOVE BY 0,-24 : PLOT 113,96,60
+      NEXT
+      GCOL 11
+      FOR S% = 1 TO 2
+        PROCstep(700+S%*100,380+S%*80)
+        DRAW BY 0, -22 : MOVE BY 100,-48 : DRAW BY 0, 22
+      NEXT
+      FOR S% = 1 TO 2
+        PROCstep(900-S%*100,540+S%*70)
+        MOVE BY 100,-50 : DRAW BY 0, -22
+      NEXT
+      FOR S% = 1 TO 5
+        PROCstep(700-S%*100,680-S%*30)
+        MOVE BY 100,-56 : MOVE BY 100,40
+        GCOL 8 : PLOT 81,0,26 : GCOL 0 : DRAW BY 0,-26
+      NEXT
+      FOR S% = 0 TO 6
+        PROCstep(100+S%*100,500-S%*20)
+        GCOL 7 : PLOT 81,0,-28 : GCOL 0 : DRAW BY 0,28
+      NEXT
+      
+      REM. Move the ball and play the scale:
+      DIM S%(6)
+      S%() = 32,40,48,52,60,68,76
+      
+      I% = 0
+      X% = 800
+      Y% = 400
+      dX% = 100
+      dY% = 80
+      REPEAT
+        RECTANGLE X%-32, Y%-32, 64, 64 TO 1280, 0
+        OSCLI "MDISPLAY "+STR$~bmp%%+" "+STR$(X%-32)+","+STR$(Y%-32)+",64,64,000001"
+        P% = S%(I%)
+        SOUND &301, ABS(P%-126)DIV6-15, P%, 18
+        SOUND &302, ABS(P%-78)DIV6-15, P%+48, 18
+        SOUND &303, ABS(P%-30)DIV6-15, P%+96, 18
+        SOUND &300, ABS(P%+18)DIV6-15, P%+144, 18
+        SOUND 1, 0, 0, 2
+        I% = (I%+1) MOD 7
+        RECTANGLE 1280, 0, 64, 64 TO X%-32, Y%-32
+        IF X% >= 1000 OR X% <= 200 dX% = -dX%
+        IF Y% = 560 dY% = 70 ELSE IF Y% = 700 dY% = -30
+        IF Y% = 520 dY% = -20 ELSE IF Y% = 400 dY% = 80
+        X% += dX%
+        Y% += dY%
+      UNTIL FALSE
+      
+      DEF PROCstep(X%,Y%)
+      GCOL 11
+      MOVE X%, Y% : MOVE BY 100,60 : PLOT 113,100,-50
+      GCOL 0
+      MOVE X%, Y% : DRAW BY 100,60 : DRAW BY 100,-50
+      DRAW BY -100,-60 : DRAW BY -100,50
+      ENDPROC

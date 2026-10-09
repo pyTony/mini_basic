@@ -1,0 +1,120 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Simple '100% BASIC' fire simulation for BBCSDL or BB4W
+      REM by Richard Russell, 27-Dec-2017, revised 12-Aug-2018
+      
+      IF INKEY$(-256) = "W" THEN
+        INSTALL @lib$ + "GDIPLIB"
+        PROC_gdipinit
+        SYS "GetModuleHandle", "GDIPLUS.DLL" TO gdip%
+        SYS "GetProcAddress", gdip%, "GdipCreateBitmapFromGdiDib" TO `GdipCreateBitmapFromGdiDib`
+        SYS "GetProcAddress", gdip%, "GdipDrawImageRectI" TO `GdipDrawImageRectI`
+        SYS "GetProcAddress", gdip%, "GdipDisposeImage" TO `GdipDisposeImage`
+      ENDIF
+      
+      MODE 8 : OFF
+      ON CLOSE OSCLI "refresh on" : PROCcleanup : QUIT
+      ON ERROR OSCLI "refresh on" : PROCcleanup : IF ERR<>17 CLS : PRINT REPORT$ : END ELSE \
+      \                                           CHAIN @lib$ + "../examples/tools/touchide"
+      
+      Width% = 16 : REM Must be multiple of 4
+      Height% = 32
+      nParticles% = Width% * Height% * 2
+      
+      REM Create bitmap:
+      DIM BMP{bfType{l&,h&}, bfSize%, bfReserved%, bfOffBits%, \
+      \       biSize%, biWidth%, biHeight%, biPlanes{l&,h&}, biBitCount{l&,h&}, \
+      \       biCompression%, biSizeImage%, biXPelsPerMeter%, biYPelsPerMeter%, \
+      \       biClrUsed%, biClrImportant%, palette%(255), p&(Height%-1,Width%-1)}
+      
+      REM Initialise bitmap:
+      BMP.bfType.l& = ASC"B"
+      BMP.bfType.h& = ASC"M"
+      BMP.bfSize% = DIM(BMP{})
+      BMP.bfOffBits% = ^BMP.p&(0,0) - BMP{}
+      BMP.biSize% = 40
+      BMP.biWidth% = Width%
+      BMP.biHeight% = Height%
+      BMP.biPlanes.l& = 1
+      BMP.biBitCount.l& = 8
+      
+      REM Set palette:
+      FOR index% = 0 TO 255
+        r% = index% << 2         : IF r% < 0 r% = 0 ELSE IF r% > &FF r% = &FF
+        g% = (index% -  96) << 2 : IF g% < 0 g% = 0 ELSE IF g% > &FF g% = &FF
+        b% = (index% - 192) << 2 : IF b% < 0 b% = 0 ELSE IF b% > &FF b% = &FF
+        BMP.palette%(index%) = &FF000000 OR (r% << 16) OR (g% << 8) OR b%
+      NEXT
+      
+      REM Create and initialise particles:
+      DIM p{(nParticles%-1) x,y,d,s,c&}
+      FOR I% = 0 TO nParticles%-1
+        p{(I%)}.x = Width%/2
+        p{(I%)}.c& = RND(255)
+      NEXT
+      
+      REM Animate fire:
+      *REFRESH OFF
+      REPEAT
+        BMP.p&() = STRING$(Width%*Height%-1, CHR$0)
+        
+        FOR I% = 0 TO nParticles%-1
+          PROCupdate(p{(I%)})
+        NEXT
+        
+        IF INKEY$(-256) = "W" THEN
+          PROCrender(BMP{},70,174,128,256)
+          PROCrender(BMP{},225,130,96,192)
+          PROCrender(BMP{},340,96,72,144)
+          PROCrender(BMP{},430,72,54,108)
+          PROCrender(BMP{},495,54,40,80)
+          WAIT 1
+        ELSE
+          *HEX 64
+          SYS "SDL_SetHint", "SDL_RENDER_SCALE_QUALITY", "linear"
+          OSCLI "mdisplay " + STR$~BMP{} + " 140,100,256,512"
+          OSCLI "mdisplay " + STR$~BMP{} + " 450,315,192,384"
+          OSCLI "mdisplay " + STR$~BMP{} + " 680,480,144,288"
+          OSCLI "mdisplay " + STR$~BMP{} + " 860,600,108,216"
+          OSCLI "mdisplay " + STR$~BMP{} + " 990,690,80,162"
+          SYS "SDL_SetHint", "SDL_RENDER_SCALE_QUALITY", "nearest"
+          *HEX 32
+        ENDIF
+        *REFRESH
+      UNTIL FALSE
+      END
+      
+      DEF PROCupdate(p{})
+      LOCAL a, i%%
+      p.x += p.s * SIN(p.d)
+      p.y += p.s * COS(p.d)
+      p.d += (RND(1) - 0.5) / 20
+      p.c& -= 1
+      IF p.c& = FALSE OR p.y >= Height% OR p.x < 0 OR p.x >= Width% THEN
+        i%% = RND(Width%-2)
+        p.x = i%%
+        p.y = 0
+        p.d = 0
+        p.s = (RND(1) + 1) * Height% / 128
+        a = (Width% - i%%*2)/Width%
+        p.c& = (1 - ABSa) * 64 + 1
+      ENDIF
+      i%% = ^BMP.p&(p.y,p.x)
+      ?i%% = FNclip(?i%% + p.c&)
+      ENDPROC
+      
+      DEF FNclip(P%) = P% OR (P% > &FF)
+      
+      DEF PROCrender(bmp{}, X%, Y%, W%, H%)
+      LOCAL B%
+      SYS `GdipCreateBitmapFromGdiDib`, bmp{}+14, bmp{}+bmp.bfOffBits%, ^B%
+      SYS `GdipDrawImageRectI`, FN_gdipg, B%, X%, Y%, W%, H%
+      SYS `GdipDisposeImage`, B%
+      SYS "InvalidateRect", @hwnd%, 0, 0
+      ENDPROC
+      
+      DEF PROCcleanup
+      IF INKEY$(-256) = "W" PROC_gdipexit
+      ENDPROC
+      
+      

@@ -1,0 +1,62 @@
+      ON ERROR IF ERR=17 CHAIN @lib$ + "../examples/tools/touchide" ELSE \
+      \ MODE 7 : REPORT : PRINT " at line ";ERL : END
+      
+      REM 'Vampire Einstein' aperiodic tessellation without reflections
+      REM BBC BASIC + aagfxlib library, © Richard Russell, 03-Jun-2024
+      
+      MODE 9 : GCOL 1 : GCOL 135 : CLG
+      INSTALL @lib$ + "aagfxlib"
+      
+      S = 3 : REM Overall scale
+      L = S * SQR(307 + 72*SQR3)
+      T = ATN(3 / (16/9 + SQR3))
+      
+      FOR T% = 1 TO 45
+        READ X, Y, A
+        PROCvampire(X, Y, A, S, 1)
+        COLOR 1, 64+RND(160), 64+RND(160), 64+RND(160)
+        FILL X - 120 * SINRADA + 50 * COSRADA, Y - 120 * COSRADA - 50 * SINRADA
+      NEXT T%
+      
+      RESTORE
+      FOR T% = 1 TO 45
+        READ X, Y, A
+        PROCvampire(X, Y, A, S, 2)
+      NEXT T%
+      
+      REPEAT WAIT 4 : UNTIL FALSE
+      END
+      
+      DATA 514,710,0,   662,670,0,   958,714,60,  848,311,180, 368,795,300
+      DATA 770,776,120, 919,861,60,  881,1009,60, 1066,822,180,1212,780,180
+      DATA 660,500,60,  258,562,240, 344,586,330, 591,244,300, 441,160,240
+      DATA 256,392,300, 994,226,120, 959,714,300, 1213,780,180,1082,542,90
+      DATA 1102,332,120,258,392,180, 220,710,240, 148,286,300, 220,708,120
+      DATA 98,882,270,  332,1114,0,  478,1072,0,  1106,628,0,  1252,416,60
+      DATA 1032,78,240, 886,120,0,   738,159,0,   480,11,240,  38,178,300
+      DATA 110,432,180, 296,200,0,   1180,162,300,-112,94,240, 58,-30,270
+      DATA 1068,-70,240,74,794,180,  110,431,60,  688,1094,30, 1362,694,120
+      
+      DEF PROCvampire(x, y, a, s, t)
+      LOCAL I%, d : LOCAL DATA
+      RESTORE +1
+      FOR I% = 1 TO 7
+        READ d : d += a
+        x += L * SIN(T + RAD(d))
+        y += L * COS(T + RAD(d))
+        PROCside(x, y, d, s, t)
+        READ d : d += a
+        PROCside(x, y, d, s, t)
+        x -= L * SIN(T + RAD(d))
+        y -= L * COS(T + RAD(d))
+      NEXT
+      ENDPROC
+      
+      DATA 80,170,50,320,200,290,170,350,230,140,260,170,290,200
+      
+      DEF PROCside(x, y, a, s, t)
+      LOCAL r, d : r = 9 * s : d = 8 * s
+      PROC_aaline(x, y, x-d*SINRADa, y-d*COSRADa, t, TRUE, 0)
+      x -= d*SINRADa + r*COSRADa : y -= d*COSRADa - r*SINRADa
+      PROC_aaarc(x, y, r, r, a, 120, t, TRUE, 0)
+      ENDPROC

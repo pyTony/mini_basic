@@ -1,0 +1,638 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Ray Tracing demo by Gest from https://www.shadertoy.com/view/wdlGDB
+      REM BBCSDL version by Richard Russell, www.rtrussell.co.uk, 19-Jul-2019
+      
+      REM Install libraries:
+      INSTALL @lib$ + "shaderlib"
+      
+      REM Create arrays and structures:
+      DIM Vertex$(10), Fragment$(999), Float{0%,1%}
+      
+      REM Fill vertex and fragment shader arrays from DATA statements:
+      PROC_readshader(Vertex$())
+      PROC_readshader(Fragment$())
+      
+      REM Initialise window and get its size:
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup
+      VDU 26
+      
+      REM Ensure cleanup on exit:
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Initialise shader library:
+      PRINT "Compiling shaders..."
+      *REFRESH
+      PROC_shaderinit(oVertex%, oFragment%)
+      
+      REM Compile shaders:
+      PROC_compileshader(oVertex%, Vertex$(), "Vertex")
+      PROC_compileshader(oFragment%, Fragment$(), "Fragment")
+      
+      REM Link and use shaders:
+      oProgram% = FN_useshaders(oVertex%, oFragment%)
+      
+      SYS `glGetUniformLocation`, oProgram%, "iTime",       @memhdc% TO pTime%
+      SYS `glGetUniformLocation`, oProgram%, "iResolution", @memhdc% TO pResolution%
+      
+      REM Render loop:
+      TIME = 0
+      REPEAT
+        Float.0% = FN_f4(TIME/100)
+        SYS `glUniform1fv`, pTime%, 1, Float{}, @memhdc%
+        Float.0% = FN_f4(@vdu%!208) : Float.1% = FN_f4(@vdu%!212)
+        SYS `glUniform2fv`, pResolution%, 1, Float{}, @memhdc%
+        PROC_render
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      oProgram% += 0 : oVertex% += 0 : oFragment% += 0
+      PROC_shaderexit(oProgram%, oVertex%, oFragment%)
+      *REFRESH ON
+      ENDPROC
+      
+      REM Minimal vertex shader:
+      DATA "attribute vec4 vPosition;"
+      DATA "void main()"
+      DATA "{"
+      DATA "gl_Position = vPosition ;"
+      DATA "}"
+      DATA ""
+      
+      REM Fragment Shader code from https://www.shadertoy.com/view/wdlGDB
+      DATA "uniform float iTime;"
+      DATA "uniform vec3 iMouse;"
+      DATA "uniform vec2 iResolution;"
+      
+      DATA "float u_time;"
+      
+      DATA "const float PI = 3.141592654;"
+      DATA "const float Infinity = 1e6;"
+      
+      DATA "//Камера"
+      DATA "struct Camera {"
+      DATA "//Задаваемые параметры"
+      DATA "float fov;"
+      DATA "float aspect;"
+      DATA "vec3  origin;"
+      DATA "vec3  target;"
+      DATA "vec3  up;"
+      DATA "//� асчетные параметры"
+      DATA "float factor;"
+      DATA "vec3  forward;"
+      DATA "vec3  right;"
+      DATA "vec3  position;"
+      DATA "vec3  coord;"
+      DATA "};"
+      
+      DATA "//Дополнительные параметры, возвращаемые картой расстояний"
+      DATA "struct Object {"
+      DATA "float   distance;//Последнее приближение луча к элементу сцены (стремится к 0 в случае нахождения точки пересечения)"
+      DATA "int id;//id элемента сцены"
+      DATA "};"
+      DATA "//Луч"
+      DATA "struct Ray {"
+      DATA "//Задаваемые параметры"
+      DATA "vec3  origin;//Начало луча"
+      DATA "vec3  direction;//Направление луча"
+      DATA "float near;//Минимальное расстояние до элемента"
+      DATA "float far;//Предельное расстояние до элемента"
+      DATA "float epsilon;//Точность"
+      DATA "int  steps;//Максимальное число итераций"
+      DATA "//Возвращаемые параметры"
+      DATA "float distance; //� асстояние до точки элемента сцены от ray.origin в направлении ray.direction"
+      DATA "vec3  position; //Текущая точка элемента сцены ray.origin + ray.direction * ray.distance"
+      DATA "bool  hit;//Успех нахождения точки пересечения"
+      DATA "vec3  normal;"
+      DATA "Object object;//Дополнительные параметры, возвращаемые картой расстояний"
+      DATA "};"
+      DATA "//Формирование луча камеры"
+      DATA "Ray lookAt (in vec2 uv, inout Camera cam) {"
+      DATA "//� асчетные характеристики камеры"
+      DATA "cam.factor = 1.0/tan(radians(cam.fov/2.));"
+      DATA "cam.forward = normalize(cam.target-cam.origin); "
+      DATA "cam.right = normalize(cross(cam.up, cam.forward));"
+      DATA "cam.up = cross(cam.forward, cam.right);"
+      DATA "cam.position = cam.origin + cam.factor * cam.forward;"
+      DATA "cam.coord = cam.position + uv.x * cam.right * cam.aspect + uv.y * cam.up;"
+      DATA "//Формирование луча"
+      DATA "Ray ray;"
+      DATA "{"
+      DATA "ray.origin = cam.origin;"
+      DATA "ray.direction = normalize(cam.coord - cam.origin);"
+      DATA "}"
+      DATA "return ray;"
+      DATA "}"
+      
+      DATA "//-------------Вспомогательные функции-----------------------------"
+      DATA "//Масштаб вектора"
+      DATA "void scale (inout vec3 v, vec3 s) {"
+      DATA "v = v * s;"
+      DATA "}"
+      DATA "//Перемещение вектора"
+      DATA "void translate (inout vec3 v, vec3 delta) {"
+      DATA "v = v - delta;"
+      DATA "}"
+      DATA "//Вращение вектора"
+      DATA "void rotate(inout vec3 v, vec3 rad) {"
+      DATA "vec3 c = cos(rad), s = sin(rad);"
+      DATA "if (rad.x!=0.) v = vec3(v.x,    c.x * v.y + s.x * v.z, -s.x * v.y + c.x * v.z);"
+      DATA "if (rad.y!=0.) v = vec3(c.y * v.x - s.y * v.z, v.y,    s.y * v.x + c.y * v.z);"
+      DATA "if (rad.z!=0.) v = vec3(c.z * v.x + s.z * v.y, -s.z * v.x + c.z * v.y, v.z);"
+      DATA "}"
+      DATA "//-------------------------------------------------------"
+      
+      DATA "struct Plane {"
+      DATA "vec3 center;"
+      DATA "vec3 normal;"
+      DATA "};"
+      DATA "Plane plane_1 = Plane(vec3(0.0, 0.0, 0.0), vec3(0,1,0));"
+      DATA "Plane plane_2 = Plane(vec3(0.0, 0.0, 0.0), vec3(0,0,1));"
+      
+      DATA "struct Sphere {"
+      DATA "vec3  center;"
+      DATA "float radius;"
+      DATA "};"
+      DATA "Sphere sphere_1 = Sphere(vec3(-1.0, 1.5, 1.0), 0.4);"
+      DATA "Sphere sphere_2 = Sphere(vec3( 1.0, 1.5, 1.0), 0.4);"
+      DATA "Sphere sphere_3 = Sphere(vec3( 0.0, 1.5, 1.0), 0.4);"
+      DATA "Sphere sphere_4 = Sphere(vec3( 0.0, 1.5, 2.0), 0.4);"
+      
+      DATA "struct Box {"
+      DATA "vec3 center;"
+      DATA "vec3 size;"
+      DATA "};"
+      DATA "Box box_1 = Box(vec3(-1.0, 1.5, -1.0), vec3(0.4) );"
+      DATA "Box box_2 = Box(vec3( 1.0, 1.5, -1.0), vec3(0.4) );"
+      DATA "Box box_3 = Box(vec3( 0.0, 1.5, -1.0), vec3(0.4) );"
+      DATA "Box box_4 = Box(vec3( 0.0, 1.5, -2.0), vec3(0.4) );"
+      
+      DATA "struct Material {"
+      DATA "vec3 colorAmbient;"
+      DATA "vec3 colorDiffuse;"
+      DATA "vec3 colorSpecular;"
+      DATA "float shininess;"
+      
+      DATA "float reflectivity;"
+      DATA "float refractivity;"
+      DATA "float indexRefractive;"
+      DATA "bool flagSolid;"
+      DATA "};"
+      DATA "Material material_sphere_1;"
+      DATA "Material material_sphere_2;"
+      DATA "Material material_sphere_3;"
+      DATA "Material material_sphere_4;"
+      DATA "Material material_plane_1b;"
+      DATA "Material material_plane_1w;"
+      
+      DATA "struct Light {"
+      DATA "vec3 position;"
+      DATA "vec3 colorAmbient;"
+      DATA "vec3 colorDiffuse;"
+      DATA "vec3 colorSpecular;"
+      DATA "};"
+      DATA "Light light_0 = Light ( vec3(-0.5, -0.5, -2.0), vec3(1), vec3(1), vec3(1) );"
+      DATA "Light light_1 = Light ( vec3( 0.5,  0.5, -2.0), vec3(1), vec3(1), vec3(1) );"
+      DATA "const int lightCount = 1;"
+      
+      DATA "Material getMaterial (Ray ray) {"
+      DATA "Material material;"
+      DATA "if (ray.object.id == 0) {"
+      DATA "material = material_sphere_1;"
+      DATA "} else if (ray.object.id == 1) {"
+      DATA "material = material_sphere_2;"
+      DATA "} else if (ray.object.id == 2) {"
+      DATA "material = material_sphere_3;"
+      DATA "} else if (ray.object.id == 3) {"
+      DATA "material = material_sphere_4;"
+      DATA "} else if (ray.object.id == 4) {"
+      DATA "//float r = 0.25;"
+      DATA "//float squareSize = ( 1.0 + r*2.0 ) / 2.0;"
+      DATA "float squareSize = 0.5;"
+      DATA "vec3 p = mod ( ray.position - plane_1.center - ray.epsilon, squareSize * 2.0 );"
+      DATA "float s = squareSize;"
+      DATA "float l = s;"
+      DATA "float h = s;"
+      DATA "if ( ( p.x < l && p.y < l && p.z < l ) ||"
+      DATA " ( p.x > h && p.y < l && p.z > h ) ||"
+      DATA " ( p.x < l && p.y > h && p.z > h ) ||"
+      DATA " ( p.x > h && p.y > h && p.z < l ) ) {"
+      DATA "material = material_plane_1b;"
+      DATA "} else {"
+      DATA "material = material_plane_1w;"
+      DATA "}"
+      DATA "}"
+      DATA "return material;"
+      DATA "}"
+      
+      DATA "//-----------------------------------------------------------------------------------------"
+      DATA "//Пересечение луча со сферой"
+      DATA "float intersectSphere(Ray ray, Sphere sphere, inout vec3 normal) {"
+      DATA "float t0, t1, t;"
+      
+      DATA "vec3 l = sphere.center - ray.origin;"
+      DATA "float tca = dot(l, ray.direction);"
+      DATA "if ( tca < 0.0 ) return ray.far;"
+      DATA "float d2 = dot (l, l) - (tca * tca);"
+      DATA "float r2 = sphere.radius*sphere.radius;"
+      DATA "if ( d2 > r2 ) return ray.far;"
+      DATA "float thc = sqrt(r2 - d2);"
+      DATA "t0 = tca - thc;"
+      DATA "t1 = tca + thc;"
+      
+      DATA "if ( t0 < 0.0 ) {"
+      DATA "t = t1;"
+      DATA "} else if ( t1 < 0.0 ) {"
+      DATA "t = t0;"
+      DATA "} else {"
+      DATA "t = min(t0,t1);"
+      DATA "}"
+      DATA "if (t<0.0) return ray.far;"
+      DATA "vec3 p = ray.origin + t * ray.direction;"
+      DATA "float flagInside = -sign(dot(ray.direction, p - sphere.center));"
+      DATA "normal = normalize ( p - sphere.center ) * flagInside;"
+      DATA "return t;"
+      DATA "}"
+      DATA "//Пересечение луча с плоскостью"
+      DATA "float intersectPlane(Ray ray, Plane plane, inout vec3 normal) {"
+      DATA "float det = dot ( plane.normal, ray.direction );"
+      DATA "if (abs(det) < ray.epsilon) return ray.far;"
+      
+      DATA "float t = - ( dot ( plane.normal, ray.origin ) + length(plane.center) ) / dot ( plane.normal, ray.direction );"
+      
+      DATA "if ( t < 0.0 ) return ray.far;"
+      
+      DATA "float flagInside = -sign(dot(ray.direction, plane.normal));"
+      DATA "normal = plane.normal;"
+      DATA "normal *= flagInside;"
+      
+      DATA "return t;"
+      DATA "}"
+      DATA "//Пересечение луча с кубом"
+      DATA "float intersectBox(Ray ray, Box box, inout vec3 normal) {"
+      
+      DATA "vec3 minp = box.center - box.size;"
+      DATA "vec3 maxp = box.center + box.size;"
+      
+      DATA "float tmin = (minp.x - ray.origin.x) / ray.direction.x;"
+      DATA "float tmax = (maxp.x - ray.origin.x) / ray.direction.x;"
+      DATA "if (tmin > tmax) { "
+      DATA "float s = tmin; "
+      DATA "tmin = tmax; "
+      DATA "tmax = s; "
+      DATA "}"
+      DATA "float tymin = (minp.y - ray.origin.y) / ray.direction.y;"
+      DATA "float tymax = (maxp.y - ray.origin.y) / ray.direction.y;"
+      DATA "if (tymin > tymax) { "
+      DATA "float s = tymin; "
+      DATA "tymin = tymax; "
+      DATA "tymax = s; "
+      DATA "}"
+      DATA "if ((tmin > tymax) || (tymin > tmax)) return ray.far;"
+      DATA "if (tymin > tmin) tmin = tymin;"
+      DATA "if (tymax < tmax) tmax = tymax;"
+      DATA "float tzmin = (minp.z - ray.origin.z) / ray.direction.z;"
+      DATA "float tzmax = (maxp.z - ray.origin.z) / ray.direction.z;"
+      DATA "if (tzmin > tzmax) { "
+      DATA "float s = tzmin; "
+      DATA "tzmin = tzmax; "
+      DATA "tzmax = s; "
+      DATA "}"
+      DATA "if ((tmin > tzmax) || (tzmin > tmax)) return ray.far;"
+      DATA "if (tzmin > tmin) tmin = tzmin;"
+      DATA "if (tzmax < tmax) tmax = tzmax;"
+      
+      DATA "float t;"
+      DATA "if ( tmin < ray.epsilon && tmax < ray.epsilon ) return ray.far;"
+      DATA "if ( tmin < ray.epsilon ) {"
+      DATA "t = tmax;"
+      DATA "} else if ( tmax < ray.epsilon ) {"
+      DATA "t = tmin;"
+      DATA "} else {"
+      DATA "t = min(tmin, tmax);"
+      DATA "}"
+      
+      DATA "float flagInside = 1.;"
+      DATA "if ( tmin < ray.epsilon && tmax > ray.epsilon ) flagInside = -1.;"
+      
+      DATA "vec3 p = ray.origin + t * ray.direction;"
+      
+      DATA "if ( abs(p.x - maxp.x) < ray.epsilon ) {"
+      DATA "normal = vec3(1,0,0) * flagInside;"
+      DATA "} else if ( abs(p.x - minp.x) < ray.epsilon ) {"
+      DATA "normal = vec3(-1,0,0) * flagInside;"
+      DATA "} else if ( abs(p.y - maxp.y) < ray.epsilon ) {"
+      DATA "normal = vec3(0,1,0) * flagInside;"
+      DATA "} else if ( abs(p.y - minp.y ) < ray.epsilon ) {"
+      DATA "normal = vec3(0,-1,0) * flagInside;"
+      DATA "} else if ( abs(p.z - maxp.z ) < ray.epsilon ) {"
+      DATA "normal = vec3(0,0,1) * flagInside;"
+      DATA "} else {"
+      DATA "normal = vec3(0,0,-1) * flagInside;"
+      DATA "}"
+      DATA "return t;"
+      DATA "}"
+      
+      
+      DATA "//---------------------------------------------------------------------------------"
+      DATA "void rayMarch(inout Ray ray) {"
+      DATA "ray.origin += ray.near * ray.direction;"
+      
+      DATA "ray.hit = false;"
+      DATA "ray.distance = ray.far;"
+      DATA "ray.position = ray.origin + ray.distance * ray.direction;"
+      DATA "ray.normal = vec3(0);"
+      DATA "ray.object.id = -1;"
+      
+      DATA "Sphere sphere;"
+      DATA "Plane plane;"
+      
+      DATA "float d;"
+      DATA "vec3 normal;"
+      
+      DATA "float radius = 0.25;"
+      
+      DATA "for (float i=0.; i<4.; i++) {"
+      DATA "vec3 position = vec3(sin(i*1000.0), sin(i*10000.0), sin(i*100.0));"
+      DATA "vec3 velocity = vec3(cos(i*200.0+i*400.0+500.0), cos(i*400.0+i*2000.0+500.0), cos(i*600.0)) / 2.0;"
+      DATA "vec3 center = position + velocity * u_time;"
+      
+      DATA "center = mod ( center, 4.0 ) - 2.0;"
+      DATA "if ( center.x >  1.0 ) center.x =  2.0 - center.x;"
+      DATA "if ( center.y >  1.0 ) center.y =  2.0 - center.y;"
+      DATA "if ( center.z >  1.0 ) center.z =  2.0 - center.z;"
+      DATA "if ( center.x < -1.0 ) center.x = -2.0 - center.x;"
+      DATA "if ( center.y < -1.0 ) center.y = -2.0 - center.y;"
+      DATA "if ( center.z < -1.0 ) center.z = -2.0 - center.z;"
+      
+      DATA "sphere = Sphere(center, radius);"
+      DATA "d = intersectSphere ( ray, sphere, normal );"
+      DATA "if (ray.distance > d) {"
+      DATA "ray.hit  = true;"
+      DATA "ray.distance = d;"
+      DATA "ray.position = ray.origin + ray.distance * ray.direction;"
+      DATA "ray.normal   = normal;"
+      DATA "ray.object.id = int(i);"
+      DATA "}"
+      DATA "}"
+      
+      DATA "Plane planes[5];"
+      DATA "planes[0] = Plane(vec3( 0,-1. - radius, 0 ), vec3( 0, 1, 0));"
+      DATA "planes[1] = Plane(vec3( 0, 1. + radius, 0 ), vec3( 0,-1, 0));"
+      DATA "planes[2] = Plane(vec3(-1. - radius,0,  0 ), vec3( 1, 0, 0));"
+      DATA "planes[3] = Plane(vec3( 1. + radius ,0,  0 ), vec3(-1, 0, 0));"
+      DATA "planes[4] = Plane(vec3( 0, 0,   1. + radius), vec3( 0, 0,-1));"
+      
+      DATA "for (int i=0; i<5; i++) {"
+      DATA "d = intersectPlane ( ray, planes[i], normal );"
+      DATA "if (ray.distance > d) {"
+      DATA "ray.hit  = true;"
+      DATA "ray.distance = d;"
+      DATA "ray.position = ray.origin + ray.distance * ray.direction;"
+      DATA "ray.normal   = normal;"
+      DATA "ray.object.id = 4;"
+      DATA "}"
+      DATA "}"
+      DATA "}"
+      
+      DATA "vec3 lighting(Ray ray, Light lights[lightCount], Material material) {"
+      DATA "vec3 col = vec3(0);"
+      
+      DATA "for (int i=0; i<lightCount; i++) {"
+      DATA "Light light = lights[i];"
+      
+      DATA "float lightDistance = length(light.position - ray.position);"
+      
+      DATA "//Тень"
+      DATA "float shadowFactor = 1.0;"
+      
+      DATA "Ray ray1 = ray;"
+      DATA "{"
+      DATA "ray1.origin = ray.position;"
+      DATA "ray1.direction = normalize(light.position - ray.position);"
+      DATA "ray1.near = 0.01;"
+      DATA "ray1.far= lightDistance;"
+      DATA "}"
+      DATA "rayMarch ( ray1 );"
+      
+      
+      DATA "if ( ray1.distance < ray1.far) {"
+      DATA "shadowFactor = clamp(1. - (lightDistance - 3.*ray1.distance) / lightDistance, 0.2, 1.);"
+      DATA "}"
+      
+      DATA "float distanceAttenuationPower = 0.2;"
+      DATA "vec3 lightDir = normalize(light.position - ray.position);"
+      DATA "vec3 eyeDir = - ray.direction; //normalize ( ray.origin - ray.position );"
+      DATA "vec3 reflected = reflect ( -lightDir, ray.normal );"
+      
+      DATA "vec3 color = light.colorAmbient * material.colorAmbient;"
+      
+      DATA "color += shadowFactor * light.colorDiffuse * material.colorDiffuse * max(dot(ray.normal,lightDir), 0.0);"
+      DATA "color += shadowFactor * light.colorSpecular * material.colorSpecular * pow ( max ( dot(reflected, eyeDir), 0.0) , material.shininess ) * step(1., shadowFactor) ;"
+      DATA "color *= min ( 1.0/pow(length(ray.position - ray.origin), distanceAttenuationPower), 1.0);"
+      
+      DATA "col += color/float(lightCount);"
+      DATA "}"
+      
+      DATA "return col;"
+      DATA "}"
+      
+      DATA "//Цвет отражений"
+      DATA "vec3 rayReflect(in Ray ray, in Light lights[lightCount]) {"
+      DATA "//Цвет отражений"
+      DATA "vec3 color = vec3(0);"
+      DATA "//Фактор отражения"
+      DATA "float factorReflect = 1.0;"
+      
+      DATA "for (int i=0; i<4; i++) {"
+      
+      DATA "rayMarch (ray);"
+      
+      DATA "if (ray.hit) {"
+      DATA "Material material = getMaterial(ray);"
+      DATA "color += factorReflect * lighting(ray, lights, material);"
+      DATA "factorReflect *= material.reflectivity;"
+      DATA "if (factorReflect < 0.01) break;"
+      DATA "//Следующий луч"
+      DATA "{"
+      DATA "ray.origin = ray.position;"
+      DATA "ray.direction = reflect (ray.direction, ray.normal);"
+      DATA "ray.near = 0.01; //Отступ"
+      DATA "}"
+      DATA "} else {"
+      DATA "//Цвет фона"
+      DATA "color += vec3(0.1);"
+      DATA "break;"
+      DATA "}"
+      DATA "}"
+      DATA "return color;"
+      DATA "}"
+      DATA "//Цвет преломлений"
+      DATA "vec3 rayRefract(in Ray ray, in Light lights[lightCount]) {"
+      DATA "vec3 color = vec3(0);"
+      DATA "//Фактор отражения"
+      DATA "float factorRefract = 1.0;"
+      
+      DATA "for (int i=0; i<4; i++) {"
+      
+      DATA "rayMarch (ray);"
+      
+      DATA "if (ray.hit) {"
+      DATA "//Достигли фигуры"
+      DATA "Material material = getMaterial(ray);"
+      DATA "factorRefract *= material.refractivity;"
+      DATA "if (factorRefract < 0.01) break;"
+      DATA "//Луч преломления сквозь фигуру"
+      DATA "{"
+      DATA "ray.origin = ray.position;"
+      DATA "ray.direction = refract (ray.direction, ray.normal, material.indexRefractive);"
+      DATA "ray.near = 0.01; //Отступ"
+      DATA "}"
+      
+      DATA "if (! material.flagSolid) {"
+      DATA "//Пересечение луча с границей 2 той же фигуры "
+      DATA "rayMarch (ray);"
+      
+      DATA "if (ray.hit) {"
+      DATA "//Достигли границы 2 фигуры"
+      DATA "//Луч преломления сквозь границу 2 фигуры"
+      DATA "{"
+      DATA "ray.origin = ray.position;"
+      DATA "ray.direction = refract (ray.direction, ray.normal, material.indexRefractive);"
+      DATA "ray.near = 0.01; //Отступ"
+      DATA "}"
+      DATA "//Уменьшаем фактор преломления"
+      DATA "factorRefract *= material.refractivity;"
+      DATA "//Цвет за границей 2 фигуры"
+      DATA "color += factorRefract * rayReflect(ray, lights);"
+      
+      DATA "//Луч отражения от границы 2"
+      DATA "{"
+      DATA "ray.origin = ray.position;"
+      DATA "ray.direction = reflect (ray.direction, ray.normal);"
+      DATA "ray.near = 0.01; //Отступ"
+      DATA "}"
+      DATA "//Отражение от границы 2"
+      DATA "rayMarch (ray);"
+      
+      DATA "if (ray.hit) {"
+      DATA "//Отраженный луч достиг границы 1 фигуры"
+      DATA "//Луч преломления сквозь границу 1 фигуры"
+      DATA "{"
+      DATA "ray.origin = ray.position;"
+      DATA "ray.direction = refract (ray.direction, ray.normal, material.indexRefractive);"
+      DATA "ray.near = 0.01; //Отступ"
+      DATA "}"
+      DATA "//Уменьшаем фактор преломления"
+      DATA "factorRefract *= material.refractivity;"
+      DATA "}"
+      DATA "}"
+      DATA "}"
+      DATA "color += factorRefract * rayReflect(ray, lights);"
+      DATA "} else {"
+      DATA "break;"
+      DATA "}"
+      DATA "}"
+      
+      DATA "return color;"
+      DATA "}"
+      DATA "void main() {"
+      DATA "    u_time = iTime;"
+      DATA "    vec2 u_canvas = iResolution.xy;"
+      DATA "    vec3 u_mouse = iMouse.xyz;"
+      DATA "    "
+      DATA "    float aspect = u_canvas.x/u_canvas.y;"
+      DATA "    vec2 uv = gl_FragCoord.xy / u_canvas.xy;"
+      DATA "    uv = uv * 2.0 - 1.0;"
+      
+      DATA "    vec3 mouse = u_mouse / vec3(u_canvas, 1.0);"
+      DATA "    mouse.xy -= 0.5;"
+      DATA "    if (u_mouse.xy==vec2(0) ) mouse.xy = vec2(0);"
+      
+      DATA "    Camera cam;"
+      DATA "    {"
+      DATA "        cam.fov     = 45.;"
+      DATA "        cam.aspect  = aspect;"
+      DATA "        cam.origin  = vec3(0.0, 0.0, -3.0);"
+      DATA "        rotate (cam.origin, vec3(1,1,0) * vec3(mouse.y*PI, mouse.x*PI*2., 0));"
+      
+      DATA "        cam.target  = vec3(0,0,0);"
+      DATA "        cam.up = vec3(0,1,0);"
+      DATA "    }"
+      
+      DATA "    Ray ray = lookAt(uv, cam);"
+      DATA "    {"
+      DATA "        ray.near = 0.;"
+      DATA "        ray.far  = 1e6;"
+      DATA "        ray.epsilon = 0.001;"
+      DATA "        ray.steps = 1;"
+      DATA "    }"
+      
+      DATA "    Light lights[lightCount];"
+      DATA "    lights[0] = light_0;"
+      DATA "//lights[1] = light_1;"
+      
+      DATA "    //Периодичность изменения материалов 5 сек"
+      DATA "    float time = mod(ceil(u_time/5.), 5.);"
+      
+      
+      DATA "    if (time==1.) {"
+      DATA "        //Металлические шарики и не отражающие стены"
+      DATA "        material_sphere_1 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.6), vec3(1.0), 128.0, 0.5, 0.0, 0.0, true );"
+      DATA "        material_sphere_2 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.6, 0.0, 0.0), vec3(1.0), 128.0, 0.5, 0.0, 0.0, true );"
+      DATA "        material_sphere_3 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.6, 0.0), vec3(1.0), 128.0, 0.5, 0.0, 0.0, true );"
+      DATA "        material_sphere_4 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(1.0), 128.0, 0.5, 0.0, 0.0, true );"
+      DATA "        material_plane_1b = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_plane_1w = Material ( vec3(0.0, 0.0, 0.0), vec3(0.9, 0.9, 0.9), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "    } else if (time==2.) {"
+      DATA "        //Один прозрачный сплошной шарик"
+      DATA "        material_sphere_1 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.6), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_sphere_2 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.6, 0.0, 0.0), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_sphere_3 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.6, 0.0), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_sphere_4 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(1.0), 128.0, 0.5, 0.8, 0.8, true  );"
+      DATA "        material_plane_1b = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_plane_1w = Material ( vec3(0.0, 0.0, 0.0), vec3(0.9, 0.9, 0.9), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "    } else if (time==3.) {"
+      DATA "        //Все шарики разные"
+      DATA "        material_sphere_1 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.6), vec3(1.0), 128.0, 0.5, 0.8, 0.85, false  );"
+      DATA "        material_sphere_2 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.6, 0.0, 0.0), vec3(1.0), 128.0, 0.5, 0.8, 0.85, true  );"
+      DATA "        material_sphere_3 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.6, 0.0), vec3(1.0), 128.0, 0.5, 0.0, 0.0,  true  );"
+      DATA "        material_sphere_4 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(1.0), 128.0, 0.0, 0.8, 0.85, true  );"
+      DATA "        material_plane_1b = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_plane_1w = Material ( vec3(0.0, 0.0, 0.0), vec3(0.9, 0.9, 0.9), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "    } else if (time==4.) {"
+      DATA "        //Частично прозрачные стены"
+      DATA "        material_sphere_1 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.6), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_sphere_2 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.6, 0.0, 0.0), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_sphere_3 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.6, 0.0), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_sphere_4 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_plane_1b = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(1.0), 128.0, 0.5, 0.5, 1.0, false );"
+      DATA "        material_plane_1w = Material ( vec3(0.0, 0.0, 0.0), vec3(0.9, 0.9, 0.9), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "    } else if (time==5.) {"
+      DATA "        //Все прозрачные сплошные шарики"
+      DATA "        material_sphere_1 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.6), vec3(1.0), 128.0, 0.5, 0.5, 0.8, true  );"
+      DATA "        material_sphere_2 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.6, 0.0, 0.0), vec3(1.0), 128.0, 0.5, 0.5, 0.8, true  );"
+      DATA "        material_sphere_3 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.6, 0.0), vec3(1.0), 128.0, 0.5, 0.5, 0.8, true  );"
+      DATA "        material_sphere_4 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.0), vec3(1.0), 128.0, 0.5, 0.5, 0.8, true  );"
+      DATA "        material_plane_1b = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(1.0), 128.0, 0.5, 0.5, 1.0, false );"
+      DATA "        material_plane_1w = Material ( vec3(0.0, 0.0, 0.0), vec3(0.9, 0.9, 0.9), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "    } else if (time==0.) {"
+      DATA "        //Все матовые шарики"
+      DATA "        material_sphere_1 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.0, 0.6), vec3(0.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_sphere_2 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.6, 0.0, 0.0), vec3(0.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_sphere_3 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.0, 0.6, 0.0), vec3(0.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_sphere_4 = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(0.0), 128.0, 0.0, 0.0, 0.0, true  );"
+      DATA "        material_plane_1b = Material ( vec3(0.0, 0.0, 0.0), vec3(0.1, 0.1, 0.1), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "        material_plane_1w = Material ( vec3(0.0, 0.0, 0.0), vec3(0.9, 0.9, 0.9), vec3(1.0), 128.0, 0.0, 0.0, 0.0, true );"
+      DATA "    }"
+      DATA "    "
+      DATA "    vec3 color = vec3(0);"
+      DATA "    color += rayReflect(ray, lights);"
+      DATA "    color += rayRefract(ray, lights);"
+      
+      DATA "    gl_FragColor = vec4(color,1.0);"
+      DATA "}"
+      DATA ""

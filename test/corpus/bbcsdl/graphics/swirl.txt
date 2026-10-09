@@ -1,0 +1,128 @@
+      REM "Swirl"
+      REM by David Williams
+      REM Version 1.0 // 20-Feb-2019
+      
+      ON ERROR PROCError( REPORT$ + " at line " + STR$ERL )
+      
+      BB4W% = (INKEY(-256) == &57)
+      
+      ScrW% = 640
+      
+      IF BB4W% THEN
+        ScrH% = 512
+      ELSE
+        DIM mode{ fmt%, w%, h%, r%, d% }
+        SYS "SDL_GetCurrentDisplayMode", 0, mode{}
+        IF mode.h% > mode.w% THEN
+          ScrH% = (INT(mode.h%/mode.w% * ScrW%) + 1) AND -2
+        ELSE
+          ScrH% = 512
+        ENDIF
+      ENDIF
+      
+      VDU 23, 22, ScrW%; ScrH%; 8, 16, 16, 0 : OFF
+      VDU 24, 0; 0; ScrW%*2-2; ScrH%*2-2;
+      
+      IF POS
+      
+      IF BB4W% THEN
+        GetTicks$ = "timeGetTime"
+      ELSE
+        GetTicks$ = "SDL_GetTicks"
+      ENDIF
+      
+      ORIGIN ScrW%, ScrH%
+      
+      MinRadius% = 50
+      MaxThickness% = 64
+      MaxRadius% = ScrW%/2 + MaxThickness%/2
+      
+      p1 = 2*PI*RND(1)
+      p2 = 2*PI*RND(1)
+      p3 = 2*PI*RND(1)
+      p4 = 2*PI*RND(1)
+      p5 = 2*PI*RND(1)
+      p6 = 2*PI*RND(1)
+      
+      dp1 = 0.1 + 0.9*RND(1)
+      dp2 = 0.1 + 0.9*RND(1)
+      dp3 = 0.1 + 0.9*RND(1)
+      dp4 = 0.1 + 0.9*RND(1)
+      dp5 = 0.1 + 0.9*RND(1)
+      dp6 = 0.1 + 0.9*RND(1)
+      
+      GCOL 1
+      
+      SYS GetTicks$ TO T0%
+      T1% = T0%
+      T2% = T1%-16
+      
+      *REFRESH OFF
+      
+      REPEAT
+        
+        SYS GetTicks$ TO T1%
+        T% = T1% - T0%
+        dt% = T2% - T1%
+        T2% = T1%
+        
+        dt = dt% / 5000
+        r1& = 128 + 127*ABSSIN(T%/2000 + p1)
+        g1& = 128 + 127*ABSSIN(T%/4000 + p2)
+        b1& = 128 + 127*ABSSIN(T%/6000 + p3)
+        r2& = 128 + 127*ABSSIN(T%/3000 + p4)
+        g2& = 128 + 127*ABSSIN(T%/5000 + p5)
+        b2& = 128 + 127*ABSSIN(T%/7000 + p6)
+        p1 += dt * dp1
+        p2 += dt * dp2
+        p3 += dt * dp3
+        p4 += dt * dp4
+        p5 += dt * dp5
+        p6 += dt * dp6
+        
+        R% = MaxRadius%
+        
+        CLS
+        
+        REPEAT
+          f = (R%-MinRadius%) / (MaxRadius%-MinRadius%)
+          s = 0.5 + 0.5*f
+          a1 = s * T%/750
+          a2 = s * (PI + T%/750)
+          r% = R% AND -2
+          x1% = r%*COSa1
+          y1% = r%*SINa1
+          x2% = 1000*COSa2
+          y2% = 1000*SINa2
+          t% = MaxThickness%*f + 1
+          r& = r1& + f*(r2& - r1&)
+          g& = g1& + f*(g2& - g1&)
+          b& = b1& + f*(b2& - b1&)
+          s = 0.25 + 0.75*f
+          COLOR 1, s*r&, s*g&, s*b&
+          VDU 23, 23, t%|
+          MOVE 0,0 : MOVE 2*x1%, 2*y1%
+          PLOT 165, 2*x2%, 2*y2%
+          R% -= 1.25*t%
+        UNTIL R% < MinRadius%
+        
+        *REFRESH
+        IF BB4W% THEN WAIT 1
+        
+      UNTIL FALSE
+      END
+      :
+      :
+      :
+      :
+      DEF PROCError( s$ )
+      OSCLI "REFRESH ON"
+      IF NOT BB4W% THEN
+        IF ERR=17 CHAIN @lib$+"../examples/tools/touchide"
+      ENDIF
+      CLS : ON : VDU 7
+      PRINT '" "+s$;
+      REPEAT
+        WAIT 10
+      UNTIL FALSE
+      ENDPROC
