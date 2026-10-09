@@ -2895,7 +2895,15 @@ class RuntimeExecutionMixin:
         if coords_text:
             for piece in coords_text.replace(' ', '').split(','):
                 if piece:
-                    coords.append(int(round(float(piece))))
+                    try:
+                        value = float(piece)
+                    except ValueError:
+                        # Not a bare numeric literal -- evaluate it as a BASIC
+                        # expression (variables, arithmetic) so DISPLAY/GSAVE
+                        # can target a moving sprite's position, not just a
+                        # fixed literal rect.
+                        value = self._eval_numeric(piece)
+                    coords.append(int(round(float(value))))
         return filename, coords
 
     def _os_rect_to_screen(
@@ -3061,8 +3069,21 @@ class RuntimeExecutionMixin:
             fh.write(hdr)
             fh.write(pixel_data)
 
+    _DISPLAY_IMAGE_CACHE_LIMIT = 32
+
     def _handle_oscli_display(self, rest: str) -> None:
-        """BBCSDL ``DISPLAY \"file\" x,y,w,h`` — blit BMP at OS rect (may scale)."""
+        """BBCSDL ``DISPLAY \"file\" x,y,w,h`` — blit an image file at OS rect
+        (scaled to fit).
+
+        Loading + rescaling from disk and force-presenting used to happen on
+        every single call (~70ms measured for a ~160x160 JPEG, microbenchmark)
+        -- fine for a one-off title image, but unusable for a sprite redrawn
+        every frame (a moving ball, a brick), the same class of silent
+        per-frame cost as the fill_rectangle truecolour/clip_disc bug (see
+        memory [[bbc-graphics-fill-rectangle-perf-bug]]). Loaded + scaled
+        images are now cached by (path, w, h), and presentation defers to
+        the normal ``*REFRESH`` flow instead of forcing every call.
+        """
         filename, coords = self._parse_oscli_file_and_coords(rest)
         if len(coords) < 4:
             raise ValueError('DISPLAY needs x,y,w,h')
@@ -3078,21 +3099,38 @@ class RuntimeExecutionMixin:
         if not self._display_enabled() or self._display is None:
             return
         disp = self._display
-        print(f"[DEBUG GSAVE] OS coords: ({x}, {y}, {w}, {h}) -> Screen rect: sx={sx}, sy={sy}, sw={sw}, sh={sh}")
-        if disp is not None:
-            src = getattr(disp, '_canvas', None) or getattr(disp, '_screen', None)
-            if src:
-                print(f"[DEBUG GSAVE] Target surface size: {src.get_size()}")
         try:
             import pygame
         except ImportError as exc:
             raise ValueError('pygame required for DISPLAY') from exc
-        try:
-            img = pygame.image.load(path)
-        except Exception as exc:
-            raise ValueError(f'DISPLAY load failed: {exc}') from exc
-        if img.get_width() != sw or img.get_height() != sh:
-            img = pygame.transform.smoothscale(img, (max(1, sw), max(1, sh)))
+
+        scaled_cache = getattr(self, '_display_scaled_cache', None)
+        if scaled_cache is None:
+            scaled_cache = {}
+            self._display_scaled_cache = scaled_cache
+        cache_key = (path, max(1, sw), max(1, sh))
+        img = scaled_cache.get(cache_key)
+        if img is None:
+            raw_cache = getattr(self, '_display_raw_cache', None)
+            if raw_cache is None:
+                raw_cache = {}
+                self._display_raw_cache = raw_cache
+            raw = raw_cache.get(path)
+            if raw is None:
+                try:
+                    raw = pygame.image.load(path)
+                except Exception as exc:
+                    raise ValueError(f'DISPLAY load failed: {exc}') from exc
+                if len(raw_cache) >= self._DISPLAY_IMAGE_CACHE_LIMIT:
+                    raw_cache.clear()
+                raw_cache[path] = raw
+            img = raw
+            if img.get_width() != sw or img.get_height() != sh:
+                img = pygame.transform.smoothscale(img, (max(1, sw), max(1, sh)))
+            if len(scaled_cache) >= self._DISPLAY_IMAGE_CACHE_LIMIT:
+                scaled_cache.clear()
+            scaled_cache[cache_key] = img
+
         # Blit onto logical canvas if present, else screen
         canvas = getattr(disp, '_canvas', None)
         target = canvas if canvas is not None else getattr(disp, '_screen', None)
@@ -3103,44 +3141,84 @@ class RuntimeExecutionMixin:
         gfx = getattr(disp, '_gfx', None)
         if gfx is not None:
             try:
-                arr = pygame.surfarray.array3d(img)
-                # arr shape (w,h,3)
-                for j in range(min(sh, img.get_height())):
-                    for i in range(min(sw, img.get_width())):
-                        px, py = sx + i, sy + j
-                        if 0 <= px < gfx.width and 0 <= py < gfx.height:
-                            r, g, b = (int(arr[i, j, 0]), int(arr[i, j, 1]), int(arr[i, j, 2]))
-                            # Nearest index using the live palette (custom COLOR n,r,g,b).
-                            # Default BBC 15 is white; piechart sky (15) must map to 15, not 7.
-                            best, best_d = 0, 1 << 30
-                            pixel_rgb = getattr(disp, '_pixel_rgb', None)
-                            from ..display import colour_to_rgb
-
-                            for ci in range(16):
-                                if callable(pixel_rgb):
-                                    cr, cg, cb = pixel_rgb(ci)
-                                else:
-                                    cr, cg, cb = colour_to_rgb(ci)
-                                d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2
-                                if d < best_d:
-                                    best_d, best = d, ci
-                            gfx.pixels[py][px] = best
-                            layer = gfx._ensure_rgb_pixels() if hasattr(gfx, '_ensure_rgb_pixels') else getattr(gfx, 'rgb_pixels', None)
-                            if layer is not None:
-                                layer[py][px] = (r, g, b)
-                                if hasattr(gfx, 'rgb_dirty'):
-                                    gfx.rgb_dirty.add((px, py))
+                self._stamp_display_image_into_gfx(disp, gfx, img, sx, sy, sw, sh)
             except Exception:
                 pass
         if hasattr(disp, 'mark_compose_full'):
             disp.mark_compose_full()
         elif hasattr(disp, 'mark_dirty'):
             disp.mark_dirty()
-        if hasattr(disp, 'present'):
-            try:
-                disp.present(force=True)
-            except Exception:
-                pass
+        if self._refresh_enabled:
+            self._flush_display(force=True)
+
+    def _stamp_display_image_into_gfx(self, disp, gfx, img, sx: int, sy: int, sw: int, sh: int) -> None:
+        """Record a DISPLAY-blitted image into the palette-index pixel buffer.
+
+        Vectorized with numpy when available -- the nearest-palette-colour
+        search used to be a pure-Python double loop over every pixel, which
+        dominated DISPLAY's cost for anything bigger than an icon. The
+        truecolour ``rgb_pixels``/``rgb_dirty`` side table is only updated if
+        a program has already started using it (via an earlier truecolour
+        COLOUR/CIRCLE FILL): most DISPLAY use (sprites blitted onto a
+        standard palette) never touches it, so leaving it unallocated skips
+        that second, unavoidably per-pixel, pass entirely.
+        """
+        import pygame
+
+        width = min(sw, img.get_width())
+        height = min(sh, img.get_height())
+        if width <= 0 or height <= 0:
+            return
+        x0, y0 = max(0, sx), max(0, sy)
+        x1, y1 = min(gfx.width, sx + width), min(gfx.height, sy + height)
+        if x1 <= x0 or y1 <= y0:
+            return
+        arr = pygame.surfarray.array3d(img)  # shape (img_w, img_h, 3)
+        from ..display import colour_to_rgb
+
+        pixel_rgb = getattr(disp, '_pixel_rgb', None)
+        palette = [
+            pixel_rgb(ci) if callable(pixel_rgb) else colour_to_rgb(ci)
+            for ci in range(16)
+        ]
+        layer = getattr(gfx, 'rgb_pixels', None)  # don't force-allocate
+        rgb_dirty = getattr(gfx, 'rgb_dirty', None) if layer is not None else None
+
+        try:
+            import numpy as np
+        except ImportError:
+            np = None
+
+        if np is not None and gfx.pixels_is_numpy:
+            region = arr[x0 - sx:x1 - sx, y0 - sy:y1 - sy, :].astype(np.int32)  # (w,h,3)
+            pal = np.array(palette, dtype=np.int32)  # (16,3)
+            diff = region[:, :, None, :] - pal[None, None, :, :]
+            dist = (diff * diff).sum(axis=3)
+            idx = dist.argmin(axis=2).astype(np.uint8)  # (w,h)
+            gfx.pixels[y0:y1, x0:x1] = idx.T
+            if layer is not None:
+                for j in range(y1 - y0):
+                    py = y0 + j
+                    for i in range(x1 - x0):
+                        px = x0 + i
+                        r, g, b = (int(region[i, j, 0]), int(region[i, j, 1]), int(region[i, j, 2]))
+                        layer[py][px] = (r, g, b)
+                        rgb_dirty.add((px, py))
+        else:
+            for j in range(y0, y1):
+                jj = j - sy
+                for i in range(x0, x1):
+                    ii = i - sx
+                    r, g, b = (int(arr[ii, jj, 0]), int(arr[ii, jj, 1]), int(arr[ii, jj, 2]))
+                    best, best_d = 0, 1 << 30
+                    for ci, (cr, cg, cb) in enumerate(palette):
+                        d = (cr - r) ** 2 + (cg - g) ** 2 + (cb - b) ** 2
+                        if d < best_d:
+                            best_d, best = d, ci
+                    gfx.pixels[j][i] = best
+                    if layer is not None:
+                        layer[j][i] = (r, g, b)
+                        rgb_dirty.add((i, j))
 
     def _handle_oscli_play(self, rest: str) -> None:
         """mini_basic ``*PLAY \"file.wav\"[,channel]`` -- play a sound sample.
