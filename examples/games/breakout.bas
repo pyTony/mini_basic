@@ -1,3 +1,4 @@
+    1 REM dialect: bbc
    10 MODE 8
    15 SOUND 0,0,0,0
    20 *REFRESH OFF
@@ -55,7 +56,7 @@
   460 DEF PROCserveball
   470 ballx% = px% + pw%/2
   480 bally% = py% + ph% + br%
-  490 IF INKEY(-99) THEN ballvx% = 7*3 : ballvy% = 9*3 : served% = TRUE
+  490 IF INKEY(-99) THEN ballvx% = 16 : ballvy% = 20 : served% = TRUE
   500 ENDPROC
   510
   520 DEF PROCmovepaddle
@@ -78,8 +79,8 @@
   690 DEF PROCpaddlehit
   700 ballvy% = -ballvy%
   710 hitpos% = (ballx% - px%) - pw%/2
-  720 ballvx% = hitpos% * 3 / 10
-  730 IF ballvx% = 0 THEN ballvx% = 12
+  720 ballvx% = hitpos% * 9 / 40
+  730 IF ballvx% = 0 THEN ballvx% = 9
   740 *PLAY "examples/games/sfx_hit.wav",1
   750 ENDPROC
   760
