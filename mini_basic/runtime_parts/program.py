@@ -3041,14 +3041,6 @@ class RuntimeProgramMixin:
             if first_numbered_index is None or index < first_numbered_index:
                 preamble.append((statement, indent))
                 continue
-            if statement.isdigit() and numbered:
-                # A bare line number with no statement is a blank spacer line
-                # (common in BBC listings, e.g. ``270`` between PROC defs), not
-                # a continuation of the previous line or a stray unnumbered
-                # statement. Tokenized .bbc sources detokenize such lines with
-                # no leading indent, so they must be recognised here too.
-                numbered.append((int(statement), '', 0))
-                continue
             if indent > 0:
                 try:
                     self._append_indented_continuation(numbered, statement, indent)
