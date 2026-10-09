@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-09
 
+- [#80](https://github.com/pyTony/mini_basic/pull/80) Normalize star-command spacing on tokenized LOAD (*MUSIC not * MUSIC) — Same as #79, targeting `main` directly (the affected files are identical between `dev` and `main`).
 - [#81](https://github.com/pyTony/mini_basic/pull/81) Restore main to its lean release tree — main is pruned back to exactly its pre-leak file set (`.github`, `basics`, `docs`, `mini_basic`, `showcase`, plus the usual root files) while keeping the real fix (already in `mini_basic/runtime_parts/program.py`) and the later sprite-art work (PR #78) intact.
 - [#74](https://github.com/pyTony/mini_basic/pull/74) Fix LOAD parsing for bare line numbers and OSCLI spacing — Fix LOAD parsing for bare line numbers and OSCLI spacing.
 - [#76](https://github.com/pyTony/mini_basic/pull/76) Fix blank spacer line numbers breaking LOAD/LIST (tokenized .bbc fails, .bas shows ": N" garbling) — Same fix as #75, targeting `main` directly since the affected code (`mini_basic/runtime_parts/program.py`) is identical on both branches (no diff between `dev` and `main` for that file) and the loader bug affects any tokenized `.bbc` or spacer-line `.bas` program, not just the `dev`-only `examples/` assets.
