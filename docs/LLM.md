@@ -19,6 +19,12 @@ cd mini_basic
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 ```
 
+## Architecture at a glance
+
+![mini_basic architecture: dialect parsing, runtime_parts mixins, text and pygame backends](img/architecture.jpg)
+
+*Overview illustration (generated with Gemini Notebook). On the left, `mini` accepts keywords in any case but variable names stay case-sensitive; `mits` / `commodore` / `tiny` fold both. For where each statement is actually handled, see [DISPATCH_MAP.md](DISPATCH_MAP.md).*
+
 ## Language (short)
 
 - Dialects: `mini` (default), `bbc`, `mits`, `commodore`, `tiny`.

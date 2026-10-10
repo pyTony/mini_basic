@@ -1,0 +1,308 @@
+      REM Simple text editor in BBC BASIC for SDL 2.0 or BBC BASIC for Windows
+      REM Written by Richard Russell, http://www.rtrussell.co.uk/, 09-Nov-2023
+      
+      INSTALL @lib$ + "dlglib"
+      INSTALL @lib$ + "msgbox"
+      INSTALL @lib$ + "filedlg"
+      INSTALL @lib$ + "editbox"
+      INSTALL @lib$ + "menulib"
+      INSTALL @lib$ + "sortlib"
+      INSTALL @lib$ + "stringlib"
+      
+      WS_HSCROLL = &100000
+      WS_VSCROLL = &200000
+      EDITBOXID = 100
+      MB_ICONERROR = 16
+      MB_ICONWARNING = 48
+      MB_ICONQUESTION = 32
+      MB_YESNO = 4
+      MB_YESNOCANCEL = 3
+      IDCANCEL = 2
+      IDNO = 7
+      IDYES = 6
+      
+      DarkMode% = FALSE
+      Unicode% = TRUE
+      
+      BB4W = INKEY$(-256) == "W"
+      IF BB4W THEN
+        PropFont$ = "Arial"
+        MonoFont$ = "Consolas"
+      ELSE
+        PropFont$ = """" + @lib$ + "DejaVuSans"""
+        MonoFont$ = """" + @lib$ + "DejaVuSansMono"""
+      ENDIF
+      MenuFont$ = PropFont$ + ",12"
+      EditFont$ = MonoFont$ + ",12"
+      
+      REM Set up menus:
+      MenuBar% = FN_createmenubar
+      
+      DIM FileMenu$(6), FileMenu%(6)
+      FileMenu%() = 6, 20, 21, 22, 23, 0, 24
+      FileMenu$() = "  &File  ", \
+      \             "&New"+CHR$9+"Ctrl+N", \
+      \             "&Open"+CHR$9+"Ctrl+O", \
+      \             "&Save"+CHR$9+"Ctrl+S", \
+      \             "Save &As", \
+      \             "", \
+      \             "E&xit"
+      PROC_addmenu(MenuBar%, FileMenu$(), FileMenu%())
+      
+      DIM EditMenu$(9), EditMenu%(9)
+      EditMenu%() = 9, 30, 31, 0, 32, 33, 34, 35, 0, 36
+      EditMenu$() = "  &Edit  ", \
+      \             "&Undo"+CHR$9+"Ctrl+Z", \
+      \             "&Redo"+CHR$9+"Ctrl+Y", \
+      \             "", \
+      \             "Cu&t"+CHR$9+"Ctrl+X", \
+      \             "&Copy"+CHR$9+"Ctrl+C", \
+      \             "&Paste"+CHR$9+"Ctrl+V", \
+      \             "De&lete", \
+      \             "", \
+      \             "Select &All"+CHR$9+"Ctrl+A"
+      PROC_addmenu(MenuBar%, EditMenu$(), EditMenu%())
+      
+      DIM OptsMenu$(9), OptsMenu%(9)
+      OptsMenu%() = 9, 47, 40, 0, 41, 42, 43, 44, &2000+45, 46
+      OptsMenu$() = "  &Options  ", \
+      \             "&Unicode", \
+      \             "&Dark Mode", \
+      \             "", \
+      \             "Prop. spaced, 11pt", \
+      \             "Prop. spaced, 12pt", \
+      \             "Prop. spaced, 13pt", \
+      \             "Monospaced, 11pt", \
+      \             "Monospaced, 12pt", \
+      \             "Monospaced, 13pt"
+      PROC_addmenu(MenuBar%, OptsMenu$(), OptsMenu%())
+      
+      REM Set up events:
+      *ESC OFF
+      DIM Click%(2)
+      Resize% = FALSE
+      ON ERROR ERROR 0, REPORT$ + " at line " + STR$(ERL)
+      ON CLOSE IF FNchanged PROCcleanup : QUIT ELSE RETURN
+      ON MOUSE Click%() = @msg%, @wparam%, @lparam% : RETURN
+      ON MOVE Resize% OR= (@msg% == 5) : RETURN
+      
+      REM Initialise screen:
+      DIM Edit$(10000), Cols%(20) : Cols%() = 100
+      PROCrefresh
+      PROCnew
+      
+      REM Main loop:
+      PROC_setdlgfocus(Dlg%, EDITBOXID)
+      PROC_refreshdialog(Dlg%)
+      REPEAT
+        key% = INKEY(5)
+        CASE key% OF
+          WHEN 14: IF FNchanged PROCnew
+          WHEN 15: IF FNchanged PROCload
+          WHEN 19: IF FNsave(FileName$) PROCunchanged
+          OTHERWISE: cmd% = FN_polldialog(Dlg%, key%, Click%())
+        ENDCASE
+        
+        cmd% = FN_pollmenu(MenuBar%, ^PROCcallback())
+        MOUSE X%, Y%, B%
+        IF cmd% = 0 IF B% AND 1 THEN
+          cmd% = FN_openmenu(X%, Y%, EditMenu$(), EditMenu%(), ^PROCcallback())
+        ENDIF
+        opt% = 0
+        CASE cmd% OF
+          WHEN 20: IF FNchanged PROCnew
+          WHEN 21: IF FNchanged PROCload
+          WHEN 22: IF FNsave(FileName$) PROCunchanged
+          WHEN 23: IF FNsaveas PROCunchanged
+          WHEN 24: IF FNchanged PROCcleanup : QUIT
+          WHEN 30: PROC_editboxedit(Dlg%, EDITBOXID, 26) : PROC_refreshdialog(Dlg%)
+          WHEN 31: PROC_editboxedit(Dlg%, EDITBOXID, 25) : PROC_refreshdialog(Dlg%)
+          WHEN 32: PROC_editboxedit(Dlg%, EDITBOXID, 24) : PROC_refreshdialog(Dlg%)
+          WHEN 33: PROC_editboxedit(Dlg%, EDITBOXID, 3)  : PROC_refreshdialog(Dlg%)
+          WHEN 34: PROC_editboxedit(Dlg%, EDITBOXID, 22) : PROC_refreshdialog(Dlg%)
+          WHEN 35: PROC_editboxedit(Dlg%, EDITBOXID, 135): PROC_refreshdialog(Dlg%)
+          WHEN 36: PROC_editboxedit(Dlg%, EDITBOXID, 1)  : PROC_refreshdialog(Dlg%)
+          WHEN 47: Unicode% = NOT Unicode% : PROCrefresh
+          WHEN 40: DarkMode% = NOT DarkMode% : PROCrefresh
+          WHEN 41: EditFont$ = PropFont$ + ",11" : opt% = 4
+          WHEN 42: EditFont$ = PropFont$ + ",12" : opt% = 5
+          WHEN 43: EditFont$ = PropFont$ + ",13" : opt% = 6
+          WHEN 44: EditFont$ = MonoFont$ + ",11" : opt% = 7
+          WHEN 45: EditFont$ = MonoFont$ + ",12" : opt% = 8
+          WHEN 46: EditFont$ = MonoFont$ + ",13" : opt% = 9
+        ENDCASE
+        IF opt% PROCrefresh : OptsMenu%() AND= &FFF : OptsMenu%(opt%) OR= &2000
+        IF Unicode%  OptsMenu%(1) OR= &2000 ELSE OptsMenu%(1) AND= NOT &2000
+        IF DarkMode% OptsMenu%(2) OR= &2000 ELSE OptsMenu%(2) AND= NOT &2000
+        
+        yes% = FN_iseditboxchanged(Dlg%, EDITBOXID)
+        IF yes% FileMenu%(3) AND= NOT &1000 ELSE FileMenu%(3) OR= &1000
+        yes% = FN_editboxcanundo(Dlg%, EDITBOXID)
+        IF yes% EditMenu%(1) AND= NOT &1000 ELSE EditMenu%(1) OR= &1000
+        yes% = FN_editboxcanredo(Dlg%, EDITBOXID)
+        IF yes% EditMenu%(2) AND= NOT &1000 ELSE EditMenu%(2) OR= &1000
+        PROC_geteditboxselect(Dlg%, EDITBOXID, X%, Y%, A%, B%) : yes% = X% <> A% OR Y% <> B%
+        IF yes% EditMenu%(4) AND= NOT &1000 ELSE EditMenu%(4) OR= &1000
+        IF yes% EditMenu%(5) AND= NOT &1000 ELSE EditMenu%(5) OR= &1000
+        IF yes% EditMenu%(7) AND= NOT &1000 ELSE EditMenu%(7) OR= &1000
+        IF BB4W THEN
+          SYS "IsClipboardFormatAvailable", 1 TO yes%
+        ELSE
+          SYS "SDL_HasClipboardText" TO yes%
+        ENDIF
+        IF yes% EditMenu%(6) AND= NOT &1000 ELSE EditMenu%(6) OR= &1000
+        
+        IF Resize% THEN
+          Resize% = FALSE
+          PROCrefresh
+        ENDIF
+      UNTIL FALSE
+      QUIT
+      
+      DEF PROCcleanup
+      Edit$() = ""
+      PROC_seteditboxtabs(Dlg%, EDITBOXID, Cols%(), 20)
+      PROC_seteditboxarray(Dlg%, EDITBOXID, Edit$(), 0)
+      Dlg% = 0
+      ENDPROC
+      
+      DEF PROCnew
+      FileName$ = "" : PROCtitle
+      Edit$() = ""
+      PROC_seteditboxarray(Dlg%, EDITBOXID, Edit$(), 0)
+      PROC_refreshdialog(Dlg%)
+      ENDPROC
+      
+      DEF PROCload
+      LOCAL F%, L%, f$
+      OSCLI "FONT " + MenuFont$
+      f$ = FN_filedlgex("Open file", "Open", "", "Text files", ".txt", 1, \
+      \                 DarkMode%, &80000000, &80000000)
+      OSCLI "FONT " + EditFont$
+      VDU 23,0,10,0,0;0;0;23,0,18,2,0;0;0;
+      IF f$ = "" ENDPROC
+      F% = OPENIN(f$)
+      IF F% = 0 THEN
+        PROCmessagebox("Simple text editor", "Could not open file " + f$, MB_ICONWARNING)
+        ENDPROC
+      ENDIF
+      FOR L% = 0 TO DIM(Edit$(),1)
+        Edit$(L%) = FNreadline(F%)
+        IF EOF#F% EXIT FOR
+      NEXT
+      IF Edit$(L%) <> "" L% += 1 : REM LF-terminated line
+      CLOSE #F%
+      FileName$ = f$
+      PROCtitle
+      PROC_seteditboxtabs(Dlg%, EDITBOXID, Cols%(), 20)
+      PROC_seteditboxarray(Dlg%, EDITBOXID, Edit$(), L%)
+      PROC_refreshdialog(Dlg%)
+      ENDPROC
+      
+      DEF FNsave(f$) : IF f$ = "" THEN = FNsaveas
+      LOCAL F%, L%, N%
+      F% = OPENOUT(f$)
+      IF F% = 0 THEN
+        PROCmessagebox("Simple text editor", "Could not create file " + f$, MB_ICONERROR)
+        = FALSE
+      ENDIF
+      N% = FN_geteditboxlinecount(Dlg%, EDITBOXID)
+      FOR L% = 0 TO N% - 1
+        PRINT #F%, Edit$(L%) : BPUT#F%,&A
+      NEXT
+      CLOSE #F%
+      = TRUE
+      
+      DEF FNsaveas
+      LOCAL F%, R%, f$
+      OSCLI "FONT " + MenuFont$
+      f$ = FN_filedlgex("Save file", "Save", "", "Text files", ".txt", 0, \
+      \                 DarkMode%, &80000000, &80000000)
+      OSCLI "FONT " + EditFont$
+      VDU 23,0,10,0,0;0;0;23,0,18,2,0;0;0;
+      IF f$ = "" THEN = FALSE
+      F% = OPENIN(f$)
+      IF F% THEN
+        CLOSE #F%
+        R% = FN_messagebox("Simple Text Editor", "File already exists, overwrite?", \
+        \                 MB_ICONQUESTION + MB_YESNO)
+        IF R% <> IDYES THEN = TRUE
+      ENDIF
+      = FNsave(f$)
+      
+      DEF FNchanged
+      LOCAL R%
+      R% = FN_iseditboxchanged(Dlg%,EDITBOXID)
+      IF R% = 0 THEN = TRUE
+      R% = FN_messagebox("Simple Text Editor", "Save changes?", \
+      \                 MB_ICONQUESTION + MB_YESNOCANCEL)
+      IF R% = IDYES IF FNsave(FileName$) PROCunchanged : = TRUE
+      IF R% = IDNO PROCunchanged : = TRUE
+      = FALSE
+      
+      DEF PROCunchanged
+      PROC_seteditboxchanged(Dlg%, EDITBOXID, FALSE)
+      ENDPROC
+      
+      DEF PROCtitle
+      LOCAL msg$ : msg$ = "Simple Text Editor - "
+      IF FileName$ = "" msg$ += "untitled" ELSE msg$ += FileName$
+      IF BB4W THEN
+        SYS "SetWindowText", @hwnd%, msg$
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%, msg$, @memhdc%
+      ENDIF
+      ENDPROC
+      
+      DEF FNreadline(F%)
+      LOCAL A$
+      A$=GET$#F%
+      IF A$="" IF PTR#F%>1 THEN PTR#F%=PTR#F%-2:IF BGET#F%<>BGET#F% A$=GET$#F%
+      = A$
+      
+      REM Call during initialisation and when window size changes:
+      DEF PROCrefresh
+      LOCAL A%, B%, C%, H%, N%, S%, T%, X%, Y%
+      VDU 26
+      IF POS REM SDL thread sync
+      OSCLI "FONT " + PropFont$ + ",13"
+      PROC_setdialogpalette(DarkMode%)
+      PROC_setmenupalette(DarkMode%)
+      IF Unicode% @vdu.m.c& OR= &80 ELSE @vdu.m.c& AND= &7F
+      OFF
+      
+      PROC_drawmenubar(MenuBar%)
+      H% = 3*@char.y%
+      OSCLI "FONT " + EditFont$
+      VDU 23,0,10,0,0;0;0;23,0,18,2,0;0;0;
+      
+      Dlg% += 0 : IF Dlg% THEN
+        C% = FN_iseditboxchanged(Dlg%, EDITBOXID)
+        N% = FN_geteditboxlinecount(Dlg%, EDITBOXID)
+        PROC_geteditboxscroll(Dlg%, EDITBOXID, S%, T%)
+        PROC_geteditboxselect(Dlg%, EDITBOXID, X%, Y%, A%, B%)
+      ENDIF
+      Dlg% = FN_newdialog("", 0, 0)
+      PROC_editbox(Dlg%, "", 100, 0, H%, 2*@size.x%, 2*@size.y%-H%, \
+      \            WS_HSCROLL OR WS_VSCROLL OR WS_BORDER)
+      PROC_seteditboxtabs(Dlg%, EDITBOXID, Cols%(), 20)
+      PROC_seteditboxarray(Dlg%, EDITBOXID, Edit$(), N%)
+      PROC_seteditboxscroll(Dlg%, EDITBOXID, S%, T%)
+      PROC_seteditboxselect(Dlg%, EDITBOXID, X%, Y%, A%, B%)
+      PROC_seteditboxchanged(Dlg%, EDITBOXID, C%)
+      PROC_setdlgfocus(Dlg%,100)
+      PROC_refreshdialog(Dlg%)
+      ENDPROC
+      
+      DEF PROCcallback(N%)
+      CASE N% OF
+        WHEN 0: OSCLI "FONT " + MenuFont$
+        WHEN -1: OSCLI "FONT " + EditFont$
+      ENDCASE
+      VDU 23,0,10,0,0;0;0;23,0,18,2,0;0;0;
+      ENDPROC
+      
+      DEF PROCmessagebox(title$, message$, flags%)
+      LOCAL R%
+      R% = FN_messagebox(title$, message$, flags%)
+      ENDPROC

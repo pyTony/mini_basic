@@ -1,0 +1,7 @@
+      REM Simple text demo
+      MODE 7
+      PRINT "Hello from MODE 7"
+      FOR I% = 1 TO 5
+        PRINT TAB(I%); "*";
+      NEXT
+      END

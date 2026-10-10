@@ -1,0 +1,2005 @@
+      REM  +---------------------------------+
+      REM  |                                 |
+      REM  |  Hangman // v1.00 [27-02-2012]  |
+      REM  |                                 |
+      REM  +---------------------------------+
+      
+      
+      REM  Initial window dimensions
+      WinW% = 648
+      WinH% = 512
+      VDU 23, 22, WinW%; WinH%; 8, 16, 16, 0
+      
+      
+      REM  Set up event handlers
+      ON ERROR PROC_cleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE PROC_error( REPORT$, ERL )
+      ON CLOSE PROC_cleanup : QUIT
+      
+      
+      REM  Change program window title bar text to read "Hangman vX.YY"
+      ProgTitle$   = "Hangman"
+      ProgVersion$ = "v1.00"
+      SYS "SDL_SetWindowTitle", @hwnd%, ProgTitle$ + " " + ProgVersion$, @memhdc%
+      
+      
+      REM  ----------------------------------------------------------------------------
+      REM  Note that the internal bitmap (screen memory) to which the program's
+      REM  graphics and text are rendered also has the dimensions WinW% by WinH%.
+      REM  ----------------------------------------------------------------------------
+      
+      
+      REM  Display program title and version
+      OSCLI "FONT """ + @lib$ + "FreeSans"", 16"
+      COLOR 15
+      PRINT '"  Hangman " + ProgVersion$ + ""'
+      *FONT
+      
+      REM  Let the user know that things are being loaded...
+      PRINT '"  Loading..."' : PRINT "  ";
+      *REFRESH
+      *REFRESH OFF
+      
+      `SDL_RenderCopy`         = FNSYS_NameToAddress( "SDL_RenderCopy" )
+      `SDL_RenderCopyEx`       = FNSYS_NameToAddress( "SDL_RenderCopyEx" )
+      `SDL_RenderFillRect`     = FNSYS_NameToAddress( "SDL_RenderFillRect" )
+      `SDL_SetTextureColorMod` = FNSYS_NameToAddress( "SDL_SetTextureColorMod" )
+      `SDL_SetTextureAlphaMod` = FNSYS_NameToAddress( "SDL_SetTextureAlphaMod" )
+      `SDL_SetRenderDrawColor` = FNSYS_NameToAddress( "SDL_SetRenderDrawColor" )
+      
+      REM Topics:
+      REM
+      REM     ASTRONOMY
+      REM     BIOLOGY
+      REM     CHEMISTRY
+      REM     COMPUTERS
+      REM     MATHEMATICS
+      REM     PHYSICS
+      REM     ANIMALS
+      REM     CRIME
+      REM     FOOD & DRINK
+      REM     GEOGRAPHY
+      REM     MUSIC
+      REM     PEOPLE
+      REM     PLANTS
+      REM     MISCELLANEOUS
+      REM     ACORN COMPUTERS LTD.
+      
+      hangman480x98%%     = FNLoadImg( @dir$ + ".Hangman/hangman480x98_gif.gif", &1000000 )
+      rope8x150%%         = FNLoadImg( @dir$ + ".Hangman/rope8x150_gif.gif", &1000000 )
+      button20x20%%       = FNLoadImg( @dir$ + ".Hangman/button20x20_gif.gif", &1000000 )
+      button_tick_20x20%% = FNLoadImg( @dir$ + ".Hangman/button_ticked_20x20_gif.gif", &1000000 )
+      leftarrow32x24%%    = FNLoadImg( @dir$ + ".Hangman/leftarrow32x24_gif.gif", &1000000 )
+      rightarrow32x24%%   = FNLoadImg( @dir$ + ".Hangman/rightarrow32x24_gif.gif", &1000000 )
+      start96x48%%        = FNLoadImg( @dir$ + ".Hangman/start96x48_gif.gif", &1000000 )
+      welldone480x96%%    = FNLoadImg( @dir$ + ".Hangman/welldone480x96_gif.gif", &1000000 )
+      death480x96%%       = FNLoadImg( @dir$ + ".Hangman/death480x96_gif.gif", &1000000 )
+      btn_yes_96x48%%     = FNLoadImg( @dir$ + ".Hangman/btn_yes_96x48_gif.gif", &1000000 )
+      btn_no_96x48%%      = FNLoadImg( @dir$ + ".Hangman/btn_no_96x48_gif.gif", &1000000 )
+      btn_exit_64x32%%    = FNLoadImg( @dir$ + ".Hangman/btn_exit_64x32_gif.gif", &1000000 )
+      btn_20x20%%         = FNLoadImg( @dir$ + ".Hangman/btn_20x20_gif.gif", &1000000 )
+      key_48x48%%         = FNLoadImg( @dir$ + ".Hangman/key48x48_gif.gif", &1000000 )
+      
+      DIM sfx{ blank%%, btn%%, key%%, correct%%, wrong%%, welldone%%, death%%, finished%% }
+      
+      sfx.blank%%    = FNLoadMP3( @dir$ + ".Hangman/blank.mp3", 22050, 2 )
+      sfx.btn%%      = FNLoadMP3( @dir$ + ".Hangman/btn.mp3", 22050, 2 )
+      sfx.key%%      = FNLoadMP3( @dir$ + ".Hangman/key.mp3", 22050, 2 )
+      sfx.correct%%  = FNLoadMP3( @dir$ + ".Hangman/correct.mp3", 22050, 2 )
+      sfx.wrong%%    = FNLoadMP3( @dir$ + ".Hangman/wrong.mp3", 22050, 2 )
+      sfx.welldone%% = FNLoadMP3( @dir$ + ".Hangman/welldone.mp3", 22050, 2 )
+      sfx.death%%    = FNLoadMP3( @dir$ + ".Hangman/death.mp3", 22050, 2 )
+      sfx.finished%% = FNLoadMP3( @dir$ + ".Hangman/finished.mp3", 22050, 2 )
+      
+      PROCPlaySound(sfx.blank%%)
+      
+      numBgImgs% = 8
+      DIM bgImg%%( numBgImgs%-1 )
+      
+      FOR I% = 0 TO numBgImgs%-1
+        bgImg%%( I% ) = FNLoadImg( @dir$ + ".Hangman/bg" + STR$I% + ".jpg", &1000000 )
+      NEXT I%
+      
+      DIM key{(25) active%, ascii%, bm%%, x%, y%, click%, colour%}, lettBm%%(25)
+      
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      IF @platform% AND &40 ELSE target%% = !^target%%
+      *ESC OFF
+      
+      OSCLI "FONT """ + @lib$ + "FreeSans"", 16"
+      VDU 23,24,0|
+      COLOR 1,1,1,1 : GCOL 1 : VDU 5
+      FOR I% = 0 TO 25
+        SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, 48, 48 TO key{(I%)}.bm%%
+        SYS "SDL_SetRenderTarget", @memhdc%, key{(I%)}.bm%%
+        SYS `SDL_RenderCopy`, @memhdc%, key_48x48%%, FALSE, FALSE
+        MOVE 48 - WIDTH(CHR$(ASC("a") + I%)) / 2,WinH% * 2 - 24 : PRINT CHR$(ASC("a") + I%);
+        key{(I%)}.ascii% = ASC("a") + I%
+        IF I% < 13 THEN
+          key{(I%)}.x% = 50*I%
+          key{(I%)}.y% = 50
+        ELSE
+          key{(I%)}.x% = 50*(I% - 13)
+          key{(I%)}.y% = 0
+        ENDIF
+        SYS "SDL_SetTextureBlendMode", key{(I%)}.bm%%, 1
+      NEXT I%
+      
+      charW% = 28
+      charH% = 48
+      
+      OSCLI "FONT """ + @lib$ + "FreeSans"", 32"
+      VDU 23,24,0|
+      COLOR 1,&FF,&FF,&FF : GCOL 1 : VDU 5
+      FOR I% = 0 TO 25
+        SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, charW%, charH% TO lettBm%%(I%)
+        SYS "SDL_SetRenderTarget", @memhdc%, lettBm%%(I%)
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 0, 0, 0, 0
+        SYS "SDL_RenderClear", @memhdc%
+        MOVE 28 - WIDTH(CHR$(ASC("a") + I%)) / 2,WinH% * 2 - 2 : PRINT CHR$(ASC("a") + I%);
+        SYS "SDL_SetTextureBlendMode", lettBm%%(I%), 1
+      NEXT I%
+      
+      *ESC ON
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      
+      
+      DIM gallows{(9) bm{addr%%, w%, h%}, x%, y%, opacity%}, Dst{x%, y%, w%, h%}
+      
+      REM gallows{(0)} -> base
+      REM gallows{(1)} -> vert
+      REM gallows{(2)} -> horiz
+      REM gallows{(3)} -> rope
+      REM gallows{(4)} -> head
+      REM gallows{(5)} -> trunk
+      REM gallows{(6)} -> right arm
+      REM gallows{(7)} -> left arm
+      REM gallows{(8)} -> right leg
+      REM gallows{(9)} -> left leg
+      
+      gallows{( 0 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/base277x26_gif.gif", &1000000 )
+      gallows{( 0 )}.bm.w% = 277 : gallows{( 0 )}.bm.h% = 26
+      gallows{( 0 )}.x% = 24 : gallows{( 0 )}.y% = 188
+      
+      gallows{( 1 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/vert90x283_gif.gif", &1000000 )
+      gallows{( 1 )}.bm.w% = 90 : gallows{( 1 )}.bm.h% = 283
+      gallows{( 1 )}.x% = 24 : gallows{( 1 )}.y% = 214
+      
+      gallows{( 2 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/horiz135x24_gif.gif", &1000000 )
+      gallows{( 2 )}.bm.w% = 135 : gallows{( 2 )}.bm.h% = 24
+      gallows{( 2 )}.x% = 58 : gallows{( 2 )}.y% = 474
+      
+      gallows{( 3 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/rope23x89_gif.gif", &1000000 )
+      gallows{( 3 )}.bm.w% = 23 : gallows{( 3 )}.bm.h% = 89
+      gallows{( 3 )}.x% = 158 : gallows{( 3 )}.y% = 412
+      
+      gallows{( 4 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/head34x48_gif.gif", &1000000 )
+      gallows{( 4 )}.bm.w% = 34 : gallows{( 4 )}.bm.h% = 48
+      gallows{( 4 )}.x% = 152 : gallows{( 4 )}.y% = 406
+      
+      gallows{( 5 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/trunk53x66_gif.gif", &1000000 )
+      gallows{( 5 )}.bm.w% = 53 : gallows{( 5 )}.bm.h% = 66
+      gallows{( 5 )}.x% = 142 : gallows{( 5 )}.y% = 345
+      
+      gallows{( 6 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/rightarm20x77_gif.gif", &1000000 )
+      gallows{( 6 )}.bm.w% = 20 : gallows{( 6 )}.bm.h% = 77
+      gallows{( 6 )}.x% = 123 : gallows{( 6 )}.y% = 326
+      
+      gallows{( 7 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/leftarm20x77_gif.gif", &1000000 )
+      gallows{( 7 )}.bm.w% = 20 : gallows{( 7 )}.bm.h% = 77
+      gallows{( 7 )}.x% = 194 : gallows{( 7 )}.y% = 326
+      
+      gallows{( 8 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/rightleg40x118_gif.gif", &1000000 )
+      gallows{( 8 )}.bm.w% = 40 : gallows{( 8 )}.bm.h% = 118
+      gallows{( 8 )}.x% = 130 : gallows{( 8 )}.y% = 228
+      
+      gallows{( 9 )}.bm.addr%% = FNLoadImg( @dir$ + ".Hangman/leftleg40x118_gif.gif", &1000000 )
+      gallows{( 9 )}.bm.w% = 40 : gallows{( 9 )}.bm.h% = 118
+      gallows{( 9 )}.x% = 167 : gallows{( 9 )}.y% = 228
+      
+      FOR I% = 0 TO 9
+        gallows{( I% )}.opacity% = 128
+      NEXT I%
+      
+      SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, WinW%, WinH% TO bmTmp%%
+      SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, WinW%, WinH% TO bmAdd%%
+      SYS "SDL_CreateTexture", @memhdc%, &16762004, 2, WinW%, WinH% TO bmMod%%
+      SYS "SDL_SetTextureBlendMode", bmTmp%%, 1
+      SYS "SDL_SetTextureBlendMode", bmAdd%%, 2
+      SYS "SDL_SetTextureBlendMode", bmMod%%, 4
+      
+      DIM topic{ astronomy{nWords%, active&}, biology{nWords%, active&}, chemistry{nWords%, active&}, \
+      \ computers{nWords%, active&}, mathematics{nWords%, active&}, physics{nWords%, active&}, \
+      \ animals{nWords%, active&}, crime{nWords%, active&}, foodanddrink{nWords%, active&}, \
+      \ geography{nWords%, active&}, music{nWords%, active&}, people{nWords%, active&}, \
+      \ plants{nWords%, active&}, misc{nWords%, active&}, acorn{nWords%, active&} }
+      
+      totalNumWords% = 0
+      maxAllowedWordLen% = 20
+      
+      topic.astronomy.nWords%    = FN_countTopicWords( "ASTRONOMY"    ) : totalNumWords% += topic.astronomy.nWords%
+      topic.biology.nWords%      = FN_countTopicWords( "BIOLOGY"      ) : totalNumWords% += topic.biology.nWords%
+      topic.chemistry.nWords%    = FN_countTopicWords( "CHEMISTRY"    ) : totalNumWords% += topic.chemistry.nWords%
+      topic.computers.nWords%    = FN_countTopicWords( "COMPUTERS"    ) : totalNumWords% += topic.computers.nWords%
+      topic.mathematics.nWords%  = FN_countTopicWords( "MATHEMATICS"  ) : totalNumWords% += topic.mathematics.nWords%
+      topic.physics.nWords%      = FN_countTopicWords( "PHYSICS"      ) : totalNumWords% += topic.physics.nWords%
+      topic.animals.nWords%      = FN_countTopicWords( "ANIMALS"      ) : totalNumWords% += topic.animals.nWords%
+      topic.crime.nWords%        = FN_countTopicWords( "CRIME"        ) : totalNumWords% += topic.crime.nWords%
+      topic.foodanddrink.nWords% = FN_countTopicWords( "FOOD & DRINK" ) : totalNumWords% += topic.foodanddrink.nWords%
+      topic.geography.nWords%    = FN_countTopicWords( "GEOGRAPHY"    ) : totalNumWords% += topic.geography.nWords%
+      topic.music.nWords%        = FN_countTopicWords( "MUSIC"        ) : totalNumWords% += topic.music.nWords%
+      topic.people.nWords%       = FN_countTopicWords( "PEOPLE"       ) : totalNumWords% += topic.people.nWords%
+      topic.plants.nWords%       = FN_countTopicWords( "PLANTS"       ) : totalNumWords% += topic.plants.nWords%
+      topic.misc.nWords%         = FN_countTopicWords( "MISC"         ) : totalNumWords% += topic.misc.nWords%
+      topic.acorn.nWords%        = FN_countTopicWords( "ACORN"        ) : totalNumWords% += topic.acorn.nWords%
+      
+      topic.animals.active&      = 1
+      topic.misc.active&         = 1
+      topic.foodanddrink.active& = 1
+      
+      Goes% = 5
+      
+      DIM activeWordList{( totalNumWords%-1 ) word$}
+      
+      OFF
+      
+      
+      REPEAT
+        PROC_TitlePage
+        PROC_Main
+      UNTIL FALSE
+      END
+      
+      
+      DEF PROC_Main
+      
+      LOCAL go%, debounce%, msX%, msY%, msBtn%, key%, numActiveWords%, A%, B%, D%, I%
+      LOCAL wordLen%, newWord%, wordIndex%, maxWordLen%, wordX%, charX%, charGap%, validLetter%
+      LOCAL hangingState%, letterCount%, numSpaces%, endOfGo%, endOfGoDelay%, fadeIn%
+      LOCAL bgImg%, bgImgChg%, bgImgDelay%, bgImgDelayStart%, bgImg2Opacity%, bgImg2%
+      LOCAL exit%, escPressed%, score%, letter%%
+      LOCAL letterValiditySndDly%, letterValiditySnd%%
+      LOCAL word$, chars&()
+      
+      charGap% = 4
+      
+      maxWordLen% = 32
+      
+      DIM chars&(maxWordLen%-1)
+      
+      
+      numActiveWords% = 0
+      
+      IF topic.astronomy.active& = 1    PROC_getTopicWords( "ASTRONOMY",    topic.astronomy.nWords% )
+      IF topic.physics.active& = 1      PROC_getTopicWords( "PHYSICS",      topic.physics.nWords% )
+      IF topic.chemistry.active& = 1    PROC_getTopicWords( "CHEMISTRY",    topic.chemistry.nWords% )
+      IF topic.biology.active& = 1      PROC_getTopicWords( "BIOLOGY",      topic.biology.nWords% )
+      IF topic.mathematics.active& = 1  PROC_getTopicWords( "MATHEMATICS",  topic.mathematics.nWords% )
+      IF topic.computers.active& = 1    PROC_getTopicWords( "COMPUTERS",    topic.computers.nWords% )
+      IF topic.geography.active& = 1    PROC_getTopicWords( "GEOGRAPHY",    topic.geography.nWords% )
+      IF topic.people.active& = 1       PROC_getTopicWords( "PEOPLE",       topic.people.nWords% )
+      IF topic.crime.active& = 1        PROC_getTopicWords( "CRIME",        topic.crime.nWords% )
+      IF topic.foodanddrink.active& = 1 PROC_getTopicWords( "FOOD & DRINK", topic.foodanddrink.nWords% )
+      IF topic.music.active& = 1        PROC_getTopicWords( "MUSIC",        topic.music.nWords% )
+      IF topic.animals.active& = 1      PROC_getTopicWords( "ANIMALS",      topic.animals.nWords% )
+      IF topic.plants.active& = 1       PROC_getTopicWords( "PLANTS",       topic.plants.nWords% )
+      IF topic.misc.active& = 1         PROC_getTopicWords( "MISC",         topic.misc.nWords% )
+      IF topic.acorn.active& = 1        PROC_getTopicWords( "ACORN",        topic.acorn.nWords% )
+      
+      FOR I% = 1 TO 4*numActiveWords%
+        A% = RND(numActiveWords%) - 1
+        B% = RND(numActiveWords%) - 1
+        SWAP activeWordList{(A%)}.word$, activeWordList{(B%)}.word$
+      NEXT
+      
+      FOR I% = 1 TO 4*numBgImgs%
+        A% = RND(numBgImgs%) - 1
+        B% = RND(numBgImgs%) - 1
+        SWAP bgImg%%(A%), bgImg%%(B%)
+      NEXT I%
+      
+      go% = 0
+      wordIndex% = 0
+      newWord% = TRUE
+      
+      bgImgDelayStart% = 30*70
+      bgImgDelay% = bgImgDelayStart%
+      bgImgChg% = FALSE
+      bgImg% = 0
+      bgImg2% = bgImg% + 1
+      bgImg2Opacity% = 255
+      
+      letterValiditySndDly% = -1
+      letterValiditySnd%% = sfx.blank%%
+      
+      score% = 0
+      escPressed% = FALSE
+      exit% = FALSE
+      debounce% = TRUE
+      fadeIn% = 31
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 17"
+      VDU 23,24,2|
+      COLOR 1,&FF,&FF,&00 : GCOL 1 : VDU 5
+      
+      REPEAT
+        
+        PROC_readMouse( msX%, msY%, msBtn% )
+        
+        REM IF debounce% AND msBtn% = 0 THEN
+        REM debounce% = FALSE
+        REM ENDIF
+        
+        IF msBtn% = 0 THEN
+          debounce% = FALSE
+        ENDIF
+        
+        Dst.x% = 0     : Dst.y% = 0
+        Dst.w% = WinW% : Dst.h% = WinH%
+        IF bgImgChg% = FALSE AND bgImg2Opacity% = 255 THEN
+          SYS "SDL_SetTextureBlendMode", bgImg%%( bgImg% ), 1
+          SYS `SDL_SetTextureAlphaMod`, bgImg%%( bgImg% ), 255 - 8 * fadeIn%
+          SYS `SDL_RenderCopy`, @memhdc%, bgImg%%( bgImg% ), FALSE, Dst{}
+        ELSE
+          SYS "SDL_SetTextureBlendMode", bgImg%%( bgImg% ), 0
+          SYS "SDL_SetTextureBlendMode", bgImg%%( bgImg2% ), 1
+          SYS `SDL_SetTextureAlphaMod`, bgImg%%( bgImg2% ), bgImg2Opacity%
+          SYS `SDL_RenderCopy`, @memhdc%, bgImg%%( bgImg% ), FALSE, Dst{}
+          SYS `SDL_RenderCopy`, @memhdc%, bgImg%%( bgImg2% ), FALSE, Dst{}
+          bgImg2Opacity% += 1
+          IF bgImg2Opacity% >= 255 THEN
+            bgImg2Opacity% = 255
+            bgImgChg% = FALSE
+            bgImg% += 1
+            bgImg2% = bgImg% + 1
+            IF bgImg% = numBgImgs%-1 THEN
+              bgImg2% = 0
+            ENDIF
+            IF bgImg% = numBgImgs% THEN
+              bgImg% = 0
+              bgImg2% = 1
+            ENDIF
+            bgImgDelay% = bgImgDelayStart%
+          ENDIF
+        ENDIF
+        
+        IF NOT bgImgChg% THEN
+          IF bgImgDelay% > 0 THEN
+            bgImgDelay% -= 1
+            IF bgImgDelay% = 0 THEN
+              bgImgChg% = TRUE
+              bgImg2Opacity% = 0
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        IF newWord% THEN
+          word$ = activeWordList{( wordIndex% )}.word$
+          wordLen% = LEN( word$ )
+          wordIndex% += 1
+          IF wordIndex% = numActiveWords% THEN wordIndex% = 0
+          FOR I% = 0 TO maxWordLen%-1 : chars&(I%) = 0 : NEXT I%
+          FOR I% = 0 TO 25 : key{(I%)}.active% = TRUE : NEXT I%
+          FOR I% = 0 TO 9 : gallows{(I%)}.opacity% = 0 : NEXT I%
+          numSpaces% = 0
+          FOR I% = 1 TO wordLen%
+            IF ASCMID$(word$, I%, 1) = 32 THEN
+              numSpaces% += 1
+            ENDIF
+          NEXT I%
+          wordX% = (WinW% - (wordLen%*(charW% + charGap%) - charGap%)) DIV 2
+          hangingState% = 0
+          letterCount% = 0
+          endOfGo% = FALSE
+          endOfGoDelay% = 128
+          fadeIn% = 32
+          newWord% = FALSE
+        ENDIF
+        
+        key% = -1
+        FOR I% = 0 TO 25
+          IF msX% >= key{(I%)}.x% THEN
+            IF msX% < key{(I%)}.x%+48 THEN
+              IF msY% >= WinH% - key{(I%)}.y% - 48 THEN
+                IF msY% < WinH% - key{(I%)}.y% THEN
+                  key% = I%
+                  EXIT FOR
+                ENDIF
+              ENDIF
+            ENDIF
+          ENDIF
+        NEXT
+        
+        IF msBtn% <> 0 IF key% = -1 THEN
+          debounce% = TRUE
+        ENDIF
+        
+        FOR I% = 0 TO 25
+          Dst.w% = 48
+          Dst.h% = 48
+          Dst.x% = key{(I%)}.x%
+          Dst.y% = WinH% - key{(I%)}.y% - Dst.h%
+          SYS `SDL_SetTextureColorMod`, key{(I%)}.bm%%, &FF, &FF, &FF
+          IF key{(I%)}.active% THEN
+            IF I% <> key% OR endOfGo% OR fadeIn% > 0 THEN
+              SYS `SDL_SetTextureAlphaMod`, key{(I%)}.bm%%, &80
+            ELSE
+              SYS `SDL_SetTextureAlphaMod`, key{(I%)}.bm%%, &FF
+            ENDIF
+          ELSE
+            IF key{(I%)}.click% = 0 THEN
+              SYS `SDL_SetTextureAlphaMod`, key{(I%)}.bm%%, 64
+            ELSE
+              D% = key{(I%)}.colour%
+              SYS `SDL_SetTextureAlphaMod`, key{(I%)}.bm%%, &80
+              SYS `SDL_SetTextureColorMod`, key{(I%)}.bm%%, D% >> 16, (D% >> 8) AND &FF, D% AND &FF
+              IF key{(I%)}.click% > 0 THEN
+                key{(I%)}.click% -= 1
+              ENDIF
+            ENDIF
+          ENDIF
+          SYS `SDL_RenderCopy`, @memhdc%, key{(I%)}.bm%%, FALSE, Dst{}
+        NEXT
+        
+        FOR I% = 0 TO 9
+          Dst.w% = gallows{(I%)}.bm.w%
+          Dst.h% = gallows{(I%)}.bm.h%
+          Dst.x% = gallows{(I%)}.x%-8
+          Dst.y% = WinH% - (gallows{(I%)}.y%-8) - Dst.h%
+          IF gallows{( I% )}.opacity% > 0 THEN
+            SYS `SDL_SetTextureColorMod`, gallows{(I%)}.bm.addr%%, 0, 0, 0
+            IF gallows{( I% )}.opacity% < 128 THEN
+              SYS `SDL_SetTextureAlphaMod`, gallows{(I%)}.bm.addr%%, gallows{( I% )}.opacity%
+            ELSE
+              SYS `SDL_SetTextureAlphaMod`, gallows{(I%)}.bm.addr%%, &80
+            ENDIF
+            SYS `SDL_RenderCopy`, @memhdc%, gallows{(I%)}.bm.addr%%, FALSE, Dst{}
+          ENDIF
+        NEXT
+        
+        FOR I% = 0 TO 9
+          Dst.w% = gallows{(I%)}.bm.w%
+          Dst.h% = gallows{(I%)}.bm.h%
+          Dst.x% = gallows{(I%)}.x%
+          Dst.y% = WinH% - gallows{(I%)}.y% - Dst.h%
+          IF gallows{( I% )}.opacity% > 0 THEN
+            SYS `SDL_SetTextureColorMod`, gallows{(I%)}.bm.addr%%, &FF, &FF, &FF
+            IF gallows{( I% )}.opacity% < 255 THEN
+              SYS `SDL_SetTextureAlphaMod`, gallows{(I%)}.bm.addr%%, gallows{( I% )}.opacity%
+              gallows{(I%)}.opacity% += 2
+              IF gallows{(I%)}.opacity% > 255 THEN gallows{(I%)}.opacity% = 255
+            ELSE
+              SYS `SDL_SetTextureAlphaMod`, gallows{(I%)}.bm.addr%%, &FF
+            ENDIF
+            SYS `SDL_RenderCopy`, @memhdc%, gallows{(I%)}.bm.addr%%, FALSE, Dst{}
+          ENDIF
+        NEXT
+        
+        charX% = wordX%
+        FOR I% = 1 TO wordLen%
+          Dst.w% = charW%
+          Dst.h% = 4
+          Dst.x% = charX%
+          Dst.y% = WinH% - 160 - Dst.h%
+          IF ASCMID$(word$,I%,1) <> 32 THEN
+            Dst.x% -= 3 : Dst.y% += 3
+            SYS `SDL_SetRenderDrawColor`, @memhdc%, &20, &20, &20, &FF
+            SYS `SDL_RenderFillRect`, @memhdc%, Dst{}
+            Dst.x% += 3 : Dst.y% -= 3
+            SYS `SDL_SetRenderDrawColor`, @memhdc%, &20, &80, &A0, &FF
+            SYS `SDL_RenderFillRect`, @memhdc%, Dst{}
+          ENDIF
+          charX% += charW% + charGap%
+        NEXT
+        
+        charX% = wordX%
+        FOR I% = 1 TO wordLen%
+          IF chars&(I% - 1) <> 0 THEN
+            letter%% = lettBm%%(ASCMID$(word$,I%,1) - ASC"a")
+            Dst.w% = charW%
+            Dst.h% = charH%
+            Dst.x% = charX% - 1
+            Dst.y% = WinH% - 160 - Dst.h%
+            SYS `SDL_SetTextureColorMod`, letter%%, 0, 0, 0
+            Dst.x% -= 2 : SYS `SDL_RenderCopy`, @memhdc%, letter%%, FALSE, Dst{}
+            Dst.x% += 4 : SYS `SDL_RenderCopy`, @memhdc%, letter%%, FALSE, Dst{}
+            Dst.x% -= 2
+            Dst.y% -= 2 : SYS `SDL_RenderCopy`, @memhdc%, letter%%, FALSE, Dst{}
+            Dst.y% += 4 : SYS `SDL_RenderCopy`, @memhdc%, letter%%, FALSE, Dst{}
+            Dst.y% -= 2
+            IF letterCount% <> wordLen%-numSpaces% THEN
+              SYS `SDL_SetTextureColorMod`, letter%%, &20, &EE, &FF
+            ELSE
+              SYS `SDL_SetTextureColorMod`, letter%%, RND(&FF), RND(&FF), RND(&FF)
+            ENDIF
+            SYS `SDL_RenderCopy`, @memhdc%, letter%%, FALSE, Dst{}
+          ENDIF
+          charX% += charW% + charGap%
+        NEXT
+        
+        IF fadeIn% = 0 THEN
+          IF NOT endOfGo% THEN
+            IF NOT debounce% THEN
+              IF msBtn% = 4 THEN
+                
+                IF key% <> -1 THEN
+                  
+                  IF key{(key%)}.active% THEN
+                    
+                    validLetter% = FALSE
+                    
+                    FOR I% = 0 TO wordLen%-1
+                      IF ASCMID$(word$, I%+1, 1) = key{(key%)}.ascii% THEN
+                        chars&(I%) = 1
+                        letterCount% += 1
+                        validLetter% = TRUE
+                      ENDIF
+                    NEXT
+                    
+                    IF validLetter% THEN
+                      letterValiditySndDly% = 10
+                      letterValiditySnd%% = sfx.correct%%
+                      key{(key%)}.colour% = FNrgb( 0, 255, 0 )
+                    ELSE
+                      letterValiditySndDly% = 10
+                      letterValiditySnd%% = sfx.wrong%%
+                      key{(key%)}.colour% = FNrgb( 255, 0, 0 )
+                      gallows{( hangingState% )}.opacity% = 1
+                      hangingState% += 1
+                    ENDIF
+                    
+                    key{(key%)}.active% = FALSE
+                    key{(key%)}.click% = 8
+                    debounce% = TRUE
+                    
+                    PROCPlaySound(sfx.key%%)
+                    
+                  ENDIF
+                  
+                ENDIF
+                
+              ENDIF
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        IF NOT endOfGo% THEN
+          IF hangingState% > 9 THEN
+            PROCPlaySound(sfx.death%%)
+            endOfGo% = TRUE
+          ENDIF
+          IF letterCount% = wordLen%-numSpaces% THEN
+            PROCPlaySound(sfx.welldone%%)
+            endOfGo% = TRUE
+            score% += 1
+          ENDIF
+        ELSE
+          IF endOfGoDelay% > 0 THEN
+            endOfGoDelay% -= 1
+          ELSE
+            *REFRESH
+            PROC_endOfGo(word$)
+            OSCLI "FONT """ + @lib$ + "DejaVuSans"", 17"
+            VDU 23,24,0|
+            COLOR 1,&FF,&FF,&00 : GCOL 1 : VDU 5
+            newWord% = TRUE
+            go% += 1
+          ENDIF
+        ENDIF
+        
+        Dst.w% = 64
+        Dst.h% = 32
+        Dst.x% = 8
+        Dst.y% = 40 - Dst.h%
+        SYS `SDL_SetTextureAlphaMod`, btn_exit_64x32%%, &80
+        SYS `SDL_RenderCopy`, @memhdc%, btn_exit_64x32%%, FALSE, Dst{}
+        
+        IF fadeIn% > 0 THEN
+          fadeIn% -= 1
+        ENDIF
+        
+        IF msBtn% = 4 THEN
+          IF msX% >= 8 THEN
+            IF msX% < 8+64 THEN
+              IF msY% < 40 THEN
+                *REFRESH
+                escPressed% = TRUE
+                exit% = FN_exitGame
+                OSCLI "FONT """ + @lib$ + "DejaVuSans"", 17"
+                VDU 23,24,0|
+                COLOR 1,&FF,&FF,&00 : GCOL 1 : VDU 5
+              ENDIF
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        MOVE 256-2, WinH%*2-16-2 : GCOL 0 : PRINT "Game "; go%+1 " of "; Goes%;
+        MOVE 256-0, WinH%*2-16-0 : GCOL 1 : PRINT "Game "; go%+1 " of "; Goes%;
+        MOVE 800-2, WinH%*2-16-2 : GCOL 0 : PRINT "Score: "; score%;
+        MOVE 800-0, WinH%*2-16-0 : GCOL 1 : PRINT "Score: "; score%;
+        
+        IF letterValiditySndDly% > -1 THEN
+          IF NOT endOfGo% THEN
+            IF letterValiditySndDly% = 0 THEN
+              PROCPlaySound(letterValiditySnd%%)
+            ENDIF
+          ENDIF
+          letterValiditySndDly% -= 1
+        ENDIF
+        
+        IF newWord%=FALSE AND escPressed%=FALSE THEN
+          *REFRESH
+        ENDIF
+        
+        escPressed% = FALSE
+        
+      UNTIL go%=Goes% OR exit%=TRUE
+      
+      IF NOT exit% THEN
+        PROC_announceScore( score% )
+      ENDIF
+      
+      ENDPROC
+      
+      
+      DEF PROC_TitlePage
+      
+      LOCAL debounce%, quit%, msX%, msY%, msBtn%, alpha%, strW%, cX%, start%, b%%
+      LOCAL rc{}, hot{()} : DIM rc{x%, y%, w%, h%}, hot{(32) x%, y%, w%, h%}
+      
+      *REFRESH OFF
+      
+      cX% = (460+32 + 580) DIV 2 - 4
+      
+      debounce% = FALSE
+      quit% = FALSE
+      start% = FALSE
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 14"
+      VDU 23,24,2|
+      COLOR 1,&FF,&FF,&80 : GCOL 1 : VDU 5,12
+      MOVE 128, 840-56*0 : PRINT "Astronomy";
+      MOVE 128, 840-56*1 : PRINT "Physics";
+      MOVE 128, 840-56*2 : PRINT "Chemistry";
+      MOVE 128, 840-56*3 : PRINT "Biology";
+      MOVE 128, 840-56*4 : PRINT "Mathematics";
+      MOVE 128, 840-56*5 : PRINT "Computers";
+      MOVE 128, 840-56*6 : PRINT "Geography";
+      MOVE 128, 840-56*7 : PRINT "People";
+      
+      MOVE 560, 840-56*0 : PRINT "Crime";
+      MOVE 560, 840-56*1 : PRINT "Food & Drink";
+      MOVE 560, 840-56*2 : PRINT "Music";
+      MOVE 560, 840-56*3 : PRINT "Animals";
+      MOVE 560, 840-56*4 : PRINT "Plants";
+      MOVE 560, 840-56*5 : PRINT "Miscellaneous";
+      MOVE 560, 840-56*6 : PRINT "Acorn";
+      
+      COLOR 1,&40,&FF,&FF
+      MOVE 128, 840-56*9  : PRINT "Select all";
+      MOVE 128, 840-56*10 : PRINT "Deselect all but one";
+      MOVE 128, 840-56*11 : PRINT "Invert selection";
+      MOVE 128, 840-56*12 : PRINT "Random selection";
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 17"
+      VDU 23,24,0|
+      COLOR 1,&FF,&EE,&40
+      MOVE cX%*2 - WIDTH("Games")/2, 384 : PRINT "Games";
+      
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      IF @platform% AND &40 ELSE target%% = !^target%%
+      *ESC OFF
+      
+      rc.w% = WinW% : rc.h% = WinH%
+      SYS "SDL_SetRenderTarget", @memhdc%, bmAdd%%
+      SYS "SDL_RenderClear", @memhdc%
+      SYS `SDL_RenderCopy`, @memhdc%, target%%, rc{}, FALSE
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      
+      GCOL 3,128+15 : CLG : GCOL 0,128
+      SYS "SDL_SetRenderTarget", @memhdc%, bmMod%%
+      SYS "SDL_RenderClear", @memhdc%
+      SYS `SDL_RenderCopy`, @memhdc%, target%%, rc{}, FALSE
+      
+      *ESC ON
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      
+      OSCLI "FONT """ + @lib$ + "FreeSans"", 32"
+      VDU 23,24,0|
+      COLOR 1,&FF,&C0,&40
+      
+      REPEAT
+        
+        PROC_readMouse( msX%, msY%, msBtn% )
+        
+        COLOR 8, 100, 75, 30 : COLOR 128+8 : CLS : COLOR 128
+        
+        PROC_offsetRotate( rope8x150%%, 8, 150, WinW%DIV2, 260+32, WinW%DIV2, 260DIV2-32 +120, 0.35*SIN(TIME/50) )
+        
+        PROC_offsetRotate( hangman480x98%%, 480, 98, WinW%DIV2, 260+32, WinW%DIV2, 260DIV2-32, 0.35*SIN(TIME/50) )
+        
+        rc.x% -= 2 : rc.y% += 2
+        SYS `SDL_RenderCopy`, @memhdc%, bmMod%%, FALSE, rc{}
+        rc.x% += 2 : rc.y% -= 2
+        SYS `SDL_RenderCopy`, @memhdc%, bmAdd%%, FALSE, rc{}
+        
+        IF topic.astronomy.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400, -4, -4, hot{(1)})
+        
+        IF topic.physics.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28, -4, -4, hot{(2)})
+        
+        IF topic.chemistry.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28*2, -4, -4, hot{(3)})
+        
+        IF topic.biology.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28*3, -4, -4, hot{(4)})
+        
+        IF topic.mathematics.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28*4, -4, -4, hot{(5)})
+        
+        IF topic.computers.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28*5, -4, -4, hot{(6)})
+        
+        IF topic.geography.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28*6, -4, -4, hot{(7)})
+        
+        IF topic.people.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 32, 400-28*7, -4, -4, hot{(8)})
+        
+        IF topic.crime.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*0, -4, -4, hot{(9)})
+        
+        IF topic.foodanddrink.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*1, -4, -4, hot{(10)})
+        
+        IF topic.music.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*2, -4, -4, hot{(11)})
+        
+        IF topic.animals.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*3, -4, -4, hot{(12)})
+        
+        IF topic.plants.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*4, -4, -4, hot{(13)})
+        
+        IF topic.misc.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*5, -4, -4, hot{(14)})
+        
+        IF topic.acorn.active& = 1 THEN b%%=button_tick_20x20%% ELSE b%%=button20x20%%
+        PROC_PlotWithDropShadow(b%%, 20, 20, 248, 400-28*6, -4, -4, hot{(15)})
+        
+        PROC_PlotWithDropShadow(btn_20x20%%, 20, 20, 32, 400-28*9, -4, -4, hot{(20)})
+        PROC_PlotWithDropShadow(btn_20x20%%, 20, 20, 32, 400-28*10, -4, -4, hot{(21)})
+        PROC_PlotWithDropShadow(btn_20x20%%, 20, 20, 32, 400-28*11, -4, -4, hot{(22)})
+        PROC_PlotWithDropShadow(btn_20x20%%, 20, 20, 32, 400-28*12, -4, -4, hot{(23)})
+        
+        PROC_PlotWithDropShadow(leftarrow32x24%%, 32, 24, 460, 128, -4, -4, hot{(30)})
+        PROC_PlotWithDropShadow(rightarrow32x24%%, 32, 24, 580, 128, -4, -4, hot{(31)})
+        PROC_PlotWithDropShadow(start96x48%%, 96, 48, cX% - 47, 32, -4, -4, hot{(32)})
+        
+        strW% = WIDTH(STR$Goes%)
+        MOVE cX%*2 - strW%/2 - 6, 326 - 6 : GCOL 0 : PRINT ;Goes%;
+        MOVE cX%*2 - strW%/2 - 0, 326 - 0 : GCOL 1 : PRINT ;Goes%;
+        
+        FOR alpha% = 1 TO DIM(hot{()},1)
+          IF FN_PointInRect(msX%, msY%, hot{(alpha%)}) EXIT FOR
+        NEXT
+        IF alpha% > DIM(hot{()},1) alpha% = 0
+        
+        IF alpha% = 0 AND msBtn% <> 0 THEN
+          debounce% = TRUE
+        ENDIF
+        
+        IF debounce% = TRUE AND msBtn% = 0 THEN
+          debounce% = FALSE
+        ENDIF
+        
+        IF alpha% IF msBtn% = 4 IF debounce% = FALSE THEN
+          numActiveTopics% = FN_countActiveTopics
+          IF numActiveTopics% = 1 THEN
+            soleActiveTopic% = FN_getSoleActiveTopic
+          ELSE
+            soleActiveTopic% = 0
+          ENDIF
+          CASE alpha% OF
+            WHEN 1:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 1) THEN
+                topic.astronomy.active& EOR= 1
+              ENDIF
+            WHEN 2:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 2) THEN
+                topic.physics.active& EOR= 1
+              ENDIF
+            WHEN 3:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 3) THEN
+                topic.chemistry.active& EOR= 1
+              ENDIF
+            WHEN 4:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 4) THEN
+                topic.biology.active& EOR= 1
+              ENDIF
+            WHEN 5:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 5) THEN
+                topic.mathematics.active& EOR= 1
+              ENDIF
+            WHEN 6:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 6) THEN
+                topic.computers.active& EOR= 1
+              ENDIF
+            WHEN 7:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 7) THEN
+                topic.geography.active& EOR= 1
+              ENDIF
+            WHEN 8:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 8) THEN
+                topic.people.active& EOR= 1
+              ENDIF
+            WHEN 9:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 9) THEN
+                topic.crime.active& EOR= 1
+              ENDIF
+            WHEN 10:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 10) THEN
+                topic.foodanddrink.active& EOR= 1
+              ENDIF
+            WHEN 11:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 11) THEN
+                topic.music.active& EOR= 1
+              ENDIF
+            WHEN 12:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 12) THEN
+                topic.animals.active& EOR= 1
+              ENDIF
+            WHEN 13:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 13) THEN
+                topic.plants.active& EOR= 1
+              ENDIF
+            WHEN 14:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 14) THEN
+                topic.misc.active& EOR= 1
+              ENDIF
+            WHEN 15:
+              IF numActiveTopics% > 1 OR (numActiveTopics% = 1 AND soleActiveTopic% <> 15) THEN
+                topic.acorn.active& EOR= 1
+              ENDIF
+            WHEN 20: PROC_selectAllTopics
+            WHEN 21: PROC_deselectTopics
+            WHEN 22: PROC_invertTopics
+            WHEN 23: PROC_randomTopics
+            WHEN 30:
+              Goes% -= 1
+              IF Goes% < 1 THEN Goes% = 1
+            WHEN 31:
+              Goes% += 1
+              IF Goes% > 99 THEN Goes% = 99
+            WHEN 32: start% = TRUE
+            WHEN 99: quit% = TRUE
+          ENDCASE
+          debounce% = TRUE
+          PROCPlaySound(sfx.btn%%)
+        ENDIF
+        
+        *REFRESH
+        
+      UNTIL start% OR quit%
+      
+      *ESC OFF
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      IF @platform% AND &40 ELSE target%% = !^target%%
+      SYS "SDL_SetRenderTarget", @memhdc%, bmTmp%%
+      SYS `SDL_RenderCopy`, @memhdc%, target%%, rc{}, FALSE
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      *ESC ON
+      
+      FOR alpha% = &FF TO 7 STEP -8
+        SYS `SDL_SetTextureAlphaMod`, bmTmp%%, alpha%
+        SYS "SDL_RenderClear", @memhdc%
+        SYS `SDL_RenderCopy`, @memhdc%, bmTmp%%, FALSE, rc{}
+        *REFRESH
+      NEXT alpha%
+      
+      ENDPROC
+      
+      
+      DEF PROC_endOfGo(word$)
+      LOCAL A%, D%, bm%%, frames%, I%, bmW, dBmW, bmH%, bmX%, bmY%, angle#, dAngle, scale, dScale
+      LOCAL th, rc{} : DIM rc{x%, y%, w%, h%}
+      
+      rc.w% = WinW%
+      rc.h% = WinH%
+      *ESC OFF
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      IF @platform% AND &40 ELSE target%% = !^target%%
+      SYS "SDL_SetRenderTarget", @memhdc%, bmTmp%%
+      SYS `SDL_RenderCopy`, @memhdc%, target%%, rc{}, FALSE
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      SYS `SDL_SetTextureAlphaMod`, bmTmp%%, &FF
+      *ESC ON
+      
+      IF letterCount% = wordLen%-numSpaces% THEN
+        bm%% = welldone480x96%%
+        frames% = 250
+      ELSE
+        bm%% = death480x96%%
+        frames% = 450
+      ENDIF
+      
+      bmW = 1300.0
+      dBmW = 0.0
+      angle# = 0.0
+      dAngle = 0.0
+      scale = 1.0
+      dScale = 0.0
+      
+      th = 0.0
+      
+      REPEAT
+        
+        IF frames% >= 250 OR bm%% <> death480x96%% CLS
+        
+        IF scale > 0.1 THEN
+          rc.w% = WinW%
+          rc.h% = WinH%
+          rc.x% = 0
+          rc.y% = 0
+          SYS "SDL_RenderSetClipRect", @memhdc%, rc{}
+          rc.w% = WinW% * scale
+          rc.h% = WinH% * scale
+          rc.x% = (WinW% - rc.w%) DIV 2
+          rc.y% = (WinH% - rc.h%) DIV 2
+          IF @platform% AND &40 THEN
+            IF angle# = 0 ?(^angle#+7) = &80
+            SYS `SDL_RenderCopyEx`, @memhdc%, bmTmp%%, FALSE, rc{}, angle#, FALSE, FALSE
+          ELSE
+            A% = ^angle#
+            SYS `SDL_RenderCopyEx`, @memhdc%, bmTmp%%, FALSE, rc{}, !A%, A%!4, FALSE, FALSE
+          ENDIF
+        ENDIF
+        
+        bmH% = 96/480 * bmW
+        bmX% = (WinW% - bmW) DIV 2
+        bmY% = (WinH% - bmH%) DIV 2
+        
+        rc.w% = bmW
+        rc.h% = bmH%
+        rc.x% = bmX%
+        rc.y% = WinH% - bmY% - rc.h%
+        D% = 255*((1300 - bmW)/bmW) : IF D% > 255 D% = 255
+        SYS `SDL_SetTextureAlphaMod`, bm%%, D%
+        SYS `SDL_RenderCopy`, @memhdc%, bm%%, FALSE, rc{}
+        
+        IF bm%% = death480x96%% THEN
+          IF frames% = 250 THEN
+            OSCLI "FONT """ + @lib$ + "DejaVuSans"", 16"
+            VDU 23,24,0|
+            COLOR 1, &FF, &A0, &00 : GCOL 1
+            MOVE WinW% - WIDTH("The word was") DIV 2, 146 * 2
+            PRINT "The word was";
+          ENDIF
+          IF frames% = 180 THEN
+            OSCLI "FONT """ + @lib$ + "DejaVuSans"", 32"
+          ENDIF
+          IF frames% <= 180 THEN
+            COLOR 1, 220+35*SIN(th), 220+35*COS(th/2), 32+32*SIN(th/3 + 1)
+            D% = WIDTH(word$)
+            MOVE WinW% - D% DIV 2, 100 * 2
+            PLOT 99, D%, -100
+            MOVE WinW% - D% DIV 2, 100 * 2
+            PRINT word$;
+          ENDIF
+        ENDIF
+        
+        bmW += dBmW
+        dBmW -= 0.09
+        IF bmW < 480 THEN bmW = 480
+        
+        angle# += dAngle
+        dAngle -= 0.065
+        IF angle# <= -360 THEN angle# += 360
+        
+        scale += dScale
+        dScale -= 0.0001
+        IF scale < 0.01 THEN scale = 0.01
+        
+        *REFRESH
+        
+        frames% -= 1
+        
+        th += 0.35
+        IF th >= 2*PI THEN th -= 2*PI
+        
+      UNTIL frames% <= 0
+      
+      rc.x% = 0 : rc.y% = 0
+      rc.w% = WinW% : rc.h% = WinH%
+      
+      *ESC OFF
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      IF @platform% AND &40 ELSE target%% = !^target%%
+      SYS "SDL_SetRenderTarget", @memhdc%, bmTmp%%
+      SYS `SDL_RenderCopy`, @memhdc%, target%%, rc{}, FALSE
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      *ESC ON
+      
+      FOR I% = &FF TO 7 STEP -8
+        SYS `SDL_SetTextureAlphaMod`, bmTmp%%, I%
+        SYS "SDL_RenderClear", @memhdc%
+        SYS `SDL_RenderCopy`, @memhdc%, bmTmp%%, FALSE, rc{}
+        *REFRESH
+      NEXT I%
+      
+      ENDPROC
+      
+      
+      DEF PROC_announceScore( S% )
+      LOCAL F%, H%, W%, s$, bm%%, alpha, dst{}
+      DIM dst{x%, y%, w%, h%}
+      
+      s$ = STR$S% + "  out of  " + STR$Goes%
+      
+      dst.x% = 0
+      dst.y% = 96
+      dst.w% = WinW%
+      dst.h% = WinH% - 192
+      bm%% = bgImg%%( RND(numBgImgs%)-1 )
+      
+      PROCPlaySound(sfx.finished%%)
+      
+      F% = 0
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 32"
+      VDU 23,24,0|
+      IF POS REM SDL thread sync
+      H% = @vdu%!220 * 2
+      
+      REPEAT
+        CLS
+        
+        IF F% <= 75 alpha = F% / 75 ELSE IF F% >= 275 alpha = (350 - F%) / 75 ELSE alpha = 1.0
+        
+        SYS `SDL_SetTextureColorMod`, bm%%, INT(&FF * alpha), INT(&FF * alpha), INT(&FF * alpha)
+        SYS `SDL_RenderCopy`, @memhdc%, bm%%, FALSE, dst{}
+        SYS `SDL_SetTextureColorMod`, bm%%, &FF, &FF, &FF
+        
+        COLOR 1, &40 * alpha, &FF * alpha, &40 * alpha
+        W% = WIDTH("You scored") DIV 2
+        MOVE WinW% - W% - 6, WinH% + H% - 6 : GCOL 0 : PRINT "You scored";
+        MOVE WinW% - W% - 0, WinH% + H% - 0 : GCOL 1 : PRINT "You scored";
+        
+        COLOR 1, &80 * alpha, &FF * alpha, &80 * alpha
+        W% = WIDTH(s$) DIV 2
+        MOVE WinW% - W% - 6, WinH% - 128 + H% - 6 : GCOL 0 : PRINT s$;
+        MOVE WinW% - W% - 0, WinH% - 128 + H% - 0 : GCOL 1 : PRINT s$;
+        
+        *REFRESH
+        
+        F% += 1
+        
+      UNTIL F% > 350
+      ENDPROC
+      
+      
+      DEF FN_exitGame
+      
+      LOCAL debounce%, msX%, msY%, msBtn%, H%, W%, alpha%, s$, rc{}, yes{}, no{}
+      DIM rc{x%, y%, w%, h%}, no{x%, y%, w%, h%}, yes{x%, y%, w%, h%}
+      
+      PROCPlaySound(sfx.btn%%)
+      
+      rc.w% = WinW%
+      rc.h% = WinH%
+      *ESC OFF
+      PROC_BoxBlur(3, 0.6)
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 32"
+      VDU 23,24,0|
+      IF POS REM SDL thread sync
+      s$ =  "Exit back to the title page?"
+      W% = WIDTH(s$) DIV 2
+      H% = @vdu%!220 * 2
+      COLOR 1, &80, &FF, &80
+      
+      MOVE WinW% - W% - 6, WinH% + H% + 64 - 6 : GCOL 0 : PRINT s$;
+      MOVE WinW% - W% - 0, WinH% + H% + 64 - 0 : GCOL 1 : PRINT s$;
+      
+      rc.w% = 96
+      rc.h% = 48
+      rc.x% = 150
+      rc.y% = WinH% - 190 - rc.h%
+      no{} = rc{}
+      SYS `SDL_RenderCopy`, @memhdc%, btn_no_96x48%%, FALSE, rc{}
+      rc.x% = WinW% - 150 - rc.w%
+      yes{} = rc{}
+      SYS `SDL_RenderCopy`, @memhdc%, btn_yes_96x48%%, FALSE, rc{}
+      
+      REPEAT
+        
+        IF msBtn% <> 0 THEN
+          debounce% = TRUE
+        ELSE
+          debounce% = FALSE
+        ENDIF
+        
+        PROC_readMouse( msX%, msY%, msBtn% )
+        
+        *REFRESH
+        
+        IF NOT debounce% THEN
+          IF msBtn% = 4 THEN
+            IF FN_PointInRect(msX%, msY%, no{}) alpha% = 1
+            IF FN_PointInRect(msX%, msY%, yes{}) alpha% = 2
+          ENDIF
+        ENDIF
+        
+      UNTIL alpha% = 1 OR alpha% = 2
+      
+      PROCPlaySound(sfx.btn%%)
+      
+      = alpha% == 2
+      
+      
+      DEF FN_countActiveTopics
+      LOCAL N%
+      N% += topic.astronomy.active&
+      N% += topic.physics.active&
+      N% += topic.chemistry.active&
+      N% += topic.biology.active&
+      N% += topic.mathematics.active&
+      N% += topic.computers.active&
+      N% += topic.geography.active&
+      N% += topic.animals.active&
+      N% += topic.crime.active&
+      N% += topic.foodanddrink.active&
+      N% += topic.music.active&
+      N% += topic.people.active&
+      N% += topic.plants.active&
+      N% += topic.misc.active&
+      N% += topic.acorn.active&
+      = N%
+      
+      
+      DEF FN_getSoleActiveTopic
+      IF topic.astronomy.active& = 1    THEN =1
+      IF topic.physics.active& = 1      THEN =2
+      IF topic.chemistry.active& = 1    THEN =3
+      IF topic.biology.active& = 1      THEN =4
+      IF topic.mathematics.active& = 1  THEN =5
+      IF topic.computers.active& = 1    THEN =6
+      IF topic.geography.active& = 1    THEN =7
+      IF topic.animals.active& = 1      THEN =8
+      IF topic.crime.active& = 1        THEN =9
+      IF topic.foodanddrink.active& = 1 THEN =10
+      IF topic.music.active& = 1        THEN =11
+      IF topic.people.active& = 1       THEN =12
+      IF topic.plants.active& = 1       THEN =13
+      IF topic.misc.active& = 1         THEN =14
+      IF topic.acorn.active& = 1        THEN =15
+      =14
+      
+      
+      DEF PROC_selectAllTopics
+      topic.astronomy.active&    = 1
+      topic.physics.active&      = 1
+      topic.chemistry.active&    = 1
+      topic.biology.active&      = 1
+      topic.mathematics.active&  = 1
+      topic.computers.active&    = 1
+      topic.geography.active&    = 1
+      topic.animals.active&      = 1
+      topic.crime.active&        = 1
+      topic.foodanddrink.active& = 1
+      topic.music.active&        = 1
+      topic.people.active&       = 1
+      topic.plants.active&       = 1
+      topic.misc.active&         = 1
+      topic.acorn.active&        = 1
+      ENDPROC
+      
+      
+      DEF PROC_invertTopics
+      topic.astronomy.active&    EOR= 1
+      topic.physics.active&      EOR= 1
+      topic.chemistry.active&    EOR= 1
+      topic.biology.active&      EOR= 1
+      topic.mathematics.active&  EOR= 1
+      topic.computers.active&    EOR= 1
+      topic.geography.active&    EOR= 1
+      topic.animals.active&      EOR= 1
+      topic.crime.active&        EOR= 1
+      topic.foodanddrink.active& EOR= 1
+      topic.music.active&        EOR= 1
+      topic.people.active&       EOR= 1
+      topic.plants.active&       EOR= 1
+      topic.misc.active&         EOR= 1
+      topic.acorn.active&        EOR= 1
+      IF FN_countActiveTopics = 0 THEN
+        topic.misc.active& = 1
+      ENDIF
+      ENDPROC
+      
+      
+      DEF PROC_randomTopics
+      topic.astronomy.active&    = RND(2) - 1
+      topic.physics.active&      = RND(2) - 1
+      topic.chemistry.active&    = RND(2) - 1
+      topic.biology.active&      = RND(2) - 1
+      topic.mathematics.active&  = RND(2) - 1
+      topic.computers.active&    = RND(2) - 1
+      topic.geography.active&    = RND(2) - 1
+      topic.animals.active&      = RND(2) - 1
+      topic.crime.active&        = RND(2) - 1
+      topic.foodanddrink.active& = RND(2) - 1
+      topic.music.active&        = RND(2) - 1
+      topic.people.active&       = RND(2) - 1
+      topic.plants.active&       = RND(2) - 1
+      topic.misc.active&         = RND(2) - 1
+      topic.acorn.active&        = RND(2) - 1
+      IF FN_countActiveTopics = 0 THEN
+        topic.misc.active& = 1
+      ENDIF
+      ENDPROC
+      
+      
+      DEF PROC_deselectTopics
+      topic.astronomy.active&    = 0
+      topic.physics.active&      = 0
+      topic.chemistry.active&    = 0
+      topic.biology.active&      = 0
+      topic.mathematics.active&  = 0
+      topic.computers.active&    = 0
+      topic.geography.active&    = 0
+      topic.animals.active&      = 0
+      topic.crime.active&        = 0
+      topic.foodanddrink.active& = 0
+      topic.music.active&        = 0
+      topic.people.active&       = 0
+      topic.plants.active&       = 0
+      topic.misc.active&         = 1
+      topic.acorn.active&        = 0
+      ENDPROC
+      
+      
+      DEF PROC_findTopic( topic$ )
+      LOCAL done%, found%, word$
+      RESTORE
+      done% = FALSE
+      found% = FALSE
+      REPEAT
+        READ word$
+        IF word$ = topic$ THEN done%=TRUE : found%=TRUE
+        IF word$ = "**" THEN done%=TRUE
+      UNTIL done%
+      IF NOT found% THEN ERROR 0, "PROC_findTopic:  Couldn't find topic ("+topic$+")"
+      ENDPROC
+      
+      
+      DEF FN_countTopicWords( topic$ )
+      LOCAL N%, word$
+      PROC_findTopic( topic$ )
+      REPEAT
+        READ word$
+        IF word$ <> "*" THEN N% += 1
+      UNTIL word$ = "*"
+      = N%
+      
+      
+      DEF PROC_getTopicWords( topic$, nWords% )
+      LOCAL I%, word$
+      PROC_findTopic( topic$ )
+      FOR I% = 0 TO nWords%-1
+        READ word$
+        IF word$ <> "*" THEN
+          IF LEN(word$) <= maxAllowedWordLen% THEN
+            activeWordList{( numActiveWords% )}.word$ = word$
+            numActiveWords% += 1
+          ELSE
+            PRINT '" " + topic$ + ": " + word$ + " is too long! [" + STR$LEN(word$) + "]"
+            OSCLI "REFRESH"
+            SOUND 1, -10, 50, 2
+            WAIT 120
+          ENDIF
+        ENDIF
+      NEXT I%
+      ENDPROC
+      
+      
+      DEF PROC_offsetRotate( pBm%%, bmW%, bmH%, x0#, y0#, bmCx#, bmCy#, angle# )
+      LOCAL A%, rx#, ry#, dst{} : DIM dst{x%, y%, w%, h%}
+      
+      PROC_rotPoint( x0#, y0#, bmCx#, bmCy#, angle#, rx#, ry# )
+      
+      bmCx# += (rx# - bmCx#)
+      bmCy# += (ry# - bmCy#)
+      angle# = DEG(angle#)
+      
+      dst.w% = bmW%
+      dst.h% = bmH%
+      dst.x% = bmCx# - dst.w% / 2 + 0.5
+      dst.y% = 240 - bmCy# - dst.h% / 2
+      
+      IF @platform% AND &40 THEN
+        IF angle# = 0 ?(^angle#+7) = &80
+        SYS `SDL_SetTextureColorMod`, pBm%%, 0, 0, 0
+        SYS `SDL_SetTextureAlphaMod`, pBm%%, &80
+        dst.x% -= 12 : dst.y% += 16
+        SYS `SDL_RenderCopyEx`, @memhdc%, pBm%%, FALSE, dst{}, angle#, FALSE, FALSE
+        SYS `SDL_SetTextureColorMod`, pBm%%, &FF, &FF, &FF
+        SYS `SDL_SetTextureAlphaMod`, pBm%%, &FF
+        dst.x% += 12 : dst.y% -= 16
+        SYS `SDL_RenderCopyEx`, @memhdc%, pBm%%, FALSE, dst{}, angle#, FALSE, FALSE
+      ELSE
+        A% = ^angle#
+        SYS `SDL_SetTextureColorMod`, pBm%%, 0, 0, 0
+        SYS `SDL_SetTextureAlphaMod`, pBm%%, &80
+        dst.x% -= 12 : dst.y% += 16
+        SYS `SDL_RenderCopyEx`, @memhdc%, pBm%%, FALSE, dst{}, !A%, A%!4, FALSE, FALSE
+        SYS `SDL_SetTextureColorMod`, pBm%%, &FF, &FF, &FF
+        SYS `SDL_SetTextureAlphaMod`, pBm%%, &FF
+        dst.x% += 12 : dst.y% -= 16
+        SYS `SDL_RenderCopyEx`, @memhdc%, pBm%%, FALSE, dst{}, !A%, A%!4, FALSE, FALSE
+      ENDIF
+      ENDPROC
+      
+      
+      DEF PROC_rotPoint( x0#, y0#, x#, y#, a#, RETURN rx#, RETURN ry# )
+      LOCAL dx#, dy#, s#, c#
+      dx# = x# - x0#
+      dy# = y# - y0#
+      s# = SINa#
+      c# = COSa#
+      rx# = x0# + dx#*c# + dy#*s#
+      ry# = y0# + dy#*c# - dx#*s#
+      ENDPROC
+      
+      
+      DEF PROC_PlotWithDropShadow(bm%%, W%, H%, X%, Y%, dx%, dy%, hot{})
+      LOCAL dst{} : DIM dst{x%, y%, w%, h%}
+      dst.w% = W%
+      dst.h% = H%
+      dst.x% = X%
+      dst.y% = WinH% - Y% - dst.h%
+      SYS `SDL_SetTextureColorMod`, bm%%, 0, 0, 0
+      SYS `SDL_SetTextureAlphaMod`, bm%%, &80
+      dst.x% += dx% : dst.y% -= dy%
+      SYS `SDL_RenderCopy`, @memhdc%, bm%%, FALSE, dst{}, FALSE, FALSE
+      SYS `SDL_SetTextureColorMod`, bm%%, &FF, &FF, &FF
+      SYS `SDL_SetTextureAlphaMod`, bm%%, &FF
+      dst.x% -= dx% : dst.y% += dy%
+      SYS `SDL_RenderCopy`, @memhdc%, bm%%, FALSE, dst{}, FALSE, FALSE
+      hot{} = dst{}
+      ENDPROC
+      
+      REM Protect calls to this with *ESC OFF ... *ESC ON
+      DEF PROC_BoxBlur(N%, gain)
+      IF N% < 0 ENDPROC
+      LOCAL A%, target%%, rc{} : DIM rc{x%, y%, w%, h%}
+      rc.w% = WinW% : rc.h% = WinH%
+      SYS "SDL_GetRenderTarget", @memhdc% TO target%%
+      IF @platform% AND &40 ELSE target%% = !^target%%
+      SYS "SDL_SetRenderTarget", @memhdc%, bmAdd%%
+      SYS `SDL_RenderCopy`, @memhdc%, target%%, rc{}, FALSE
+      SYS "SDL_SetRenderTarget", @memhdc%, target%%
+      
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, 0, 0, 0, &FF
+      SYS "SDL_RenderClear", @memhdc%
+      
+      IF N% = 0 A% = gain * &80 + 0.5 ELSE A% = &80
+      SYS `SDL_SetTextureAlphaMod`, bmAdd%%, &FF
+      SYS `SDL_SetTextureColorMod`, bmAdd%%, A%, A%, A%
+      SYS "SDL_SetTextureBlendMode", bmAdd%%, 2
+      IF N% AND 1 rc.x% -= 2^(N% DIV 2) ELSE rc.y% -= 2^(N% DIV 2)
+      SYS `SDL_RenderCopy`, @memhdc%, bmAdd%%, FALSE, rc{}
+      IF N% AND 1 rc.x% += 2^(N% DIV 2 + 1) ELSE rc.y% += 2^(N% DIV 2 + 1)
+      SYS `SDL_RenderCopy`, @memhdc%, bmAdd%%, FALSE, rc{}
+      SYS `SDL_SetTextureColorMod`, bmAdd%%, &FF, &FF, &FF
+      
+      PROC_BoxBlur(N% - 1, gain)
+      ENDPROC
+      
+      DEF FN_PointInRect(X%, Y%, rc{})
+      = X% >= rc.x% AND X% < rc.x%+rc.w% AND Y% >= rc.y% AND Y% < rc.y%+rc.h%
+      
+      
+      DEF PROC_readMouse( RETURN X%, RETURN Y%, RETURN B% )
+      MOUSE X%, Y%, B%
+      X% DIV= 2
+      Y% = WinH% - Y% DIV 2
+      ENDPROC
+      
+      
+      DEF PROC_cleanup
+      LOCAL I%
+      hangman480x98%% += 0     : IF hangman480x98%%     SYS "SDL_DestroyTexture", hangman480x98%%, @memhdc%
+      rope8x150%% += 0         : IF rope8x150%%         SYS "SDL_DestroyTexture", rope8x150%%, @memhdc%
+      button20x20%% += 0       : IF button20x20%%       SYS "SDL_DestroyTexture", button20x20%%, @memhdc%
+      button_tick_20x20%% += 0 : IF button_tick_20x20%% SYS "SDL_DestroyTexture", button_tick_20x20%%, @memhdc%
+      leftarrow32x24%% += 0    : IF leftarrow32x24%%    SYS "SDL_DestroyTexture", leftarrow32x24%%, @memhdc%
+      rightarrow32x24%% += 0   : IF rightarrow32x24%%   SYS "SDL_DestroyTexture", rightarrow32x24%%, @memhdc%
+      start96x48%% += 0        : IF start96x48%%        SYS "SDL_DestroyTexture", start96x48%%, @memhdc%
+      welldone480x96%% += 0    : IF welldone480x96%%    SYS "SDL_DestroyTexture", welldone480x96%%, @memhdc%
+      death480x96%% += 0       : IF death480x96%%       SYS "SDL_DestroyTexture", death480x96%%, @memhdc%
+      btn_yes_96x48%% += 0     : IF btn_yes_96x48%%     SYS "SDL_DestroyTexture", btn_yes_96x48%%, @memhdc%
+      btn_no_96x48%% += 0      : IF btn_no_96x48%%      SYS "SDL_DestroyTexture", btn_no_96x48%%, @memhdc%
+      btn_exit_64x32%% += 0    : IF btn_exit_64x32%%    SYS "SDL_DestroyTexture", btn_exit_64x32%%, @memhdc%
+      btn_20x20%% += 0         : IF btn_20x20%%         SYS "SDL_DestroyTexture", btn_20x20%%, @memhdc%
+      key_48x48%% += 0         : IF key_48x48%%         SYS "SDL_DestroyTexture", key_48x48%%, @memhdc%
+      
+      bmTmp%% += 0             : IF bmTmp%%             SYS "SDL_DestroyTexture", bmTmp%%, @memhdc%
+      bmAdd%% += 0             : IF bmAdd%%             SYS "SDL_DestroyTexture", bmAdd%%, @memhdc%
+      bmMod%% += 0             : IF bmMod%%             SYS "SDL_DestroyTexture", bmMod%%, @memhdc%
+      
+      IF !^bgImg%%()  FOR I% = 0 TO DIM(bgImg%%(),1)  : SYS "SDL_DestroyTexture", bgImg%%(I%), @memhdc% : NEXT
+      IF !^key{()}    FOR I% = 0 TO DIM(key{()},1)    : SYS "SDL_DestroyTexture", key{(I%)}.bm%%, @memhdc% : NEXT
+      IF !^lettBm%%() FOR I% = 0 TO DIM(lettBm%%(),1) : SYS "SDL_DestroyTexture", lettBm%%(I%), @memhdc% : NEXT
+      
+      IF !^gallows{()} THEN
+        FOR I% = 0 TO DIM(gallows{()},1) : SYS "SDL_DestroyTexture", gallows{(I%)}.bm.addr%%, @memhdc% : NEXT
+      ENDIF
+      
+      IF !^sfx{} THEN
+        IF sfx.blank%%    PROCFreeMP3(sfx.blank%%)
+        IF sfx.btn%%      PROCFreeMP3(sfx.btn%%)
+        IF sfx.key%%      PROCFreeMP3(sfx.key%%)
+        IF sfx.correct%%  PROCFreeMP3(sfx.correct%%)
+        IF sfx.wrong%%    PROCFreeMP3(sfx.wrong%%)
+        IF sfx.welldone%% PROCFreeMP3(sfx.welldone%%)
+        IF sfx.death%%    PROCFreeMP3(sfx.death%%)
+        IF sfx.finished%% PROCFreeMP3(sfx.finished%%)
+      ENDIF
+      ENDPROC
+      
+      
+      DEF PROC_error( msg$, L% )
+      OSCLI "REFRESH ON" : ON
+      MODE 3
+      PRINT msg$;
+      IF L% THEN
+        PRINT " at line "; L%;
+      ENDIF
+      PRINT : VDU 7
+      REPEAT UNTIL INKEY(1)=0
+      ENDPROC
+      
+      
+      DEF FNLoadImg( file$, key% )
+      LOCAL s%%, t%%
+      SYS "STBIMG_Load", file$ TO s%%
+      IF @platform% AND &40 ELSE s%% = !^s%%
+      IF s%%=0 ERROR 104, "Unable to load image: " + file$
+      IF key% SYS "SDL_SetColorKey", s%%, 1, key% OR &FF000000
+      SYS "SDL_CreateTextureFromSurface", @memhdc%, s%% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      IF t%%=0 ERROR 105, "Unable to create texture: " + file$
+      SYS "SDL_FreeSurface", s%%
+      SYS "SDL_SetTextureBlendMode", t%%, 1, @memhdc%
+      = t%%
+      
+      
+      DEF FNLoadMP3(file$, rate%, chan%)
+      LOCAL drmp3config{}, tfc{}, p%%, r%%
+      DIM drmp3config{channels%, samplerate%}, tfc{n%%}
+      drmp3config.channels% = chan%
+      drmp3config.samplerate% = rate%
+      SYS "drmp3_open_file_and_read_f32", file$, drmp3config{}, tfc{} TO r%%
+      IF @platform% AND &40 ELSE r%% = !^r%%
+      IF r%% = 0 THEN = FALSE
+      SYS "drmp3dec_f32_to_s16", r%%, r%%, tfc.n%% * drmp3config.channels%
+      IF @platform% AND &40 THEN
+        DIM AudioSpec{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%%, userdata%%}
+      ELSE
+        DIM AudioSpec{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%, userdata%}
+      ENDIF
+      AudioSpec.freq% = drmp3config.samplerate%
+      AudioSpec.format.h& = &80 : REM AUDIO_S16LSB
+      AudioSpec.format.l& = &10
+      AudioSpec.channels& = drmp3config.channels%
+      DIM p%% 11 : REM allocate from heap
+      IF @platform% AND &40 ]p%% = r%% ELSE !p%% = r%%
+      p%%!8 = tfc.n%% * drmp3config.channels% * 2
+      = p%%
+      
+      
+      DEF PROCPlaySound(p%%)
+      IF @hwo% = FALSE SYS "SDL_OpenAudioDevice", FALSE, FALSE, AudioSpec{}, 0, 0, @memhdc% TO @hwo%
+      IF @hwo% = FALSE ERROR 117, "Couldn't open audio device"
+      SYS "SDL_ClearQueuedAudio", @hwo%, @memhdc%
+      IF @platform% AND &40 THEN
+        SYS "SDL_QueueAudio", @hwo%, ]p%%, p%%!8, @memhdc%
+      ELSE
+        SYS "SDL_QueueAudio", @hwo%, !p%%, p%%!8, @memhdc%
+      ENDIF
+      SYS "SDL_PauseAudioDevice", @hwo%, FALSE, @memhdc%
+      ENDPROC
+      
+      
+      DEF PROCFreeMP3(p%%)
+      SYS "SDL_PauseAudioDevice", @hwo%, 1, @memhdc%
+      IF @platform% AND &40 THEN
+        SYS "drmp3_free", ]p%%
+      ELSE
+        SYS "drmp3_free", !p%%
+      ENDIF
+      ENDPROC
+      
+      
+      DEF FNrgb(R%, G%, B%) = (R% << 16 ) OR (G% << 8) OR B%
+      
+      
+      DEF FNSYS_NameToAddress(p$)
+      LOCAL p%%
+      p%% = SYS(p$)
+      IF p%% = 0 ERROR 51, "No such system call " + p$
+      = p%%
+      
+      
+      REM ===========================================================================================================================
+      DATA "ASTRONOMY"
+      DATA absolute magnitude, accretion, accretion disc, albedo, aphelion, apogee, apsis, apparent magnitude, antares, arcturus
+      DATA asteroid, astronomer, astronomical, atmosphere, axis, azimuth
+      DATA betelgeuse, big bang, binary star, black hole, blazar, blueshift, bolide, brown dwarf
+      DATA callisto, celestial, celestial equator, comet, corona, crater, craters
+      DATA dark energy, dark matter, deimos, dwarf star, dwarf galaxy, dwarf planet
+      DATA earth, eccentricity, eclipse, ecliptic, elliptical galaxy, equinox, ephemeris, escape velocity, europa, event horizon
+      DATA galactic, galaxy, galaxies, gamma ray burst, ganymede, gas cloud, geocentric, globular cluster, gravity, gravitational lens
+      DATA heliocentric, heliopause, hypernova
+      DATA impact crater, impactor, io
+      DATA jupiter
+      DATA kiloparsec
+      DATA lagrangian point, libration, luminosity, lunar, lunar eclipse
+      DATA magellanic clouds, magnetar, magnetic fields, mars, martian, megaparsec, meridian, minor planet, moon, moons, mercury
+      DATA meteor, meteor shower, meteorite, meteoroid, minor planet, molecular cloud
+      DATA nebula, nebulae, neptune, neutron star, nova, novae
+      DATA observatory, occultation, oort cloud, open cluster, opposition, optical binary, orion, orbit, orbits
+      DATA parsec, periapsis, perihelion, perturbation, phobos, planet, planetary nebula, planetesimal, pluto, precession
+      DATA protostar, pulsar
+      DATA quasar
+      DATA radiant, red dwarf, red giant, redshift, regolith, retrograde, retrograde motion, roche limit
+      DATA satellite, saturn, sidereal, sidereal period, solar, solar flare, solar wind, spectroscopic binary, star, starlight
+      DATA stellar, sun, supermassive, supernova, supernovae, synodic period
+      DATA telescope, tidal forces, titan
+      DATA white dwarf
+      DATA universe, uranus
+      DATA vega, venus
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "BIOLOGY"
+      DATA appendix
+      DATA bacteria, bacteriophage, bile, blood, bones, bowel, brain
+      DATA cancer, cell, cells, cerebellum, cerebral cortex, chromosome, coenocytic, colon, cytoplasm, cytoskeleton
+      DATA deoxyribonucleic, dikaryotic, diploid, disease, dna
+      DATA eukaryote, eyes
+      DATA flagellum
+      DATA gamete, ganglia, gullet
+      DATA haploid, heart, hypothalamus
+      DATA intestines
+      DATA liver, lumen, lungs
+      DATA kidney
+      DATA membrane, metabolism, metabolite, mitosis, muscle
+      DATA nerve, nerves, nervous system, nose, nucleoid
+      DATA oesophagus, organelle, organism, organisms
+      DATA pancreas, phlegm, plasmid, platelets, protoplasm
+      DATA saliva, skeleton, skull, spinal chord, spine, spleen, stomach, synapse, synapses
+      DATA tissue, tumour
+      DATA red blood cells, ribonucleic acid, rna
+      DATA vacuole, vertebra, virus
+      DATA white blood cells
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "CHEMISTRY"
+      DATA absolute temperature, acetate, acid, acid anhydride, acidic, acidic solution, acids, actinides, activated carbon
+      DATA aether, aldehyde, alkaline, alkane, alkali metal, allotrope, amalgam, amino acid, aqueous, aromatic compound
+      DATA astatine
+      DATA base, benzyl group, biochemistry, bismuth
+      DATA cadmium, carbohydrate, carbonate, chemical, chemicals, chemist, chemists, chlorofluorocarbon
+      DATA chromium, condensation polymer, copernicium, copper
+      DATA dalton, decantation, decarboxylation, denaturant, depolymerization, desalination, detergent, deuterium, dichromate
+      DATA effervescence, electrochemistry, electrode, electrolyte, elementary reaction, emulsifier, emulsion, endergonic
+      DATA endothermic, ester, ethyl group
+      DATA fatty acid, fermium, ferric, filtration, flame test, francium, free radical
+      DATA gallium, geochemistry, glycol, glycosidic bond
+      DATA halogen, heavy water, hydrocarbon, hydrophilic, hydroxyl group, hypertonic
+      DATA indicator, indium isotope, inflammable, inorganic chemistry, iodination, ionic compound
+      DATA iridium, irritant, isomer
+      DATA joule
+      DATA ketone, krypton
+      DATA lanthanides, liquid, lithium, litmus paper
+      DATA macromolecular, magnesium, manganese, mass spectrometer, melting, metabolite, metal, metalloid, methyl
+      DATA methylene group, mole fraction, monosaccharide
+      DATA naphthalene, neodymium, neutrino, nitrogenous base
+      DATA organic chemistry, osmium, oxidation, ozone
+      DATA peptide, peroxide, phenol, photochemical, polonium, polymerization, potassium, protease
+      DATA radium, rare earth, reagent, rhodium
+      DATA salt, salts
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "COMPUTERS"
+      DATA algorithm, android, app, application, ascii, assembly language
+      DATA basic, binary, browser, bug
+      DATA cache, click, circuit board, code, crippleware, css, cursor
+      DATA data, database, debugger, desktop, directory, download, drive
+      DATA embedded, emulator, endian, expansion card
+      DATA filename, firewall, firewire, font, forth, fortran
+      DATA gigabyte, gigo
+      DATA hard drive, hexadecimal
+      DATA input, interpreter
+      DATA file, firmware, flash memory, floppy disk, format, freeware, function
+      DATA gigabyte, graphics
+      DATA hardware, hypertext
+      DATA internet, intranet, isp
+      DATA java, javascript, joystick
+      DATA keyboard, kernel
+      DATA language, laptop, linux, lisp, logo
+      DATA memory, modem, monitor, multimedia, multitasking
+      DATA netiquette, network, newbie, newsgroup, notebook
+      DATA operating system, output
+      DATA peripheral, pixel, platform, pointer, processor, program, programme, programming language, python
+      DATA quicksort
+      DATA random access memory, read only memory, risc
+      DATA scanner, script, server, software, spam, spreadsheet, sprite
+      DATA unix, user interface
+      DATA vector, vector graphics, virtualization
+      DATA webcam, webmaster, word processor
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "MATHEMATICS"
+      DATA absolute value, acute angle, addition, adjacent, algebra, angle, area, arithmetic, average, axis of symmetry
+      DATA base, bisect, bisection
+      DATA chord, circle, circumference, coefficient, collinear, combination
+      DATA common factor, common mulitple, complementary angle, cone, congruent, constant
+      DATA coplanar, cross product, cube, cylinder
+      DATA decimal, decimal point, determinant, differentiation, differential, division, divisor, dot product
+      DATA ellipse, equation, equations
+      DATA factor, factorial, formula
+      DATA geometry, geometrical
+      DATA identities, identity, inequality, integration, inverse
+      DATA mathematical, matrices, matrix, multiplication
+      DATA numbers, number theory, numerator
+      DATA planar, plane, prime factors, prime number, proof, proof by induction
+      DATA ratio, rectangle, root
+      DATA simultaneous, square root, statistics, subtraction
+      DATA topology, triangle, trigonometry
+      DATA vector, vector product
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "PHYSICS"
+      DATA absolute zero, acceleration, adiabatic, alpha particle, ampere, antimatter
+      DATA antineutrino, archimedes principle, atom, atoms, atomic
+      DATA balmer lines, baryon, beta particle, binding energy, black body, black hole, brownian motion
+      DATA calorie, capacitor, centrifugal force, convection coulomb, critical angle, cyclotron
+      DATA decibel, density, diffraction, dioptre, dispersion, discplacement, doppler effect, doppler shift
+      DATA elastic collision, electric field, electron, energy, escape velocity
+      DATA farad, fraunhoffer lines, field theory, frequency, fusion
+      DATA gamma ray
+      DATA general relativity, graviton, gravity, gravitating, gravitation, gravitational, gravitationally
+      DATA ground state
+      DATA half life, horsepower, huygens principle
+      DATA ideal gas equation, inelastic collision, inertia, interference
+      DATA joule
+      DATA kinetic, kinematics
+      DATA laser, luminosity, lyman series
+      DATA magnetism, maser, matter, mechanics, momentum
+      DATA newton, neutron, neutrino, nuclear, nucleus, nuclear fission, nuclear fusion
+      DATA nucleon
+      DATA ohm, oscillatory motion
+      DATA pascal, paschen series, photoelectric effect, physical, physicist, plasma
+      DATA polarization, positron, potential energy
+      DATA quanta, quark, quantum, quantum mechanics
+      DATA radiation, radioactive decay, reflection, refraction, resolving power, resonance
+      DATA rigid body
+      DATA simultaneity, solenoid, specific heat, standing wave, superconductor, surface tension
+      DATA relativity, relativistic
+      DATA theory, thermal expansion, theories, theoretical, theoretical physics, thermal capcity
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "ANIMALS"
+      DATA aardvark, antelope
+      DATA baboon, badger, bat, bear, bird, black bear, brown bear, budgerigar
+      DATA camel, canine, cat, cats, cheetah, claws, cockle, crow
+      DATA deer, deers, dingo, dog, dogs, donkey
+      DATA eagle, earthworm, elephant, equine
+      DATA feline, ferret, finch, fish, fox, fruitbat
+      DATA gazelle, gibbon, giraffe, gorilla
+      DATA hare, hoof, horse, horses
+      DATA jackdaw, jellyfish
+      DATA kingfisher, koala
+      DATA lemming, leopard, llama, lion, lioness
+      DATA magpie, mice, mole, monkey, mouse, mule, mussel
+      DATA orangutan, ostrich
+      DATA parasite, parrot, pig, pony, porcine, porcupine
+      DATA rabbit, raven, reindeer, rhinoceros, rook
+      DATA seagull, serpent, sheep, snake, sparrow, squirrel, stag, stoat, swine
+      DATA tiger, tigress
+      DATA viper, vixen, vole
+      DATA weasel, worm
+      DATA zebra
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "CRIME"
+      DATA accusation, arson, arsonist
+      DATA blackmail, bribery, burglar, burgled, burglary
+      DATA conviction, convicted, cop, corrupt, corruption, criminal, criminality, criminalization, crown court
+      DATA defendant, detective
+      DATA felon, felony, forgery
+      DATA inspector, investigation, investigator
+      DATA jail, jailbird, judicial, judiciary, jury, juror
+      DATA killer
+      DATA larcenist, larceny, lawyer
+      DATA magistrate, manslaughter, misappropriation, misdemeanour, murder, murdered, murderer
+      DATA offence, offender
+      DATA police, policeman, policewoman, prison, prisoner, psychopath, psychopathy, punishment
+      DATA rehabilitation, robbed, robber, robbery
+      DATA sentence, serial killer, sociopath, stalker
+      DATA theft, thief, thieves, thieving
+      DATA villain, villainous, violence
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "FOOD & DRINK"
+      DATA absinthe, aniseed, apple
+      DATA bacon, banana, basil, beans, beef, beer, beetroot, bistro, bread, broth, bun
+      DATA cabbage, cake, camembert, cheddar, cheese, chicken, chips, chive, cider, cinnamon
+      DATA chocolate, coffee, condiment, cress, cutlery
+      DATA egg
+      DATA flavour, fries
+      DATA gammon, garlic, garnish, garnished, gateau, gateaux, grape, grapefruit
+      DATA herb, hot chocolate
+      DATA kiwi
+      DATA leek, lemon, lettuce, lychee
+      DATA mayonnaise, mushroom, mustard, mutton
+      DATA onion, orange
+      DATA paella, peach, pear, pepper, pie, pineapple, pork, potato, pudding
+      DATA quiche
+      DATA radish, restaurant, rhubarb, rice, rice pudding, rosemary
+      DATA sage, salad, salad cream, salt, sauce, sausage, saucer, seasoning, sirloin, soup
+      DATA spring onion, squash
+      DATA starter, steak, stew, stilton, stuffing, sugar, sweet, sweetener, syrup
+      DATA tart, tea, tea bag, teacup, thyme, tomato, treacle, turnip
+      DATA wine
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "GEOGRAPHY"
+      DATA africa, algeria, america, argentina, austria, australia
+      DATA bay, bight, brazil, bravaria, burma
+      DATA capital city, chad, chile, china, coast, coastline, continent, county, country, cyprus
+      DATA desert
+      DATA egypt, england, estuary
+      DATA finland, france
+      DATA georgia, germany, ghana, gorge, greece
+      DATA hemisphere, hill, hillock
+      DATA india, iran, iraq, ireland, israel, italy
+      DATA kenya, kilimanjaro, korea
+      DATA lake, landscape, latitude, latvia, landmass, lithuania, longitude
+      DATA mexico, morocco, mount everest, mountain, mountainous
+      DATA newfoundland, new zealand, nigeria, norway
+      DATA ocean
+      DATA pass, path, poland, portugal
+      DATA ravine, region, ridge, road, russia
+      DATA sahara, saudi arabia, scotland, sea, sediment, seychelles, soil, south africa, spain, summit, swedish
+      DATA ukraine, united kingdom
+      DATA tasmania, the canary islands, topography
+      DATA valley, venezuela, volcano
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "MUSIC"
+      DATA accordion, album, atonal
+      DATA backbeat, baritone, bass, bassoon, beat, blues, bongo, brass
+      DATA chromatic, cello, chamber music, chord, chord progression, clarinet, coda, composer, concert, concert hall
+      DATA conductor, contralto, cornet, crescendo, crotchet
+      DATA discordant, dissonant, drums, drummer
+      DATA english horn
+      DATA falsetto, fender stratocaster, flute, french horn
+      DATA glockenspiel, groove, guitar
+      DATA hard rock, harmonica, harmony, harp, harpsichord, heavy metal, hit, horn
+      DATA interval
+      DATA jig, jukebox
+      DATA kettledrum
+      DATA libretto, lute
+      DATA mandolin, marimba, melody, mezzo soprano, musician, musicianship
+      DATA oboe, octave, opera, operatic, orchestra, orchestrated, organ
+      DATA pentatonic, percussion, percussionist, piano, piccolo, plectrum, pop music, pop star
+      DATA quaver
+      DATA range, record, rhythm, rhythmic, rock, rock star
+      DATA saxophone, scale, singer, single, snare drum, soprano, string, swing, symphony, syncopation, synthesizers
+      DATA tambourine, tempo, tenor, timbre, time signature, timpani, tone, triangle, trombone, trumpet
+      DATA ukelele
+      DATA viola, violin
+      DATA xylophone
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "PEOPLE"
+      DATA albert einstein, alfred nobel, alfred hitchcock, archimedes, aristotle
+      DATA benjamin franklin, bill clinton, bill cosby, bill gates, blaise pascal,  bob dylan, bob hope, buzz aldrin
+      DATA charles darwin, charles dickens, christopher columbus, cleopatra, clint eastwood
+      DATA darth vader, david letterman,  denzel washington
+      DATA edgar allen poe, edwin hubble, elvis presley, ernest hemingway, ernest rutherford
+      DATA frank sinatra
+      DATA galileo galilei, gandhi, george washington
+      DATA harrison ford, henry kissinger
+      DATA jack nicholson, james maxwell, johannes kepler, john f kennedy, john lennon, john wayne
+      DATA joseph john thomson
+      DATA leonardo da vinci, louis pasteur, lucille ball, ludwig van beethoven
+      DATA marilyn monroe, max born, meryl streep, mick jagger
+      DATA madonna, marie curie, martin luther king, max planck, michael faraday, michael jackson, michelangelo
+      DATA miles davis, mozart, muhammad ali
+      DATA napoleon, neil armstrong, nicholas copernicus, niels bohr, nikola tesla
+      DATA oprah winfrey
+      DATA pamela anderson, paul dirac, paul mccartney, pablo picasso, paul newman, princess diana
+      DATA rene descartes, robert boyle, robert bunsen, ronald reagan
+      DATA sigmund freud, sir isaac newton, spiderman
+      DATA thomas edison, tom cruise, tom hanks
+      DATA vincent van gogh, vladmir putin
+      DATA walt disney, william shakespeare, william thompson
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "PLANTS"
+      DATA allotment, apple tree
+      DATA bark, beech, berries, birch, bluebell, bramble, branch, briar, bulb, bush, bushes, buttercup
+      DATA cellulose, cherry tree, chlorophyl, clover, conifer, coniferous, coppice, copse
+      DATA daffodil, daisies, daisy, dandelion
+      DATA elderberry bush, evergreen
+      DATA field, flower, foliage, forest, forestry, fruits
+      DATA grass, grassland, grassy, greenery, greenhouse
+      DATA hyacinth
+      DATA harvest, harvester, hazel, hedge, hedgerow
+      DATA leaf, leafy, leaves, lichen, lily, lime
+      DATA meadow, moss
+      DATA nettles, noble rot, nuts
+      DATA oak tree, orange tree
+      DATA pansies, pear, petal, pine, pinecone, plantation, plants, plums, pruning
+      DATA rosehip, rosemary, roots, roses
+      DATA sapling, scrubland, seedling, seeds, shrub, shrubbery, silver birch
+      DATA snowdrop, soil, stalk, stamen, stem, strimmer, sycamore
+      DATA thistle, thorn, tree, tree trunk, tulips, twig, twigs
+      DATA uproot
+      DATA vegetable, vegetable patch, vegetation, venus flytrap, vine, vineyard
+      DATA weed, weeds, witch hazel, wood, woodland
+      DATA yew
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "MISC"
+      DATA abacus, abrasive, abridged, abroad, abstemious, abusive, actionable, actuality, actuary, actuarial, affable
+      DATA affectation, affection, affluence, affront, agitate, agitation, altitude, ambivalence, antipathy, anvil
+      DATA ascension, aspirational, aspiring, assent, astride, attire, attraction, attribution, attributive
+      DATA baleful, ballad, bashful, beautician, beautiful, befuddle, below, better, bidding
+      DATA blast, blight, blighted, blithely, bloated, blockage, blowing, blunder, blunt, bluster
+      DATA blustery, braggart, brandish, breach, brevity, bridge, brilliant, brim, brinkmanship, briefly
+      DATA broach, brood, brooding, broom, brutality, buoyant, busted
+      DATA camping, canard, canine, chortle, clamp, clamped, clapper, clapping, closure
+      DATA crassness, crawl, crawling, craziness, credulity, cremation, crenelation, crinkle, crucible
+      DATA dabble, dalliance, darling, dashed, dastardly, daughter, daunting, daydream, daytime, debate, debatable
+      DATA deleted, deleterious, deliberate, deliberation, delinquent, dental, dented, derision, derisive, despicable
+      DATA destitute, destitution, devastated, dishes
+      DATA dishevelled, distraught, distrust, distrustfulness, doodle, doubtful, doubtless
+      DATA dramatic, dramatically, dream, drifter, driftwood, drool, dump, dwindling
+      DATA edifying, educated, educational
+      DATA effective, efficacy, efficacious, effervescence, effluent, effortlessness, egregious
+      DATA ecstatic, elapsed, elongated, elongation, eloped
+      DATA embattled, embedded, embittered, emblematic, emerged, emergent, endangered, endemic, enforce, enraged, enriched
+      DATA entirety, enthralled, entombed
+      DATA enveloped, epidemic, episode, episodic, epistle, equality, equitable, eradicate, eradication, erratic, erratically
+      DATA especially, established, establishment, estimate, estimation
+      DATA exigence, example, exemplary, expropriation, extended, extensible, exterior, extremity
+      DATA familial, familiar, femininity, fictional, fictitious, flabbergasted, flagged, flagging
+      DATA flagrant, flippant, floundering, flunk
+      DATA futile, fortuitous, fracture, fragmentization, fragrant, frank, frankness, fraught, freedom, fresh, freshness, frown
+      DATA frost, frugal, frugality, frustum, fumble, function, functionally, furnish, furniture, furrowed, futility
+      DATA gallant, gallantry, gamine, gargantuan, gathering, gaunt, glacial, glaciation, gemstone
+      DATA gesticulate, glyph, grabbed, granit, granted
+      DATA graphical, grapple, grate, grating, gratitude, greetings, grieving, gripped
+      DATA grotesque, gruff, growl, grumpy, guarantee, guest, guile, gutless
+      DATA habit, habitat, habitation, haddock, hallmark, halved, hailstones, hammered, hamstrung
+      DATA hankering, hard, hardness, harsh, haughty, hefty
+      DATA heinous, hibernate, hinder, hinted, hinterland, hints, hitherto, horse, hunch, hypothetical, hysterical
+      DATA implication, implicit, immediate, immoral, impossible, improbable, impoverished, improvisation
+      DATA incidence, incidentally, indecisive, indelible, indication, indicative, inebriated, infidelity
+      DATA informant, information
+      DATA inglorious, iniquity, injustice, insidious, installation, instigate, instill, intimate, invalid
+      DATA invective, inveigh, invocation, invoke, involve
+      DATA jaundice, jaunty, jester, jittery, jocular, joke, jokingly, junk, junction
+      DATA kettle, kinematics, kinetic, kinship, knife, knight, knitted, knived, knighthood
+      DATA lagging, lantern, lapidation, latch, lately, latterly, laudable, laughable, lawful, leaded, leftist
+      DATA level, levelling, libellous, licentious
+      DATA likely, liken, linked, listen, listing, listless, literature, litigation, litter, liturgical
+      DATA lofty, longing, longitude, lopsided, loquacious, louche
+      DATA maddening, madness, malicious, malleable, map, mapped, marble, marsh, marvellous, mash, masterful, masterly
+      DATA mendacious, mendacity, mental, mentality, mercurial, metallurgy, meticulous
+      DATA ministerial, militant, military, minted, miracle, mission, missive
+      DATA monetary, money, monstrosity, morality, morose, municipal, munificence, munitions, mural
+      DATA mysterious, mystery
+      DATA nagging, nation, nationalistic, naughty, nauseous, navigate, navigation, naysaying, nearly, neatly, necessarily
+      DATA negligible, nephew, nevertheless, neutral, neutered, nifty, nominal, nominally, nonetheless
+      DATA normality, normative, northerly, nothing, nothingness, noxious, nuptial
+      DATA obdurate, office, official, officious, ongoing, ontological, ornate, opulence, oracle, order, ornament
+      DATA ornamental, outflanked, outpace
+      DATA palace, palatial, palliation, paucity, pauper, people, persuade, persuasion, plank, plated
+      DATA platitude, play, playable, pleat, plenty, pliable
+      DATA plummet, plush, policy, political, pontificate, practice, predicate, preternatural, primitive
+      DATA private, privately, privation, promenade, prominent
+      DATA prominence, promise, promissory
+      DATA prove, provident, provider, proverb, proverbial, proximate, proxy, purple, pursue
+      DATA quake, quack, quaint, quaver, queen, queue, quiescence, quarter, quiver
+      DATA radiant, raid, raider, raise, raising, rally, rancid, random, rantings, rare, rarity
+      DATA rasping, rapacious, ratchet, rated, ratification
+      DATA rational, rationality, rave, ravishing
+      DATA reached, reaction, reactive, readily, realistic, realistically, reality
+      DATA reckless, redacted, redaction, redoubtable, redress, reed, relations, relationship, relevant, religion
+      DATA religiosity, render, rendering, rent, repetition, repetitive, requiem, request
+      DATA requirement, requited, rest, resting, restoration, restorative
+      DATA revelation, revolt, revolting, ribbon, ridden, ring, ringed
+      DATA rinse, ripped, rippled, riposte, rivers
+      DATA robot, robotic, rotation, rotten, rotting, rough, roughness, routed, royally, royalty
+      DATA rubber, rubble, rudderless, rudiments, rudimentary, running, rushed, rushing
+      DATA stifle, stifling, stipulation, stripped
+      DATA tautological, trap, transcend, travelling, travesty, tumble, tumbler
+      DATA unjust, unusual, unveil, unyielding, utmost, utter
+      DATA validation, validity, valueless, vandalism, vanguard, vanity, vanquished, vaunted, vast, vastly
+      DATA veiled, veritable, vexatious, volunteer, voluntarily
+      DATA viable, viability, vindication, vindictive, vitiate, vomit
+      DATA wafting, wake, walker, walking, wandering, warble, warning, washer, washing, wasteful, wasteland, watered
+      DATA wattage, weather, welcome
+      DATA wheels, wheeled, whisper, whither, whopping, widow, willing, willingness, winding, windmill, window, windy, winners
+      DATA winsome, wish, wishful, wobble, wonder, wonderment
+      DATA worse, worship, worst, wrest
+      DATA wrestling, wring, wrought
+      DATA xenon
+      DATA yawn, yield, yellow, yesterday
+      DATA zeta
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA "ACORN"
+      DATA arcadians, acorn electron, acorn risc machine, acornsoft, andy hopper, archimedes, arm, arm processor, arthur
+      DATA basic, bbc, bbc basic, bbc compact, bbc master, bbc micro
+      DATA chris curry, computer literacy
+      DATA elite, exile
+      DATA hermann hauser, hopper
+      DATA ioc
+      DATA magic mushrooms, medusa, memc
+      DATA phoebe, podule, proton
+      DATA repton, revs, richard russell, risc, risc pc, risc os
+      DATA sideways ram, sphinx adventure, sophie wilson, steve furber
+      DATA teletext, tube
+      DATA user port
+      DATA vidc
+      DATA zero page
+      DATA *
+      REM ===========================================================================================================================
+      
+      REM ===========================================================================================================================
+      DATA **
+      REM ===========================================================================================================================
+      
+      
+      REM @dir$ + ".Hangman\bg0.jpg"
+      REM @dir$ + ".Hangman\bg1.jpg"
+      REM @dir$ + ".Hangman\bg2.jpg"
+      REM @dir$ + ".Hangman\bg3.jpg"
+      REM @dir$ + ".Hangman\bg4.jpg"
+      REM @dir$ + ".Hangman\bg5.jpg"
+      REM @dir$ + ".Hangman\bg6.jpg"
+      REM @dir$ + ".Hangman\bg7.jpg"

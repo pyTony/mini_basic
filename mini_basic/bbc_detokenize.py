@@ -132,6 +132,11 @@ def _needs_space_after_keyword(keyword: str, nxt: Optional[int], fmt: str) -> bo
     return False
 
 
+def _is_blank(byte_val: int, fmt: str) -> bool:
+    """Space, or tab. In Russell format 0x09 is the SYS token, never a tab."""
+    return byte_val == 0x20 or (byte_val == 0x09 and fmt != 'russell')
+
+
 def detokenize_line_body(body: bytes, *, fmt: str = 'wilson') -> str:
     out: List[str] = []
     index = 0
@@ -172,11 +177,11 @@ def detokenize_line_body(body: bytes, *, fmt: str = 'wilson') -> str:
             # command: normalize away any space between ``*`` and its name.
             out.append('*')
             index += 1
-            while index < len(body) and body[index] in (0x20, 0x09):
+            while index < len(body) and _is_blank(body[index], fmt):
                 index += 1
             at_stmt_start = False
             continue
-        if byte_val in (0x20, 0x09):
+        if _is_blank(byte_val, fmt):
             out.append(chr(byte_val))
             index += 1
             continue

@@ -1,0 +1,80 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Program to act as a simple Teleprompter
+      REM Version 2.0, Richard Russell, 28-Jan-2017
+      REM The text file may contain 'VDU sequences' e.g. to change the colour.
+      REM Clicking or tapping alternately stops and restarts the scrolling.
+      
+      File$ = @dir$+"bbcbasic.txt"
+      Speed = 1.0
+      
+      VDU 26
+      IF POS REM SDL thread synchronisation
+      x% = @vdu%!208 : REM Client width (pixels)
+      y% = @vdu%!212 : REM Client height (pixels)
+      VDU 23,22,x%;y%;8,16,16,8 : REM Initialise window
+      VDU 23,16,64;0;0;0;0; : REM Set no-wrap at end of line
+      VDU 5                 : REM Set text-at-graphics mode
+      
+      OSCLI "FONT """+@lib$+"FreeSans"","+STR$(x% DIV 22)
+      h% = @vdu%!220 : REM Character height (pixels)
+      
+      file% = OPENIN(File$)
+      IF file% = 0 ERROR 100, "Cannot open "+File$
+      
+      *REFRESH OFF
+      *TIMER 32
+      ON TIME PROCscroll(file%,x%,y%,h%,Speed) : RETURN
+      ON MOUSE IF Speed = 0 Speed = 1.0 : RETURN ELSE Speed = 0 : RETURN
+      
+      REPEAT
+        WAIT 0
+        IF INKEY(0) = 32 Speed = ABS(Speed - 1.0)
+      UNTIL FALSE
+      END
+      
+      REM Scroll the display:
+      DEF PROCscroll(F%,X%,Y%,H%,speed)
+      LOCAL C%
+      PRIVATE N%, R%, S%, T%, pacer, P$, T$
+      IF S% ENDPROC
+      S% = TRUE
+      
+      REM Adjust start position:
+      SYS "SDL_GetTicks" TO C%
+      IF T% = 0 T% = C%
+      pacer += speed * H% * (C% - T%) / 1000
+      T% = C%
+      N% += INT(pacer)
+      pacer -= INT(pacer)
+      
+      REM Discard top line if scrolled off:
+      IF N% > Y% + H% THEN
+        C% = INSTR(P$, CHR$13+CHR$10)
+        IF C% THEN
+          P$ = MID$(P$, C%+2)
+          N% -= H%
+          R% -= 1
+        ENDIF
+      ENDIF
+      
+      REM Add another line if necessary:
+      IF N% - H% * R% >= 0 THEN
+        IF T$="" T$ += GET$#F% TO &D : C% = BGET#F%
+        C% = LEN(T$)
+        WHILE WIDTH(LEFT$(T$,C%)) >= X%*2
+          REPEAT C% -= 1 UNTIL C%=0 OR MID$(T$,C%+1,1) = " "
+        ENDWHILE
+        P$ += LEFT$(T$,C%) + CHR$13 + CHR$10
+        T$ = MID$(T$,C%+2)
+        R% += 1
+      ENDIF
+      
+      REM Display text:
+      CLS
+      MOVE 0, N%*2
+      PRINT P$
+      *REFRESH
+      
+      S% = FALSE
+      ENDPROC

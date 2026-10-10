@@ -1,0 +1,66 @@
+      ON ERROR @ox%=0 : @oy%=0 : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Demo of scrolling over a large canvas, Richard Russell, 11-Mar-2012
+      SYS "SDL_SetWindowTitle", @hwnd%, "Drag to scroll", @memhdc%
+      
+      CanvasX% = 1920
+      CanvasY% = 1440
+      WindowX% = 640
+      WindowY% = 480
+      
+      VDU 23,22,WindowX%;WindowY%;16,20,16,128
+      ORIGIN 0,2*(WindowY%-CanvasY%)
+      VDU 24,0;0;CanvasX%*2-2;CanvasY%*2-2;
+      VDU 28,0,CanvasY%/16-1,CanvasX%/8-1,0
+      
+      @ox% = (CanvasX% - WindowX%) / 2
+      @oy% = (CanvasY% - WindowY%) / 2
+      
+      LINE 0,0,CanvasX%*2-2,CanvasY%*2-2
+      LINE 0,CanvasY%*2-2,CanvasX%*2-2,0
+      
+      VDU 23,23,2;0;0;0;
+      OFF
+      GCOL 1,128
+      VDU 5
+      dx% = 0
+      dy% = 0
+      MOUSE cursx%, cursy%, oldB%
+      REPEAT
+        WAIT 2
+        cx% = RND(CanvasX%*2)
+        cy% = RND(CanvasY%*2)
+        cr% = RND(200)
+        GCOL RND(15)
+        CIRCLE FILL cx%, cy%, cr%
+        GCOL 0
+        CIRCLE cx%, cy%, cr%
+        GCOL 4,0
+        MOVE cx%-@vdu%!216*(INTLOGcr%+1),cy%+@vdu%!220
+        IF cr% >= 32 PRINT ;cr%;
+        
+        dx% = 0 : dy% = 0
+        oldB% = B%
+        MOUSE X%, Y%, B%
+        IF B% IF oldB% = 0 MOUSE ON 137
+        IF B% = 0 IF oldB% MOUSE ON 0
+        IF B% AND oldB% THEN
+          dx% = (X% - cursx%) / 2
+          dy% = (cursy% - Y%) / 2
+        ELSE
+          CASE INKEY(0) OF
+            WHEN 136:  dx% = -8 : dy% = 0
+            WHEN 137:  dx% = +8 : dy% = 0
+            WHEN 138:  dx% = 0 : dy% = +8
+            WHEN 139:  dx% = 0 : dy% = -8
+            OTHERWISE: dx% = 0 : dy% = 0
+          ENDCASE
+        ENDIF
+        IF @ox% > dx% IF @ox% < (CanvasX% - WindowX% + dx%) @ox% -= dx% : X% -= dx% * 2
+        IF @oy% > dy% IF @oy% < (CanvasY% - WindowY% + dy%) @oy% -= dy% : Y% += dy% * 2
+        cursx% = X%
+        cursy% = Y%
+        IF POS REM Thread synchronisation
+      UNTIL FALSE
+      END
+      

@@ -1,0 +1,33 @@
+      ON ERROR IF ERR = 17 CHAIN @lib$ + "../examples/tools/touchide" ELSE VDU 12,30 : REPORT : END
+      VDU 23,22,640;500;8,20,16,128
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 48"
+      VDU 5,30
+      PRINT "AVATAR"
+      PRINT FNkern("AVATAR")
+      PRINT "Typography"
+      PRINT FNkern("Typography")
+      PRINT "WATERFALL"
+      PRINT FNkern("WATERFALL");
+      REPEAT WAIT 5 : UNTIL FALSE
+      END
+      
+      DEF FNkern(a$)
+      LOCAL A%, B%, I%, K%, k$
+      IF LEN(a$) < 2 THEN = a$
+      FOR I% = 1 TO LEN(a$) - 1
+        k$ += MID$(a$,I%,1)
+        IF INKEY(-256) = &57 THEN
+          K% = FNwid(MID$(a$,I%,2)) - FNwid(MID$(a$,I%,1)) - FNwid(MID$(a$,I%+1,1))
+        ELSE
+          A% = ASCMID$(a$,I%,1) : B% = ASCMID$(a$,I%+1,1)
+          SYS "TTF_GetFontKerningSizeGlyphs", @vdu.hf%, A%, B%, @memhdc% TO K%
+        ENDIF
+        IF K% k$ += CHR$25 + CHR$0 + CHR$(2*K%) + CHR$(2*K% >> 8) + CHR$0 + CHR$0
+      NEXT
+      = k$ + RIGHT$(a$)
+      
+      DEF FNwid(a$)
+      LOCAL G%, W% : DIM G% LOCAL 35 : !G% = 36 : G%!28 = LENa$
+      SYS "GetCharacterPlacement", @memhdc%, a$, LENa$, 0, G%, 8 TO W%
+      = W% AND &FFFF

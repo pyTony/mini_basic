@@ -1,0 +1,39 @@
+      REM Rosetta Code task: 'Calculate the integer value of 5^(4^(3^2))'
+      REM https://rosettacode.org/wiki/Arbitrary-precision_integers_(included)
+      
+      ON ERROR IF ERR=17 CHAIN @lib$ + "../examples/tools/touchide" ELSE \
+      \                  MODE 7 : REPORT : PRINT : END
+      
+      INSTALL @lib$ + "bigint" : REM library supplied with the language
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 36"
+      VDU 5,30,10
+      PRINT "Calculating ";
+      
+      FOR power% = 5 TO 2 STEP -1
+        PRINT ;power%;
+        OSCLI "FONT """ + @lib$ + "DejaVuSans"", " + STR$(power% * 6)
+        MOVE BY 0, power% * 6
+      NEXT
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSansMono"", 19"
+      PRINT '''
+      
+      ON TIME PRINT "."; : RETURN
+      t1 = TIME
+      x = FNbignew(200000) : REM set maximum number of digits in result
+      PROCbigval(x, "5")
+      PROCbigpow(x, x, 4^(3^2))
+      x$ = FNbigstr(x)
+      t2 = TIME
+      ON TIME OFF
+      
+      PRINT '
+      PRINT "Total number of decimal digits: "; LEN(x$)
+      PRINT
+      PRINT "First twenty digits: " LEFT$(x$, 20)
+      PRINT " Last twenty digits: " RIGHT$(x$, 20)
+      PRINT
+      PRINT "Approximate run time: "; (t2 - t1) / 100 " seconds"
+      
+      REPEAT WAIT 4 : UNTIL FALSE

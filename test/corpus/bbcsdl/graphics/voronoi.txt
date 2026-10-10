@@ -1,0 +1,167 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM The MIT License
+      REM Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+      REM associated documentation files (the "Software"), to deal in the Software without restriction, including
+      REM without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+      REM copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to
+      REM the following conditions: The above copyright notice and this permission notice shall be included in all
+      REM copies or substantial portions of the Software. THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+      REM ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS
+      REM FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+      REM LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+      REM ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+      
+      REM I've not seen anybody out there computing correct cell interior distances for Voronoi
+      REM patterns yet. That's why they cannot shade the cell interior correctly, and why you've
+      REM never seen cell boundaries rendered correctly.
+      REM
+      REM However, here's how you do mathematically correct distances (note the equidistant
+      REM and non degenerated grey isolines inside the cells) and hence edges (in yellow):
+      REM
+      REM Copyright (C) 2013 Inigo Quilez
+      REM http://www.iquilezles.org/www/articles/voronoilines/voronoilines.htm
+      
+      REM Install libraries:
+      INSTALL @lib$ + "shaderlib"
+      
+      REM Create arrays and structures:
+      DIM Vertex$(10), Fragment$(999), Float{0%,1%}
+      
+      REM Fill vertex and fragment shader arrays from DATA statements:
+      PROC_readshader(Vertex$())
+      PROC_readshader(Fragment$())
+      
+      REM Initialise window and get its size:
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup
+      VDU 26
+      IF POS REM SDL thread sync
+      ScrW% = @size.x%
+      ScrH% = @size.y%
+      
+      REM Ensure cleanup on exit:
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Initialise shader library:
+      PROC_shaderinit(oVertex%, oFragment%)
+      
+      REM Compile shaders:
+      PROC_compileshader(oVertex%, Vertex$(), "Vertex")
+      PROC_compileshader(oFragment%, Fragment$(), "Fragment")
+      
+      REM Link and use shaders:
+      oProgram% = FN_useshaders(oVertex%, oFragment%)
+      SYS `glGetUniformLocation`, oProgram%, "iTime",       @memhdc% TO pTime%
+      SYS `glGetUniformLocation`, oProgram%, "iResolution", @memhdc% TO pResolution%
+      SYS `glGetUniformLocation`, oProgram%, "iChannel0",   @memhdc% TO pChannel0%
+      
+      REM Load and bind noise terrain texture to uniform:
+      SYS `glUniform1i`, pChannel0%, 0, @memhdc%
+      SYS `glActiveTexture`, GL_TEXTURE0, @memhdc%
+      Texture% = FN_loadtexture1(@dir$ + "voronoise.png")
+      IF Texture% = 0 ERROR 100, "Couldn't load voronoise.png"
+      
+      REM Render loop:
+      TIME = 0
+      REPEAT
+        Float.0% = FN_f4(TIME/100)
+        SYS `glUniform1fv`, pTime%, 1, Float{}, @memhdc%
+        Float.0% = FN_f4(ScrW%) : Float.1% = FN_f4(ScrH%)
+        SYS `glUniform2fv`, pResolution%, 1, Float{}, @memhdc%
+        PROC_render
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      Texture% += 0 : IF Texture% SYS `glDeleteTextures`, 1, ^Texture%, @memhdc%
+      oProgram% += 0 : oVertex% += 0 : oFragment% += 0
+      PROC_shaderexit(oProgram%, oVertex%, oFragment%)
+      *REFRESH ON
+      ENDPROC
+      
+      REM Minimal vertex shader:
+      DATA "attribute vec4 vPosition;"
+      DATA "void main()"
+      DATA "{"
+      DATA "gl_Position = vPosition ;"
+      DATA "}"
+      DATA ""
+      
+      REM Fragment Shader code from ShaderToy
+      DATA "uniform vec2 iResolution;"
+      DATA "uniform sampler2D iChannel0;"
+      DATA "uniform float iTime;"
+      
+      DATA "vec2 hash2( vec2 p )"
+      DATA "{"
+      DATA "// texture based white noise"
+      DATA "return texture2D( iChannel0, (p+0.5)/128.0 ).xy;"
+      DATA "}"
+      
+      DATA "vec3 voronoi( in vec2 x )"
+      DATA "{"
+      DATA "vec2 n = floor(x);"
+      DATA "vec2 f = fract(x);"
+      
+      DATA "//----------------------------------"
+      DATA "// first pass: regular voronoi      "
+      DATA "//----------------------------------"
+      DATA "vec2 mg, mr;"
+      
+      DATA "float md = 8.0;"
+      DATA "for( int j=-1; j<=1; j++ )"
+      DATA "for( int i=-1; i<=1; i++ )"
+      DATA "{"
+      DATA "vec2 g = vec2(float(i),float(j));"
+      DATA "vec2 o = hash2( n + g );"
+      DATA "o = 0.5 + 0.5*sin( iTime + 6.2831*o );"
+      DATA "vec2 r = g + o - f;"
+      DATA "float d = dot(r,r);"
+      
+      DATA "if( d<md )"
+      DATA "{"
+      DATA "md = d;"
+      DATA "mr = r;"
+      DATA "mg = g;"
+      DATA "}"
+      DATA "}"
+      
+      DATA "//----------------------------------"
+      DATA "// second pass: distance to borders "
+      DATA "//----------------------------------"
+      DATA "md = 8.0;"
+      DATA "for( int j=-2; j<=2; j++ )"
+      DATA "for( int i=-2; i<=2; i++ )"
+      DATA "{"
+      DATA "vec2 g = mg + vec2(float(i),float(j));"
+      DATA "vec2 o = hash2( n + g );"
+      DATA "o = 0.5 + 0.5*sin( iTime + 6.2831*o );"
+      DATA "vec2 r = g + o - f;"
+      
+      DATA "if( dot(mr-r,mr-r)>0.00001 )"
+      DATA "md = min( md, dot( 0.5*(mr+r), normalize(r-mr) ) );"
+      DATA "}"
+      
+      DATA "return vec3( md, mr );"
+      DATA "}"
+      
+      DATA "void main()"
+      DATA "{"
+      DATA "vec2 p = gl_FragCoord.xy/iResolution.xx;"
+      
+      DATA "vec3 c = voronoi( 8.0*p );"
+      
+      DATA "// isolines"
+      DATA "vec3 col = c.x*(0.5 + 0.5*sin(64.0*c.x))*vec3(1.0);"
+      DATA "// borders"
+      DATA "col = mix( vec3(1.0,0.6,0.0), col, smoothstep( 0.04, 0.07, c.x ) );"
+      DATA "// feature points"
+      DATA "float dd = length( c.yz );"
+      DATA "col = mix( vec3(1.0,0.6,0.1), col, smoothstep( 0.0, 0.12, dd) );"
+      DATA "col += vec3(1.0,0.6,0.1)*(1.0-smoothstep( 0.0, 0.04, dd));"
+      
+      DATA "gl_FragColor = vec4(col,1.0);"
+      DATA "}"
+      DATA ""

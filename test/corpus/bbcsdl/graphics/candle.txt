@@ -1,0 +1,108 @@
+      REM Animated candle, original program by David Williams adapted by Richard Russell.
+      REM Stock candle image Alamy CYYR5R, must NOT be re-used without being repurchased!
+      
+      WinW% = 375
+      WinH% = 600
+      VDU 23,22,WinW%;WinH%;16,20,16,0
+      OFF
+      
+      INSTALL @lib$ + "gfxlib" : PROC_gfxInit
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE CLS:REPORT:PRINT:END
+      
+      candleTxt%% = FN_gfxLoadTexture( @dir$ + "candle.png", 0 )
+      blobTxt%%   = FN_gfxLoadTexture( @dir$ + "blob33x33.png", 0 )
+      
+      R% = RND(-1234567)
+      flameTheta1 = 2*PI*RND(1)
+      flameTheta2 = 2*PI*RND(1)
+      flameTheta3 = 2*PI*RND(1)
+      flameTheta4 = 2*PI*RND(1)
+      flameTheta5 = 2*PI*RND(1)
+      flameTheta1Inc = 0.0075 + 0.002*RND(1)
+      flameTheta2Inc = 0.0075 + 0.002*RND(1)
+      flameTheta3Inc = 0.005 + 0.0025*RND(1)
+      flameTheta4Inc = 0.005 + 0.0025*RND(1)
+      flameTheta5Inc = 0.005 + 0.0025*RND(1)
+      
+      maxFlameParticles% = 200
+      DIM flameActive%( maxFlameParticles%-1 )
+      DIM flameCtrlPtX1( maxFlameParticles%-1 ), flameCtrlPtX2( maxFlameParticles%-1 )
+      DIM flameParticleT( maxFlameParticles%-1 ), flameParticleMaxT( maxFlameParticles%-1 )
+      DIM flameParticleDT( maxFlameParticles%-1 ), flameParticleDDT( maxFlameParticles%-1 )
+      flameParticleI% = 0
+      
+      *refresh off
+      
+      REPEAT
+        PROC_gfxClr( 80, 80, 128 )
+        PROC_gfxPlotScale( candleTxt%%, 375, 562, 0, 70 )
+        PROCDrawAndUpdateFlame( 90, 135, 188, 194 )
+        *refresh
+      UNTIL FALSE
+      END
+      :
+      :
+      :
+      :
+      DEF PROCDrawAndUpdateFlame( flamew%, flameh%, flamex%, flamey% )
+      LOCAL I%, L%, S%, dx, x, y
+      LOCAL ctrlptx#(), ctrlpty#() : REM to make aligned
+      DIM ctrlptx#(3), ctrlpty#(3)
+      
+      REM flame base:
+      ctrlptx#(0) = flamex%
+      ctrlpty#(0) = flamey%
+      ctrlpty#(1) = flamey% - 32
+      ctrlpty#(2) = flamey% - 0.6*flameh%
+      
+      REM flame tip:
+      ctrlptx#(3) = flamex% + 24 * SINflameTheta3 * SINflameTheta4 * SINflameTheta5
+      ctrlpty#(3) = flamey% - flameh% - 16 * SINflameTheta1 * SINflameTheta2
+      
+      FOR I% = 0 TO maxFlameParticles%-1
+        IF flameActive%(I%) THEN
+          ctrlptx#(1) = flameCtrlPtX1(I%)
+          ctrlptx#(2) = flameCtrlPtX2(I%)
+          PROC_gfxGetCubicBezierCurvePoint( ctrlptx#(), ctrlpty#(), flameParticleT(I%), x, y )
+          S% = 24 + 27*(1 - flameParticleT(I%)^2)
+          PROC_gfxPlotScaleAddSaturate( blobTxt%%, S%, S%, x - 0.5*S%,  y - 0.5*S% )
+          IF flameParticleT(I%) > flameParticleMaxT(I%) THEN
+            flameActive%(I%) = FALSE
+          ENDIF
+        ENDIF
+      NEXT
+      
+      flameParticleT() += flameParticleDT()
+      flameParticleDT() += flameParticleDDT()
+      
+      I% = flameParticleI%
+      FOR L% = 1 TO 5+RND(3)
+        dx = SGN(RND-RND) * (flamew% DIV 2 + 8 * SINflameTheta1 * SINflameTheta2) * RND(1) * EXP1^-(RND(1)^2)
+        flameActive%(I%) = TRUE
+        flameCtrlPtX1(I%) = flamex% - dx
+        flameCtrlPtX2(I%) = flamex% - 0.25*dx
+        flameParticleT(I%) = 0.1*RND(1)
+        flameParticleMaxT(I%) = 0.9 + 0.1*RND(1)
+        flameParticleDT(I%) = 0.02*(1 + RND(1))
+        flameParticleDDT(I%) = 0.0005 + 0.001*RND(1)
+        I% = (I% + 1) MOD maxFlameParticles%
+      NEXT
+      flameParticleI% = I%
+      
+      flameTheta1 += flameTheta1Inc : IF flameTheta1 > 2*PI flameTheta1 -= 2*PI
+      flameTheta2 += flameTheta2Inc : IF flameTheta2 > 2*PI flameTheta2 -= 2*PI
+      flameTheta3 += flameTheta3Inc : IF flameTheta3 > 2*PI flameTheta3 -= 2*PI
+      flameTheta4 += flameTheta4Inc : IF flameTheta4 > 2*PI flameTheta4 -= 2*PI
+      flameTheta5 += flameTheta5Inc : IF flameTheta5 > 2*PI flameTheta5 -= 2*PI
+      ENDPROC
+      :
+      :
+      :
+      :
+      DEF PROCcleanup
+      *REFRESH ON
+      candleTxt%% += 0 : IF candleTxt%% PROC_gfxDestroyTexture( candleTxt%% ) : candleTxt%% = 0
+      blobTxt%% += 0   : IF blobTxt%%   PROC_gfxDestroyTexture( blobTxt%% )   : blobTxt%% = 0
+      ENDPROC
