@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-10
+
+- [#88](https://github.com/pyTony/mini_basic/pull/88) Fix/russell sys token
+
 ## 2026-10-09
 
 - [#87](https://github.com/pyTony/mini_basic/pull/87) Breakout: add speed% control variable, sub-step ball movement (main) — a single `speedmul%` (percent, 100 = current speed) scales both the serve velocity and the paddle-hit redirect. `PROCmoveball` splits each tick's ball movement into `ballsubsteps%` (3) smaller steps, redrawing (and running wall/paddle/brick collision checks on) each one. `PROCdrawpaddle` moved earlier in the main…
@@ -68,19 +72,6 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 - [#23](https://github.com/pyTony/mini_basic/pull/23) Fix INKEY(-n) key-down scan and glued INKEY-99 syntax — the key table now covers the full BBC Micro layout plus BB4W/BBCSDL extras (F-keys, punctuation, CAPSLOCK, END, Shift/Ctrl/Alt left+right variants) and mouse buttons `-10`/`-11`/`-12`. A terminal (non-pygame) fallback treats the pending input character as its key, held for 0.1s so one frame of a game loop can scan…
 - [#10](https://github.com/pyTony/mini_basic/pull/10) docs: add CHANGELOG.md for merge history — `CHANGELOG.md` lists each merged PR (#2-#9) with a one-line summary, newest first. `index.html` is kept — it's the front door to the `docs/site/` HTML handbook, linked from README.md/HOWTO.md/docs/INDEX.md, not Grok-only as first thought. Ongoing task tracking moves to GitHub Issues (#11-#14) instead of a…
-
-## 2026-09-29 (branch fix/edge-case-bugs-ap0pn0, PR number when merged)
-
-- perf: string expressions are parsed once and cached (string-heavy loops about 2x faster); `LEN/ASC/VAL/INSTR` of a string stay compiled
-- fix: `PRINT LEN(A$)+1`, `PRINT ASC("A")+1`, `PRINT VAL("12")+1` raised "expected string value" in every dialect (the first operand now decides the type)
-- perf: `AND (` / `OR (` in a compiled condition was mistaken for an array read, forcing the slow path every iteration (Mandelbrot `WHILE (I%<M%) AND (...)` 0.56s -> 0.10s per 20000 iterations)
-- fix: mits / commodore / tiny uppercase lines at entry (strings, comments, DATA payloads untouched); `REM Note Tanx` was stored as `REM NOT e Tan(x)`, comments are now kept as typed in every dialect
-- fix: `""` inside a string literal is one quote (checked on Archimedes BASIC V) in PRINT, EVAL and string expressions; `EVAL` of a string returned 0, `X$=EVAL("A$")` was a syntax error
-- fix: `INKEY(-n)` is TRUE only while that BBC key is down (was: code of any pressed key, or -1 when idle); glued `INKEY-99` meant `INKEY - 99`
-- fix: a bad expression in `IF` / `WHILE` / `REPEAT` / `FOR` is a BASIC error with a line number instead of a Python traceback
-- fix: an error inside a `DEF FN` body now reaches the outer `ON ERROR` with its own message and line (was "DEF FN jump outside body")
-- fix: `_split_bbc_juxtaposed_string_parts` looped forever on a top-level `+`
-- feat: `VDU 23,23,t|` line thickness applies to `LINE` / `DRAW` / `PLOT` lines (snowscene.bbc tree)
 
 ## 2026-09-26
 
