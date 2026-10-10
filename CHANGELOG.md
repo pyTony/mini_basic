@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-10
 
+- [#89](https://github.com/pyTony/mini_basic/pull/89) fix: Russell-format SYS token was loaded as a tab (main backport) — Backport of c4828b4 from the dev line (main has no test/ tree, so the regression tests live on dev). ccaed8b passes byte 0x09 through as whitespace before the keyword lookup, but in Russell-format tokenized .bbc files 0x09 is the SYS keyword, so every SYS statement lost its keyword (41 of 82 tokenized files in the…
 - [#88](https://github.com/pyTony/mini_basic/pull/88) Fix/russell sys token
 
 ## 2026-10-09
