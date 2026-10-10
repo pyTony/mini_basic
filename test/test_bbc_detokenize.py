@@ -72,6 +72,27 @@ class BBCTokenizedLoadTests(unittest.TestCase):
         self.assertIn('CIRCLE FILL x1%,y1%,80', joined)
         self.assertIn('MODE 8:OFF:ORIGIN 640,512', joined)
 
+    def test_russell_sys_token_is_not_a_tab(self):
+        """Russell format: byte 0x09 is the SYS token (surks.bbc), not a tab."""
+        sdl = b' "SDL_GetCurrentDisplayMode", 0, mode{}'
+        self.assertEqual(
+            detokenize_line_body(bytes([0x09]) + sdl, fmt='russell'),
+            'SYS "SDL_GetCurrentDisplayMode", 0, mode{}',
+        )
+        self.assertEqual(
+            detokenize_line_body(b'A%=1:' + bytes([0x09]) + b' "X",0', fmt='russell'),
+            'A%=1:SYS "X",0',
+        )
+        # A star command is raw text: a tab after * is still skipped there only
+        # for non-Russell files, and never eats a following SYS token.
+        self.assertEqual(
+            detokenize_line_body(b'*' + bytes([0x09]) + b' "X"', fmt='russell'),
+            '*SYS "X"',
+        )
+
+    def test_wilson_tab_is_still_whitespace(self):
+        self.assertEqual(detokenize_line_body(b'A%=1:\tB%=2', fmt='wilson'), 'A%=1:\tB%=2')
+
     def test_load_wheel_bbc_if_present(self):
         """Text or binary wheel.bbc must load; binary must show CASE not LOAD."""
         if not os.path.isfile(_WHEEL_BBC):
