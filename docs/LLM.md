@@ -19,6 +19,12 @@ cd mini_basic
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 ```
 
+## Architecture at a glance
+
+![mini_basic architecture: dialect parsing, runtime_parts mixins, text and pygame backends](img/architecture.jpg)
+
+*Overview illustration (generated with Gemini Notebook). Read it for the shape, not the details: the text inside the terminal panel is illustrative, not real output, and the module ring omits `strplan` (cached string expressions). For the real map of where each statement is handled, see [DISPATCH_MAP.md](DISPATCH_MAP.md).*
+
 ## Language (short)
 
 - Dialects: `mini` (default), `bbc`, `mits`, `commodore`, `tiny`.
