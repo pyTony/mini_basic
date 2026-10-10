@@ -28,6 +28,9 @@ python -m mini_basic --dialect mits examples/m6502-cport/01_hello.bas
 python -m mini_basic --help</code></pre>
 <p>Tests from the project root:</p>
 <pre><code>python -m pytest -q -m &quot;phase1 and not slow&quot; --timeout=45</code></pre>
+<h3 id="architecture-at-a-glance">Architecture at a glance</h3>
+<p><img src="img/architecture.jpg" alt="mini_basic architecture: dialect parsing, runtime_parts mixins, text and pygame backends" style="max-width:100%;height:auto"></p>
+<p><em>Overview illustration (generated with Gemini Notebook). Read it for the shape, not the details: the text inside the terminal panel is illustrative, not real output, and the module ring omits `strplan` (cached string expressions). For the real map of where each statement is handled, see [DISPATCH_MAP.md](DISPATCH_MAP.md).</em></p>
 <h3 id="language-short">Language (short)</h3>
 <ul><li>Dialects: <code>mini</code> (default), <code>bbc</code>, <code>mits</code>, <code>commodore</code>, <code>tiny</code>.</li><li>Case-on (default mini/bbc): names are case-sensitive. <strong>bbc</strong> keywords are uppercase only; <strong>mini</strong> accepts any keyword case (<code>for i = 1 to 3</code> is stored as <code>FOR i = 1 TO 3</code>). <code>CASE OFF</code> folds keywords.</li><li>Use <code>MOD</code> for modulo. Bare <code>%</code> is an integer suffix, not modulo.</li><li><code>SIN</code> / <code>COS</code> / <code>TAN</code> use <strong>radians</strong> (<code>DEG</code> / <code>RAD</code> helpers exist).</li><li>Regular product is text-only. Graphics (<code>--pygame</code>) is an optional extra, not required.</li></ul>
 <p>See <a href="LANGUAGE_FEATURES_1.00.html">LANGUAGE_FEATURES_1.00.md</a> and <a href="RELEASE_1.00.html">RELEASE_1.00.md</a>.</p>

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import html
 import re
+import shutil
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -120,22 +121,32 @@ def inline(text: str) -> str:
     parts: list[str] = []
     pos = 0
     pattern = re.compile(
-        r'`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*'
+        r'!\[([^\]]*)\]\(([^)]+)\)'
+        r'|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|\*([^*]+)\*'
     )
     for match in pattern.finditer(text):
         parts.append(html.escape(text[pos:match.start()]))
-        if match.group(1) is not None:
-            parts.append('<code>' + html.escape(match.group(1)) + '</code>')
-        elif match.group(2) is not None:
-            label, href = match.group(2), match.group(3)
+        if match.group(2) is not None:  # ![alt](src): image, copied to site/img
+            parts.append(
+                f'<img src="{html.escape(match.group(2))}" alt="{html.escape(match.group(1))}" '
+                'style="max-width:100%;height:auto">'
+            )
+            pos = match.end()
+            continue
+        # Shift: groups 3.. are the old 1.. (code, link label, link href, bold, italic).
+        g = [None, None, None] + [match.group(i) for i in range(3, 8)]
+        if g[3] is not None:
+            parts.append('<code>' + html.escape(g[3]) + '</code>')
+        elif g[4] is not None:
+            label, href = g[4], g[5]
             md_link = re.match(r'^(.*)\.md(#[\w.-]+)?$', href)
             if md_link:
                 href = Path(md_link.group(1)).name + '.html' + (md_link.group(2) or '')
             parts.append(f'<a href="{html.escape(href)}">{html.escape(label)}</a>')
-        elif match.group(4) is not None:
-            parts.append('<strong>' + html.escape(match.group(4)) + '</strong>')
+        elif g[6] is not None:
+            parts.append('<strong>' + html.escape(g[6]) + '</strong>')
         else:
-            parts.append('<em>' + html.escape(match.group(5)) + '</em>')
+            parts.append('<em>' + html.escape(g[7]) + '</em>')
         pos = match.end()
     parts.append(html.escape(text[pos:]))
     return ''.join(parts)
@@ -171,6 +182,9 @@ def wrap(title: str, body: str) -> str:
 
 def main() -> None:
     SITE.mkdir(parents=True, exist_ok=True)
+    img_src = DOCS / 'img'
+    if img_src.is_dir():  # ![alt](img/name.jpg) in the Markdown pages
+        shutil.copytree(img_src, SITE / 'img', dirs_exist_ok=True)
     for item in PAGES:
         name, title = item[0], item[1]
         dest_name = item[2] if len(item) > 2 else Path(name).stem + '.html'
