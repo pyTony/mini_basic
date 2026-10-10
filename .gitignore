@@ -44,32 +44,3 @@ INPUT.TXT
 out.txt
 *.prof
 *.bak
-
-# Local agent/session scratch (ad-hoc debug/probe scripts, run logs,
-# tracking notes) — not part of the project, so `git status` on a
-# working checkout stays readable instead of listing dozens of these.
-test/_debug_*.py
-test/_probe_*.py
-test/_repro_*.py
-test/_bench_snapshot.py
-test/_patch_tests_display.py
-test/_regression_out.txt
-test/corpus/
-test/t/
-backup/
-tools/python-embed/
-files.txt
-AGENT_POLICY.txt
-CURRENT_TASK.txt
-DEVELOPMENT_PIPELINE_AND_LLM_GUIDE.md
-FEATURES_DONE.txt
-RESOURCE_CHECK.txt
-WORK_LOG.txt
-.resource_peak.json
-.status_heartbeat_meta.json
-.status_sources_stamp.json
-.sync_counter
-docs/git/INDEPENDENT_FIXES.md
-test/test_agent_resource.py
-test/test_user_approval.py
-test/verify_user_approval.py

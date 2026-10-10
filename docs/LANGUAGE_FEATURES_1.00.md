@@ -47,8 +47,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 ### 3.1 Program structure
 
 - Numbered and/or unnumbered lines (dialect-dependent).
-- Colon multi-statement lines; `REM` / `'` comments (comment text is stored exactly as typed).
-- Lines are normalised **once, when entered**: **mini** uppercases lowercase keywords; **mits / commodore / tiny** (case-insensitive names) uppercase the whole line except strings, comments and `DATA` payloads; **bbc** needs uppercase keywords. See [DISPATCH_MAP.md](DISPATCH_MAP.md) §1.
+- Colon multi-statement lines; `REM` / `'` comments.
 - `LOAD` / `SAVE` / `CHAIN` / `RUN` / `LIST` / `NEW` / `END` / `STOP`.
 - Tokenized BBCSDL/Beeb **`.bbc` detokenize** on load (Russell formats).
 
@@ -60,7 +59,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 | `IF` … `THEN` / bare `IF` colon body | BBC bare `IF cond: stmt` supported. |
 | `IF` / `ELSE` / `ELSEIF` / `ENDIF` | Structured. |
 | `ON` … `GOTO` / `GOSUB` | |
-| `ON ERROR` / `RESUME` | ERR/ERL available in handlers. An error inside a `DEF FN` body reaches the outer handler with its own `REPORT$` / `ERL`. Any other bad expression is a BASIC `? error at line N`, never a Python traceback. |
+| `ON ERROR` / `RESUME` | ERR/ERL available in handlers. |
 | `FOR` / `NEXT` (int and float) | Nested; pure-delay and nested-int fast paths where safe. |
 | `WHILE` / `WEND` (or `ENDWHILE`) | |
 | `REPEAT` / `UNTIL` | |
@@ -77,10 +76,10 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 | Arrays `DIM` | Numeric/string; `PRINT a(i)` / `PRINT A$()` subscripts work (`test_print_array_subscript`). |
 | Operators | `+ - * /`, `DIV`, `MOD`, `^`, shifts `<<` `>>`. |
 | Bitwise | `AND` `OR` `EOR`/`XOR` `NOT` (integer bitwise path; pure bitwise can compile). |
-| Relations / logic | `=` `<>` `<` `>` … and `==` (BB4W / BBCSDL equality); BBC TRUE = **-1**. The type of an expression is that of its first operand, so `LEN(A$)+1` is a number. |
+| Relations / logic | `=` `<>` `<` `>` … ; BBC TRUE = **-1**. |
 | Hex / binary forms | BBC-style literals where implemented. |
 | Built-ins | `SIN` `COS` `TAN` `ASN` `ACS` `ATN` `SQR` `ABS` `INT` `SGN` `RND` `LOG` `EXP` `RAD` `DEG` … |
-| Strings | `LEFT$` `RIGHT$` `MID$` `STR$` `VAL` `ASC` `CHR$` `LEN` `INSTR` `STRING$` … ; `""` inside a literal is one quote (`PRINT "A""B"` prints `A"B`), separate literals join (`"A" "B"` is `AB`); `EVAL` returns a string or a number by its first operand. |
+| Strings | `LEFT$` `RIGHT$` `MID$` `STR$` `VAL` `ASC` `CHR$` `LEN` `INSTR` `STRING$` … |
 | Time | `TIME`, `TIME$` (where provided). |
 | System stubs | `@%`, `@vdu%!n`, `@lib$` / `@dir$` partial, `@ispal%` stub, etc. |
 
@@ -90,7 +89,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 |---------|--------|
 | `PRINT` / `?` | TAB, SPC, commas/semicolons; VDU embedded sequences. |
 | `INPUT` / `LINE INPUT` | |
-| `GET` / `GET$` / `INKEY` / `INKEY$` | Positive timeout present for graphics; glued `INKEY1`. `INKEY(-n)` (also glued `INKEY-99`) tests one BBC key number: **TRUE (-1) while that key is down, else 0** (real key/mouse state in the pygame window; in a terminal the pending character stands for its key). `INKEY(-256)` is the platform id (`&73`, BBCSDL). `INKEY$(-n)` returns the code of any pressed key. |
+| `GET` / `GET$` / `INKEY` / `INKEY$` | Positive timeout present for graphics; glued `INKEY1`. |
 | Files | `OPENIN` / `OPENOUT` / `OPENUP`, `PRINT#` / `INPUT#` / `BGET#` / `BPUT#`, `EOF#`, `CLOSE#`. |
 | `OSCLI` / `*` commands | Small subset only — see [OSCLI and SYS](#oscli-and-sys). Not RISC OS / Windows / SDL `SYS`. |
 | `MOUSE` | Desktop backends. |
@@ -165,7 +164,6 @@ The optional `TO var` result works, including the glued form (`SYS G$TO T0%`). A
 | **30 / 31** | Cursor home / TAB(x,y) |
 | **23,1** | Cursor visible |
 | **23,22** | User mode: width;height;charx,chary,ncols,charset |
-| **23,23** | Line thickness in pixels (BBCSDL); applies to `LINE` / `DRAW` / `PLOT` lines and arcs |
 | **23,n redefine char** | 8×8 user glyphs (welcome solid block) |
 | **23,*** other | Consume operands, **no error** (Phase C) |
 

@@ -1906,10 +1906,6 @@ class RuntimeExecutionMixin:
                         # Structured IF/WHILE/FOR exit onto END DEF (body_end).
                         if target == fn.body_end or target == -1:
                             break
-                        if target == self.error_trap_line and self._error_trap_enabled():
-                            # An error in the body: unwind the FN and let the outer
-                            # ON ERROR run (error_message / ERL already recorded).
-                            raise BasicRuntimeError()
                         raise ValueError('DEF FN jump outside body')
                     idx = body_line_index[target]
                 else:
@@ -5837,23 +5833,6 @@ class RuntimeExecutionMixin:
                         self._run_error_handler_for_line = self.error_trap_line
                         return self.error_trap_line
                     raise
-                except Exception as exc:
-                    # Last resort: a statement branch without its own handler
-                    # (IF/WHILE conditions, ...) must not leak a Python traceback.
-                    if self._error_trap_enabled() and not self._in_error_handler:
-                        self.error_line_num = line_num
-                        self.error_message = self._error_message('? Syntax error', exc)
-                        self.error_code_num = self._map_error_code(self.error_message)
-                        self._run_error_handler_for_line = self.error_trap_line
-                        return self.error_trap_line
-                    self._runtime_error(
-                        self._error_message('? Syntax error', exc),
-                        line_num,
-                        stmt_index,
-                        stmt_count=len(stmt_parts),
-                        statement=statement,
-                    )
-                    raise BasicRuntimeError()  # immediate mode (line 0) falls through here
                 if target is not None:
                     if target == line_num and self.resume_at and self.resume_at[0] == line_num:
                         # Same-line REPEAT/FOR re-entry: refresh terminal so PRINT TAB
