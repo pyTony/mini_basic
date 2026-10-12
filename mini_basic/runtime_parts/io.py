@@ -1291,9 +1291,18 @@ class RuntimeIoMixin:
                 index = length
                 break
             if text[index] == self._esc and text[index + 1] == '[':
-                end = text.find('m', index + 2)
-                if end == -1:
-                    # Incomplete CSI (no terminating 'm' yet in this chunk):
+                # CSI = ESC '[' <param bytes: 0-9 ; ?>* <final byte: a letter>.
+                # 'm' (SGR) is one final byte among many — cursor moves end in
+                # 'H', erase in 'J'/'K', private-mode set/reset in 'h'/'l', etc.
+                # Scanning only for 'm' left every other CSI "incomplete", so
+                # it (and all text appended after it) sat in _print_esc_pending
+                # forever — e.g. PRINT TAB(x,y)'s ESC[row;colH silently ate the
+                # rest of the program's output.
+                end = index + 2
+                while end < length and (text[end].isdigit() or text[end] in ';?'):
+                    end += 1
+                if end >= length or not text[end].isalpha():
+                    # Incomplete CSI (no terminating byte yet in this chunk):
                     # buffer it whole and resume once more text arrives.
                     self._print_esc_pending = text[index:]
                     index = length

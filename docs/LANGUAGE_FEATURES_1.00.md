@@ -20,11 +20,11 @@ This is the **language and graphics baseline** for 1.00. It states what is in, w
 | **BBCSDL corpus is green or explicitly deferred** | Portable demos only (**21 OK**, **1 DEFER** poem MODE7). tools/physics/sounds trees not shipped. |
 | **Major demos match user expectation** | User-approved: welcome, squares, saucer, flier, soccerball, wheel, jclock, filters, hanoi, animal, … |
 | **Ship hygiene** | `--version` / `-V`, Russell `.bbc` detokenize, text-only sessions skip auto-pygame, phase0+phase1 regression suite. |
-| **Non-goals are written down** | Sound synthesis, WIMP, SYS FFI, Box2D, full SAA5050 — see §6 and `features/deferred.py`. |
+| **Non-goals are written down** | Full ADSR `ENVELOPE` shaping, WIMP, SYS FFI, Box2D, full SAA5050 — see §6 and §4.4. (Basic `SOUND` tone synthesis and `*PLAY`/`*MUSIC` sample/track playback *are* implemented — see §4.4.) |
 
 **Qualification rule:** If a feature is required for a **user-approved** or **audit OK** program, it is either implemented or the program is documented DEFER. There is no “mystery FAIL.”
 
-**What 1.00 is not:** a compiler, a RISC OS desktop, full SOUND/ENVELOPE hardware, or pixel-perfect SAA5050 teletext.
+**What 1.00 is not:** a compiler, a RISC OS desktop, full SOUND/ENVELOPE hardware emulation, or pixel-perfect SAA5050 teletext.
 
 ---
 
@@ -172,37 +172,42 @@ The optional `TO var` result works, including the glued form (`SYS G$TO T0%`). A
 - Nested **integer** `FOR` bodies of simple plot/colour form can use a native fast path (e.g. **squares.bbc** munching pattern).
 - Float geometry loops (**saucer.bbc**) remain interpreter-paced; shape is user-approved; speed is not a 1.00 blocker.
 
-### 4.4 Sound (`SOUND` / `ENVELOPE`) — what “limited” means
+### 4.4 Sound (`SOUND` / `ENVELOPE` / `*PLAY` / `*MUSIC`) — updated since this doc's original 2026-08-03 scope
 
-There is **no audio engine**: nothing is heard on speakers. Statements are accepted so BBCSDL demos (e.g. **welcome.bbc**) do not crash via `ON ERROR`.
+This section's original text (below the line) described a pre-audio-engine 1.00 where `SOUND` was a silent pacing stub. That is no longer accurate: an actual `pygame.mixer`-based audio engine landed afterward (`mini_basic/sound.py`), so update expectations accordingly.
 
 | Statement | Works as | Does not do |
 |-----------|----------|-------------|
-| **`ENVELOPE …`** | Parse args (side effects such as `RND()` run); **silent no-op** | Pitch/ADSR envelopes; no effect on later `SOUND` |
-| **`SOUND ch, amp, pitch, dur`** | Requires **4** numeric args; with a **non-terminal** display (typically pygame), **sleeps** using `dur` for pacing | No tone; channel / amplitude / pitch ignored for audio |
+| **`SOUND ch, amp, pitch, dur`** | Plays an **approximate tone** (sine wave; white noise on channel 0) through `pygame.mixer` | Full BBC envelope shaping; it's an approximation, not sample-accurate SN76489 emulation |
+| **`*PLAY "file"[,channel]`** | Plays a WAV sample via `SoundEngine.play_sample()` | — |
+| **`*MUSIC "file"[,volume]`** / **`*MUSIC OFF`** | Streams a background track via `pygame.mixer.music` (not loaded as a `Sound`, so multi-minute tracks don't need to fit in memory) | — |
+| **`ENVELOPE …`** | Parses args (side effects such as `RND()` still run); **silent no-op** | Pitch/ADSR envelopes; no effect on `SOUND`'s tone |
 | **`SOUND OFF`**, multi-channel mix, ROS 5-arg `SOUND`, `*VOICE` / `*TEMPO` / `*STEREO` | Not real audio control | — |
 | **`ADVAL` sound queues** | Not a real queue | — |
 
-**Timing details for `SOUND` (when sleep applies):**
+Used together in the `showcase/breakout` demo: per-row `SOUND` tones on brick break, sampled `*PLAY` effects for paddle/wall hits, and a looping `*MUSIC` background track.
+
+**Still not available for 1.00:** full ADSR envelope shaping, sample-accurate chip emulation. See the showcase demo and `mini_basic/sound.py` for current behavior rather than the example below, which predates the audio engine.
+
+<details><summary>Original (2026-08-03, pre-audio-engine) text, kept for history</summary>
+
+There was **no audio engine**: nothing was heard on speakers. Statements were accepted so BBCSDL demos (e.g. **welcome.bbc**) would not crash via `ON ERROR`.
+
+**Timing details for `SOUND` (when sleep applied, pre-audio-engine):**
 
 - BBC-style duration units ≈ **1/20 s** → wait ≈ `dur * 0.05` seconds.
-- Wait is **capped at 1.0 s** so values like `dur=255` do not stall ~12 s of silence.
-- Sleep + event pump only when a graphical display is live and backend is **not** pure `terminal`. With `--display none` / `terminal`, `SOUND` still parses but typically **does not sleep**.
-
-**Examples that run cleanly:**
+- Wait was **capped at 1.0 s** so values like `dur=255` did not stall ~12 s of silence.
 
 ```basic
 10 ENVELOPE 1,1,-10,-10,-10,255,255,255,127,0,0,-127,127,0
 20 PRINT "envelope ok"   : REM no error; no sound
 30 MODE 8
-40 SOUND 1,-15,100,4     : REM ~0.2 s silent pause under pygame
+40 SOUND 1,-15,100,4     : REM now plays an actual tone, not a silent pause
 50 PRINT "after sound"
 60 END
 ```
 
-Corpus snippets accepted the same way: `SOUND 1,1,255,255`, `SOUND &11,0,1,1` (welcome), `SOUND 1,-15,50,2` (click-style pacing).
-
-**Not available for 1.00:** real music / beeps / **polly**-class synthesis. Full sound remains **deferred**.
+</details>
 
 ---
 

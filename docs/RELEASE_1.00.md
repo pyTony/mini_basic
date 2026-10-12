@@ -38,9 +38,15 @@ showcase demos run. It's a separate pip extra (`[display]`) only because
 pygame is a native dependency, not because it's a niche feature; see
 [How to run](#how-to-run) below.
 
+### Sound
+`SOUND` (tone synthesis), `*PLAY "file"` (sample playback), and
+`*MUSIC "file"` (looping background track) all play real audio through
+`pygame.mixer` — see `showcase/breakout.bbc` for all three used together.
+`ENVELOPE` is still a silent no-op.
+
 ### Not in regular 1.00
 - `build/`, `dist/`, embed Python, corpus installer trees
-- SOUND/ENVELOPE (silent stubs), WIMP, SYS FFI, Box2D
+- Full ADSR `ENVELOPE` shaping, WIMP, SYS FFI, Box2D
 - C-port `OPEN ch,"file","OUTPUT"` spelling
 
 ---
