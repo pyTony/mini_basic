@@ -119,6 +119,27 @@ def _h_data(
     return None
 
 
+def _reject_trailing_args(
+    interp: Any,
+    cmd: str,
+    rest: str,
+    *,
+    line_num: int,
+    stmt_index: int,
+    stmt_count: int,
+    statement: str,
+) -> bool:
+    """Error and return True if `rest` holds anything after a no-argument keyword."""
+    extra = rest.strip()
+    if not extra:
+        return False
+    interp._runtime_error(
+        f'? Line {line_num}: {cmd} takes no argument — type {cmd} alone, not {cmd} {extra}',
+        line_num, stmt_index, stmt_count=stmt_count, statement=statement,
+    )
+    return True
+
+
 def _h_off(
     interp: Any,
     rest: str,
@@ -129,6 +150,11 @@ def _h_off(
     statement: str,
     line_nums: List[int],
 ) -> Optional[int]:
+    if _reject_trailing_args(
+        interp, 'OFF', rest, line_num=line_num, stmt_index=stmt_index,
+        stmt_count=stmt_count, statement=statement,
+    ):
+        return None
     return None
 
 
@@ -142,6 +168,11 @@ def _h_cls(
     statement: str,
     line_nums: List[int],
 ) -> Optional[int]:
+    if _reject_trailing_args(
+        interp, 'CLS', rest, line_num=line_num, stmt_index=stmt_index,
+        stmt_count=stmt_count, statement=statement,
+    ):
+        return None
     interp._clear_screen()
     return None
 
@@ -156,6 +187,11 @@ def _h_clg(
     statement: str,
     line_nums: List[int],
 ) -> Optional[int]:
+    if _reject_trailing_args(
+        interp, 'CLG', rest, line_num=line_num, stmt_index=stmt_index,
+        stmt_count=stmt_count, statement=statement,
+    ):
+        return None
     if not interp._graphics_plot_enabled():
         return None
     interp._ensure_display()
@@ -175,6 +211,11 @@ def _h_stop(
     statement: str,
     line_nums: List[int],
 ) -> Optional[int]:
+    if _reject_trailing_args(
+        interp, 'STOP', rest, line_num=line_num, stmt_index=stmt_index,
+        stmt_count=stmt_count, statement=statement,
+    ):
+        return None
     interp._save_stop_position(line_num, stmt_index, stmt_count, line_nums)
     print(f'Break in {line_num}')
     return -1
