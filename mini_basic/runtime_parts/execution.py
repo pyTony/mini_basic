@@ -4494,6 +4494,11 @@ class RuntimeExecutionMixin:
           return None
 
         if cmd == 'WEND':
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: WEND takes no argument — type WEND alone, not WEND {rest.strip()}'
+                )
+                return None
             if not self.stack or self.stack[-1].kind != 'while':
                 self._runtime_error('? WEND without WHILE', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return -1
@@ -4716,6 +4721,11 @@ class RuntimeExecutionMixin:
             return None
 
         if cmd == 'ENDPROC':
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: ENDPROC takes no argument — type ENDPROC alone, not ENDPROC {rest.strip()}'
+                )
+                return None
             if not self.proc_stack:
                 self._runtime_error('? ENDPROC without PROC', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
@@ -4759,6 +4769,11 @@ class RuntimeExecutionMixin:
             return self._execute_resume(rest, line_nums, line_num, stmt_index)
 
         if cmd == 'RETURN':
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: RETURN takes no argument — type RETURN alone, not RETURN {rest.strip()}'
+                )
+                return None
             if not self.gosub_stack:
                 self._runtime_error('? RETURN without GOSUB', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None

@@ -3424,6 +3424,66 @@ class MiniBASICTests(unittest.TestCase):
         # Execution continues past the bad RUN rather than restarting the program.
         self.assertEqual(out.count('HELLO'), 1, msg=out)
 
+    def test_stop_with_trailing_garbage_errors_instead_of_silently_stopping(self):
+        """STOP previously dropped anything after it (STOP GARBAGE just stopped)."""
+        lines = [
+            (10, 'STOP GARBAGE'),
+            (20, 'PRINT "AFTER"'),
+        ]
+        out = self.run_program(lines)
+        self.assertIn('STOP takes no argument', out)
+        self.assertNotIn('Break in 10', out)
+
+    def test_return_with_trailing_garbage_errors_instead_of_silently_returning(self):
+        """RETURN previously dropped anything after it (RETURN GARBAGE just returned)."""
+        lines = [
+            (10, 'GOSUB 100'),
+            (20, 'PRINT "BACK"'),
+            (30, 'END'),
+            (100, 'RETURN GARBAGE'),
+        ]
+        out = self.run_program(lines)
+        self.assertIn('RETURN takes no argument', out)
+        self.assertNotIn('BACK', out)
+
+    def test_endproc_with_trailing_garbage_errors_instead_of_silently_returning(self):
+        """ENDPROC previously dropped anything after it."""
+        lines = [
+            (10, 'PROC foo'),
+            (20, 'PRINT "BACK"'),
+            (30, 'END'),
+            (40, 'DEF PROC foo'),
+            (50, 'ENDPROC GARBAGE'),
+        ]
+        out = self.run_program(lines, dialect='bbc')
+        self.assertIn('ENDPROC takes no argument', out)
+
+    def test_wend_with_trailing_garbage_errors_instead_of_silently_looping(self):
+        """WEND previously dropped anything after it (WEND GARBAGE just kept looping)."""
+        lines = [
+            (10, 'I=0'),
+            (20, 'WHILE I<2'),
+            (30, 'I=I+1'),
+            (40, 'PRINT I'),
+            (50, 'WEND GARBAGE'),
+            (60, 'END'),
+        ]
+        out = self.run_program(lines)
+        self.assertIn('WEND takes no argument', out)
+        # The loop must not have silently continued past the bad WEND.
+        self.assertEqual(out.count('2'), 0, msg=out)
+
+    def test_cls_clg_off_with_trailing_garbage_error(self):
+        """CLS/CLG/OFF previously dropped anything after them."""
+        for cmd in ('CLS', 'CLG', 'OFF'):
+            with self.subTest(cmd=cmd):
+                lines = [
+                    (10, f'{cmd} GARBAGE'),
+                    (20, 'PRINT "AFTER"'),
+                ]
+                out = self.run_program(lines)
+                self.assertIn(f'{cmd} takes no argument', out, msg=out)
+
     def test_if_goto_allowed_in_numbered_goto_dialects(self):
         for dialect in ('mini', 'mits', 'commodore'):
             with self.subTest(dialect=dialect):
