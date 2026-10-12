@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-12
+
+- [#92](https://github.com/pyTony/mini_basic/pull/92) Backport: fix cursor-move escape sequences swallowing all later PRINT output — Backport of [#91](https://github.com/pyTony/mini_basic/pull/91) (merged to `dev`) onto `main`, same change: `_print_emit` only recognized `m` (SGR colour codes) as a CSI escape terminator, so any other CSI sequence — `PRINT TAB(x,y)`'s cursor-move escape among them — was treated as incomplete and silently swallowed…
+
 ## 2026-10-10
 
 - [#90](https://github.com/pyTony/mini_basic/pull/90) Backport/code fixes main
