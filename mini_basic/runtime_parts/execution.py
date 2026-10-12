@@ -5657,6 +5657,11 @@ class RuntimeExecutionMixin:
         if cmd == 'RUN':
             # BBC: RUN restarts the current program from the first line (clear vars).
             # Used e.g. hanoi `IF F>13 RUN` after invalid INPUT.
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: RUN takes no argument — type RUN alone, not RUN {rest.strip()}'
+                )
+                return None
             try:
                 self._reset_run_state()
             except Exception:

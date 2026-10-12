@@ -3408,6 +3408,22 @@ class MiniBASICTests(unittest.TestCase):
         self.assertTrue(out.rstrip().endswith('5'), msg=out)
         self.assertNotIn('? IF error', out)
 
+    def test_run_with_trailing_garbage_errors_instead_of_restarting(self):
+        """RUN takes no argument — trailing text must error, not be silently dropped.
+
+        Previously `RUN <anything>` silently restarted the program, discarding
+        whatever followed RUN with no diagnostic at all.
+        """
+        lines = [
+            (10, 'RUN GARBAGE'),
+            (20, 'PRINT "HELLO"'),
+            (30, 'END'),
+        ]
+        out = self.run_program(lines)
+        self.assertIn('RUN takes no argument', out)
+        # Execution continues past the bad RUN rather than restarting the program.
+        self.assertEqual(out.count('HELLO'), 1, msg=out)
+
     def test_if_goto_allowed_in_numbered_goto_dialects(self):
         for dialect in ('mini', 'mits', 'commodore'):
             with self.subTest(dialect=dialect):
