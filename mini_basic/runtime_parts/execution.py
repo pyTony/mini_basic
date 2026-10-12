@@ -2908,6 +2908,19 @@ class RuntimeExecutionMixin:
                     coords.append(int(round(float(value))))
         return filename, coords
 
+    def _resolve_asset_path(self, filename: str) -> str:
+        """Resolve a relative asset path (DISPLAY/PLAY/MUSIC) against the
+        running program's own directory, matching BBC BASIC's ``@dir$``
+        convention (``_bbc_at_dir``) -- not the process's current working
+        directory, which can differ from where the program lives and would
+        otherwise double up a path already written relative to the program
+        (e.g. a program in ``showcase/`` doing ``*DISPLAY "showcase/x.png"``
+        meant relative to the repo, not to itself)."""
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self._bbc_at_dir(), path)
+        return os.path.normpath(path)
+
     def _os_rect_to_screen(
         self, x: int, y: int, w: int, h: int
     ) -> Tuple[int, int, int, int]:
@@ -3090,10 +3103,7 @@ class RuntimeExecutionMixin:
         if len(coords) < 4:
             raise ValueError('DISPLAY needs x,y,w,h')
         x, y, w, h = coords[:4]
-        path = filename
-        if not os.path.isabs(path):
-            path = os.path.join(self.working_dir, path)
-        path = os.path.normpath(path)
+        path = self._resolve_asset_path(filename)
         if not os.path.isfile(path):
             raise ValueError(f'DISPLAY file not found: {path}')
         sx, sy, sw, sh = self._os_rect_to_screen(x, y, w, h)
@@ -3230,10 +3240,7 @@ class RuntimeExecutionMixin:
         mechanism for playing real sample files alongside synthesized
         ``SOUND`` tones."""
         filename, coords = self._parse_oscli_file_and_coords(rest)
-        path = filename
-        if not os.path.isabs(path):
-            path = os.path.join(self.working_dir, path)
-        path = os.path.normpath(path)
+        path = self._resolve_asset_path(filename)
         if not os.path.isfile(path):
             raise ValueError(f'PLAY file not found: {path}')
         channel = coords[0] if coords else None
@@ -3250,10 +3257,7 @@ class RuntimeExecutionMixin:
             get_sound_engine().stop_music()
             return
         filename, coords = self._parse_oscli_file_and_coords(rest)
-        path = filename
-        if not os.path.isabs(path):
-            path = os.path.join(self.working_dir, path)
-        path = os.path.normpath(path)
+        path = self._resolve_asset_path(filename)
         if not os.path.isfile(path):
             raise ValueError(f'MUSIC file not found: {path}')
         volume = (coords[0] / 100.0) if coords else 1.0
