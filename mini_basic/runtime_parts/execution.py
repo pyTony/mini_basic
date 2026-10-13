@@ -5880,7 +5880,17 @@ class RuntimeExecutionMixin:
             while True:
                 target = self._execute_statement_parts(0, parts, line_nums)
                 if target is not None and target in self.program:
-                    self.execute_line(target, self.program[target], line_nums)
+                    # GOTO/GOSUB into the program from the REPL prompt: keep
+                    # running from there (preserving variables/stacks, unlike
+                    # RUN) rather than executing just that one line.
+                    self._prepare_run()
+                    self._ensure_display()
+                    start_index = self._run_line_index.get(target, 0)
+                    self._run_interrupt_watch = True
+                    try:
+                        self._run_program_loop(start_index)
+                    finally:
+                        self._run_interrupt_watch = False
                     break
                 if target is None or target != 0:
                     break
