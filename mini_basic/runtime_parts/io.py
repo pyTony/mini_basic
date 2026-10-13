@@ -1054,17 +1054,24 @@ class RuntimeIoMixin:
         """BBC-style float text: scientific for large/small magnitudes."""
         if not math.isfinite(value):
             return str(value).upper()
-        # Prefer E notation outside ordinary range (matches BBC G/E defaults).
-        if abs(value) >= 1e10 or (value != 0.0 and abs(value) < 1e-2):
-            text = f'{value:.6E}'
-            # Normalize +0 → bare E like many BASICs: 1.23E+10 → 1.23E10 optional;
-            # keep Python-style E+ for clarity unless bare E preferred.
-            return text
         # bbc: @%=&90A default is G9 (PRINT PI → 3.14159265). Others: 15
         # significant digits, so 0.1+0.2 prints 0.3, not float64 noise.
-        if self.config.dialect == 'bbc' and not self.bbc_at_percent:
-            return f'{value:.9g}'
-        return f'{value:.15g}'
+        sig_digits = 9 if (self.config.dialect == 'bbc' and not self.bbc_at_percent) else 15
+        # Decide E-vs-decimal on the value rounded to the digits we're about
+        # to display, not the raw float. A mathematically-exact 0.01 can
+        # arrive as e.g. 0.009999999999999998 from upstream subtraction
+        # (TIMER differences do this), which would otherwise flip it into
+        # E notation a human wouldn't expect even though it rounds to 0.01.
+        try:
+            rounded = float(f'{value:.{sig_digits}g}')
+        except (ValueError, OverflowError):
+            rounded = value
+        # Prefer E notation outside ordinary range (matches BBC G/E defaults).
+        if abs(rounded) >= 1e10 or (rounded != 0.0 and abs(rounded) < 1e-2):
+            # Normalize +0 → bare E like many BASICs: 1.23E+10 → 1.23E10 optional;
+            # keep Python-style E+ for clarity unless bare E preferred.
+            return f'{value:.6E}'
+        return f'{value:.{sig_digits}g}'
 
     def _split_implicit_print_items(self, item: str) -> List[str]:
         """MBASIC implicit PRINT items: TAB/SPC glued without ; or ,.

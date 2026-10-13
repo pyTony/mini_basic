@@ -1,7 +1,8 @@
     10 PRINT "=== HEAVY-DUTY BASIC BENCHMARK === "
     20 PRINT "Testing deep recursion limits..."
-    30 INPUT "Enter M (recommend 1-3): ", M
-    40 INPUT "Enter N (recommend 1-5): ", N
+    25 PRINT "Ackermann growth is explosive: M=4,N=1 already takes several seconds; M=4,N=2+ will not finish in practical time."
+    30 INPUT "Enter M (recommend 3-4): ", M
+    40 INPUT "Enter N (recommend 1-6, or N=1 if M=4): ", N
     50 T1 = TIMER ' Start the benchmark clock
     60 PRINT "Result: "; FNACK(M, N)
     70 T2 = TIMER ' End the benchmark clock
