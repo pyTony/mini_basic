@@ -48,7 +48,7 @@
   400 px% = fx0% + fw%/2 - pw%/2
   410 br% = 10
   420 score% = 0: lives% = 3
-  425 speedmul% = 100: ballsubsteps% = 3
+  425 speedmul% = 180: ballsubsteps% = 2
   430 served% = FALSE
   435 PROCdrawsidepanels
   436 PROCdrawwalls
