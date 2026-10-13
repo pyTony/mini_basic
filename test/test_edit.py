@@ -263,6 +263,40 @@ class EditCommandTests(unittest.TestCase):
         self.assertEqual(interp.program[10], 'PRINT 1')
         self.assertIn('No changes', out.getvalue())
 
+    def test_launch_editor_prefers_tkinter_editor(self) -> None:
+        """Bare EDIT should open tools/editor.py, not shell out, when a GUI is available."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        gui_cmd = [sys.executable, '/repo/tools/editor.py', '/tmp/prog.bas']
+        with patch.object(interp, '_tkinter_editor_command', return_value=gui_cmd):
+            with patch('subprocess.call', return_value=0) as call:
+                result = interp._launch_external_editor('/tmp/prog.bas')
+        self.assertTrue(result)
+        call.assert_called_once_with(gui_cmd)
+
+    def test_launch_editor_falls_back_without_tkinter(self) -> None:
+        """No GUI (e.g. headless) must still fall back to EDITOR/VISUAL/nano."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        with patch.object(interp, '_tkinter_editor_command', return_value=None):
+            with patch.object(interp, '_choose_external_editor', return_value=['nano']):
+                with patch('subprocess.call', return_value=0) as call:
+                    result = interp._launch_external_editor('/tmp/prog.bas')
+        self.assertTrue(result)
+        call.assert_called_once_with(['nano', '/tmp/prog.bas'])
+
+    def test_tkinter_editor_command_requires_display_on_posix(self) -> None:
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        with patch('mini_basic.runtime_parts.program.sys.platform', 'linux'):
+            with patch.dict(os.environ, {'DISPLAY': '', 'WAYLAND_DISPLAY': ''}, clear=False):
+                os.environ.pop('DISPLAY', None)
+                os.environ.pop('WAYLAND_DISPLAY', None)
+                self.assertIsNone(interp._tkinter_editor_command('/tmp/prog.bas'))
+
     def test_editor_missing_prints_hint(self) -> None:
         interp = BASICInterpreter(
             InterpreterConfig(dialect='bbc', display='none', display_locked=True)

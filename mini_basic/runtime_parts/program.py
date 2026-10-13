@@ -3213,17 +3213,36 @@ class RuntimeProgramMixin:
                 return [found]
         return None
 
+    def _tkinter_editor_command(self, path: str) -> Optional[List[str]]:
+        """``[python, tools/editor.py, path]`` when a GUI editor looks launchable."""
+        try:
+            import tkinter  # noqa: F401
+        except ImportError:
+            return None
+        if sys.platform not in ('darwin', 'win32'):
+            if not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
+                return None
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        editor_path = os.path.join(repo_root, 'tools', 'editor.py')
+        if not os.path.isfile(editor_path):
+            return None
+        return [sys.executable, editor_path, path]
+
     def _launch_external_editor(self, path: str) -> bool:
-        """Open *path* in the system editor and wait. False if it could not start."""
+        """Open *path* in the tkinter editor, or the system editor. False if neither started."""
         import subprocess
 
-        cmd = self._choose_external_editor()
+        cmd = self._tkinter_editor_command(path)
         if not cmd:
-            print('? no editor (set EDITOR or VISUAL)')
+            cmd = self._choose_external_editor()
+            if cmd:
+                cmd = [*cmd, path]
+        if not cmd:
+            print('? no editor (no GUI editor, and EDITOR/VISUAL not set)')
             print('  EDIT n     edit one line (prefilled; arrows move in the text)')
             return False
         try:
-            status = subprocess.call([*cmd, path])
+            status = subprocess.call(cmd)
         except OSError as exc:
             print(f'? cannot start editor: {exc}')
             return False
