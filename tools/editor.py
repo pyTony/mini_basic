@@ -19,15 +19,20 @@ Usage::
 """
 from __future__ import annotations
 
+import contextlib
+import io
 import os
 import re
 import subprocess
 import sys
+import tempfile
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import List, Optional, Tuple
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
 
 # Keywords/operators for highlighting. mini_basic accepts several dialects
 # (mini/mits/bbc/commodore/tiny); this list is a practical superset for
@@ -99,6 +104,12 @@ class EditorWindow:
         toolbar.pack(side=tk.TOP, fill=tk.X)
 
         ttk.Button(toolbar, text='Run', command=self.run_program).pack(side=tk.LEFT, padx=4, pady=4)
+        ttk.Button(
+            toolbar, text='Pretty (no numbers)', command=self.pretty_no_numbers,
+        ).pack(side=tk.LEFT, padx=4, pady=4)
+        ttk.Button(
+            toolbar, text='Renumber', command=self.renumber,
+        ).pack(side=tk.LEFT, padx=4, pady=4)
 
         ttk.Label(toolbar, text='Dialect:').pack(side=tk.LEFT, padx=(12, 2))
         self.dialect_var = tk.StringVar(value='auto')
@@ -257,6 +268,86 @@ class EditorWindow:
             messagebox.showerror('Run failed', str(exc))
             return
         self.status_var.set('Running: ' + ' '.join(cmd))
+
+    # -- Pretty / Renumber -------------------------------------------------
+
+    def _parse_source(self):
+        """Load the editor's current text into a fresh interpreter.
+
+        Reuses the real interpreter's own LOAD so tokenizing, dialect
+        detection and numbered/unnumbered sniffing behave exactly as they
+        do for ``mini_basic file.bas`` (no reimplemented parsing here).
+        """
+        from mini_basic.config import InterpreterConfig
+        from mini_basic.runtime import BASICInterpreter
+
+        config = InterpreterConfig()
+        dialect = self.dialect_var.get()
+        if dialect and dialect != 'auto':
+            config.dialect = dialect
+            config.dialect_locked = True
+        interp = BASICInterpreter(config)
+
+        source = self.text.get('1.0', 'end-1c')
+        fd, tmp_path = tempfile.mkstemp(suffix='.bas')
+        os.close(fd)
+        try:
+            with open(tmp_path, 'w', encoding='utf-8') as fh:
+                fh.write(source)
+            err_buf = io.StringIO()
+            with contextlib.redirect_stderr(err_buf):
+                ok = interp.load(tmp_path, announce=False)
+            if not ok:
+                raise ValueError(err_buf.getvalue().strip() or 'Could not parse program')
+        finally:
+            os.remove(tmp_path)
+        if not interp.program:
+            raise ValueError('No program lines found')
+        return interp
+
+    def _replace_text(self, content: str) -> None:
+        self.text.delete('1.0', tk.END)
+        self.text.insert('1.0', content)
+        self.text.edit_modified(True)
+        self._highlight()
+
+    def pretty_no_numbers(self) -> None:
+        """Reformat the buffer as structural-indent source with no line numbers.
+
+        Same presentation as ``SAVE PRETTY`` / ``LIST PRETTY`` in the REPL.
+        """
+        try:
+            interp = self._parse_source()
+            interp._apply_structural_indents()
+            lines = interp._program_display_lines(
+                'pretty', include_line_numbers=False, case_fold=interp._detokenize_fold(),
+            )
+        except ValueError as exc:
+            messagebox.showerror('Pretty failed', str(exc))
+            return
+        self._replace_text('\n'.join(lines) + '\n')
+        self.status_var.set('Prettified (line numbers removed)')
+
+    def renumber(self) -> None:
+        """Renumber the program 10, 20, 30, ... fixing up GOTO/GOSUB/etc targets.
+
+        Delegates to the interpreter's own ``RENUMBER``/``REN`` logic.
+        """
+        try:
+            interp = self._parse_source()
+            interp.renumber_program(10, 10)
+            case_fold = interp._detokenize_fold()
+            lines = [
+                f'{interp._format_line_number(num, True)}'
+                f'{" " * interp.line_indent.get(num, 0)}'
+                f'{interp.format_list_line(interp.program[num])}'
+                for num in sorted(interp.program)
+            ]
+        except ValueError as exc:
+            messagebox.showerror('Renumber failed', str(exc))
+            return
+        self._replace_text('\n'.join(lines) + '\n')
+        self.status_var.set('Renumbered')
 
     def _build_run_command(self, path: str) -> List[str]:
         cmd = [sys.executable, '-m', 'mini_basic', path]
