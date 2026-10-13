@@ -187,6 +187,10 @@ This section's original text (below the line) described a pre-audio-engine 1.00 
 
 Used together in the `showcase/breakout` demo: per-row `SOUND` tones on brick break, sampled `*PLAY` effects for paddle/wall hits, and a looping `*MUSIC` background track.
 
+**`*PLAY`/`*MUSIC` are mini_basic-only** (unlike `SOUND`, which is real BBC BASIC): real BBC BASIC has no such star-commands. LOAD under a non-`mini` dialect prints a note when a program uses them, naming the lines and offering two remedies: switch the file's dialect to `mini` (via `--dialect mini` or a `1 REM dialect: mini` hint), or run `*WRAPMINI` to rewrite the standalone `*PLAY`/`*MUSIC` lines in place as `REM MINI_BASIC *PLAY ...` / `REM MINI_BASIC *MUSIC OFF` comments — the convention already used by SDLBBC sources that want to stay loadable on real hardware. mini_basic treats those `REM MINI_BASIC …` lines as inert comments on load too (it does not unwrap/execute them), so follow `*WRAPMINI` with `SAVE` if you also want silence from mini_basic itself; leave the lines unwrapped to keep sound here. `*WRAPMINI` only rewrites a line whose entire statement is the star-command (not one combined with other statements via `:`).
+
+To get a text listing a real BBC machine can load, detokenize with `--list` (or `LIST`) to a file; real hardware needs `*EXEC` on that text file, since `LOAD` there expects tokenized bytes, not plain text.
+
 **Still not available for 1.00:** full ADSR envelope shaping, sample-accurate chip emulation. See the showcase demo and `mini_basic/sound.py` for current behavior rather than the example below, which predates the audio engine.
 
 <details><summary>Original (2026-08-03, pre-audio-engine) text, kept for history</summary>

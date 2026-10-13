@@ -1478,6 +1478,11 @@ class RuntimeProgramMixin:
                 if self._text_has_mini_only_func(upper, func):
                     if not self._dialect_allows(func):
                         violations.append(func)
+            star_match = re.match(r'^\*\s*([A-Za-z]+)', stripped)
+            if star_match:
+                star_cmd = star_match.group(1).upper()
+                if star_cmd in self._MINI_ONLY_STAR_CMDS and not self._dialect_allows(star_cmd):
+                    violations.append('*' + star_cmd)
         return violations
 
     @staticmethod
@@ -1523,7 +1528,37 @@ class RuntimeProgramMixin:
                         add(func)
                 if re.search(r'\bINKEY\s*\(\s*-', upper):
                     add('INKEY(-n)')
+                star_match = re.match(r'^\*\s*([A-Za-z]+)', stripped)
+                if star_match and star_match.group(1).upper() in self._MINI_ONLY_STAR_CMDS:
+                    add('*' + star_match.group(1).upper())
         return found
+
+    def wrap_mini_only_star_commands(self) -> List[int]:
+        """Rewrite standalone ``*PLAY``/``*MUSIC`` program lines as
+        ``REM MINI_BASIC *CMD ...`` so the listing stays loadable (as an
+        inert comment) on real BBC BASIC. Only a line whose *entire*
+        statement is one mini-only star-command is rewritten -- a line
+        combining it with other statements via ``:`` is left untouched,
+        since REM would also swallow the rest of the line.
+
+        Returns the list of rewritten line numbers.
+        """
+        changed: List[int] = []
+        for line_num in sorted(self.program):
+            raw = self.program[line_num]
+            parts = self._split_colon_statements(raw)
+            if len(parts) != 1:
+                continue
+            _, text = self._extract_label_prefix(parts[0])
+            stripped = text.strip()
+            star_match = re.match(r'^\*\s*([A-Za-z]+)\b.*$', stripped)
+            if not star_match:
+                continue
+            if star_match.group(1).upper() not in self._MINI_ONLY_STAR_CMDS:
+                continue
+            self.program[line_num] = f'REM MINI_BASIC {stripped}'
+            changed.append(line_num)
+        return changed
 
     @classmethod
     def _normalize_hash_file_commands(cls, line: str) -> str:

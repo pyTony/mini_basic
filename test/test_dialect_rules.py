@@ -359,3 +359,83 @@ def test_dialect_allows_table() -> None:
         for dialect, allowed in expect.items():
             interp = _interp(dialect)
             assert interp._dialect_allows(feature) is allowed, f'{dialect} {feature}'
+
+
+def test_load_warns_mini_only_star_play_on_bbc() -> None:
+    ok, out, _ = _load_text(
+        'bbc', '10 *PLAY "hit.wav"\n20 END\n', strict=False,
+    )
+    assert ok, out
+    lower = out.lower()
+    assert 'mini-only' in lower
+    assert '*play' in lower
+    assert 'wrapmini' in lower
+    assert 'rem mini_basic' in lower
+
+
+def test_load_warns_mini_only_star_music_on_bbc() -> None:
+    ok, out, _ = _load_text(
+        'bbc', '10 *MUSIC OFF\n20 END\n', strict=False,
+    )
+    assert ok, out
+    assert 'mini-only' in out.lower()
+    assert '*music' in out.lower()
+
+
+def test_load_sound_statement_is_not_mini_only() -> None:
+    # SOUND (tone synthesis) is real BBC BASIC, unlike *PLAY/*MUSIC.
+    ok, out, _ = _load_text(
+        'bbc', '10 SOUND 1,-15,100,20\n20 END\n', strict=False,
+    )
+    assert ok, out
+    assert 'mini-only' not in out.lower()
+
+
+def test_load_mini_does_not_warn_star_play() -> None:
+    ok, out, _ = _load_text(
+        'mini', '10 *PLAY "hit.wav"\n20 END\n', strict=False,
+    )
+    assert ok, out
+    assert 'mini-only' not in out.lower()
+
+
+def test_rem_wrapped_star_play_is_not_mini_only() -> None:
+    ok, out, _ = _load_text(
+        'bbc', '10 REM MINI_BASIC *PLAY "hit.wav"\n20 END\n', strict=False,
+    )
+    assert ok, out
+    assert 'mini-only' not in out.lower()
+
+
+def test_wrapmini_rewrites_standalone_star_commands() -> None:
+    interp = _interp('bbc', strict=False)
+    interp.set_program_line(10, '*PLAY "hit.wav"')
+    interp.set_program_line(20, '*MUSIC OFF')
+    interp.set_program_line(30, 'PRINT "ok" : *MUSIC OFF')
+    interp.set_program_line(40, 'END')
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        changed = interp.wrap_mini_only_star_commands()
+    assert changed == [10, 20]
+    assert interp.program[10] == 'REM MINI_BASIC *PLAY "hit.wav"'
+    assert interp.program[20] == 'REM MINI_BASIC *MUSIC OFF'
+    # Combined-statement line is left alone: REM would swallow the PRINT too.
+    assert interp.program[30] == 'PRINT "ok" : *MUSIC OFF'
+
+
+def test_star_play_rejected_on_strict_bbc_allowed_on_mini() -> None:
+    ok_bbc, out_bbc, _ = _load_text('bbc', '10 *PLAY "hit.wav"\n20 END\n', strict=True)
+    assert not ok_bbc, out_bbc
+    ok_mini, out_mini, _ = _load_text('mini', '10 *PLAY "hit.wav"\n20 END\n', strict=True)
+    assert ok_mini, out_mini
+
+
+def test_wrapmini_star_command_rewrites_via_execution() -> None:
+    interp = _interp('bbc', strict=False)
+    interp.set_program_line(10, '*PLAY "hit.wav"')
+    interp.set_program_line(20, '*WRAPMINI')
+    buf = io.StringIO()
+    with redirect_stdout(buf), redirect_stderr(io.StringIO()):
+        interp._execute_star_command('WRAPMINI')
+    assert 'wrapped line' in buf.getvalue().lower()
+    assert interp.program[10] == 'REM MINI_BASIC *PLAY "hit.wav"'

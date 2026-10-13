@@ -964,6 +964,17 @@ class RuntimeCoreMixin:
             f'(dialect is {self.config.dialect}, not mini). '
             f'Use --dialect mini or add `1 REM dialect: mini`.'
         )
+        star_features = [f for f in features if f.startswith('*')]
+        if star_features:
+            names = '/'.join(star_features)
+            print(
+                f'  {names} {"is" if len(star_features) == 1 else "are"} mini_basic '
+                f'sound extension{"" if len(star_features) == 1 else "s"}, not real BBC '
+                f'BASIC OS commands. Run *WRAPMINI to rewrite those line(s) as '
+                f'`REM MINI_BASIC {star_features[0]} ...` so the listing stays loadable '
+                f'(as an inert comment) on real BBC BASIC -- or switch dialect to mini '
+                f'as above to keep sound active here.'
+            )
 
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""

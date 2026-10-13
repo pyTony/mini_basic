@@ -172,6 +172,10 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         # Add others as identified (e.g. some advanced VDU, VOICE etc. if top-level)
     }
     _MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE', 'EXIT'})
+    # Star-commands (OSCLI, e.g. *PLAY "x.wav") that are mini_basic sound
+    # extensions, not real BBC BASIC OS commands. SOUND itself is real BBC
+    # BASIC and must not be listed here.
+    _MINI_ONLY_STAR_CMDS = frozenset({'PLAY', 'MUSIC'})
     _ANSI_COLOUR_FUNCS = frozenset({
         'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
     })
