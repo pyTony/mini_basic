@@ -73,6 +73,42 @@ class RunFilenameTests(unittest.TestCase):
             else:
                 self.assertEqual(printed, '42', msg=f'{keyword}: {printed!r}')
 
+    def test_goto_from_immediate_mode_continues_whole_program(self) -> None:
+        """GOTO 40 at the REPL prompt must keep running, not stop after one line.
+
+        Real bug (Tony, 2026-10-13): `execute_immediate()` called
+        `execute_line()` once for the GOTO target instead of continuing the
+        full run loop, so jumping into a FOR loop (which prints nothing on
+        its own) looked like "no output" even though later lines would have
+        printed plenty.
+        """
+        interp = BASICInterpreter(InterpreterConfig(display='none'))
+        interp.program[10] = 'PRINT "TEN"'
+        interp.program[20] = 'FOR N = 1 TO 3'
+        interp.program[30] = 'PRINT N;'
+        interp.program[40] = 'NEXT N'
+        interp.program[50] = 'PRINT "DONE"'
+        out = io.StringIO()
+        with redirect_stdout(out):
+            _execute_repl_line(interp, 'GOTO 20')
+        text = out.getvalue()
+        self.assertNotIn('TEN', text)
+        self.assertIn('1', text)
+        self.assertIn('2', text)
+        self.assertIn('3', text)
+        self.assertIn('DONE', text)
+
+    def test_goto_from_immediate_mode_preserves_variables(self) -> None:
+        """Unlike RUN <linenum>, GOTO <linenum> from the REPL must keep vars."""
+        interp = BASICInterpreter(InterpreterConfig(display='none'))
+        interp.program[10] = 'X = 42'
+        interp.program[20] = 'PRINT X'
+        out = io.StringIO()
+        with redirect_stdout(out):
+            _execute_repl_line(interp, 'X = 42')
+            _execute_repl_line(interp, 'GOTO 20')
+        self.assertEqual(out.getvalue().strip(), '42')
+
     def test_run_linenum_clears_gosub_and_for_stacks(self) -> None:
         """RUN from inside a GOSUB/FOR must drop the stacks, unlike GOTO."""
         interp = BASICInterpreter(InterpreterConfig(display='none'))
