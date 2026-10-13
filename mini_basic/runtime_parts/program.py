@@ -1478,11 +1478,6 @@ class RuntimeProgramMixin:
                 if self._text_has_mini_only_func(upper, func):
                     if not self._dialect_allows(func):
                         violations.append(func)
-            star_match = re.match(r'^\*\s*([A-Za-z]+)', stripped)
-            if star_match:
-                star_cmd = star_match.group(1).upper()
-                if star_cmd in self._MINI_ONLY_STAR_CMDS and not self._dialect_allows(star_cmd):
-                    violations.append('*' + star_cmd)
         return violations
 
     @staticmethod

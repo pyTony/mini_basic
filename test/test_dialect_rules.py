@@ -361,25 +361,43 @@ def test_dialect_allows_table() -> None:
             assert interp._dialect_allows(feature) is allowed, f'{dialect} {feature}'
 
 
-def test_load_warns_mini_only_star_play_on_bbc() -> None:
+def test_load_rejects_mini_only_star_play_on_bbc_even_non_strict() -> None:
+    # *PLAY/*MUSIC are never accepted outside dialect mini -- not just
+    # under --strict-dialect -- whether bbc came from --dialect or (as
+    # here) from the file's own hint: this must never get as far as
+    # running under bbc with *PLAY/*MUSIC present.
     ok, out, _ = _load_text(
         'bbc', '10 *PLAY "hit.wav"\n20 END\n', strict=False,
     )
-    assert ok, out
+    assert not ok, out
     lower = out.lower()
     assert 'mini-only' in lower
     assert '*play' in lower
     assert 'wrapmini' in lower
     assert 'rem mini_basic' in lower
+    assert 'not allowed in bbc dialect' in lower
 
 
-def test_load_warns_mini_only_star_music_on_bbc() -> None:
+def test_load_rejects_mini_only_star_music_on_bbc_even_non_strict() -> None:
     ok, out, _ = _load_text(
         'bbc', '10 *MUSIC OFF\n20 END\n', strict=False,
     )
-    assert ok, out
-    assert 'mini-only' in out.lower()
-    assert '*music' in out.lower()
+    assert not ok, out
+    lower = out.lower()
+    assert 'mini-only' in lower
+    assert '*music' in lower
+    assert 'not allowed in bbc dialect' in lower
+
+
+def test_load_rejects_mini_only_star_play_via_dialect_hint() -> None:
+    # The file's own `REM dialect: bbc` hint must not be "accepted" either
+    # -- the hint sets dialect to bbc, and that is then rejected the same
+    # as --dialect bbc would be.
+    ok, out, _ = _load_text(
+        'mini', '1 REM dialect: bbc\n10 *PLAY "hit.wav"\n20 END\n', strict=False,
+    )
+    assert not ok, out
+    assert 'not allowed in bbc dialect' in out.lower()
 
 
 def test_load_sound_statement_is_not_mini_only() -> None:
@@ -421,13 +439,6 @@ def test_wrapmini_rewrites_standalone_star_commands() -> None:
     assert interp.program[20] == 'REM MINI_BASIC *MUSIC OFF'
     # Combined-statement line is left alone: REM would swallow the PRINT too.
     assert interp.program[30] == 'PRINT "ok" : *MUSIC OFF'
-
-
-def test_star_play_rejected_on_strict_bbc_allowed_on_mini() -> None:
-    ok_bbc, out_bbc, _ = _load_text('bbc', '10 *PLAY "hit.wav"\n20 END\n', strict=True)
-    assert not ok_bbc, out_bbc
-    ok_mini, out_mini, _ = _load_text('mini', '10 *PLAY "hit.wav"\n20 END\n', strict=True)
-    assert ok_mini, out_mini
 
 
 def test_star_play_rejected_at_runtime_on_bbc_even_non_strict() -> None:
