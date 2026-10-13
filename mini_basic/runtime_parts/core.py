@@ -2407,8 +2407,13 @@ class RuntimeCoreMixin:
         self._run_interrupt_watch = True
         timing = bool(getattr(self, 'timing_enabled', False))
         t0 = time.perf_counter() if timing else None
+        start = getattr(self, '_chain_start_line', None)
+        self._chain_start_line = None
+        start_index = 0
+        if start is not None:
+            start_index = self._run_line_index.get(start, 0)
         try:
-            self._run_program_loop(0)
+            self._run_program_loop(start_index)
         except KeyboardInterrupt:
             self._run_aborted = True
             print('\nGoodbye!')

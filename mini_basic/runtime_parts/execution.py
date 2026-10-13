@@ -4167,6 +4167,16 @@ class RuntimeExecutionMixin:
         if cmd == 'INPUT':
             prompt_content, var_tokens = self._parse_input_statement(rest)
             if not var_tokens:
+                if prompt_content and self.config.dialect == 'bbc':
+                    # Real BBC BASIC V: INPUT with a prompt but no variable
+                    # just prints the prompt text — no wait, nothing to assign.
+                    self._emit_input_prompt(prompt_content)
+                    return None
+                if prompt_content:
+                    self._runtime_error(
+                        '? INPUT error: missing variable', line_num, stmt_index,
+                        stmt_count=stmt_count, statement=line)
+                    return None
                 self._runtime_error('? INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
             first_try = True
@@ -5707,9 +5717,59 @@ class RuntimeExecutionMixin:
         if cmd == 'RUN':
             # BBC: RUN restarts the current program from the first line (clear vars).
             # Used e.g. hanoi `IF F>13 RUN` after invalid INPUT.
-            if rest.strip():
+            # Common MS/MSX/Amstrad-style extensions: RUN "file" loads and runs
+            # it; RUN <linenum> restarts fresh (vars cleared) at that line,
+            # same as GOTO but after a full reset.
+            rest_stripped = rest.strip()
+            if rest_stripped:
+                filename = None
+                try:
+                    filename = self._eval_string_arg(rest_stripped)
+                except Exception:
+                    pass
+                if filename is not None:
+                    try:
+                        path = self.resolve_load_path(filename)
+                    except ValueError as exc:
+                        self._runtime_error(
+                            self._error_message('? RUN error', exc), line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    if not os.path.isfile(path):
+                        self._runtime_error(
+                            f'? RUN error: file not found ({path})', line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    if not self.load(path, announce=False):
+                        self._runtime_error(
+                            f'? RUN error: no program loaded from {path}', line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    self._chain_start_line = None
+                    raise ChainTransfer()
+                target_line = None
+                # Only a bare integer literal counts as a line number — an
+                # undeclared identifier (e.g. GARBAGE) defaults to 0.0 under
+                # eval_numeric and must not be mistaken for "line 0".
+                if re.fullmatch(r'\d+', rest_stripped):
+                    try:
+                        target_line = int(rest_stripped)
+                    except Exception:
+                        pass
+                if target_line is not None:
+                    if target_line not in self.program:
+                        self._runtime_error(
+                            '? Line not found', line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    try:
+                        self._reset_run_state()
+                    except Exception:
+                        pass
+                    self._chain_start_line = target_line
+                    raise ChainTransfer()
                 self._emit_error(
-                    f'? Line {line_num}: RUN takes no argument — type RUN alone, not RUN {rest.strip()}'
+                    f'? Line {line_num}: RUN takes no argument — type RUN alone, not RUN {rest_stripped}'
                 )
                 return None
             try:
