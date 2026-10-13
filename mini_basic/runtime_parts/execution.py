@@ -3263,6 +3263,22 @@ class RuntimeExecutionMixin:
         volume = (coords[0] / 100.0) if coords else 1.0
         get_sound_engine().play_music(path, volume=volume, loop=True)
 
+    def _handle_oscli_wrapmini(self) -> None:
+        """``*WRAPMINI`` -- mini_basic convenience, not a real BBC OS command.
+
+        Rewrites standalone ``*PLAY``/``*MUSIC`` lines in the loaded program
+        as ``REM MINI_BASIC *CMD ...`` so the listing stays loadable (as an
+        inert comment) on real BBC BASIC. Follow with SAVE to keep the
+        change; without SAVE it only affects the in-memory copy.
+        """
+        changed = self.wrap_mini_only_star_commands()
+        if not changed:
+            print('No mini-only *PLAY/*MUSIC lines to wrap.')
+            return
+        shown = ', '.join(str(n) for n in changed[:10])
+        extra = f' (+{len(changed) - 10} more)' if len(changed) > 10 else ''
+        print(f'Wrapped line(s) {shown}{extra} as REM MINI_BASIC comments. SAVE to keep.')
+
     def _execute_bbc_os_command(self, command: str) -> None:
         # === Robust handling for *REFRESH / *REFRESH ON / *REFRESH OFF ===
         raw = command.strip().lstrip('*').strip()
@@ -3291,10 +3307,25 @@ class RuntimeExecutionMixin:
             self._handle_oscli_display(raw[7:].strip())
             return
         if cmd.startswith('PLAY'):
+            if not self._dialect_allows('PLAY'):
+                raise ValueError(
+                    '*PLAY is a mini_basic (SDL) extension, not real BBC BASIC; '
+                    'use --dialect mini, add `1 REM dialect: mini`, or run '
+                    '*WRAPMINI to comment it out'
+                )
             self._handle_oscli_play(raw[4:].strip())
             return
         if cmd.startswith('MUSIC'):
+            if not self._dialect_allows('MUSIC'):
+                raise ValueError(
+                    '*MUSIC is a mini_basic (SDL) extension, not real BBC BASIC; '
+                    'use --dialect mini, add `1 REM dialect: mini`, or run '
+                    '*WRAPMINI to comment it out'
+                )
             self._handle_oscli_music(raw[5:].strip())
+            return
+        if cmd.startswith('WRAPMINI'):
+            self._handle_oscli_wrapmini()
             return
         if cmd.startswith('FX'):
             return
