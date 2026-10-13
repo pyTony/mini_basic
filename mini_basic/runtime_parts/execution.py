@@ -43,6 +43,7 @@ from ..expr.patterns import (
     RE_TIME as _RE_TIME,
     RE_VAR_BASE_FULL as _RE_VAR_BASE_FULL,
     VAR_BASE_PATTERN as _VAR_BASE_PATTERN,
+    ident_prefix_len as _ident_prefix_len,
 )
 
 from ..format import UsingFormatter
@@ -990,7 +991,11 @@ class RuntimeExecutionMixin:
                     flags=re.IGNORECASE,
                 )
                 if not m:
-                    return None
+                    array_run = self._try_compile_array_store_runner(text)
+                    if array_run is None:
+                        return None
+                    runners.append(array_run)
+                    continue
                 var_tok = m.group(1)
                 expr_src = m.group(2).strip()
                 vname, vkind = self._parse_var_token(var_tok)
@@ -1153,6 +1158,64 @@ class RuntimeExecutionMixin:
             else:
                 return None
         return runners
+
+    def _try_compile_array_store_runner(self, text: str) -> Optional[callable]:
+        """Compile ``NAME(idx[,idx...]) = expr`` to a zero-arg callable.
+
+        Mirrors the slow path's ``_assign_array_element`` (parse lvalue, eval
+        indices, eval RHS, ``_array_set``) but evaluates index/RHS through the
+        compiled-expression cache instead of re-parsing text every call. Bails
+        to ``None`` (caller falls back to the interpreter) for anything not
+        already DIMmed, string arrays, or a whole-array copy — those keep
+        going through ``_assign_array_element`` unaccelerated.
+        """
+        end = _ident_prefix_len(text)
+        if not end:
+            return None
+        pos = end
+        if pos < len(text) and text[pos] in '%$!#&':
+            pos += 1
+        if pos >= len(text) or text[pos] != '(':
+            return None
+        close_idx = self._match_paren(text, pos)
+        if close_idx < 0:
+            return None
+        lhs_token = text[:close_idx + 1]
+        after = text[close_idx + 1:].lstrip()
+        if not after.startswith('=') or after.startswith('=='):
+            return None
+        rhs_src = after[1:].strip()
+        if not rhs_src:
+            return None
+        parsed = self._parse_array_lvalue(lhs_token)
+        if parsed is None:
+            return None
+        base, kind, indices_expr = parsed
+        if kind == 'str' or not indices_expr.strip():
+            return None
+        index_srcs = [p.strip() for p in self._split_args(indices_expr)]
+        if not index_srcs:
+            return None
+        key = self._resolve_array_key(base, kind)
+        if key not in self.array_storage:
+            return None
+
+        idx_ces = [self._get_compiled_expr(src, is_condition=False) for src in index_srcs]
+        rhs_ce = self._get_compiled_expr(rhs_src, is_condition=False)
+        is_int = kind == 'int'
+
+        def ev(ce: CompiledExpr, src: str) -> float:
+            if ce.code is not None and not ce.use_fallback:
+                return ce.eval_numeric(self)
+            return self._eval_numeric(src)
+
+        def run() -> None:
+            idx_vals = [int(ev(ce, src)) for ce, src in zip(idx_ces, index_srcs)]
+            val = ev(rhs_ce, rhs_src)
+            val = self._coerce_int_storage(val) if is_int else float(val)
+            self._array_set(base, kind, idx_vals, val)
+
+        return run
 
     def _try_fast_numeric_assignment(self, line: str) -> bool:
         """Run a compiled scalar LET when the line is only ``var = expr``.
@@ -1470,12 +1533,19 @@ class RuntimeExecutionMixin:
                 return False
             if cmd in ('', 'LET'):
                 payload = crest if cmd == 'LET' else text
-                if '=' not in payload or '(' in payload.split('=', 1)[0]:
+                if '=' not in payload:
+                    return False
+                lhs = payload.split('=', 1)[0]
+                # Array-element LHS (``FLAGS(K) = 0``) is a candidate here;
+                # anything else with a stray '(' on the LHS is malformed and
+                # ``_compile_accelerate_body`` will reject it strictly anyway.
+                if '(' in lhs and not lhs.rstrip().endswith(')'):
                     return False
                 body.append(('LET', payload))
                 return True
             if not cmd and '=' in text:
-                if '(' in text.split('=', 1)[0]:
+                lhs = text.split('=', 1)[0]
+                if '(' in lhs and not lhs.rstrip().endswith(')'):
                     return False
                 body.append(('LET', text))
                 return True
