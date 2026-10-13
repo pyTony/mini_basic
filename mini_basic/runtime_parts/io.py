@@ -1788,14 +1788,17 @@ class RuntimeIoMixin:
 
     def _emit_input_prompt(self, content: str) -> None:
         self._print_flush_buffer()
-        if self.print_column > 0:
+        text, _, new_column = self._render_print_content(content, '', self.print_column)
+        if text and self.print_column > 0:
+            # Only break to a fresh line when there's a visible prompt to
+            # show. An empty/suppressed prompt (e.g. INPUT ""; X$ right
+            # after PRINT "label";) must keep reading on the same line —
+            # forcing a newline here would insert a blank line and break
+            # the "label" + typed answer on one row idiom.
             self._print_program_text('\n', newline=True)
             self.print_column = 0
-        text, _, self.print_column = self._render_print_content(
-            content,
-            '',
-            self.print_column,
-        )
+            text, _, new_column = self._render_print_content(content, '', self.print_column)
+        self.print_column = new_column
         self._print_program_text(text, newline=False)
         self._flush_program_output()
         self._flush_display(force=True)

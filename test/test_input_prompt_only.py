@@ -77,6 +77,42 @@ class InputPromptOnlyTests(unittest.TestCase):
             interp.run()
         self.assertEqual(out.getvalue().strip(), 'Name? [Alice]')
 
+    def test_empty_prompt_after_trailing_comma_stays_on_same_line(self) -> None:
+        """INPUT "", X$ right after PRINT "label",: no forced newline before reading.
+
+        Real bug (Tony, 2026-10-13): PRINT "Name:",: INPUT "", NAME$ printed
+        "Name:" and the typed answer on two separate lines instead of
+        "Name:? Tony" on one — _emit_input_prompt forced a line break
+        whenever the cursor wasn't already at column 0, even though the
+        prompt itself ("") has no visible text to show.
+        """
+        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
+        interp.program[10] = 'PRINT "Name:",: INPUT "", NAME$'
+        interp.program[20] = 'PRINT "Hi "; NAME$'
+        out = io.StringIO()
+        with redirect_stdout(out), patch('builtins.input', return_value='Tony') as mocked:
+            interp.run()
+        self.assertEqual(mocked.call_args.args[0], '')
+        self.assertEqual(out.getvalue(), 'Name:Hi Tony\n')
+
+    def test_empty_semicolon_prompt_after_trailing_semicolon_stays_on_same_line(self) -> None:
+        """Same bug via the semicolon form: PRINT "hi, ";: INPUT ""; X$."""
+        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
+        interp.program[10] = 'PRINT "hi, ";: INPUT ""; NAME$: PRINT "HERE"'
+        out = io.StringIO()
+        with redirect_stdout(out), patch('builtins.input', return_value='Tony'):
+            interp.run()
+        self.assertEqual(out.getvalue(), 'hi, HERE\n')
+
+    def test_prompt_with_real_text_still_breaks_to_new_line(self) -> None:
+        """A non-empty prompt after other text still gets its own line (unchanged)."""
+        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
+        interp.program[10] = 'PRINT "x";: INPUT "Name? ", N$'
+        out = io.StringIO()
+        with redirect_stdout(out), patch('builtins.input', return_value='Alice'):
+            interp.run()
+        self.assertEqual(out.getvalue(), 'x\nName? ')
+
 
 if __name__ == '__main__':
     unittest.main()
