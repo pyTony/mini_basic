@@ -5877,8 +5877,10 @@ class RuntimeExecutionMixin:
         self._active_line_num = 0
         self._active_stmt_parts = parts
         try:
+            next_start_index = 0
             while True:
-                target = self._execute_statement_parts(0, parts, line_nums)
+                target = self._execute_statement_parts(0, parts, line_nums, start_index=next_start_index)
+                next_start_index = 0
                 if target is not None and target in self.program:
                     # GOTO/GOSUB into the program from the REPL prompt: keep
                     # running from there (preserving variables/stacks, unlike
@@ -5887,15 +5889,35 @@ class RuntimeExecutionMixin:
                     self._ensure_display()
                     start_index = self._run_line_index.get(target, 0)
                     self._run_interrupt_watch = True
+                    timing = bool(getattr(self, 'timing_enabled', False))
+                    t0 = time.perf_counter() if timing else None
                     try:
                         self._run_program_loop(start_index)
                     finally:
                         self._run_interrupt_watch = False
+                        if t0 is not None:
+                            elapsed = time.perf_counter() - t0
+                            try:
+                                stream = self._get_error_stream()
+                                stream.write(f'Time: {elapsed:.3f} s\n')
+                                stream.flush()
+                            except Exception:
+                                pass
+                    if self.resume_at and self.resume_at[0] == 0:
+                        # RETURN unwound all the way back to this immediate-mode
+                        # line (real hardware: a GOSUB typed at the prompt keeps
+                        # executing whatever follows it on the same line once
+                        # the subroutine RETURNs, instead of erroring).
+                        next_start_index = self.resume_at[1]
+                        self.resume_at = None
+                        continue
                     break
                 if target is None or target != 0:
                     break
                 if not (self.resume_at and self.resume_at[0] == 0):
                     break
+                next_start_index = self.resume_at[1]
+                self.resume_at = None
         except ProgramStop:
             pass
         except BasicRuntimeError:
@@ -6108,6 +6130,14 @@ class RuntimeExecutionMixin:
                                 same_line_count = 0
                             next_index = self._run_line_index.get(next_target)
                             if next_index is None:
+                                if next_target == 0:
+                                    # RETURN unwinding to an immediate-mode
+                                    # GOSUB (line 0 is never a real program
+                                    # line) — self.resume_at already carries
+                                    # where to resume; let the caller (e.g.
+                                    # execute_immediate) pick that up instead
+                                    # of treating this as a bad jump target.
+                                    return
                                 self._emit_error('? Line not found')
                                 return
                             i = next_index
