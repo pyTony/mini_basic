@@ -1,4 +1,4 @@
-    1 REM dialect: bbc
+    1 REM dialect: mini
    10 MODE 8
    15 SOUND 0,0,0,0
    20 *REFRESH OFF

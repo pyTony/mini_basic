@@ -3307,9 +3307,21 @@ class RuntimeExecutionMixin:
             self._handle_oscli_display(raw[7:].strip())
             return
         if cmd.startswith('PLAY'):
+            if not self._dialect_allows('PLAY'):
+                raise ValueError(
+                    '*PLAY is a mini_basic (SDL) extension, not real BBC BASIC; '
+                    'use --dialect mini, add `1 REM dialect: mini`, or run '
+                    '*WRAPMINI to comment it out'
+                )
             self._handle_oscli_play(raw[4:].strip())
             return
         if cmd.startswith('MUSIC'):
+            if not self._dialect_allows('MUSIC'):
+                raise ValueError(
+                    '*MUSIC is a mini_basic (SDL) extension, not real BBC BASIC; '
+                    'use --dialect mini, add `1 REM dialect: mini`, or run '
+                    '*WRAPMINI to comment it out'
+                )
             self._handle_oscli_music(raw[5:].strip())
             return
         if cmd.startswith('WRAPMINI'):

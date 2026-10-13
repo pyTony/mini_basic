@@ -430,6 +430,27 @@ def test_star_play_rejected_on_strict_bbc_allowed_on_mini() -> None:
     assert ok_mini, out_mini
 
 
+def test_star_play_rejected_at_runtime_on_bbc_even_non_strict() -> None:
+    # Not accepted in bbc dialect at all -- same as BREAK/CONTINUE: loading
+    # under non-strict only warns, but *running* it always errors, since
+    # *PLAY/*MUSIC are mini-only and not real BBC OS commands.
+    out, interp = _run_lines(
+        'bbc',
+        [
+            (10, '*PLAY "hit.wav"'),
+            (20, 'END'),
+        ],
+    )
+    assert 'mini_basic (sdl) extension' in out.lower() or '? oscli error' in out.lower()
+
+
+def test_star_music_rejected_at_runtime_on_bbc_allowed_on_mini() -> None:
+    out_bbc, _ = _run_lines('bbc', [(10, '*MUSIC OFF'), (20, 'END')])
+    assert 'mini_basic (sdl) extension' in out_bbc.lower()
+    out_mini, interp_mini = _run_lines('mini', [(10, '*MUSIC OFF'), (20, 'END')])
+    assert 'mini_basic (sdl) extension' not in out_mini.lower()
+
+
 def test_wrapmini_star_command_rewrites_via_execution() -> None:
     interp = _interp('bbc', strict=False)
     interp.set_program_line(10, '*PLAY "hit.wav"')
