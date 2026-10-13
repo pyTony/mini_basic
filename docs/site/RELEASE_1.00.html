@@ -34,7 +34,7 @@
 <h4 id="graphics">Graphics</h4>
 <p><code>MODE</code>, <code>--pygame</code>, the pygame display window — this is how most of the showcase demos run. It&#x27;s a separate pip extra (<code>[display]</code>) only because pygame is a native dependency, not because it&#x27;s a niche feature; see <a href="#how-to-run">How to run</a> below.</p>
 <h4 id="sound">Sound</h4>
-<p><code>SOUND</code> (tone synthesis), <code>*PLAY &quot;file&quot;</code> (sample playback), and <code>*MUSIC &quot;file&quot;</code> (looping background track) all play real audio through <code>pygame.mixer</code> — see <code>showcase/breakout.bbc</code> for all three used together. <code>ENVELOPE</code> is still a silent no-op.</p>
+<p><code>SOUND</code> (tone synthesis), <code>*PLAY &quot;file&quot;</code> (sample playback), and <code>*MUSIC &quot;file&quot;</code> (looping background track) all play real audio through <code>pygame.mixer</code> — see <code>showcase/breakout.bas</code> for all three used together. <code>ENVELOPE</code> is still a silent no-op.</p>
 <h4 id="not-in-regular-1-00">Not in regular 1.00</h4>
 <ul><li><code>build/</code>, <code>dist/</code>, embed Python, corpus installer trees</li><li>Full ADSR <code>ENVELOPE</code> shaping, WIMP, SYS FFI, Box2D</li><li>C-port <code>OPEN ch,&quot;file&quot;,&quot;OUTPUT&quot;</code> spelling</li></ul>
 <hr>

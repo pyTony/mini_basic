@@ -54,6 +54,23 @@ python -m pytest -q -m "phase1 and not slow" --timeout=45
 
 See `mini_basic/RUNTIME_MODULARIZATION_STATUS.md`.
 
+## Simple source editor (developers, `dev` branch)
+
+`tools/editor.py` is a minimal tkinter editor for `.bas`/`.bbc` source:
+open/save, mini_basic-aware syntax highlighting (keywords, `PROC`/`ENDPROC`,
+`*`-commands, line numbers, dialect hint comments), and a Run button that
+launches the real interpreter as a subprocess (`python -m mini_basic
+<file>`, with optional dialect override and `--pygame`). It does not
+reimplement any display — pygame programs still open their own window and
+console programs still use the normal terminal.
+
+```powershell
+python tools/editor.py [file.bas]
+```
+
+Out of scope for now: an in-editor REPL or replacing the pygame/terminal
+output paths — see `test/test_editor_smoke.py` for the current coverage.
+
 ## Requirements
 
 - Python 3.10+

@@ -23,6 +23,8 @@
     <article>
 <h2 id="changelog-dev-branch-full-history">Changelog (dev branch — full history)</h2>
 <p>Format: one line per merged PR, newest first, auto-generated from PR descriptions by <code>scripts/update_changelog.py</code> (<code>.github/workflows/update-changelog.yml</code> refreshes this branch on every PR merged to <code>main</code>). <code>main</code>&#x27;s own <code>CHANGELOG.md</code> tracks tagged releases only. See <a href="https://github.com/pyTony/mini_basic/issues">GitHub Issues</a> for open work.</p>
+<h3 id="2026-10-13">2026-10-13</h3>
+<ul><li><a href="https://github.com/pyTony/mini_basic/pull/98">#98</a> Rename showcase/breakout.bbc to breakout.bas — the file is <code>showcase/breakout.bas</code>, same content, under the extension that matches what it actually is — showcasing mini_basic&#x27;s own extended sound features directly, as intended for the showcase folder.</li></ul>
 <h3 id="2026-10-12">2026-10-12</h3>
 <ul><li><a href="https://github.com/pyTony/mini_basic/pull/92">#92</a> Backport: fix cursor-move escape sequences swallowing all later PRINT output — Backport of <a href="https://github.com/pyTony/mini_basic/pull/91">#91</a> (merged to <code>dev</code>) onto <code>main</code>, same change: <code>_print_emit</code> only recognized <code>m</code> (SGR colour codes) as a CSI escape terminator, so any other CSI sequence — <code>PRINT TAB(x,y)</code>&#x27;s cursor-move escape among them — was treated as incomplete and silently swallowed…</li></ul>
 <h3 id="2026-10-10">2026-10-10</h3>
