@@ -41,7 +41,7 @@ pygame is a native dependency, not because it's a niche feature; see
 ### Sound
 `SOUND` (tone synthesis), `*PLAY "file"` (sample playback), and
 `*MUSIC "file"` (looping background track) all play real audio through
-`pygame.mixer` — see `showcase/breakout.bbc` for all three used together.
+`pygame.mixer` — see `showcase/breakout.bas` for all three used together.
 `ENVELOPE` is still a silent no-op.
 
 ### Not in regular 1.00

@@ -1,5 +1,5 @@
 REM dialect: bbc
-REM breakout.bbc -- paddle/ball/bricks, showcasing graphics + SOUND together
+REM breakout.bas -- paddle/ball/bricks, showcasing graphics + SOUND together
 REM Controls: LEFT/RIGHT arrows move the paddle, SPACE starts/serves.
 REM Each brick row has its own pitch; breaking a brick, hitting the paddle
 REM and hitting a wall each play their own sampled effect (via *PLAY),
