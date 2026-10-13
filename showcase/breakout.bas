@@ -1,4 +1,4 @@
-REM dialect: bbc
+REM dialect: mini
 REM breakout.bas -- paddle/ball/bricks, showcasing graphics + SOUND together
 REM Controls: LEFT/RIGHT arrows move the paddle, SPACE starts/serves.
 REM Each brick row has its own pitch; breaking a brick, hitting the paddle
