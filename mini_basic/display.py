@@ -22,6 +22,10 @@ _WINDOW_CHROME_HEIGHT = 48
 _WINDOW_CHROME_WIDTH = 16
 _WINDOW_MARGIN = 8
 _TITLE_BAR_ESTIMATE = 40
+# Real Windows reserves this much height for the taskbar; the OS never clips
+# an oversized window into the remaining space the way GNOME does, so a
+# window that ignores this can end up with its title bar pushed off-screen.
+_WINDOWS_TASKBAR_ESTIMATE = 48
 
 DEBUG = False
 
@@ -1147,20 +1151,27 @@ class PygameDisplay(DisplayBackend):
         screen_w, screen_h = desktop_size(pygame)
         win_w = w + _WINDOW_CHROME_WIDTH
         win_h = h + _TITLE_BAR_ESTIMATE + _WINDOW_MARGIN
-        # Do not apply a 92% height cutoff on Windows. Default 2x MODE 8/9 is
-        # 1280x1024; plus chrome that is 1072px, and 1072 > 1080*0.92 (=993)
-        # forced 1x while WSL (no cutoff) kept 2x on the same monitor.
+        # Real Windows reserves taskbar space the OS never clips a window into
+        # (unlike GNOME, which hands back a smaller actual size we then
+        # aspect-fit into — see _fit_window_to_os_size). An earlier "fix" here
+        # tried to match WSL by dropping the Windows-only cutoff and adding a
+        # blanket +_TITLE_BAR_ESTIMATE leniency on every platform, but WSL's
+        # sys.platform is 'linux' and was never affected by that cutoff in the
+        # first place — the leniency just let a too-tall window report as
+        # fitting, so the OS squeezed it and the title bar went off-screen.
+        taskbar = _WINDOWS_TASKBAR_ESTIMATE if sys.platform == 'win32' else 0
+        usable_h = screen_h - taskbar
         if not hasattr(pygame, 'Window'):
-            return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
+            return win_h <= usable_h and win_w <= screen_w
         try:
             window = self._window_from_display_module(pygame)
             x, y = window.position
             client_w, client_h = window.size
             bottom = y + client_h + _TITLE_BAR_ESTIMATE
             right = x + client_w + _WINDOW_CHROME_WIDTH
-            return x >= 0 and y >= 0 and bottom <= screen_h and right <= screen_w
+            return x >= 0 and y >= 0 and bottom <= usable_h and right <= screen_w
         except Exception:
-            return win_h <= screen_h and win_w <= screen_w
+            return win_h <= usable_h and win_w <= screen_w
 
     @property
     def is_open(self) -> bool:
@@ -2463,8 +2474,9 @@ def fit_display_scale(
     except Exception:
         return max(1, min(requested_scale, max_scale))
 
+    taskbar = _WINDOWS_TASKBAR_ESTIMATE if sys.platform == 'win32' else 0
     limit_w = screen_w - _WINDOW_CHROME_WIDTH - _WINDOW_MARGIN
-    limit_h = screen_h - _WINDOW_CHROME_HEIGHT - _WINDOW_MARGIN
+    limit_h = screen_h - _WINDOW_CHROME_HEIGHT - _WINDOW_MARGIN - taskbar
     fit = min(
         limit_w // max(1, base_w),
         limit_h // max(1, base_h),

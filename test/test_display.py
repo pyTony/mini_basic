@@ -191,7 +191,36 @@ class DisplayTests(unittest.TestCase):
         self.assertEqual(aspect_fit_size(1280, 1024, 1280, 1024), (1280, 1024))
 
     def test_mode9_default_scale_is_2x_on_1080p_windows(self):
-        """WSL and native Windows should both keep default 2x on a 1080p desk."""
+        """On a roomy desktop (no taskbar reservation applies), default stays 2x."""
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        # Not win32, so no taskbar reservation: plenty of room for 1280x1024.
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
+            display = PygameDisplay(
+                graphics_width=640,
+                graphics_height=512,
+                scale=2,
+                scale_locked=False,
+            )
+            display.begin_run()
+            display.set_mode(9)
+            self.assertEqual(display.scale, 2)
+            self.assertEqual(display._screen.get_size(), (1280, 1024))
+            display.end_run()
+
+    def test_mode9_falls_back_on_1080p_windows_so_title_bar_stays_visible(self):
+        """Real Windows reserves taskbar space the OS never clips into (unlike
+        GNOME's reported client-size shrink) — so 2x MODE 9 (1280x1024 + chrome)
+        must not be reported as fitting a 1920x1080 desktop, or the title bar
+        ends up pushed off-screen. Must fall back to a scale that truly fits.
+        """
         try:
             import pygame  # noqa: F401
         except ImportError:
@@ -211,8 +240,8 @@ class DisplayTests(unittest.TestCase):
                 )
                 display.begin_run()
                 display.set_mode(9)
-                self.assertEqual(display.scale, 2)
-                self.assertEqual(display._screen.get_size(), (1280, 1024))
+                self.assertEqual(display.scale, 1)
+                self.assertEqual(display._screen.get_size(), (640, 512))
                 display.end_run()
 
     def test_pygame_scale_locked_honours_cli_scale(self):
