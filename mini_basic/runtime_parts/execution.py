@@ -5887,10 +5887,20 @@ class RuntimeExecutionMixin:
                     self._ensure_display()
                     start_index = self._run_line_index.get(target, 0)
                     self._run_interrupt_watch = True
+                    timing = bool(getattr(self, 'timing_enabled', False))
+                    t0 = time.perf_counter() if timing else None
                     try:
                         self._run_program_loop(start_index)
                     finally:
                         self._run_interrupt_watch = False
+                        if t0 is not None:
+                            elapsed = time.perf_counter() - t0
+                            try:
+                                stream = self._get_error_stream()
+                                stream.write(f'Time: {elapsed:.3f} s\n')
+                                stream.flush()
+                            except Exception:
+                                pass
                     break
                 if target is None or target != 0:
                     break

@@ -98,6 +98,17 @@ class RunFilenameTests(unittest.TestCase):
         self.assertIn('3', text)
         self.assertIn('DONE', text)
 
+    def test_goto_from_immediate_mode_reports_timing(self) -> None:
+        """TIMING ON : GOTO 20 must still print "Time: ..." (Tony, 2026-10-13)."""
+        import unittest.mock as mock
+        interp = BASICInterpreter(InterpreterConfig(display='none'))
+        interp.program[10] = 'PRINT "TEN"'
+        interp.program[20] = 'PRINT "TWENTY"'
+        err = io.StringIO()
+        with mock.patch.object(interp, '_get_error_stream', return_value=err):
+            _execute_repl_line(interp, 'TIMING ON : GOTO 20')
+        self.assertRegex(err.getvalue(), r'Time: \d+\.\d+ s')
+
     def test_goto_from_immediate_mode_preserves_variables(self) -> None:
         """Unlike RUN <linenum>, GOTO <linenum> from the REPL must keep vars."""
         interp = BASICInterpreter(InterpreterConfig(display='none'))
