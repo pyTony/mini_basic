@@ -4,14 +4,14 @@
    20 *REFRESH OFF
    30 COLOUR 7
    40 CLS
-   50 *DISPLAY "examples/games/logo.png" 260,780,760,116
+   50 *DISPLAY "logo.png" 260,780,760,116
    60 PRINT TAB(10,13)"Arrows move, SPACE serves"
    70 PRINT TAB(13,15)"Press SPACE to start"
    75 *REFRESH
    80 REPEAT UNTIL INKEY(-99)
    85 CLS
    90 PROCinit
-   95 *MUSIC "examples/games/Sudden_Death_Volley.mp3",20
+   95 *MUSIC "Sudden_Death_Volley.mp3",20
   100 playing% = TRUE
   110 REPEAT
   120   t% = TIME
@@ -73,9 +73,9 @@
   596 FOR i% = 1 TO ballsubsteps%
   598   GCOL 0: RECTANGLE FILL ballx%-br%, bally%-br%, br%*2, br%*2
   600   ballx% += stepvx%: bally% += stepvy%
-  610   IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : stepvx% = -stepvx% : *PLAY"examples/games/sfx_wall.wav",2
-  620   IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : stepvx% = -stepvx% : *PLAY"examples/games/sfx_wall.wav",2
-  630   IF bally% + br% >= sh% THEN bally% = sh%-br% : ballvy% = -ballvy% : stepvy% = -stepvy% : *PLAY"examples/games/sfx_wall.wav",2
+  610   IF ballx% - br% <= fx0% THEN ballx% = fx0%+br% : ballvx% = -ballvx% : stepvx% = -stepvx% : *PLAY"sfx_wall.wav",2
+  620   IF ballx% + br% >= fx1% THEN ballx% = fx1%-br% : ballvx% = -ballvx% : stepvx% = -stepvx% : *PLAY"sfx_wall.wav",2
+  630   IF bally% + br% >= sh% THEN bally% = sh%-br% : ballvy% = -ballvy% : stepvy% = -stepvy% : *PLAY"sfx_wall.wav",2
   640   IF bally% - br% <= py% + ph% AND bally% >= py% - 30 AND ballx% >= px% AND ballx% <= px%+pw% AND ballvy% < 0 THEN PROCpaddlehit : stepvx% = ballvx% / ballsubsteps% : stepvy% = ballvy% / ballsubsteps%
   650   IF bally% + br% < 0 THEN PROClifelost
   660   PROCcheckbricks
@@ -89,7 +89,7 @@
   710 hitpos% = (ballx% - px%) - pw%/2
   720 ballvx% = hitpos% * 9 * speedmul% / 4000
   730 IF ballvx% = 0 THEN ballvx% = 9 * speedmul% / 100
-  740 *PLAY "examples/games/sfx_hit.wav",1
+  740 *PLAY "sfx_hit.wav",1
   750 ENDPROC
   760
   770 DEF PROClifelost
@@ -111,7 +111,7 @@
   930         score% += (rows% - r%) *10
   940         ballvy% = -ballvy%
   950         SOUND 2,-8,60 + (rows%-1 - r%) *15,4
-  955         *PLAY "examples/games/sfx_break.wav",3
+  955         *PLAY "sfx_break.wav",3
   960       ENDIF
   970     ENDIF
   980   NEXT c%
@@ -135,7 +135,7 @@
  1040 FOR r% = 0 TO rows%-1
  1060   FOR c% = 0 TO cols%-1
  1070     IF brick(c%,r%) = 1 THEN
- 1071       *DISPLAY "examples/games/brick.png" bx0%+c%*(bw%+gap%), by0%-r%*(bh%+gap%), bw%, bh%
+ 1071       *DISPLAY "brick.png" bx0%+c%*(bw%+gap%), by0%-r%*(bh%+gap%), bw%, bh%
  1072     ENDIF
  1080   NEXT c%
  1090 NEXT r%
@@ -147,7 +147,7 @@
  1150 ENDPROC
  1160
  1170 DEF PROCdrawball
- 1190 *DISPLAY "examples/games/ball.png" ballx%-br%, bally%-br%, br%*2, br%*2
+ 1190 *DISPLAY "ball.png" ballx%-br%, bally%-br%, br%*2, br%*2
  1200 ENDPROC
  1210
  1220 DEF PROCdrawhud
