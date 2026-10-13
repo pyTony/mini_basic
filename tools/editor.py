@@ -25,9 +25,22 @@ import subprocess
 import sys
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if _ROOT not in sys.path:
+    sys.path.insert(0, _ROOT)
+
+from tools.editor_logic import (  # noqa: E402
+    dedent_for_keyword,
+    detect_numbered,
+    first_keyword,
+    indent_for_new_line,
+    next_line_number,
+    split_leading_number,
+    split_leading_ws,
+    used_line_numbers,
+)
 
 # Keywords/operators for highlighting. mini_basic accepts several dialects
 # (mini/mits/bbc/commodore/tiny); this list is a practical superset for
@@ -69,6 +82,7 @@ class EditorWindow:
         self.path: Optional[str] = None
         self._highlight_job: Optional[str] = None
         self._run_proc: Optional[subprocess.Popen] = None
+        self.numbered = False
 
         self._build_menu()
         self._build_widgets()
@@ -112,6 +126,11 @@ class EditorWindow:
             toolbar, text='Use pygame display', variable=self.pygame_var,
         ).pack(side=tk.LEFT, padx=(12, 2))
 
+        self.mode_var = tk.StringVar(value='Unnumbered')
+        ttk.Label(toolbar, textvariable=self.mode_var, anchor='e').pack(
+            side=tk.RIGHT, padx=(2, 12),
+        )
+
         self.status_var = tk.StringVar(value='Ready')
         ttk.Label(self.root, textvariable=self.status_var, anchor='w').pack(
             side=tk.BOTTOM, fill=tk.X,
@@ -135,6 +154,8 @@ class EditorWindow:
             self.text.tag_configure(name, **style)
 
         self.text.bind('<<Modified>>', self._on_modified)
+        self.text.bind('<Return>', self._on_return)
+        self.text.bind('<KeyRelease>', self._on_key_release)
 
     # -- File handling -----------------------------------------------------
 
@@ -157,9 +178,11 @@ class EditorWindow:
         self.text.delete('1.0', tk.END)
         self.text.insert('1.0', content)
         self.text.edit_modified(False)
+        self._set_numbered_mode(detect_numbered(content))
         self._highlight()
         self._update_title()
-        self.status_var.set(f'Opened {path}')
+        mode = 'numbered' if self.numbered else 'unnumbered'
+        self.status_var.set(f'Opened {path} ({mode})')
 
     def save_file(self) -> None:
         if not self.path:
@@ -192,6 +215,70 @@ class EditorWindow:
     def _update_title(self) -> None:
         name = self.path or '(untitled)'
         self.root.title(f'mini_basic editor - {name}')
+
+    # -- Line numbering / auto-indent ------------------------------------
+
+    def _set_numbered_mode(self, numbered: bool) -> None:
+        self.numbered = numbered
+        self.mode_var.set('Numbered' if numbered else 'Unnumbered')
+
+    def _on_return(self, _event: object) -> str:
+        """New line: carries a line number on if the program uses them, and
+        auto-indents one step in after a block opener (FOR/WHILE/.../block IF)."""
+        index = self.text.index('insert')
+        line_no = index.split('.')[0]
+        line_text = self.text.get(f'{line_no}.0', f'{line_no}.end')
+
+        ws, rest = split_leading_ws(line_text)
+        if self.numbered:
+            number, statement = split_leading_number(rest)
+        else:
+            number, statement = None, rest
+
+        new_ws = indent_for_new_line(ws, statement)
+        prefix = ''
+        if self.numbered:
+            new_number = next_line_number(
+                used_line_numbers(self.text.get('1.0', 'end-1c')), number,
+            )
+            prefix = f'{new_number} '
+        self.text.insert('insert', '\n' + prefix + new_ws)
+        return 'break'
+
+    def _on_key_release(self, event: object) -> None:
+        """Right as a closer keyword (NEXT/ENDPROC/ELSE/...) finishes being
+        typed at the end of a line, dedent that line by one step.
+
+        Only fires exactly once per keyword: it requires the cursor to sit
+        at the end of the line and the line's statement text to match the
+        keyword exactly (no trailing text yet), so further keystrokes
+        (a trailing space, more words) don't keep dedenting the same line.
+        """
+        if getattr(event, 'keysym', None) in ('Return', 'KP_Enter'):
+            return
+        index = self.text.index('insert')
+        line_no, col_str = index.split('.')
+        col = int(col_str)
+        line_start = f'{line_no}.0'
+        line_text = self.text.get(line_start, f'{line_no}.end')
+        if col != len(line_text):
+            return
+
+        ws, rest = split_leading_ws(line_text)
+        statement = rest
+        if self.numbered:
+            _number, after_number = split_leading_number(rest)
+            statement = after_number
+        word = first_keyword(statement)
+        if not word or statement.upper() != word:
+            return
+        new_ws = dedent_for_keyword(ws, word)
+        if new_ws is None:
+            return
+        delta = len(ws) - len(new_ws)
+        self.text.delete(line_start, f'{line_no}.{len(ws)}')
+        self.text.insert(line_start, new_ws)
+        self.text.mark_set('insert', f'{line_no}.{max(0, col - delta)}')
 
     # -- Highlighting --------------------------------------------------
 
