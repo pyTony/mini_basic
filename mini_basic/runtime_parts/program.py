@@ -2767,7 +2767,9 @@ class RuntimeProgramMixin:
                     prompt, vars_ = glued
                     rest_vars = [item.strip() for item, _ in items[1:] if self._is_input_lvalue(item)]
                     return prompt, vars_ + rest_vars
-            return '', []
+            # No variable anywhere: BBC treats this as a prompt-only INPUT —
+            # it just prints the content with no variable to read into.
+            return self._join_print_items(items), []
         if var_start == 0:
             return '', [item.strip() for item, _ in items]
         # Keep separators so string vars in the prompt (PROMPT$; ": ") evaluate.
