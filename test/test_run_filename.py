@@ -120,6 +120,29 @@ class RunFilenameTests(unittest.TestCase):
             _execute_repl_line(interp, 'GOTO 20')
         self.assertEqual(out.getvalue().strip(), '42')
 
+    def test_gosub_from_immediate_mode_resumes_after_return(self) -> None:
+        """GOSUB <linenum> typed at the REPL, with a subroutine that RETURNs
+        (rather than falling through to END), must resume the rest of the
+        typed line instead of erroring "Line not found".
+
+        Real bug (Tony, 2026-10-13): RETURN unwinds to "line 0" (immediate
+        mode isn't a real program line), and `_run_program_loop` treated any
+        unmappable jump target as an error, firing before `execute_immediate`
+        ever got a chance to notice the return and continue.
+        """
+        interp = BASICInterpreter(InterpreterConfig(display='none'))
+        interp.program[10] = 'FOR N = 3 TO 5'
+        interp.program[20] = 'PRINT N;'
+        interp.program[30] = 'NEXT N'
+        interp.program[40] = 'RETURN'
+        out = io.StringIO()
+        with redirect_stdout(out):
+            _execute_repl_line(interp, 'GOSUB 10 : PRINT : PRINT "Done"')
+        text = out.getvalue()
+        self.assertNotIn('Line not found', text)
+        self.assertIn('345', text)
+        self.assertIn('Done', text)
+
     def test_run_linenum_clears_gosub_and_for_stacks(self) -> None:
         """RUN from inside a GOSUB/FOR must drop the stacks, unlike GOTO."""
         interp = BASICInterpreter(InterpreterConfig(display='none'))
