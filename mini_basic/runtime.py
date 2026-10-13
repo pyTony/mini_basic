@@ -865,6 +865,18 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
             try:
                 from .repl.windows_input import windows_repl_input
 
+                # The custom editor's redraw() does ESC[2K (erase the whole
+                # current row) before repainting "> " + what's typed so far.
+                # If the previous PRINT left the cursor mid-row (no trailing
+                # newline, e.g. ending in ";"), the prompt gets appended to
+                # that same row — and the first keystroke's redraw erases
+                # the leftover program output along with it. Force a fresh
+                # row first, same as real hardware's "> "/"Ok" prompt.
+                if getattr(interp, 'print_column', 0):
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    interp.print_column = 0
+
                 text = windows_repl_input(
                     '> ',
                     working_dir=lambda: interp.working_dir,

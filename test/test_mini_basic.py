@@ -5637,6 +5637,41 @@ class MiniBASICTests(unittest.TestCase):
                             _interactive_repl(interp)
         win_in.assert_called_once()
 
+    def test_interactive_repl_windows_editor_forces_fresh_line_mid_row(self):
+        """Mid-row cursor before prompting must get a real newline first.
+
+        Real bug (Tony, 2026-10-13): the Windows line editor's redraw()
+        does ESC[2K (erase the whole current row) on the first keystroke.
+        If the previous PRINT left the cursor mid-row (print_column > 0,
+        e.g. ``PRINT N;`` with no trailing newline) and the "> " prompt
+        just got appended to that same row, typing a character erased the
+        leftover program output along with it. _read_repl_line must emit a
+        real line break first whenever print_column is nonzero.
+        """
+        interp = self.make_interp()
+        interp.print_column = 5
+
+        def fake_windows_repl_input(prompt, **kwargs):
+            # By the time the editor would draw its own prompt, we must
+            # already be on a fresh line (print_column reset to 0).
+            self.assertEqual(interp.print_column, 0)
+            return 'QUIT'
+
+        out = io.StringIO()
+        with redirect_stdout(out):
+            with patch('builtins.input', side_effect=AssertionError('should use windows_repl_input')):
+                with patch('mini_basic.runtime._configure_repl_readline', return_value=False):
+                    with patch('mini_basic.runtime.sys.platform', 'win32'):
+                        with patch('mini_basic.runtime.sys.stdin.isatty', return_value=True):
+                            with patch(
+                                'mini_basic.repl.windows_input.windows_repl_input',
+                                side_effect=fake_windows_repl_input,
+                            ) as win_in:
+                                from mini_basic.runtime import _interactive_repl
+                                _interactive_repl(interp)
+        win_in.assert_called_once()
+        self.assertIn('\r\n', out.getvalue())
+
     def test_interactive_repl_prefers_input_when_readline_ok(self):
         """With readline/pyreadline, text REPL uses input() (not msvcrt editor)."""
         interp = self.make_interp()
