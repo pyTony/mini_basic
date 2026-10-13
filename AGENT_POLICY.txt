@@ -1,0 +1,87 @@
+# AGENT_POLICY.txt
+# Ground rules for an LLM / autonomous agent working in the mini_basic repo.
+
+## 1. Branches: dev vs main
+
+- `dev` is the full tree: package, `test/`, `tools/`, `utils/`, `scripts/`,
+  `documentation/`, `examples/` (curated demos such as
+  `examples/games/breakout.bbc`), plus everything on `main`.
+- `main` is the lean release tree: `.github`, `basics`, `docs`, `mini_basic`,
+  `showcase`, and root files only (CHANGELOG.md, HOWTO.md, LICENSE,
+  MANIFEST.in, README.md, TODO.md, index.html, pyproject.toml,
+  requirements-*.txt). It has **no** `test/`, `tools/`, `utils/`,
+  `documentation/`, `scripts/`, or `examples/`.
+- Branch work off the branch you intend to merge into:
+  - A fix or feature destined for `dev` branches from `origin/dev`.
+  - A fix destined for `main` branches from `origin/main`. Never branch a
+    main-bound change from `dev` (even an old commit of it) — merging it in
+    pulls dev's whole tree into main. If a change applies to both branches,
+    open two PRs, one against each, from branches rooted in each base.
+  - Before merging a PR into `main`, sanity-check that it adds nothing under
+    `test/`, `tools/`, `utils/`, `documentation/`, `scripts/`, or `examples/`.
+- Demo assets that exist on both branches (e.g. `showcase/breakout.bbc` vs
+  `examples/games/breakout.bbc`) are the same content with asset paths
+  rewritten for the directory each branch uses — check both locations before
+  assuming a file is missing or out of sync.
+
+## 2. Workflow
+
+See `GIT_QUICKSTART.md` and `DEVELOPMENT_GIT_USAGE.md` for the full,
+authoritative workflow; in short:
+
+- Branch per focus (`fix/…`, `feat/…`, `docs/…`, `test/…`); never commit
+  feature work straight to `main` or `dev`.
+- Stage deliberately (`git add` specific paths) rather than `git add -A`/`.`;
+  never force-add anything `.gitignore` excludes (`__pycache__/`, `.coverage`,
+  `*_probe_*`, etc.).
+- Keep commits small and single-focus. One program/feature/bug per commit
+  where practical.
+- Run the relevant tests before committing (see §4) and mention what you ran
+  in the commit message.
+
+## 3. Pygame / display safety
+
+- Graphics and sound (`SOUND`, `*PLAY`, `*MUSIC`, `MODE`/`CIRCLE`/`PLOT`) are
+  backed by pygame and are a core, not optional, part of the interpreter.
+- For any automated, headless, or test run, use a display backend that opens
+  no real window: pass `display='none'` (or the CLI's `--pygame` off / no
+  display flag) rather than the real `pygame` backend. Do not launch a real
+  SDL window for work that isn't being visually verified by the user.
+- Before and after any run that may have touched pygame state (crashes,
+  probes, scripted test runs), call
+  `from mini_basic.display import ensure_no_pygame_leftovers; ensure_no_pygame_leftovers()`
+  to avoid leaving an orphaned SDL window or mixer state behind. Do not call
+  it while the user has intentionally left a window open to look at
+  (`hold_display_open`-style interactive sessions) — only once they've
+  confirmed they're done looking at it.
+- A real pygame window should only appear when the user is present to look at
+  it (visual/game-feel verification); everything else — unit tests, corpus
+  runs, scripted checks — should run headless.
+
+## 4. Tests
+
+- Tests live under `test/` on `dev` only; `main` carries no test suite.
+- Run the suite with pytest, e.g.:
+  - `python -m pytest -q -m "phase1 and not slow" --timeout=45` (fast
+    regression: phase0 + phase1)
+  - `python -m pytest test -q -p no:cacheprovider` (full run)
+- Respect the markers in `pytest.ini` (`phase0`, `phase1`, `phase2`,
+  `graphics`, `non_gfx`, `slow`, `mits`, `bbc`, `mini`, `m6502_cport`) when
+  choosing what to run or add tests under — e.g. put pygame/pixel-dependent
+  tests under `phase2`/`graphics`, not `phase0`/`phase1`.
+- A failing test is real work to investigate before continuing; don't widen
+  a fix beyond what the failure actually needs.
+
+## 5. Scope and approval
+
+- Work on one focus at a time (one bug, one feature) and keep the diff to
+  what that focus needs — don't bundle unrelated cleanup into the same
+  change.
+- Don't invent files, scripts, or status-tracking mechanisms beyond what the
+  repo already has; this repo's status/history lives in git (commits, PR
+  descriptions, GitHub issues/TODO.md), not in bespoke tracking files.
+  Describe what changed and why in the commit message and PR body instead.
+- For a change the user hasn't fully specified, make the smallest reasonable
+  choice, say what you chose and why, and let them redirect — don't block on
+  a question you can reasonably answer yourself from the existing code and
+  conventions above.
