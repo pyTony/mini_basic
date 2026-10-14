@@ -262,7 +262,7 @@ class DisplayTests(unittest.TestCase):
                     self.assertEqual(display._screen.get_size(), (640, 512))
                 display.end_run()
 
-    def test_runtime_scale_shortcut_jumps_to_requested_scale(self):
+    def test_set_runtime_scale_jumps_to_requested_scale(self):
         try:
             import pygame  # noqa: F401
         except ImportError:
@@ -292,9 +292,9 @@ class DisplayTests(unittest.TestCase):
             display.end_run()
 
     def test_runtime_scale_shortcut_clamps_to_raw_monitor_pixels(self):
-        """An explicit Ctrl+<digit> may push the title bar off-screen (Tony:
-        "that 2x with title out could be allowed") — it only refuses a scale
-        that wouldn't fit the monitor's raw pixels at all (no virtual
+        """An explicit Ctrl+Numpad+/- nudge may push the title bar off-screen
+        (Tony: "that 2x with title out could be allowed") — it only refuses a
+        scale that wouldn't fit the monitor's raw pixels at all (no virtual
         screen/scrolling support), unlike the conservative startup auto-pick.
         """
         try:
@@ -325,6 +325,52 @@ class DisplayTests(unittest.TestCase):
             display.set_runtime_scale(3)
             self.assertEqual(display.scale, 1)
             display.end_run()
+
+    def test_nudge_runtime_scale_steps_up_and_down(self):
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
+            display = PygameDisplay(
+                graphics_width=640,
+                graphics_height=512,
+                scale=1,
+                scale_locked=False,
+            )
+            display.begin_run()
+            display.set_mode(9)
+            self.assertEqual(display.scale, 1)
+
+            display.nudge_runtime_scale(1)
+            self.assertEqual(display.scale, 2)
+
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 1)
+
+            # Can't go below 1x.
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 1)
+            display.end_run()
+
+    def test_ctrl_numpad_plus_minus_map_to_scale_nudge(self):
+        try:
+            import pygame
+        except ImportError:
+            self.skipTest('pygame not installed')
+
+        from mini_basic.display import PygameDisplay
+
+        display = PygameDisplay(caption='test', scale=1)
+        self.assertEqual(display._scale_nudge_for_key(pygame.K_KP_PLUS), 1)
+        self.assertEqual(display._scale_nudge_for_key(pygame.K_KP_MINUS), -1)
+        self.assertIsNone(display._scale_nudge_for_key(pygame.K_1))
+        self.assertIsNone(display._scale_nudge_for_key(pygame.K_PLUS))
 
     def test_pygame_scale_locked_honours_cli_scale(self):
         try:

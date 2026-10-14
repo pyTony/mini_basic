@@ -1023,28 +1023,31 @@ class PygameDisplay(DisplayBackend):
         except Exception:
             pass
 
-    # Ctrl+1..Ctrl+4 (main row or numpad): jump straight to that pixel
-    # scale, like a browser's zoom shortcuts. Populated lazily since the
-    # pygame module (and its K_* constants) is only imported at runtime.
-    _SCALE_SHORTCUT_SCALES = (1, 2, 3, 4)
-
-    def _scale_shortcut_for_key(self, key: int) -> Optional[int]:
+    def _scale_nudge_for_key(self, key: int) -> Optional[int]:
+        """Ctrl+Numpad+ / Ctrl+Numpad- : step the pixel scale up/down by one."""
         pygame = self._pygame
-        for scale in self._SCALE_SHORTCUT_SCALES:
-            digit_key = getattr(pygame, f'K_{scale}', None)
-            kp_key = getattr(pygame, f'K_KP{scale}', None)
-            if key == digit_key or key == kp_key:
-                return scale
+        if key == getattr(pygame, 'K_KP_PLUS', None):
+            return 1
+        if key == getattr(pygame, 'K_KP_MINUS', None):
+            return -1
         return None
 
-    def set_runtime_scale(self, requested: int) -> None:
-        """Ctrl+<digit>: jump straight to this pixel scale.
+    def nudge_runtime_scale(self, delta: int) -> None:
+        """Ctrl+Numpad+/-: step to ``self.scale + delta``.
 
         This is an explicit choice, so unlike the startup auto-pick it does
         not reserve room for the taskbar/title bar (Tony: "that 2x with
         title out could be allowed") — it only refuses a scale that would
         not even fit the monitor's raw pixel dimensions, since that would
         need virtual-screen/scrolling support mini_basic doesn't have.
+        """
+        if self._screen is None:
+            return
+        self.set_runtime_scale(self.scale + int(delta))
+
+    def set_runtime_scale(self, requested: int) -> None:
+        """Jump straight to this pixel scale, clamped to the raw monitor
+        size (see :meth:`nudge_runtime_scale`).
         """
         if self._screen is None:
             return
@@ -2340,9 +2343,9 @@ class PygameDisplay(DisplayBackend):
             if event.type == pygame.KEYDOWN and (
                 getattr(event, 'mod', 0) & getattr(pygame, 'KMOD_CTRL', 0)
             ):
-                scale = self._scale_shortcut_for_key(event.key)
-                if scale is not None:
-                    self.set_runtime_scale(scale)
+                delta = self._scale_nudge_for_key(event.key)
+                if delta is not None:
+                    self.nudge_runtime_scale(delta)
                     continue
             preserved.append(event)
         for event in preserved:
