@@ -8,6 +8,7 @@ from __future__ import annotations
 import os
 import sys
 import tkinter as tk
+from unittest import mock
 
 import pytest
 
@@ -100,6 +101,40 @@ def test_build_run_command_defaults_and_overrides(tmp_path) -> None:
         assert cmd[1:3] == ['-m', 'mini_basic']
         assert '--dialect' in cmd and 'bbc' in cmd
         assert '--pygame' in cmd
+    finally:
+        root.destroy()
+
+
+def test_open_tokenized_bbc_detokenizes_into_editable_text(tmp_path) -> None:
+    """Reuses the interpreter's own LOAD/LIST, same as basics/RACE.BBC et al."""
+    from mini_basic.bbc_detokenize import parse_wilson_program
+
+    assert parse_wilson_program  # module importable; real binary fixtures live under basics/
+    race_bbc = os.path.join(_ROOT, 'basics', 'RACE.BBC')
+    if not os.path.exists(race_bbc):
+        pytest.skip('basics/RACE.BBC fixture not present')
+
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
+            win.open_tokenized_bbc()
+        content = win.text.get('1.0', 'end-1c')
+        assert '   100 A = 0: B = 0' in content
+        assert win.path is None  # untitled: Save As targets a new .bas file
+    finally:
+        root.destroy()
+
+
+def test_open_tokenized_bbc_reports_error_for_bad_path(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        missing = str(tmp_path / 'missing.bbc')
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value=missing), \
+             mock.patch('tools.editor.messagebox.showerror') as mock_error:
+            win.open_tokenized_bbc()
+        assert mock_error.called
     finally:
         root.destroy()
 

@@ -1,18 +1,34 @@
-# Register .bas as Mini-BASIC source (text).
-# PerceivedType=text already adds Open=Notepad. Do not add a second Edit/Notepad verb.
-# Context menu: Open (Notepad) + Start Mini-BASIC.
+# Register .bas as Mini-BASIC source: double-click opens the mini_basic
+# tkinter editor (tools/editor.py); context menu also offers Start Mini-BASIC
+# (run) and Edit as Text (Notepad) as secondary verbs.
 param(
-    [string]$OpenCommand = ''
+    [string]$EditorCommand = '',
+    [string]$RunCommand = ''
 )
 
 $ErrorActionPreference = 'Stop'
-if (-not $OpenCommand) {
+
+if (-not $RunCommand) {
     $pipExe = Get-Command mini-basic -ErrorAction SilentlyContinue
     if ($pipExe) {
-        $OpenCommand = "`"$($pipExe.Source)`" `"%1`""
+        $RunCommand = "`"$($pipExe.Source)`" `"%1`""
     } else {
-        $OpenCommand = 'cmd.exe /k python -m mini_basic "%1"'
+        $RunCommand = 'cmd.exe /k python -m mini_basic "%1"'
     }
+}
+
+if (-not $EditorCommand) {
+    # tools/editor.py lives next to this script in the repo checkout; it is
+    # not packaged/installed by pip (see pyproject.toml), so there is no
+    # console-script entry point to look up the way $RunCommand does above.
+    $editorScript = Join-Path $PSScriptRoot 'editor.py'
+    if (-not (Test-Path $editorScript)) {
+        throw "Could not find tools/editor.py next to this script ($PSScriptRoot). Pass -EditorCommand explicitly."
+    }
+    # Prefer pythonw.exe so opening a file doesn't also pop a console window.
+    $pyw = Get-Command pythonw -ErrorAction SilentlyContinue
+    $pyExe = if ($pyw) { $pyw.Source } else { 'python' }
+    $EditorCommand = "`"$pyExe`" `"$editorScript`" `"%1`""
 }
 
 $pol = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations'
@@ -39,15 +55,30 @@ Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram' -Name '(default
 
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Force | Out-Null
 Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Name '(default)' -Value 'open'
-Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open' -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Recurse -Force -ErrorAction SilentlyContinue
 
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Force | Out-Null
-New-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Name 'ProgrammaticAccessOnly' -Value '' -PropertyType String -Force | Out-Null
+# Clear out any verbs from a previous run of this script before re-adding
+# them, so stale commands never linger (e.g. an old editor path).
+foreach ($verb in @('open', 'edit', 'run', 'notepad')) {
+    Remove-Item -Path "HKCU:\Software\Classes\MiniBasicProgram\shell\$verb" -Recurse -Force -ErrorAction SilentlyContinue
+}
 
+# "open" is the default verb (double-click): launch the mini_basic editor.
+New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open' -Force | Out-Null
+Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open' -Name '(default)' -Value 'Edit with Mini-BASIC Editor'
+New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open\command' -Force | Out-Null
+Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open\command' -Name '(default)' -Value $EditorCommand
+
+# "run" is a secondary context-menu verb: run the program directly.
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run' -Force | Out-Null
 Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run' -Name '(default)' -Value 'Start Mini-BASIC'
 New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Name '(default)' -Value $OpenCommand
+Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Name '(default)' -Value $RunCommand
 
-Write-Host 'Registered .bas: Open=Notepad (single item), Start Mini-BASIC to run.'
+# "notepad" is a secondary context-menu verb: plain-text viewing/editing,
+# now that the default "open" verb launches the mini_basic editor instead.
+New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\notepad' -Force | Out-Null
+Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\notepad' -Name '(default)' -Value 'Edit as Text (Notepad)'
+New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\notepad\command' -Force | Out-Null
+Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\notepad\command' -Name '(default)' -Value 'notepad.exe "%1"'
+
+Write-Host 'Registered .bas: double-click opens the Mini-BASIC Editor; right-click offers Start Mini-BASIC and Edit as Text (Notepad).'
