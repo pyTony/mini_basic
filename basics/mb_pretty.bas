@@ -1,4 +1,3 @@
-' dialect: mini
 REM Unnumbered pretty listing of examples/graphics/mandelbrot/mandelbrot_color_only.bas
 PRINT "Mandelbrot - ANSI color only"
 PRINT "Start"
@@ -31,4 +30,4 @@ NEXT Y
 Q = TIME
 PRINT "Finished"
 PRINT FG$(2);"Time: "; Q / 100;" secs."; RESET$()
-END
+WHILE TRUE: ENDWHILE

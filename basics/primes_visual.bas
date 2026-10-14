@@ -1,12 +1,17 @@
-10 CLS
-20 PRINT "LIMIT";
-30 INPUT L
-40 FOR N = 3 TO L
-50    FOR D = 2 TO (N-1)
-60      IF N/D=INT(N/D) THEN GOTO 100
-70    NEXT D
-80    PRINT N;
-90    GOTO 110
-100   PRINT ".";
-110 NEXT N
-120 END
+    10 CLS
+    20 PRINT "LIMIT";
+    30 INPUT L
+    40 GOSUB 60
+    50 INPUT "PRESS ENTER", L$
+    55 END
+    60 REM PRIME LOOP
+    70 FOR N = 3 TO L
+    80    FOR D = 2 TO (N - 1)
+    90      IF N / D = INT(N / D) THEN GOTO 130
+   100    NEXT D
+   110    PRINT N;
+   120    GOTO 140
+   130   PRINT ".";
+   140 NEXT N
+   145 PRINT
+   150 RETURN
