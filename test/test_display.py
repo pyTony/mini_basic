@@ -204,19 +204,30 @@ class DisplayTests(unittest.TestCase):
         # Not win32, so no taskbar reservation: plenty of room for 1280x1024.
         # Mock sys.platform too (not just desktop_size) so this is
         # deterministic even when the suite itself runs on real Windows.
+        # Also force _window_fits_on_screen's real-pygame.Window query path
+        # to fail over to the plain-arithmetic fallback: on a real desktop
+        # (unlike a true headless X11/Wayland dummy driver), SDL can still
+        # create a real OS-tracked window even under SDL_VIDEODRIVER=dummy,
+        # so pygame.Window.from_display_module() can report genuine OS
+        # placement/clipping that our desktop_size mock never reaches,
+        # making this test depend on the real screen instead of the mock.
         with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
             with mock.patch('mini_basic.display.sys.platform', 'linux'):
-                display = PygameDisplay(
-                    graphics_width=640,
-                    graphics_height=512,
-                    scale=2,
-                    scale_locked=False,
-                )
-                display.begin_run()
-                display.set_mode(9)
-                self.assertEqual(display.scale, 2)
-                self.assertEqual(display._screen.get_size(), (1280, 1024))
-                display.end_run()
+                with mock.patch.object(
+                    PygameDisplay, '_window_from_display_module',
+                    side_effect=RuntimeError('no real window under dummy driver'),
+                ):
+                    display = PygameDisplay(
+                        graphics_width=640,
+                        graphics_height=512,
+                        scale=2,
+                        scale_locked=False,
+                    )
+                    display.begin_run()
+                    display.set_mode(9)
+                    self.assertEqual(display.scale, 2)
+                    self.assertEqual(display._screen.get_size(), (1280, 1024))
+                    display.end_run()
 
     def test_mode9_falls_back_on_1080p_windows_so_title_bar_stays_visible(self):
         """Real Windows reserves taskbar space the OS never clips into (unlike
@@ -235,16 +246,20 @@ class DisplayTests(unittest.TestCase):
         os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
             with mock.patch('mini_basic.display.sys.platform', 'win32'):
-                display = PygameDisplay(
-                    graphics_width=640,
-                    graphics_height=512,
-                    scale=2,
-                    scale_locked=False,
-                )
-                display.begin_run()
-                display.set_mode(9)
-                self.assertEqual(display.scale, 1)
-                self.assertEqual(display._screen.get_size(), (640, 512))
+                with mock.patch.object(
+                    PygameDisplay, '_window_from_display_module',
+                    side_effect=RuntimeError('no real window under dummy driver'),
+                ):
+                    display = PygameDisplay(
+                        graphics_width=640,
+                        graphics_height=512,
+                        scale=2,
+                        scale_locked=False,
+                    )
+                    display.begin_run()
+                    display.set_mode(9)
+                    self.assertEqual(display.scale, 1)
+                    self.assertEqual(display._screen.get_size(), (640, 512))
                 display.end_run()
 
     def test_pygame_scale_locked_honours_cli_scale(self):
