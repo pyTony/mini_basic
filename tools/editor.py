@@ -83,6 +83,24 @@ class EditorWindow:
         else:
             self._update_title()
 
+        self.root.protocol('WM_DELETE_WINDOW', self._on_close)
+
+    def _on_close(self) -> None:
+        """Cancel the pending highlight debounce before destroying the window.
+
+        Without this, a keystroke followed quickly by closing the window
+        lets the 200ms ``self.root.after(200, self._highlight)`` callback
+        fire after ``self.text``/``self.root`` are gone, raising a TclError
+        that surfaces as a traceback right as the window closes.
+        """
+        if self._highlight_job is not None:
+            try:
+                self.root.after_cancel(self._highlight_job)
+            except Exception:
+                pass
+            self._highlight_job = None
+        self.root.destroy()
+
     # -- UI construction -------------------------------------------------
 
     def _build_menu(self) -> None:
@@ -92,7 +110,7 @@ class EditorWindow:
         file_menu.add_command(label='Save', accelerator='Ctrl+S', command=self.save_file)
         file_menu.add_command(label='Save As...', command=self.save_file_as)
         file_menu.add_separator()
-        file_menu.add_command(label='Exit', command=self.root.quit)
+        file_menu.add_command(label='Exit', command=self._on_close)
         menubar.add_cascade(label='File', menu=file_menu)
         self.root.config(menu=menubar)
 
