@@ -353,9 +353,22 @@ class DisplayTests(unittest.TestCase):
             display.nudge_runtime_scale(-1)
             self.assertEqual(display.scale, 1)
 
-            # Can't go below 1x.
+            # Below native size, Tony asked for it to keep going (e.g. to
+            # fit a logical resolution bigger than the monitor) rather than
+            # floor at 1x — steps by quarters there instead of whole pixels.
             display.nudge_runtime_scale(-1)
-            self.assertEqual(display.scale, 1)
+            self.assertEqual(display.scale, 0.75)
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 0.5)
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 0.25)
+
+            # Floors at the bottom of the ladder.
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 0.25)
+
+            display.nudge_runtime_scale(1)
+            self.assertEqual(display.scale, 0.5)
             display.end_run()
 
     def test_ctrl_numpad_plus_minus_map_to_scale_nudge(self):
