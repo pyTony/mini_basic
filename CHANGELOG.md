@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-14
+
+- [#114](https://github.com/pyTony/mini_basic/pull/114) Bump version to 1.0.0 for the v1.0 release — Both now say `1.0.0`, ahead of tagging the `1.0.0` release on this commit. `python -m mini_basic --version` confirmed to report `mini_basic 1.0.0`; `python -m mini_basic -c "PRINT 6*7"` still runs fine.
+
 ## 2026-10-13
 
 - [#98](https://github.com/pyTony/mini_basic/pull/98) Rename showcase/breakout.bbc to breakout.bas — the file is `showcase/breakout.bas`, same content, under the extension that matches what it actually is — showcasing mini_basic's own extended sound features directly, as intended for the showcase folder.
