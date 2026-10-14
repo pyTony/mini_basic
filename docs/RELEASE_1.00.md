@@ -1,6 +1,6 @@
 # mini_basic 1.00 — regular (BASICS) release
 
-**Status:** Public repo default is **`main`**. Package version on `main` stays **1.0.0.dev0** until you tag.  
+**Status:** Public repo default is **`main`**. Package version on `main` is **1.0.0**.  
 **Language baseline:** [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md)
 
 This is the **regular 1.00** product: a multi-dialect BASIC interpreter, text
@@ -59,21 +59,30 @@ like the showcase reel:
 ```text
 python -m pip install "mini-basic[display] @ git+https://github.com/pyTony/mini_basic.git"
 mini-basic --version
-python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas
+python -m mini_basic --pygame file.bas
 ```
 
-From a source checkout (examples + HTML docs at `docs/site/index.html`):
+(A plain `pip install` from GitHub does not leave any `.bas`/`.bbc` files on
+disk — `file.bas` above stands for a program of your own, or clone the repo
+as shown next to get runnable demos.)
+
+From a source checkout — `main` (this branch) ships `basics/` and
+`showcase/`; the HTML docs are at `docs/site/index.html`:
 
 ```text
 git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e ".[display]"
-python -m mini_basic --pygame file.bas
-python -m mini_basic --dialect bbc piechart…
-python -m mini_basic --dialect mits examples\m6502-cport\01_hello.bas
+python -m mini_basic --pygame showcase/wheel.bas
+python -m mini_basic --dialect bbc basics/BETH.BAS
 python -m mini_basic --version
 python -m mini_basic -h
 ```
+
+The `dev` branch additionally has `examples/` (~30 more demos) and the test
+suite — clone with `-b dev` (see below) to reach
+`examples\mini\bbc_graphics_demo.bas` / `examples\m6502-cport\01_hello.bas`
+and the rest.
 
 Env: `MINIBASIC_DIR`, `MINI_BASIC_DIALECT`. Text sessions stay text.
 
@@ -108,8 +117,9 @@ everything else (REPL, file I/O, the non-graphical dialects/demos) works.
 
 ### Known limitations (graphics)
 
-- **Flicker / jerky motion in some real-time demos** (e.g. `swirl.bbc` on the
-  `dev` branch, [#12](https://github.com/pyTony/mini_basic/issues/12)).
+- **Flicker / jerky motion in some real-time demos** (e.g. `swirl.bbc`,
+  `examples/graphics/swirl.bbc` on the `dev` branch,
+  [#12](https://github.com/pyTony/mini_basic/issues/12)).
   These programs pace their animation off a wall-clock tick count
   (`TIME`/`SYS "timeGetTime"`) so the *math* always reflects true elapsed
   time, but mini_basic is a tree-walking Python interpreter: how long each
@@ -120,23 +130,6 @@ everything else (REPL, file I/O, the non-graphical dialects/demos) works.
   real-time presentation even though each frame's computed position is
   correct. This is a performance characteristic of the interpreter, not a
   logic bug; no fix is planned for 1.0.
-- **`CALL &FFF1` / `OSWORD 10`** (cursor-position readback) is unsupported —
-  tracked as [#11](https://github.com/pyTony/mini_basic/issues/11),
-  deprioritized; not needed for 1.0.
-
-### Known limitations (graphics flavor)
-
-- **Flicker / jerky motion in some real-time demos** (e.g. `examples/graphics/swirl.bbc`,
-  [#12](https://github.com/pyTony/mini_basic/issues/12)). These programs pace
-  their animation off a wall-clock tick count (`TIME`/`SYS "timeGetTime"`) so
-  the *math* always reflects true elapsed time, but mini_basic is a
-  tree-walking Python interpreter: how long each animation frame takes to
-  *compute* varies, and the display only presents at a capped rate (~20 Hz,
-  dropping to ~10 Hz during heavy `PLOT` bursts — see `_flush_display` /
-  `_present_min_interval` in `mini_basic/runtime_parts/io.py`). The result is
-  uneven, sometimes-jerky real-time presentation even though each frame's
-  computed position is correct. This is a performance characteristic of the
-  interpreter, not a logic bug; no fix is planned for 1.0.
 - **`CALL &FFF1` / `OSWORD 10`** (cursor-position readback) is unsupported —
   tracked as [#11](https://github.com/pyTony/mini_basic/issues/11),
   deprioritized; not needed for 1.0.
