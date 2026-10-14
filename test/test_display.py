@@ -204,19 +204,30 @@ class DisplayTests(unittest.TestCase):
         # Not win32, so no taskbar reservation: plenty of room for 1280x1024.
         # Mock sys.platform too (not just desktop_size) so this is
         # deterministic even when the suite itself runs on real Windows.
+        # Also force _window_fits_on_screen's real-pygame.Window query path
+        # to fail over to the plain-arithmetic fallback: on a real desktop
+        # (unlike a true headless X11/Wayland dummy driver), SDL can still
+        # create a real OS-tracked window even under SDL_VIDEODRIVER=dummy,
+        # so pygame.Window.from_display_module() can report genuine OS
+        # placement/clipping that our desktop_size mock never reaches,
+        # making this test depend on the real screen instead of the mock.
         with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
             with mock.patch('mini_basic.display.sys.platform', 'linux'):
-                display = PygameDisplay(
-                    graphics_width=640,
-                    graphics_height=512,
-                    scale=2,
-                    scale_locked=False,
-                )
-                display.begin_run()
-                display.set_mode(9)
-                self.assertEqual(display.scale, 2)
-                self.assertEqual(display._screen.get_size(), (1280, 1024))
-                display.end_run()
+                with mock.patch.object(
+                    PygameDisplay, '_window_from_display_module',
+                    side_effect=RuntimeError('no real window under dummy driver'),
+                ):
+                    display = PygameDisplay(
+                        graphics_width=640,
+                        graphics_height=512,
+                        scale=2,
+                        scale_locked=False,
+                    )
+                    display.begin_run()
+                    display.set_mode(9)
+                    self.assertEqual(display.scale, 2)
+                    self.assertEqual(display._screen.get_size(), (1280, 1024))
+                    display.end_run()
 
     def test_mode9_falls_back_on_1080p_windows_so_title_bar_stays_visible(self):
         """Real Windows reserves taskbar space the OS never clips into (unlike
@@ -235,17 +246,131 @@ class DisplayTests(unittest.TestCase):
         os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
             with mock.patch('mini_basic.display.sys.platform', 'win32'):
-                display = PygameDisplay(
-                    graphics_width=640,
-                    graphics_height=512,
-                    scale=2,
-                    scale_locked=False,
-                )
-                display.begin_run()
-                display.set_mode(9)
-                self.assertEqual(display.scale, 1)
-                self.assertEqual(display._screen.get_size(), (640, 512))
+                with mock.patch.object(
+                    PygameDisplay, '_window_from_display_module',
+                    side_effect=RuntimeError('no real window under dummy driver'),
+                ):
+                    display = PygameDisplay(
+                        graphics_width=640,
+                        graphics_height=512,
+                        scale=2,
+                        scale_locked=False,
+                    )
+                    display.begin_run()
+                    display.set_mode(9)
+                    self.assertEqual(display.scale, 1)
+                    self.assertEqual(display._screen.get_size(), (640, 512))
                 display.end_run()
+
+    def test_set_runtime_scale_jumps_to_requested_scale(self):
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
+            display = PygameDisplay(
+                graphics_width=640,
+                graphics_height=512,
+                scale=1,
+                scale_locked=False,
+            )
+            display.begin_run()
+            display.set_mode(9)
+            self.assertEqual(display.scale, 1)
+
+            display.set_runtime_scale(2)
+            self.assertEqual(display.scale, 2)
+            self.assertEqual(display._screen.get_size(), (1280, 1024))
+            # It's now locked: a later MODE change keeps honouring the
+            # explicit choice instead of reverting to the auto-fit pick.
+            self.assertTrue(display.scale_locked)
+            display.end_run()
+
+    def test_runtime_scale_shortcut_clamps_to_raw_monitor_pixels(self):
+        """An explicit Ctrl+Numpad+/- nudge may push the title bar off-screen
+        (Tony: "that 2x with title out could be allowed") — it only refuses a
+        scale that wouldn't fit the monitor's raw pixels at all (no virtual
+        screen/scrolling support), unlike the conservative startup auto-pick.
+        """
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1280, 800)):
+            display = PygameDisplay(
+                graphics_width=640,
+                graphics_height=512,
+                scale=1,
+                scale_locked=False,
+            )
+            display.begin_run()
+            display.set_mode(9)
+
+            # 2x (1280x1024) doesn't fit an 800px-tall screen at all.
+            display.set_runtime_scale(2)
+            self.assertEqual(display.scale, 1)
+
+            # 3x (1920x1536) is even further off, but still clamps to 1,
+            # not some intermediate "fits the width" compromise.
+            display.set_runtime_scale(3)
+            self.assertEqual(display.scale, 1)
+            display.end_run()
+
+    def test_nudge_runtime_scale_steps_up_and_down(self):
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
+            display = PygameDisplay(
+                graphics_width=640,
+                graphics_height=512,
+                scale=1,
+                scale_locked=False,
+            )
+            display.begin_run()
+            display.set_mode(9)
+            self.assertEqual(display.scale, 1)
+
+            display.nudge_runtime_scale(1)
+            self.assertEqual(display.scale, 2)
+
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 1)
+
+            # Can't go below 1x.
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, 1)
+            display.end_run()
+
+    def test_ctrl_numpad_plus_minus_map_to_scale_nudge(self):
+        try:
+            import pygame
+        except ImportError:
+            self.skipTest('pygame not installed')
+
+        from mini_basic.display import PygameDisplay
+
+        display = PygameDisplay(caption='test', scale=1)
+        self.assertEqual(display._scale_nudge_for_key(pygame.K_KP_PLUS), 1)
+        self.assertEqual(display._scale_nudge_for_key(pygame.K_KP_MINUS), -1)
+        self.assertIsNone(display._scale_nudge_for_key(pygame.K_1))
+        self.assertIsNone(display._scale_nudge_for_key(pygame.K_PLUS))
 
     def test_pygame_scale_locked_honours_cli_scale(self):
         try:
