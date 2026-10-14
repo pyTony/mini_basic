@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List, Optional
 
 # PEP 440. Keep in sync with root pyproject.toml.
-__version__ = '1.0.0.dev0'
+__version__ = '1.0.0'
 
 # Short implementation snapshot (keep in sync with docs/LANGUAGE_FEATURES_1.00.md).
 _IMPLEMENTATION_STATUS = (

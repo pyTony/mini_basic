@@ -4167,6 +4167,14 @@ class RuntimeExprMixin:
         self._register_numeric_var(base, 'float')
         self.variables[base] = float(text)
 
+    def _map_array_data_inplace(self, data: list, fn: Callable[[object], object]) -> None:
+        """Recursively apply fn to every leaf element of a 1D/2D/N-D array list."""
+        for i, item in enumerate(data):
+            if isinstance(item, list):
+                self._map_array_data_inplace(item, fn)
+            else:
+                data[i] = fn(item)
+
     def _compound_assign(self, var: str, op: str, expr: str) -> None:
         if self._parse_array_lvalue(var) is not None:
             parsed = self._parse_array_lvalue(var)
@@ -4176,45 +4184,40 @@ class RuntimeExprMixin:
                 # Whole-array compound: light() /= s, Value() *= s, Colour&() OR= 8
                 key = self._resolve_array_key(base, kind)
                 if key not in self.array_storage:
-                    print(f"[DEBUG COMPOUND] base={base!r} kind={kind!r} key={key!r} storage_keys={list(self.array_storage.keys())!r}")
                     raise ValueError('unknown array')
-                bounds, lb, data = self.array_storage[key]
+                _bounds, _lb, data = self.array_storage[key]
                 if not isinstance(data, list):
                     raise ValueError('whole-array compound assignment not supported')
-                # Storage is a flat 1D list (see ArrayStorage).
                 if op == '/=':
                     rhs = float(self.eval_expr(expr))
                     if rhs == 0:
                         rhs = 1.0
-                    for i, v in enumerate(data):
-                        data[i] = float(v) / rhs
+                    self._map_array_data_inplace(data, lambda v: float(v) / rhs)
                 elif op == '*=':
                     rhs = float(self.eval_expr(expr))
-                    for i, v in enumerate(data):
-                        data[i] = float(v) * rhs
+                    self._map_array_data_inplace(data, lambda v: float(v) * rhs)
                 elif op == '+=':
                     rhs = float(self.eval_expr(expr))
-                    for i, v in enumerate(data):
-                        data[i] = float(v) + rhs
+                    self._map_array_data_inplace(data, lambda v: float(v) + rhs)
                 elif op == '-=':
                     rhs = float(self.eval_expr(expr))
-                    for i, v in enumerate(data):
-                        data[i] = float(v) - rhs
+                    self._map_array_data_inplace(data, lambda v: float(v) - rhs)
                 elif op in ('OR=', 'AND=', 'EOR=', 'XOR='):
                     rhs = int(self._coerce_int_storage(self.eval_expr(expr)))
-                    for i, v in enumerate(data):
+
+                    def _bit_op(v: object) -> object:
                         cur = int(self._coerce_int_storage(v))
                         if op == 'OR=':
-                            data[i] = cur | rhs
-                        elif op == 'AND=':
-                            data[i] = cur & rhs
-                        else:  # EOR= / XOR=
-                            data[i] = cur ^ rhs
+                            return cur | rhs
+                        if op == 'AND=':
+                            return cur & rhs
+                        return cur ^ rhs
+
+                    self._map_array_data_inplace(data, _bit_op)
                 else:
                     raise ValueError('whole-array compound assignment not supported')
                 if kind == 'int':
-                    for i, v in enumerate(data):
-                        data[i] = self._coerce_int_storage(v)
+                    self._map_array_data_inplace(data, self._coerce_int_storage)
                 return
         loc = self._read_lvalue(var)
         var_kind = loc[2]
