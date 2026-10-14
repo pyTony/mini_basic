@@ -202,18 +202,21 @@ class DisplayTests(unittest.TestCase):
 
         os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
         # Not win32, so no taskbar reservation: plenty of room for 1280x1024.
+        # Mock sys.platform too (not just desktop_size) so this is
+        # deterministic even when the suite itself runs on real Windows.
         with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
-            display = PygameDisplay(
-                graphics_width=640,
-                graphics_height=512,
-                scale=2,
-                scale_locked=False,
-            )
-            display.begin_run()
-            display.set_mode(9)
-            self.assertEqual(display.scale, 2)
-            self.assertEqual(display._screen.get_size(), (1280, 1024))
-            display.end_run()
+            with mock.patch('mini_basic.display.sys.platform', 'linux'):
+                display = PygameDisplay(
+                    graphics_width=640,
+                    graphics_height=512,
+                    scale=2,
+                    scale_locked=False,
+                )
+                display.begin_run()
+                display.set_mode(9)
+                self.assertEqual(display.scale, 2)
+                self.assertEqual(display._screen.get_size(), (1280, 1024))
+                display.end_run()
 
     def test_mode9_falls_back_on_1080p_windows_so_title_bar_stays_visible(self):
         """Real Windows reserves taskbar space the OS never clips into (unlike

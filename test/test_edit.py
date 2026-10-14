@@ -304,8 +304,9 @@ class EditCommandTests(unittest.TestCase):
         interp.program[10] = 'PRINT 1'
         buf = io.StringIO()
         with redirect_stdout(buf), redirect_stderr(io.StringIO()):
-            with patch.object(interp, '_choose_external_editor', return_value=None):
-                interp.edit_program()
+            with patch.object(interp, '_tkinter_editor_command', return_value=None):
+                with patch.object(interp, '_choose_external_editor', return_value=None):
+                    interp.edit_program()
         self.assertIn('no editor', buf.getvalue())
         self.assertEqual(interp.program[10], 'PRINT 1')
 
