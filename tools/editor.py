@@ -107,6 +107,7 @@ class EditorWindow:
         menubar = tk.Menu(self.root)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label='Open...', accelerator='Ctrl+O', command=self.open_file)
+        file_menu.add_command(label='Open Tokenized BBC...', command=self.open_tokenized_bbc)
         file_menu.add_command(label='Save', accelerator='Ctrl+S', command=self.save_file)
         file_menu.add_command(label='Save As...', command=self.save_file_as)
         file_menu.add_separator()
@@ -189,6 +190,40 @@ class EditorWindow:
         self._highlight()
         self._update_title()
         self.status_var.set(f'Opened {path}')
+
+    def open_tokenized_bbc(self) -> None:
+        """Open a tokenized BBC BASIC program, detokenized into editable text.
+
+        Reuses the interpreter's own ``LOAD`` (which already detects and
+        detokenizes Wilson/Russell-format tokenized binaries) plus the same
+        ``LIST`` formatting the REPL uses, so this is not a reimplementation
+        of detokenization. The ``.bbc`` extension is reserved for tokenized
+        programs, so the result is left untitled: Save As targets a new
+        ``.bas`` (plain-text) file rather than overwriting the binary.
+        """
+        path = filedialog.askopenfilename(
+            title='Open tokenized BBC BASIC program',
+            filetypes=[('Tokenized BBC BASIC', '*.bbc'), ('All files', '*.*')],
+        )
+        if not path:
+            return
+        interp = self._make_interpreter()
+        err_buf = io.StringIO()
+        try:
+            with contextlib.redirect_stderr(err_buf):
+                ok = interp.load(path, announce=False)
+            if not ok:
+                raise ValueError(err_buf.getvalue().strip() or 'Could not load program')
+        except (ValueError, OSError) as exc:
+            messagebox.showerror('Open Tokenized BBC failed', str(exc))
+            return
+        lines = interp._program_display_lines(
+            'standard', include_line_numbers=True, case_fold=interp._detokenize_fold(),
+        )
+        self.path = None
+        self._replace_text('\n'.join(lines) + '\n')
+        self._update_title()
+        self.status_var.set(f'Detokenized {path} - use Save As to save as .bas text')
 
     def save_file(self) -> None:
         if not self.path:
@@ -289,13 +324,8 @@ class EditorWindow:
 
     # -- Pretty / Renumber -------------------------------------------------
 
-    def _parse_source(self):
-        """Load the editor's current text into a fresh interpreter.
-
-        Reuses the real interpreter's own LOAD so tokenizing, dialect
-        detection and numbered/unnumbered sniffing behave exactly as they
-        do for ``mini_basic file.bas`` (no reimplemented parsing here).
-        """
+    def _make_interpreter(self):
+        """Build a fresh interpreter honoring the toolbar's dialect choice."""
         from mini_basic.config import InterpreterConfig
         from mini_basic.runtime import BASICInterpreter
 
@@ -304,7 +334,16 @@ class EditorWindow:
         if dialect and dialect != 'auto':
             config.dialect = dialect
             config.dialect_locked = True
-        interp = BASICInterpreter(config)
+        return BASICInterpreter(config)
+
+    def _parse_source(self):
+        """Load the editor's current text into a fresh interpreter.
+
+        Reuses the real interpreter's own LOAD so tokenizing, dialect
+        detection and numbered/unnumbered sniffing behave exactly as they
+        do for ``mini_basic file.bas`` (no reimplemented parsing here).
+        """
+        interp = self._make_interpreter()
 
         source = self.text.get('1.0', 'end-1c')
         fd, tmp_path = tempfile.mkstemp(suffix='.bas')
