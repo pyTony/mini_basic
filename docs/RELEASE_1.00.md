@@ -1,6 +1,6 @@
 # mini_basic 1.00 — regular (BASICS) release
 
-**Status:** Public repo default is **`main`**. Package version on `main` stays **1.0.0.dev0** until you tag.  
+**Status:** Public repo default is **`main`**. Package version on `main` is **1.0.0**.  
 **Language baseline:** [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md)
 
 This is the **regular 1.00** product: a multi-dialect BASIC interpreter, text
