@@ -1026,20 +1026,18 @@ class PygameDisplay(DisplayBackend):
         except Exception:
             pass
 
-    def _scale_nudge_for_key(self, key: int) -> Optional[int]:
-        """Ctrl+Numpad+ / Ctrl+Numpad- : step the pixel scale up/down by one."""
-        pygame = self._pygame
-        if key == getattr(pygame, 'K_KP_PLUS', None):
-            return 1
-        if key == getattr(pygame, 'K_KP_MINUS', None):
-            return -1
-        return None
-
     # Below native size (1x), step by quarters rather than whole pixels —
     # Tony asked for Ctrl+Minus to keep shrinking past 1x (e.g. to fit a
     # logical resolution bigger than the monitor) instead of floor-ing
     # there, and a whole-pixel step makes no sense below native size.
     _SCALE_LADDER = (0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8)
+
+    # A window narrower than this has no usable title bar left to drag by
+    # (icon + min/max/close buttons alone eat most of it) — Tony hit this
+    # at 0.25x on MODE 9 (screenshot: window barely wider than its own
+    # buttons, floating stuck over other windows). set_runtime_scale raises
+    # its floor on narrow canvases so this can't happen.
+    _MIN_DRAGGABLE_WINDOW_WIDTH = 240
 
     def _scale_nudge_for_key(self, key: int) -> Optional[int]:
         """Ctrl+Numpad+ / Ctrl+Numpad- : step the pixel scale up/down."""
@@ -1064,18 +1062,24 @@ class PygameDisplay(DisplayBackend):
             return
         ladder = self._SCALE_LADDER
         current = self.scale
+        min_scale = self._min_draggable_scale()
         if delta > 0:
             candidates = [v for v in ladder if v > current + 1e-9]
             new_val = candidates[0] if candidates else ladder[-1]
         else:
-            candidates = [v for v in ladder if v < current - 1e-9]
-            new_val = candidates[-1] if candidates else ladder[0]
+            candidates = [v for v in ladder if v < current - 1e-9 and v >= min_scale - 1e-9]
+            new_val = candidates[-1] if candidates else min_scale
         self.set_runtime_scale(new_val)
+
+    def _min_draggable_scale(self) -> float:
+        """Smallest scale that still leaves a usable title bar to drag by."""
+        base_w, _ = self._window_client_size_at_scale(1)
+        return max(self._SCALE_LADDER[0], self._MIN_DRAGGABLE_WINDOW_WIDTH / max(1, base_w))
 
     def set_runtime_scale(self, requested: float) -> None:
         """Jump straight to this pixel scale, clamped to the raw monitor
-        size on the way up and to the smallest ladder step on the way down
-        (see :meth:`nudge_runtime_scale`).
+        size on the way up and to the smallest draggable size on the way
+        down (see :meth:`nudge_runtime_scale`).
         """
         if self._screen is None:
             return
@@ -1086,7 +1090,7 @@ class PygameDisplay(DisplayBackend):
             screen_w, screen_h = 1920, 1080
         base_w, base_h = self._window_client_size_at_scale(1)
         raw_max = max(1, min(screen_w // max(1, base_w), screen_h // max(1, base_h)))
-        new_scale = max(self._SCALE_LADDER[0], min(float(requested), raw_max))
+        new_scale = max(self._min_draggable_scale(), min(float(requested), raw_max))
         if abs(new_scale - self.scale) < 1e-9:
             return
         self._requested_scale = new_scale
