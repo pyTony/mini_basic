@@ -102,3 +102,19 @@ def test_build_run_command_defaults_and_overrides(tmp_path) -> None:
         assert '--pygame' in cmd
     finally:
         root.destroy()
+
+
+def test_closing_with_a_pending_highlight_job_does_not_raise() -> None:
+    """Edit, then close immediately (before the 200ms highlight debounce
+    fires) — _on_close must cancel the pending job rather than let it hit
+    a destroyed widget.
+    """
+    root = _make_root()
+    win = EditorWindow(root)
+    win.text.insert('1.0', '10 PRINT 1\n')
+    win.text.event_generate('<<Modified>>')
+    assert win._highlight_job is not None
+
+    win._on_close()  # must not raise, and must leave no job to fire later
+
+    assert win._highlight_job is None
