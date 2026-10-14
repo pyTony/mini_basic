@@ -13,6 +13,7 @@
       <a href="install.html">Install</a>
       <a href="tree.html">Public tree</a>
       <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="RELEASE_NOTES_1.0.html">What's new</a>
       <a href="CHANGELOG.html">Changelog</a>
       <a href="https://github.com/pyTony/mini_basic">GitHub</a>
     </nav>
@@ -42,16 +43,17 @@
 <p>With graphics (pip from GitHub) — the normal install, for <code>MODE</code>/pygame demos like the showcase reel:</p>
 <pre><code>python -m pip install &quot;mini-basic[display] @ git+https://github.com/pyTony/mini_basic.git&quot;
 mini-basic --version
-python -m mini_basic --pygame examples\mini\bbc_graphics_demo.bas</code></pre>
-<p>From a source checkout (examples + HTML docs at <code>docs/site/index.html</code>):</p>
+python -m mini_basic --pygame file.bas</code></pre>
+<p>(A plain <code>pip install</code> from GitHub does not leave any <code>.bas</code>/<code>.bbc</code> files on disk — <code>file.bas</code> above stands for a program of your own, or clone the repo as shown next to get runnable demos.)</p>
+<p>From a source checkout — <code>main</code> (this branch) ships <code>basics/</code> and <code>showcase/</code>; the HTML docs are at <code>docs/site/index.html</code>:</p>
 <pre><code>git clone https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e &quot;.[display]&quot;
-python -m mini_basic --pygame file.bas
-python -m mini_basic --dialect bbc piechart…
-python -m mini_basic --dialect mits examples\m6502-cport\01_hello.bas
+python -m mini_basic --pygame showcase/wheel.bas
+python -m mini_basic --dialect bbc basics/BETH.BAS
 python -m mini_basic --version
 python -m mini_basic -h</code></pre>
+<p>The <code>dev</code> branch additionally has <code>examples/</code> (~30 more demos) and the test suite — clone with <code>-b dev</code> (see below) to reach <code>examples\mini\bbc_graphics_demo.bas</code> / <code>examples\m6502-cport\01_hello.bas</code> and the rest.</p>
 <p>Env: <code>MINIBASIC_DIR</code>, <code>MINI_BASIC_DIALECT</code>. Text sessions stay text.</p>
 <p>Examples and developer files live on the <strong>`dev` branch</strong>, not in a pip wheel and not on <code>main</code>:</p>
 <ul><li>Repo: <a href="https://github.com/pyTony/mini_basic">https://github.com/pyTony/mini_basic</a></li><li>Examples: <a href="https://github.com/pyTony/mini_basic/tree/dev/examples">examples/</a></li><li>Developer git notes: <a href="GIT_QUICKSTART.html">GIT_QUICKSTART.md</a></li></ul>
@@ -64,13 +66,8 @@ python -m mini_basic -h</code></pre>
 python -m mini_basic basics/ELIZA.BAS</code></pre>
 <p><code>MODE</code>/<code>--pygame</code> programs won&#x27;t run without the <code>[display]</code> extra, but everything else (REPL, file I/O, the non-graphical dialects/demos) works.</p>
 <h4 id="known-limitations-graphics">Known limitations (graphics)</h4>
-<ul><li><strong>Flicker / jerky motion in some real-time demos</strong> (e.g. <code>swirl.bbc</code> on the</li></ul>
-<p><code>dev</code> branch, <a href="https://github.com/pyTony/mini_basic/issues/12">#12</a>). These programs pace their animation off a wall-clock tick count (<code>TIME</code>/<code>SYS &quot;timeGetTime&quot;</code>) so the <em>math</em> always reflects true elapsed time, but mini_basic is a tree-walking Python interpreter: how long each animation frame takes to <em>compute</em> varies, and the display only presents at a capped rate (~20 Hz, dropping to ~10 Hz during heavy <code>PLOT</code> bursts — see <code>_flush_display</code> / <code>_present_min_interval</code> in <code>mini_basic/runtime_parts/io.py</code>). The result is uneven, sometimes-jerky real-time presentation even though each frame&#x27;s computed position is correct. This is a performance characteristic of the interpreter, not a logic bug; no fix is planned for 1.0.</p>
-<ul><li><strong>`CALL &amp;FFF1` / `OSWORD 10`</strong> (cursor-position readback) is unsupported —</li></ul>
-<p>tracked as <a href="https://github.com/pyTony/mini_basic/issues/11">#11</a>, deprioritized; not needed for 1.0.</p>
-<h4 id="known-limitations-graphics-flavor">Known limitations (graphics flavor)</h4>
-<ul><li><strong>Flicker / jerky motion in some real-time demos</strong> (e.g. <code>examples/graphics/swirl.bbc</code>,</li></ul>
-<p><a href="https://github.com/pyTony/mini_basic/issues/12">#12</a>). These programs pace their animation off a wall-clock tick count (<code>TIME</code>/<code>SYS &quot;timeGetTime&quot;</code>) so the <em>math</em> always reflects true elapsed time, but mini_basic is a tree-walking Python interpreter: how long each animation frame takes to <em>compute</em> varies, and the display only presents at a capped rate (~20 Hz, dropping to ~10 Hz during heavy <code>PLOT</code> bursts — see <code>_flush_display</code> / <code>_present_min_interval</code> in <code>mini_basic/runtime_parts/io.py</code>). The result is uneven, sometimes-jerky real-time presentation even though each frame&#x27;s computed position is correct. This is a performance characteristic of the interpreter, not a logic bug; no fix is planned for 1.0.</p>
+<ul><li><strong>Flicker / jerky motion in some real-time demos</strong> (e.g. <code>swirl.bbc</code>,</li></ul>
+<p><code>examples/graphics/swirl.bbc</code> on the <code>dev</code> branch, <a href="https://github.com/pyTony/mini_basic/issues/12">#12</a>). These programs pace their animation off a wall-clock tick count (<code>TIME</code>/<code>SYS &quot;timeGetTime&quot;</code>) so the <em>math</em> always reflects true elapsed time, but mini_basic is a tree-walking Python interpreter: how long each animation frame takes to <em>compute</em> varies, and the display only presents at a capped rate (~20 Hz, dropping to ~10 Hz during heavy <code>PLOT</code> bursts — see <code>_flush_display</code> / <code>_present_min_interval</code> in <code>mini_basic/runtime_parts/io.py</code>). The result is uneven, sometimes-jerky real-time presentation even though each frame&#x27;s computed position is correct. This is a performance characteristic of the interpreter, not a logic bug; no fix is planned for 1.0.</p>
 <ul><li><strong>`CALL &amp;FFF1` / `OSWORD 10`</strong> (cursor-position readback) is unsupported —</li></ul>
 <p>tracked as <a href="https://github.com/pyTony/mini_basic/issues/11">#11</a>, deprioritized; not needed for 1.0.</p>
 <hr>

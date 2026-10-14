@@ -16,6 +16,7 @@ DOCS = ROOT / 'docs'
 SITE = DOCS / 'site'
 
 PAGES = [
+    ('RELEASE_NOTES_1.0.md', 'Release notes (1.0)'),
     ('LANGUAGE_FEATURES_1.00.md', 'Language features (1.00)'),
     ('PROGRAM_VS_TESTS.md', 'Programs vs tests'),
     ('RELEASE_1.00.md', 'Release 1.00'),
@@ -36,6 +37,7 @@ NAV = '''    <nav>
       <a href="install.html">Install</a>
       <a href="tree.html">Public tree</a>
       <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="RELEASE_NOTES_1.0.html">What's new</a>
       <a href="CHANGELOG.html">Changelog</a>
       <a href="https://github.com/pyTony/mini_basic">GitHub</a>
     </nav>'''

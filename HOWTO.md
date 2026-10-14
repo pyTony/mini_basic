@@ -58,11 +58,18 @@ See `mini_basic/RUNTIME_MODULARIZATION_STATUS.md`.
 
 `tools/editor.py` is a minimal tkinter editor for `.bas`/`.bbc` source:
 open/save, mini_basic-aware syntax highlighting (keywords, `PROC`/`ENDPROC`,
-`*`-commands, line numbers, dialect hint comments), and a Run button that
-launches the real interpreter as a subprocess (`python -m mini_basic
-<file>`, with optional dialect override and `--pygame`). It does not
-reimplement any display — pygame programs still open their own window and
-console programs still use the normal terminal.
+`*`-commands, line numbers, dialect hint comments), and a toolbar with:
+
+- **Run** — launches the real interpreter as a subprocess (`python -m
+  mini_basic <file>`, with the toolbar's dialect dropdown and `--pygame`
+  checkbox). It does not reimplement any display — pygame programs still
+  open their own window and console programs still use the normal
+  terminal.
+- **Pretty (no numbers)** — reformats the buffer the same way `SAVE
+  PRETTY` / `LIST PRETTY` do in the REPL (delegates to the interpreter).
+- **Renumber** — renumbers the program 10, 20, 30, … and fixes up
+  `GOTO`/`GOSUB`/etc. targets (delegates to the interpreter's own
+  `RENUMBER`/`REN` logic).
 
 ```powershell
 python tools/editor.py [file.bas]
