@@ -1,7 +1,7 @@
 # mini_basic 1.00 — Language features & ship qualification
 
 **Status:** Ready to ship as **1.00** under the scope locked below  
-**Version line:** `1.0.0.dev0` (PEP 440 / PyPI) → tag **`1.0.0`** when this document is accepted  
+**Version line:** `1.0.0` (PEP 440 / PyPI)  
 **Date:** 2026-08-03  
 **Related:** [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`RELEASE_1.00.md`](RELEASE_1.00.md) · [`LLM.md`](LLM.md)
 

@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#115](https://github.com/pyTony/mini_basic/pull/115) docs: backport v1.0 release pass + fix stale 1.0.0.dev0 references (2026-10-14)
 - [#114](https://github.com/pyTony/mini_basic/pull/114) Bump version to 1.0.0 for the v1.0 release (2026-10-14)
 - [#113](https://github.com/pyTony/mini_basic/pull/113) Allow runtime scale shortcut to go below native (1x) size (2026-10-14)
 - [#112](https://github.com/pyTony/mini_basic/pull/112) docs: v1.0 release pass — fix broken install paths, add release notes (2026-10-14)
@@ -20,4 +21,3 @@ merge to main.
 - [#108](https://github.com/pyTony/mini_basic/pull/108) editor: add Pretty (no numbers) and Renumber buttons (2026-10-14)
 - [#107](https://github.com/pyTony/mini_basic/pull/107) fix: INPUT with empty prompt forces newline; Windows REPL editor erases output (2026-10-13)
 - [#106](https://github.com/pyTony/mini_basic/pull/106) fix: TIMING ON prints no "Time:" when GOTO/GOSUB runs from the REPL (2026-10-13)
-- [#105](https://github.com/pyTony/mini_basic/pull/105) fix: GOTO from immediate mode only ran the target line, not the whole program (2026-10-13)
