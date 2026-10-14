@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-14
 
+- [#115](https://github.com/pyTony/mini_basic/pull/115) docs: backport v1.0 release pass + fix stale 1.0.0.dev0 references — Backported the `dev` doc fixes onto `main` (including adding `docs/RELEASE_NOTES_1.0.md`, linked from `docs/INDEX.md`, `index.html`, and both `docs/site` navs — the hand-maintained `docs/site/index.html` too, which the `dev`-side pass didn't touch). Also updated every doc that said `1.0.0.dev0 until tagged`…
 - [#114](https://github.com/pyTony/mini_basic/pull/114) Bump version to 1.0.0 for the v1.0 release — Both now say `1.0.0`, ahead of tagging the `1.0.0` release on this commit. `python -m mini_basic --version` confirmed to report `mini_basic 1.0.0`; `python -m mini_basic -c "PRINT 6*7"` still runs fine.
 
 ## 2026-10-13
