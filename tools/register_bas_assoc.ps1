@@ -1,53 +1,61 @@
-# Register .bas as Mini-BASIC source (text).
-# PerceivedType=text already adds Open=Notepad. Do not add a second Edit/Notepad verb.
-# Context menu: Open (Notepad) + Start Mini-BASIC.
-param(
-    [string]$OpenCommand = ''
-)
+# register_bas_assoc.ps1
+# Associate .bas files with miniBASIC editor.py and add context-menu entry
+# Run as Administrator (right-click → Run with PowerShell as admin)
 
-$ErrorActionPreference = 'Stop'
-if (-not $OpenCommand) {
-    $pipExe = Get-Command mini-basic -ErrorAction SilentlyContinue
-    if ($pipExe) {
-        $OpenCommand = "`"$($pipExe.Source)`" `"%1`""
-    } else {
-        $OpenCommand = 'cmd.exe /k python -m mini_basic "%1"'
-    }
+# ---- CONFIGURE THESE TWO PATHS ----
+$EditorScript = "C:\Users\admin\mini_basic\tools\editor.py"   # full path to editor.py
+$PythonExe    = "pythonw.exe"   # or full path e.g. "C:\Python312\pythonw.exe"
+# -----------------------------------
+
+# Resolve pythonw if only the name is given
+if (-not [System.IO.Path]::IsPathRooted($PythonExe)) {
+    $PythonExe = (Get-Command $PythonExe -ErrorAction Stop).Source
 }
 
-$pol = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\Associations'
-try {
-    New-Item -Path $pol -Force -ErrorAction Stop | Out-Null
-    $cur = ''
-    try { $cur = [string](Get-ItemProperty -Path $pol -Name LowRiskFileTypes -ErrorAction Stop).LowRiskFileTypes } catch { }
-    $parts = @($cur -split ';' | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
-    foreach ($ext in @('.bas', '.bbc')) {
-        if ($parts -notcontains $ext) { $parts += $ext }
-    }
-    Set-ItemProperty -Path $pol -Name LowRiskFileTypes -Value (($parts -join ';') + ';')
-} catch {
-    Write-Host 'Note: could not set LowRiskFileTypes (policy key denied).'
-}
+$ProgId = "miniBASIC.Editor"
+$MenuText = "Avaa miniBASIC Editorilla"   # Finnish; change if you prefer English
 
-New-Item -Path 'HKCU:\Software\Classes\.bas' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\.bas' -Name '(default)' -Value 'MiniBasicProgram'
-New-ItemProperty -Path 'HKCU:\Software\Classes\.bas' -Name 'PerceivedType' -Value 'text' -PropertyType String -Force | Out-Null
-New-ItemProperty -Path 'HKCU:\Software\Classes\.bas' -Name 'Content Type' -Value 'text/plain' -PropertyType String -Force | Out-Null
+Write-Host "Registering .bas association..."
+Write-Host "  Editor : $EditorScript"
+Write-Host "  Python : $PythonExe"
 
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram' -Name '(default)' -Value 'Mini-BASIC source'
+# 1. Create the ProgID
+New-Item -Path "HKCU:\Software\Classes\$ProgId" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\$ProgId" -Name "(Default)" -Value "miniBASIC Source File"
 
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell' -Name '(default)' -Value 'open'
-Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\open' -Recurse -Force -ErrorAction SilentlyContinue
-Remove-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Recurse -Force -ErrorAction SilentlyContinue
+# Icon (optional – uses the python icon)
+New-Item -Path "HKCU:\Software\Classes\$ProgId\DefaultIcon" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\$ProgId\DefaultIcon" -Name "(Default)" -Value "$PythonExe,0"
 
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Force | Out-Null
-New-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\edit' -Name 'ProgrammaticAccessOnly' -Value '' -PropertyType String -Force | Out-Null
+# 2. Open command (double-click)
+$OpenCmd = "`"$PythonExe`" `"$EditorScript`" `"%1`""
+New-Item -Path "HKCU:\Software\Classes\$ProgId\shell\open\command" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\$ProgId\shell\open\command" -Name "(Default)" -Value $OpenCmd
 
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run' -Name '(default)' -Value 'Start Mini-BASIC'
-New-Item -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Force | Out-Null
-Set-ItemProperty -Path 'HKCU:\Software\Classes\MiniBasicProgram\shell\run\command' -Name '(default)' -Value $OpenCommand
+# 3. Context-menu entry (appears alongside "Muokkaa muistiossa")
+New-Item -Path "HKCU:\Software\Classes\$ProgId\shell\edit" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\$ProgId\shell\edit" -Name "(Default)" -Value $MenuText
+New-Item -Path "HKCU:\Software\Classes\$ProgId\shell\edit\command" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\$ProgId\shell\edit\command" -Name "(Default)" -Value $OpenCmd
 
-Write-Host 'Registered .bas: Open=Notepad (single item), Start Mini-BASIC to run.'
+# 4. Link the .bas extension to our ProgID
+New-Item -Path "HKCU:\Software\Classes\.bas" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\.bas" -Name "(Default)" -Value $ProgId
+
+# Also register uppercase .BAS (some tools create it that way)
+New-Item -Path "HKCU:\Software\Classes\.BAS" -Force | Out-Null
+Set-ItemProperty -Path "HKCU:\Software\Classes\.BAS" -Name "(Default)" -Value $ProgId
+
+# 5. Tell Explorer to refresh
+$signature = @'
+[DllImport("shell32.dll")]
+public static extern void SHChangeNotify(int eventId, int flags, IntPtr item1, IntPtr item2);
+'@
+$type = Add-Type -MemberDefinition $signature -Name ShellNotify -Namespace WinAPI -PassThru
+$type::SHChangeNotify(0x08000000, 0, [IntPtr]::Zero, [IntPtr]::Zero)   # SHCNE_ASSOCCHANGED
+
+Write-Host ""
+Write-Host "Done. .bas files now open with the miniBASIC editor."
+Write-Host "Right-click a .bas file → you should see '$MenuText' next to 'Muokkaa muistiossa'."
+Write-Host ""
+Write-Host "If the menu does not appear immediately, log off/on or restart Explorer."
