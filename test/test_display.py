@@ -360,15 +360,56 @@ class DisplayTests(unittest.TestCase):
             self.assertEqual(display.scale, 0.75)
             display.nudge_runtime_scale(-1)
             self.assertEqual(display.scale, 0.5)
-            display.nudge_runtime_scale(-1)
-            self.assertEqual(display.scale, 0.25)
 
-            # Floors at the bottom of the ladder.
+            # Floors above the ladder's own 0.25 here: at MODE 9's 640px
+            # base width, 0.25x (160px) would be narrower than a draggable
+            # title bar (_MIN_DRAGGABLE_WINDOW_WIDTH), so it stops at the
+            # smallest width that's still at least that wide.
             display.nudge_runtime_scale(-1)
-            self.assertEqual(display.scale, 0.25)
+            self.assertEqual(display.scale, display._min_draggable_scale())
+            self.assertGreaterEqual(
+                display._screen.get_size()[0], display._MIN_DRAGGABLE_WINDOW_WIDTH,
+            )
+
+            # Stays there — doesn't get stuck toggling or error.
+            display.nudge_runtime_scale(-1)
+            self.assertEqual(display.scale, display._min_draggable_scale())
 
             display.nudge_runtime_scale(1)
             self.assertEqual(display.scale, 0.5)
+            display.end_run()
+
+    def test_runtime_scale_never_shrinks_below_a_draggable_title_bar(self):
+        """Regression test for the bug Tony hit: at the smallest scale the
+        window became too small to drag by its title bar (screenshot showed
+        it barely wider than its own min/max/close buttons, stuck floating
+        over other windows). set_runtime_scale must never produce a window
+        narrower than _MIN_DRAGGABLE_WINDOW_WIDTH, however small the scale
+        requested or however narrow the mode's logical canvas is.
+        """
+        try:
+            import pygame  # noqa: F401
+        except ImportError:
+            self.skipTest('pygame not installed')
+        from unittest import mock
+
+        from mini_basic.display import PygameDisplay
+
+        os.environ.setdefault('SDL_VIDEODRIVER', 'dummy')
+        with mock.patch('mini_basic.display.desktop_size', return_value=(1920, 1080)):
+            display = PygameDisplay(
+                graphics_width=640,
+                graphics_height=512,
+                scale=1,
+                scale_locked=False,
+            )
+            display.begin_run()
+            display.set_mode(9)
+
+            display.set_runtime_scale(0.01)
+            self.assertGreaterEqual(
+                display._screen.get_size()[0], display._MIN_DRAGGABLE_WINDOW_WIDTH,
+            )
             display.end_run()
 
     def test_ctrl_numpad_plus_minus_map_to_scale_nudge(self):
