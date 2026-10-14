@@ -396,5 +396,173 @@ class WhileGuardAccelTests(unittest.TestCase):
         ])
 
 
+class ArrayStoreAccelTests(unittest.TestCase):
+    """Array-element LHS writes (``FLAGS(K)=0``) in the compiled fast paths."""
+
+    def _same_as_interpreter(self, lines, dialect='bbc'):
+        fast, fast_interp = _run(lines, dialect=dialect, opt=2)
+        slow, _ = _run(lines, dialect=dialect, opt=0)
+        self.assertNotIn('?', fast)
+        self.assertEqual(fast, slow)
+        return fast, fast_interp
+
+    @staticmethod
+    def _run_numbered(pairs, dialect='bbc', opt=2):
+        """Like ``_run`` but with explicit (line_num, text) pairs, so GOTO
+        targets can be written literally instead of relying on ``_run``'s
+        implicit ``i*10`` numbering."""
+        interp = BASICInterpreter(
+            InterpreterConfig(
+                dialect=dialect,
+                display='none',
+                display_locked=True,
+                optimization_level=opt,
+            )
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            for line_num, text in pairs:
+                interp.set_program_line(line_num, text)
+            interp.run()
+        return buf.getvalue(), interp
+
+    def test_fast_path_simple_array_store(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.execute_immediate('DIM A%(10)')
+        interp.int_variables['I'] = 3
+        self.assertTrue(interp._try_fast_numeric_assignment('A%(I%) = 7'))
+        self.assertEqual(int(interp._array_get('A', 'int', [3])), 7)
+
+    def test_fast_path_array_store_with_expr_index_and_rhs(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.execute_immediate('DIM A(20)')
+        interp.variables['J'] = 4.0
+        self.assertTrue(interp._try_fast_numeric_assignment('A(J*2) = J*J'))
+        self.assertEqual(float(interp._array_get('A', 'float', [8])), 16.0)
+
+    def test_sieve_inner_loop_while_with_array_write_matches_interpreter(self):
+        """A WHILE loop toggling array elements (Sieve shape) stays correct."""
+        pairs = [
+            (10, 'SIZE%=200'),
+            (20, 'DIM FLAGS%(SIZE%)'),
+            (30, 'FOR K%=1 TO SIZE%: FLAGS%(K%)=1: NEXT K%'),
+            (40, 'COUNT%=0'),
+            (50, 'FOR J%=2 TO SIZE%'),
+            (60, 'IF FLAGS%(J%)=0 THEN GOTO 110'),
+            (70, 'M%=J%+J%'),
+            (80, 'WHILE M%<=SIZE%'),
+            (90, 'FLAGS%(M%)=0'),
+            (95, 'M%=M%+J%'),
+            (100, 'ENDWHILE'),
+            (105, 'COUNT%=COUNT%+1'),
+            (110, 'NEXT J%'),
+            (120, 'PRINT COUNT%'),
+        ]
+        fast, fast_interp = self._run_numbered(pairs, opt=2)
+        slow, _ = self._run_numbered(pairs, opt=0)
+        self.assertNotIn('?', fast)
+        self.assertEqual(fast, slow)
+        self.assertEqual(fast_interp.int_variables['COUNT'], 46)  # primes 2..200
+
+    def test_whole_array_assign_not_broken(self):
+        """``A() = B()`` (no indices) must keep using the slow path."""
+        out, interp = self._same_as_interpreter([
+            'DIM A(3): DIM B(3)',
+            'B(0)=1: B(1)=2: B(2)=3: B(3)=4',
+            'A() = B()',
+            'PRINT A(0);A(1);A(2);A(3)',
+        ])
+
+    def test_out_of_range_index_raises_same_error(self):
+        """An out-of-range array write must error the same way, accelerated
+        or not — not silently succeed or diverge in behaviour."""
+        lines = [
+            'DIM A%(5)',
+            'I%=9',
+            'A%(I%) = 1',
+            'PRINT "unreachable"',
+        ]
+        buf2, buf0 = io.StringIO(), io.StringIO()
+        with redirect_stdout(buf2):
+            _run(lines, opt=2)
+        with redirect_stdout(buf0):
+            _run(lines, opt=0)
+        self.assertNotIn('unreachable', buf2.getvalue())
+        self.assertNotIn('unreachable', buf0.getvalue())
+
+    def test_multi_dim_array_store_fast_path(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.execute_immediate('DIM G(3,3)')
+        interp.variables['X'] = 1.0
+        interp.variables['Y'] = 2.0
+        self.assertTrue(interp._try_fast_numeric_assignment('G(X,Y) = 42'))
+        self.assertEqual(float(interp._array_get('G', 'float', [1, 2])), 42.0)
+
+    def test_string_array_store_stays_unaccelerated(self):
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.execute_immediate('DIM N$(3)')
+        # String-array LHS must be rejected by the compiled fast path (returns
+        # False) and still work correctly via the normal slow-path assign.
+        self.assertFalse(interp._try_fast_numeric_assignment('N$(1) = "hi"'))
+        interp.execute_immediate('N$(1) = "hi"')
+        self.assertEqual(interp._array_get('N', 'str', [1]), 'hi')
+
+    def test_while_accel_full_loop_engages_for_array_body(self):
+        """The whole-loop WHILE accelerator (not just per-statement) must take
+        over when the body is pure LET + array-element writes."""
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='bbc', display='none', display_locked=True)
+        )
+        interp.set_program_line(10, 'DIM A%(100)')
+        interp.set_program_line(20, 'K%=1')
+        interp.set_program_line(30, 'WHILE K%<=100')
+        interp.set_program_line(40, 'A%(K%)=K%*2')
+        interp.set_program_line(50, 'K%=K%+1')
+        interp.set_program_line(60, 'WEND')
+        interp.set_program_line(70, 'END')
+        interp._prepare_run()
+        interp.execute_immediate('DIM A%(100)')
+        parts = interp._stmt_parts_for_line(30)
+        _, text = parts[0]
+        _cmd, rest = interp._parse_command(text)
+        result = interp._try_accelerate_while_assign_body(
+            30, rest, interp._run_line_nums, 0, parts,
+        )
+        self.assertIsNotNone(result)
+        self.assertEqual(int(interp._array_get('A', 'int', [50])), 100)
+
+    def test_primes_bas_sieve_matches_interpreter(self):
+        """basics/primes.bas shape (FOR+GOTO, array toggling) stays correct."""
+        pairs = [
+            (10, 'SIZE = 512'),
+            (20, 'DIM FLAGS(512)'),
+            (40, 'FOR I = 1 TO 2'),
+            (50, 'COUNT = 0'),
+            (60, 'FOR J = 1 TO SIZE: FLAGS(J) = 1: NEXT J'),
+            (70, 'FOR J = 1 TO SIZE'),
+            (80, 'IF FLAGS(J) = 0 THEN GOTO 140'),
+            (90, 'PRIME = J + J + 3'),
+            (100, 'K = J + PRIME'),
+            (110, 'IF K > SIZE THEN GOTO 130'),
+            (120, 'FLAGS(K) = 0: K = K + PRIME: GOTO 110'),
+            (130, 'COUNT = COUNT + 1'),
+            (140, 'NEXT J'),
+            (150, 'NEXT I'),
+            (160, 'PRINT COUNT'),
+        ]
+        fast, fast_interp = self._run_numbered(pairs, opt=2)
+        slow, _ = self._run_numbered(pairs, opt=0)
+        self.assertEqual(fast, slow)
+        self.assertEqual(int(fast_interp.variables['COUNT']), 171)
+
+
 if __name__ == '__main__':
     unittest.main()
