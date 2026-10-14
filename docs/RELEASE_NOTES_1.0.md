@@ -11,23 +11,8 @@ limitations) see [RELEASE_1.00.md](RELEASE_1.00.md) and
 [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md). This page is the
 short, end-user version.
 
-## Install
-
-Interpreter only, text programs:
-
-```text
-pip install "mini-basic[repl] @ git+https://github.com/pyTony/mini_basic.git"
-mini-basic --version
-```
-
-With graphics (`MODE`, pygame windows, the showcase demos):
-
-```text
-pip install "mini-basic[display] @ git+https://github.com/pyTony/mini_basic.git"
-```
-
-Full list of install options: `docs/site/install.html` in the handbook, or
-`PACKAGING.md`.
+Install instructions live in `README.md` (repo root) and the handbook's
+`docs/site/install.html` — not repeated here.
 
 ## Highlights
 
