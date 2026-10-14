@@ -8,7 +8,7 @@ available for people without pygame.
 **CLI:** `python -m mini_basic` (guarantees which installed copy runs)  
 (After a pip install: `mini-basic` / `minibasic`.)
 
-Version: `mini_basic/version.py` (pre-release `1.0.0.dev0` until tagged).
+Version: `mini_basic/version.py` — **`1.0.0`**.
 
 **Docs (HTML):** open [`index.html`](index.html) at the clone root (pages are under [`docs/site/`](docs/site/index.html)) — [install](docs/site/install.html) · [public tree](docs/site/tree.html) · [language](docs/site/LANGUAGE_FEATURES_1.00.html)
 
