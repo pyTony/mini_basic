@@ -11,13 +11,13 @@ merge to main.
 
 ## Recently merged PRs
 
-- [#98](https://github.com/pyTony/mini_basic/pull/98) Rename showcase/breakout.bbc to breakout.bas (2026-10-13)
-- [#97](https://github.com/pyTony/mini_basic/pull/97) docs: add AGENT_POLICY.txt for LLM agents (2026-10-13)
-- [#96](https://github.com/pyTony/mini_basic/pull/96) docs: correct stale "graphics is optional extra" claim in LLM.md (2026-10-13)
-- [#95](https://github.com/pyTony/mini_basic/pull/95) Fix *DISPLAY/*PLAY/*MUSIC asset paths doubling (resolve relative to program, not cwd) (2026-10-12)
-- [#94](https://github.com/pyTony/mini_basic/pull/94) fix: STOP, RETURN, ENDPROC, WEND, CLS, CLG, OFF silently dropped trailing text (2026-10-12)
-- [#93](https://github.com/pyTony/mini_basic/pull/93) fix: RUN with trailing text silently ran/restarted the program (2026-10-12)
-- [#92](https://github.com/pyTony/mini_basic/pull/92) Backport: fix cursor-move escape sequences swallowing all later PRINT output (2026-10-12)
-- [#91](https://github.com/pyTony/mini_basic/pull/91) Fix cursor-move escape sequences swallowing all later PRINT output (2026-10-12)
-- [#90](https://github.com/pyTony/mini_basic/pull/90) Backport/code fixes main (2026-10-10)
-- [#89](https://github.com/pyTony/mini_basic/pull/89) fix: Russell-format SYS token was loaded as a tab (main backport) (2026-10-10)
+- [#114](https://github.com/pyTony/mini_basic/pull/114) Bump version to 1.0.0 for the v1.0 release (2026-10-14)
+- [#113](https://github.com/pyTony/mini_basic/pull/113) Allow runtime scale shortcut to go below native (1x) size (2026-10-14)
+- [#112](https://github.com/pyTony/mini_basic/pull/112) docs: v1.0 release pass — fix broken install paths, add release notes (2026-10-14)
+- [#111](https://github.com/pyTony/mini_basic/pull/111) Display-scale test fixes + EDIT-close fix + Ctrl+digit scale shortcut (2026-10-14)
+- [#110](https://github.com/pyTony/mini_basic/pull/110) Fix 3 local-run test failures (display scale, EDIT hint, mandelbrot_small) (2026-10-14)
+- [#109](https://github.com/pyTony/mini_basic/pull/109) perf: accelerate array-element writes in WHILE/FOR fast paths (2026-10-14)
+- [#108](https://github.com/pyTony/mini_basic/pull/108) editor: add Pretty (no numbers) and Renumber buttons (2026-10-14)
+- [#107](https://github.com/pyTony/mini_basic/pull/107) fix: INPUT with empty prompt forces newline; Windows REPL editor erases output (2026-10-13)
+- [#106](https://github.com/pyTony/mini_basic/pull/106) fix: TIMING ON prints no "Time:" when GOTO/GOSUB runs from the REPL (2026-10-13)
+- [#105](https://github.com/pyTony/mini_basic/pull/105) fix: GOTO from immediate mode only ran the target line, not the whole program (2026-10-13)
