@@ -44,8 +44,14 @@ python -m pip install "mini-basic[all] @ git+https://github.com/pyTony/mini_basi
 
     <article>
       <h2>2. Full public tree (clone + pip)</h2>
-      <p>Use this when you want examples, tests, and these HTML pages.</p>
+      <p><code>main</code> (the default branch) is the lean release tree: <span class="path">basics/</span> and <span class="path">showcase/</span>, no <span class="path">examples/</span> or <span class="path">test/</span>.</p>
       <pre><code>git clone https://github.com/pyTony/mini_basic.git
+cd mini_basic
+python -m pip install -e ".[repl]"
+python -m mini_basic basics/ELIZA.BAS
+python -m mini_basic --dialect bbc basics/BETH.BAS</code></pre>
+      <p>Use the <span class="path">dev</span> branch instead for <span class="path">examples/</span> (~30 more demos), the test suite, and dev tooling:</p>
+      <pre><code>git clone -b dev https://github.com/pyTony/mini_basic.git
 cd mini_basic
 python -m pip install -e ".[repl]"
 python -m mini_basic examples/mini/hello_args.bas hello
