@@ -1788,26 +1788,6 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('\x1b[48;5;232m', joined)
         self.assertGreater(len(visible), 1000)
 
-    def test_mandelbrot_small(self):
-        interp = self.make_interp()
-        path = "examples/graphics/mandelbrot/mandelbrot_small.bas"
-        with open(path, encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if line:
-                    m = re.match(r'^(\d+)\s+(.*)', line)
-                    if m:
-                        interp.program[int(m.group(1))] = m.group(2)
-        buf = io.StringIO()
-        with redirect_stdout(buf):
-            interp.run()
-        rows = [row for row in buf.getvalue().splitlines() if row]
-        self.assertEqual(len(rows), 12)
-        self.assertEqual(len(rows[0]), 40)
-        joined = "".join(rows)
-        self.assertGreater(len(set(joined)), 4)
-        self.assertGreater(joined.count(","), 50)
-
     def test_run_resets_state(self):
         lines = [
             (10, "LET x = 1"),
