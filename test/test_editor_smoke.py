@@ -53,6 +53,40 @@ def test_editor_loads_and_highlights_without_mainloop(tmp_path) -> None:
         root.destroy()
 
 
+def test_pretty_no_numbers_strips_line_numbers_and_indents() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.text.delete('1.0', tk.END)
+        win.text.insert('1.0', '10 FOR I=1 TO 3\n20 PRINT I\n30 NEXT I\n40 END\n')
+
+        win.pretty_no_numbers()
+        content = win.text.get('1.0', 'end-1c')
+
+        assert '10' not in content
+        assert 'FOR I = 1 TO 3' in content
+        assert '    PRINT I' in content
+    finally:
+        root.destroy()
+
+
+def test_renumber_fixes_up_goto_targets() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.text.delete('1.0', tk.END)
+        win.text.insert('1.0', '10 PRINT 1\n50 GOTO 999\n999 PRINT 2\n')
+
+        win.renumber()
+        content = win.text.get('1.0', 'end-1c')
+
+        assert '    10 PRINT 1' in content
+        assert '    20 GOTO 30' in content
+        assert '    30 PRINT 2' in content
+    finally:
+        root.destroy()
+
+
 def test_build_run_command_defaults_and_overrides(tmp_path) -> None:
     root = _make_root()
     try:
