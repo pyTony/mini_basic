@@ -899,14 +899,17 @@ class PygameDisplay(DisplayBackend):
         ph = max(1, self.scale * par_h)
         return pw, ph
 
-    def _window_client_size_at_scale(self, scale: int) -> Tuple[int, int]:
+    def _window_client_size_at_scale(self, scale: float) -> Tuple[int, int]:
         logical_w, logical_h = self._logical_canvas_size()
         par_w = max(1, self._par_w)
         par_h = max(1, self._par_h)
         # MODE 5 was tiny: old formula only scaled height by par_h/par_w (//2 → 0).
-        pw = max(1, scale * par_w)
-        ph = max(1, scale * par_h)
-        return logical_w * pw, logical_h * ph
+        # The floor here used to be 1 (scale was always an int >= 1); it's a
+        # tiny epsilon instead so set_runtime_scale's sub-1x nudge can shrink
+        # the window below native size (see nudge_runtime_scale).
+        pw = max(1e-6, scale * par_w)
+        ph = max(1e-6, scale * par_h)
+        return int(round(logical_w * pw)), int(round(logical_h * ph))
 
     def _window_client_size(self) -> Tuple[int, int]:
         return self._window_client_size_at_scale(self.scale)
@@ -1032,8 +1035,24 @@ class PygameDisplay(DisplayBackend):
             return -1
         return None
 
+    # Below native size (1x), step by quarters rather than whole pixels —
+    # Tony asked for Ctrl+Minus to keep shrinking past 1x (e.g. to fit a
+    # logical resolution bigger than the monitor) instead of floor-ing
+    # there, and a whole-pixel step makes no sense below native size.
+    _SCALE_LADDER = (0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8)
+
+    def _scale_nudge_for_key(self, key: int) -> Optional[int]:
+        """Ctrl+Numpad+ / Ctrl+Numpad- : step the pixel scale up/down."""
+        pygame = self._pygame
+        if key == getattr(pygame, 'K_KP_PLUS', None):
+            return 1
+        if key == getattr(pygame, 'K_KP_MINUS', None):
+            return -1
+        return None
+
     def nudge_runtime_scale(self, delta: int) -> None:
-        """Ctrl+Numpad+/-: step to ``self.scale + delta``.
+        """Ctrl+Numpad+/-: step to the next/previous value on
+        :attr:`_SCALE_LADDER`.
 
         This is an explicit choice, so unlike the startup auto-pick it does
         not reserve room for the taskbar/title bar (Tony: "that 2x with
@@ -1043,11 +1062,20 @@ class PygameDisplay(DisplayBackend):
         """
         if self._screen is None:
             return
-        self.set_runtime_scale(self.scale + int(delta))
+        ladder = self._SCALE_LADDER
+        current = self.scale
+        if delta > 0:
+            candidates = [v for v in ladder if v > current + 1e-9]
+            new_val = candidates[0] if candidates else ladder[-1]
+        else:
+            candidates = [v for v in ladder if v < current - 1e-9]
+            new_val = candidates[-1] if candidates else ladder[0]
+        self.set_runtime_scale(new_val)
 
-    def set_runtime_scale(self, requested: int) -> None:
+    def set_runtime_scale(self, requested: float) -> None:
         """Jump straight to this pixel scale, clamped to the raw monitor
-        size (see :meth:`nudge_runtime_scale`).
+        size on the way up and to the smallest ladder step on the way down
+        (see :meth:`nudge_runtime_scale`).
         """
         if self._screen is None:
             return
@@ -1058,8 +1086,8 @@ class PygameDisplay(DisplayBackend):
             screen_w, screen_h = 1920, 1080
         base_w, base_h = self._window_client_size_at_scale(1)
         raw_max = max(1, min(screen_w // max(1, base_w), screen_h // max(1, base_h)))
-        new_scale = max(1, min(int(requested), raw_max))
-        if new_scale == self.scale:
+        new_scale = max(self._SCALE_LADDER[0], min(float(requested), raw_max))
+        if abs(new_scale - self.scale) < 1e-9:
             return
         self._requested_scale = new_scale
         self.scale_locked = True
@@ -1081,8 +1109,10 @@ class PygameDisplay(DisplayBackend):
         if self.scale_locked:
             # CLI --scale N: honour N exactly. Clamping to max_fit made --scale 3
             # and --scale 4 identical on typical desktops (MODE 8 640×512 only
-            # fits 2× on 1080p/1440p height).
-            self.scale = max(1, self._requested_scale)
+            # fits 2× on 1080p/1440p height). No extra floor here: the
+            # constructor already floors CLI scale at 1, and set_runtime_scale
+            # applies its own floor for the sub-1x shortcut.
+            self.scale = self._requested_scale
             win_w, win_h = self._window_client_size_at_scale(self.scale)
             self._screen = self._set_display_mode((win_w, win_h))
             self._fit_window_to_os_size(win_w, win_h)
