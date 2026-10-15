@@ -57,7 +57,7 @@ def test_colour_rgb_then_refresh_no_index_error():
 
 def test_soccerball_present_not_blanked_by_colour_bg_text_grid():
     """COLOR 130 + CLS must not overpaint PLOT/CIRCLE with text-cell fills."""
-    path = os.path.join(_ROOT, 'examples', 'graphics', 'soccerball.bas')
+    path = os.path.join(_ROOT, 'showcase', 'soccerball.bas')
     if not os.path.isfile(path):
         pytest.skip('soccerball.bas missing')
     interp = BASICInterpreter(
@@ -148,7 +148,7 @@ def test_mode_clears_leftover_custom_palette():
 
 
 def test_wheel_bbc_one_frame_refresh():
-    path = os.path.join(_ROOT, 'examples', 'graphics', 'wheel.bbc')
+    path = os.path.join(_ROOT, 'showcase', 'wheel.bbc')
     if not os.path.isfile(path):
         pytest.skip('wheel.bbc missing')
     interp = BASICInterpreter(

@@ -20,7 +20,7 @@ from mini_basic.bbc_detokenize import (
 from mini_basic import InterpreterConfig
 from mini_basic.runtime import BASICInterpreter
 
-_WHEEL_BBC = os.path.join(_ROOT, 'examples', 'graphics', 'wheel.bbc')
+_WHEEL_BBC = os.path.join(_ROOT, 'showcase', 'wheel.bbc')
 
 pytestmark = [pytest.mark.phase1, pytest.mark.non_gfx]
 

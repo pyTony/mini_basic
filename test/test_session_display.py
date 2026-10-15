@@ -168,7 +168,7 @@ class AutoEnableGuiGateTests(unittest.TestCase):
         )
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         bbc = os.path.join(root, 'examples', 'graphics', 'soccerball.bbc')
-        bas = os.path.join(root, 'examples', 'graphics', 'soccerball.bas')
+        bas = os.path.join(root, 'showcase', 'soccerball.bas')
         if not (os.path.isfile(bbc) and os.path.isfile(bas)):
             self.skipTest('soccerball examples missing')
         with redirect_stdout(StringIO()):
