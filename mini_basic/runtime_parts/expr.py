@@ -3628,27 +3628,16 @@ class RuntimeExprMixin:
             return expr
         # Innermost (...) that contains a comparison and no nested parens.
         pattern = self._RE_PAREN_CMP
-        guard = 0
-        while guard < 32:
-            guard += 1
-            match = None
-            for m in pattern.finditer(expr):
-                op = m.group(2)
-                # Skip == (already Python) and leave lone = as BBC equality.
-                if op == '=' and m.end(2) < len(expr) and expr[m.start(2) + 1] == '=':
-                    continue
-                left = m.group(1).strip()
-                right = m.group(3).strip()
-                if not left or not right:
-                    continue
-                # Avoid false hits like function defaults; require comparison intent.
-                match = m
-                break
-            if match is None:
-                break
-            left_s = match.group(1).strip()
-            op = match.group(2)
-            right_s = match.group(3).strip()
+
+        def replacer(m: re.Match) -> str:
+            op = m.group(2)
+            # Skip == (already Python) and leave lone = as BBC equality.
+            if op == '=' and m.end(2) < len(m.string) and m.string[m.start(2) + 1] == '=':
+                return m.group(0)
+            left_s = m.group(1).strip()
+            right_s = m.group(3).strip()
+            if not left_s or not right_s:
+                return m.group(0)
             try:
                 # Recurse via numeric eval so ASC("B") etc. expand first.
                 left_v = self._eval_numeric(left_s)
@@ -3667,9 +3656,16 @@ class RuntimeExprMixin:
                         self._compare_bbc_values(op, float(left_v), float(right_v))
                     )
             except Exception:
+                return m.group(0)
+            return str(int(result)) if float(result) == int(result) else str(result)
+
+        guard = 0
+        while guard < 32:
+            guard += 1
+            new_expr = pattern.sub(replacer, expr)
+            if new_expr == expr:
                 break
-            repl = str(int(result)) if float(result) == int(result) else str(result)
-            expr = expr[: match.start()] + repl + expr[match.end() :]
+            expr = new_expr
         return expr
 
     def _eval_numeric_slow(self, expr: str) -> object:
