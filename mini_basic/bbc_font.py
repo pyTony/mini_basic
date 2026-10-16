@@ -142,9 +142,6 @@ def glyph_rows(char: str) -> Tuple[int, ...]:
     code = ord(char) & 0xFF
     rows = tuple(ACORN_8X8[code * 8 : code * 8 + 8])
 
-##    if char in "1234567890#":
-##        print(char, rows, flush=True)
-##
     return rows
 
 _glyph_cache: Dict[Tuple[Tuple[int, ...], RGB, int, int], object] = {}
@@ -186,10 +183,5 @@ def blit_char(
         return
     scale_y = max(1, cell_h // 8)
     scale_x = max(1, cell_w // 8)
-##    if char in ("1", "2", "3", "#"):
-##        print(
-##            f"BLIT {char} at ({x},{y}) cell={cell_w}x{cell_h}",
-##            flush=True,
-##        )
     surf = get_glyph_surface(rows, rgb, scale_x, scale_y)
     canvas.blit(surf, (x, y))

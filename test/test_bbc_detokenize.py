@@ -11,11 +11,14 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
+from unittest.mock import patch
+
 from mini_basic.bbc_detokenize import (
     bbc_binary_to_source,
     detect_bbc_binary_format,
     detokenize_line_body,
     parse_russell_program,
+    parse_wilson_program,
 )
 from mini_basic import InterpreterConfig
 from mini_basic.runtime import BASICInterpreter
@@ -205,6 +208,214 @@ class TokenizedIntegerTruncationTests(unittest.TestCase):
             with redirect_stdout(out), redirect_stderr(err):
                 interp.run()
         self.assertEqual(out.getvalue().split(), ['3'], msg=err.getvalue())
+
+
+class TestBBCBinaryToSource(unittest.TestCase):
+    """PR #129: bbc_binary_to_source's format-dispatch/sanity-check orchestration."""
+
+    def test_unrecognised_format(self):
+        # Data shorter than 4 bytes
+        with self.assertRaisesRegex(ValueError, 'unrecognised BBC BASIC binary format'):
+            bbc_binary_to_source(b'\x00\x01\x02')
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_wilson_format_success(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        mock_parse.return_value = [
+            (10, 'PRINT "HELLO"'),
+            (20, 'GOTO 10')
+        ]
+        result = bbc_binary_to_source(b'dummy')
+        self.assertEqual(result, ['10 PRINT "HELLO"', '20 GOTO 10'])
+
+    @patch('mini_basic.bbc_detokenize.parse_russell_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_russell_format_success(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'russell'
+        mock_parse.return_value = [
+            (100, 'REM Russell format'),
+            (110, 'GOSUB 200')
+        ]
+        result = bbc_binary_to_source(b'dummy')
+        self.assertEqual(result, ['100 REM Russell format', '110 GOSUB 200'])
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_duplicate_line_numbers(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        mock_parse.return_value = [
+            (10, 'PRINT "A"'),
+            (10, 'PRINT "B"'),  # Duplicate line number
+            (20, 'END')
+        ]
+        result = bbc_binary_to_source(b'dummy')
+        # Function should tolerate and append normally
+        self.assertEqual(result, ['10 PRINT "A"', '10 PRINT "B"', '20 END'])
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_unnumbered_lines(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        mock_parse.return_value = [
+            (0, 'INSTALL "LIB"'),
+            (10, 'PRINT "START"')
+        ]
+        result = bbc_binary_to_source(b'dummy')
+        self.assertEqual(result, ['INSTALL "LIB"', '10 PRINT "START"'])
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_empty_line_skipped(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        mock_parse.return_value = [
+            (0, ''), # both text and num are falsy
+            (10, 'PRINT "HELLO"'),
+        ]
+        result = bbc_binary_to_source(b'dummy')
+        self.assertEqual(result, ['10 PRINT "HELLO"'])
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_sanity_check_valid_refs(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        # Test valid line numbers (1 - 65535)
+        mock_parse.return_value = [
+            (10, 'GOTO 1'),
+            (20, 'GOSUB 65535'),
+            (30, 'RESTORE 100'),
+            (40, 'IF A=1 THEN 200'),
+            (50, 'THEN 300')
+        ]
+        result = bbc_binary_to_source(b'dummy')
+        self.assertEqual(len(result), 5)
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_sanity_check_invalid_refs_zero(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        mock_parse.return_value = [
+            (10, 'GOTO 0')
+        ]
+        with self.assertRaisesRegex(ValueError, "invalid GOTO/GOSUB target 0 in '10 GOTO 0'"):
+            bbc_binary_to_source(b'dummy')
+
+    @patch('mini_basic.bbc_detokenize.parse_wilson_program')
+    @patch('mini_basic.bbc_detokenize.detect_bbc_binary_format')
+    def test_sanity_check_invalid_refs_too_large(self, mock_detect, mock_parse):
+        mock_detect.return_value = 'wilson'
+        mock_parse.return_value = [
+            (20, 'GOSUB 65536')
+        ]
+        with self.assertRaisesRegex(ValueError, "invalid GOTO/GOSUB target 65536 in '20 GOSUB 65536'"):
+            bbc_binary_to_source(b'dummy')
+
+
+class TestDetokenizeLineBody(unittest.TestCase):
+    """PR #132: detokenize_line_body's byte-to-source conversion rules."""
+
+    def test_ascii_string(self):
+        body = b'PRINT "HELLO"'
+        self.assertEqual(detokenize_line_body(body), 'PRINT "HELLO"')
+
+    def test_strings_with_tokens(self):
+        # 0xF1 is PRINT, but inside string it's just a byte.
+        body = b'\xf1 "HELLO\xf1WORLD"'
+        self.assertEqual(detokenize_line_body(body), 'PRINT "HELLO\xf1WORLD"')
+
+    def test_simple_keywords(self):
+        # 0xF1 is PRINT, 0xE3 is FOR, 0x88 is STEP, 0xB8 is TO, 0xED is NEXT
+        body = b'\xe3I=1 \xb810 \x882:\xf1I:\xed'
+        self.assertEqual(detokenize_line_body(body), 'FOR I=1 TO 10 STEP 2:PRINT I:NEXT')
+
+    def test_oscli_star_commands(self):
+        # 0x2A is *
+        # Spaces after the * token are removed when it's at the start of a statement.
+        body = b'*\x20\x20PLAY"X"'
+        self.assertEqual(detokenize_line_body(body), '*PLAY"X"')
+
+    def test_line_number_ref(self):
+        # 0x8D is line ref, followed by 3 bytes
+        body = b'\xe5 \x8d\x40\x0a\x00' # GOTO 74
+        self.assertEqual(detokenize_line_body(body), 'GOTO 74')
+
+        body2 = b'\x8d\x40\x14\x00' # Line ref for 84
+        self.assertEqual(detokenize_line_body(body2), '84')
+
+    def test_rem_statements(self):
+        # 0xF4 is REM.
+        # After REM, everything should be parsed as raw chars.
+        body = b'\xf4\xf1\x00HELLO'
+        self.assertEqual(detokenize_line_body(body), 'REM \xf1\x00HELLO')
+
+    def test_spaces_after_keywords(self):
+        body = b'\xf1A'
+        self.assertEqual(detokenize_line_body(body), 'PRINT A')
+        body = b'\xf1(A)'
+        self.assertEqual(detokenize_line_body(body), 'PRINT(A)')
+
+    def test_loop_until_false(self):
+        body = b'\xfd.'
+        self.assertEqual(detokenize_line_body(body), 'UNTIL FALSE')
+
+    def test_compound_assignments(self):
+        body = b'A -= 1'
+        self.assertEqual(detokenize_line_body(body), 'A -= 1')
+        body = b'B += 2'
+        self.assertEqual(detokenize_line_body(body), 'B += 2')
+
+
+class TestParseWilsonProgram(unittest.TestCase):
+    """PR #133: parse_wilson_program's header/line/trailer edge cases."""
+
+    def test_parse_wilson_program_empty(self):
+        with self.assertRaisesRegex(ValueError, 'not Wilson-format BBC BASIC'):
+            parse_wilson_program(b'')
+
+    def test_parse_wilson_program_wrong_header(self):
+        with self.assertRaisesRegex(ValueError, 'not Wilson-format BBC BASIC'):
+            parse_wilson_program(b'\x0e\x00\x0a\x04')
+
+    def test_parse_wilson_program_short_data(self):
+        # 0x0D followed by less than 3 bytes
+        self.assertEqual(parse_wilson_program(b'\x0d\x00\x00'), [])
+
+    def test_parse_wilson_program_valid_empty_program(self):
+        # Header is 0x0D, then two bytes for line num, one byte for line len (0)
+        data = b'\x0d\x00\x00\x00'
+        self.assertEqual(parse_wilson_program(data), [])
+
+    def test_parse_wilson_program_single_line(self):
+        # A valid single line:
+        # 0x0D (header), 0x00 0x0A (line 10), 0x02 (line_len = body_len = 2 bytes)
+        # body: 0xF1 (PRINT), 0x0D (terminator).
+        data = b'\x0d\x00\x0a\x02\xf1\x0d'
+        lines = parse_wilson_program(data)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0], (10, 'PRINT'))
+
+    def test_parse_wilson_program_multi_line(self):
+        # Multi line program. The line_len for line 1 includes the trailer
+        # (4 bytes: 0x0D, next_line_num_hi, next_line_num_lo, next_line_len).
+        data = b'\x0d\x00\x0a\x05\xf1\x0d\x00\x14\x02\xe3\x0d'
+        lines = parse_wilson_program(data)
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0], (10, 'PRINT'))
+        self.assertEqual(lines[1], (20, 'FOR'))
+
+    def test_parse_wilson_program_no_trailer(self):
+        # Token 0xF1 (PRINT), followed by 'A' (0x41)
+        # The parser will consume the whole body (2 bytes) as text if no 0x0D terminator
+        data = b'\x0d\x00\x0a\x02\xf1\x41'
+        lines = parse_wilson_program(data)
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(lines[0], (10, 'PRINT A'))
+
+    def test_parse_wilson_program_body_exceeds_data(self):
+        # The line length indicates more data than is actually present
+        data = b'\x0d\x00\x0a\x0a\xf1\x0d'
+        lines = parse_wilson_program(data)
+        self.assertEqual(lines, [])
 
 
 if __name__ == '__main__':
