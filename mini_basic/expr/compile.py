@@ -11,10 +11,11 @@ slots must be populated before evaluation.
 """
 from __future__ import annotations
 
-from types import CodeType
+import ast
 from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 from ..constants import SAFE_EVAL_GLOBALS
+from .safe_eval import evaluate_ast
 
 if TYPE_CHECKING:
     from mini_basic import BASICInterpreter
@@ -57,7 +58,7 @@ class CompiledExpr:
     def __init__(
         self,
         source: str,
-        code: Optional[CodeType] = None,
+        code: Optional[ast.AST] = None,
         float_vars: Optional[Tuple[str, ...]] = None,
         int_vars: Optional[Tuple[str, ...]] = None,
         system_vars: Optional[Tuple[str, ...]] = None,
@@ -145,7 +146,7 @@ class CompiledExpr:
                     namespace[key] = int(val)
                 elif isinstance(val, bool):
                     namespace[key] = -1 if val else 0
-        result = eval(self.code, SAFE_EVAL_GLOBALS, namespace)
+        result = evaluate_ast(self.code, SAFE_EVAL_GLOBALS, namespace)
         # Simple comparisons compile to Python bool; BBC TRUE is -1, not 1.
         if isinstance(result, bool):
             return -1.0 if result else 0.0
@@ -167,7 +168,7 @@ class CompiledExpr:
                     namespace[key] = int(val)
                 elif isinstance(val, bool):
                     namespace[key] = -1 if val else 0
-        result = eval(self.code, SAFE_EVAL_GLOBALS, namespace)
+        result = evaluate_ast(self.code, SAFE_EVAL_GLOBALS, namespace)
         return result != 0
 
 
