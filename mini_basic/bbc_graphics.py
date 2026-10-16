@@ -909,13 +909,14 @@ class BBCGraphics:
             return
         x0, y0 = self.stack[-1]
         gcol, _ = self._plot_subcolour(code & 7)
-        left = min(x0, x1)
-        right = max(x0, x1)
-        top = max(y0, y1)
-        bottom = min(y0, y1)
-        for y in range(bottom, top + 1):
-            for x in range(left, right + 1):
-                self._put_pixel(x, y, gcol)
+        sx0, sy0 = self._to_screen(x0, y0)
+        sx1, sy1 = self._to_screen(x1, y1)
+        left = min(sx0, sx1)
+        right = max(sx0, sx1)
+        top = min(sy0, sy1)
+        bottom = max(sy0, sy1)
+        for sy in range(top, bottom + 1):
+            self._fill_hspan_screen(left, right, sy, gcol)
 
     def _fill_disc_numpy(
         self, scx: int, scy: int, srx: int, sry: int, colour: int,
