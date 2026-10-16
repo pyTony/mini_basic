@@ -45,6 +45,7 @@ _BINOPS = {
     ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
     ast.Pow: operator.pow,
     ast.BitAnd: operator.and_, ast.BitOr: operator.or_, ast.BitXor: operator.xor,
+    ast.LShift: operator.lshift, ast.RShift: operator.rshift,
 }
 
 _UNOPS = {
