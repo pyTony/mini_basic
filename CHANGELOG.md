@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-16
+
+- [#120](https://github.com/pyTony/mini_basic/pull/120) ⚡ Performance Optimization: regex finditer inside replace loop — 💡 What: The optimization implemented is refactoring `_expand_parenthesized_bbc_comparisons` to use `re.sub(replacer, expr)` to perform single-pass string replacement instead of string slicing inside a `finditer` loop. The 32 guard outer loop was preserved to process nested parenthesis expressions. 🎯 Why: The…
+
 ## 2026-10-14
 
 - [#115](https://github.com/pyTony/mini_basic/pull/115) docs: backport v1.0 release pass + fix stale 1.0.0.dev0 references — Backported the `dev` doc fixes onto `main` (including adding `docs/RELEASE_NOTES_1.0.md`, linked from `docs/INDEX.md`, `index.html`, and both `docs/site` navs — the hand-maintained `docs/site/index.html` too, which the `dev`-side pass didn't touch). Also updated every doc that said `1.0.0.dev0 until tagged`…
