@@ -373,7 +373,7 @@ class TerminalDisplay(DisplayBackend):
     def _reset_text_grid(self) -> None:
         blank = self._blank_cell()
         self._text = [
-            [blank for _ in range(self.text_cols)] for _ in range(self.text_rows)
+            [blank] * self.text_cols for _ in range(self.text_rows)
         ]
         self._cursor_row = 0
         self._cursor_col = 0
@@ -457,7 +457,7 @@ class TerminalDisplay(DisplayBackend):
         self._cursor_col = 0
         if self._cursor_row >= self.text_rows:
             self._text.pop(0)
-            self._text.append([self._blank_cell() for _ in range(self.text_cols)])
+            self._text.append([self._blank_cell()] * self.text_cols)
             self._cursor_row = self.text_rows - 1
         self._dirty = True
 
@@ -998,7 +998,7 @@ class PygameDisplay(DisplayBackend):
     def _reset_text_grid(self) -> None:
         self._text_flash = False
         blank = self._blank_text_cell()
-        self._text = [[blank for _ in range(self.text_cols)] for _ in range(self.text_rows)]
+        self._text = [[blank] * self.text_cols for _ in range(self.text_rows)]
         if self.is_teletext_mode():
             self._reset_teletext_lines()
 
@@ -1595,7 +1595,7 @@ class PygameDisplay(DisplayBackend):
             blank: Tuple[object, ...] = (' ', 7, 0, -1, False, False)
         else:
             blank = (' ', self._fg_colour, False)
-        self._text.append([blank for _ in range(self.text_cols)])
+        self._text.append([blank] * self.text_cols)
         self._cursor_row = self.text_rows - 1
 
     def gcol(self, mode: int, colour: int) -> None:
