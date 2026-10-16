@@ -11,9 +11,9 @@ access they only read the eval namespace.)
 from __future__ import annotations
 
 import ast
+import operator
 import re
 from functools import lru_cache
-from types import CodeType
 from typing import Optional
 
 from ..constants import SAFE_EVAL_GLOBALS
@@ -37,6 +37,100 @@ def check_expression_tree(tree: ast.AST) -> None:
             raise ValueError('syntax error')
         if isinstance(node, ast.Subscript) and not isinstance(node.value, ast.Name):
             raise ValueError('syntax error')
+
+
+_BINOPS = {
+    ast.Add: operator.add, ast.Sub: operator.sub,
+    ast.Mult: operator.mul, ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv, ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+    ast.BitAnd: operator.and_, ast.BitOr: operator.or_, ast.BitXor: operator.xor,
+}
+
+_UNOPS = {
+    ast.UAdd: operator.pos, ast.USub: operator.neg,
+    ast.Not: operator.not_, ast.Invert: operator.invert,
+}
+
+_CMPS = {
+    ast.Eq: operator.eq, ast.NotEq: operator.ne,
+    ast.Lt: operator.lt, ast.LtE: operator.le,
+    ast.Gt: operator.gt, ast.GtE: operator.ge,
+}
+
+
+def evaluate_ast(node: ast.AST, globals_dict: dict, locals_dict: dict) -> object:
+    if isinstance(node, ast.Expression):
+        return evaluate_ast(node.body, globals_dict, locals_dict)
+    elif isinstance(node, ast.Constant):
+        return node.value
+    elif isinstance(node, ast.Name):
+        if node.id in locals_dict:
+            return locals_dict[node.id]
+        if node.id in globals_dict:
+            return globals_dict[node.id]
+        raise NameError(f"name '{node.id}' is not defined")
+    elif isinstance(node, ast.BinOp):
+        if type(node.op) not in _BINOPS:
+            raise ValueError(f"syntax error: unsupported binop {type(node.op).__name__}")
+        return _BINOPS[type(node.op)](
+            evaluate_ast(node.left, globals_dict, locals_dict),
+            evaluate_ast(node.right, globals_dict, locals_dict)
+        )
+    elif isinstance(node, ast.UnaryOp):
+        if type(node.op) not in _UNOPS:
+            raise ValueError(f"syntax error: unsupported unop {type(node.op).__name__}")
+        return _UNOPS[type(node.op)](
+            evaluate_ast(node.operand, globals_dict, locals_dict)
+        )
+    elif isinstance(node, ast.BoolOp):
+        if isinstance(node.op, ast.And):
+            for val in node.values:
+                res = evaluate_ast(val, globals_dict, locals_dict)
+                if not res: return res
+            return res
+        elif isinstance(node.op, ast.Or):
+            for val in node.values:
+                res = evaluate_ast(val, globals_dict, locals_dict)
+                if res: return res
+            return res
+    elif isinstance(node, ast.Compare):
+        left = evaluate_ast(node.left, globals_dict, locals_dict)
+        for op, comp in zip(node.ops, node.comparators):
+            if type(op) not in _CMPS:
+                raise ValueError(f"syntax error: unsupported cmpop {type(op).__name__}")
+            right = evaluate_ast(comp, globals_dict, locals_dict)
+            if not _CMPS[type(op)](left, right):
+                return False
+            left = right
+        return True
+    elif isinstance(node, ast.Call):
+        if not isinstance(node.func, ast.Name) or node.keywords:
+            raise ValueError('syntax error')
+        func = evaluate_ast(node.func, globals_dict, locals_dict)
+        args = [evaluate_ast(arg, globals_dict, locals_dict) for arg in node.args]
+        return func(*args)
+    elif isinstance(node, ast.Subscript):
+        if not isinstance(node.value, ast.Name):
+            raise ValueError('syntax error')
+        val = evaluate_ast(node.value, globals_dict, locals_dict)
+        if hasattr(ast, 'Index') and isinstance(node.slice, getattr(ast, 'Index')):
+            idx = evaluate_ast(node.slice.value, globals_dict, locals_dict)
+        else:
+            idx = evaluate_ast(node.slice, globals_dict, locals_dict)
+        return val[idx]
+    elif isinstance(node, ast.IfExp):
+        if evaluate_ast(node.test, globals_dict, locals_dict):
+            return evaluate_ast(node.body, globals_dict, locals_dict)
+        return evaluate_ast(node.orelse, globals_dict, locals_dict)
+    elif type(node).__name__ == 'Num':
+        return getattr(node, 'n')
+    elif type(node).__name__ == 'Str':
+        return getattr(node, 's')
+    elif type(node).__name__ == 'NameConstant':
+        return getattr(node, 'value')
+
+    raise ValueError(f"syntax error: {type(node).__name__}")
 
 
 class _BasicSemantics(ast.NodeTransformer):
@@ -104,24 +198,17 @@ _RE_MAYBE_UNSAFE = re.compile(
 
 
 @lru_cache(maxsize=4096)
-def compile_safe(source: str) -> CodeType:
-    """Parse, validate and compile *source*; SyntaxError / ValueError on failure."""
+def compile_safe(source: str) -> ast.Expression:
+    """Parse, validate and transform *source*; SyntaxError / ValueError on failure."""
     source = _strip_leading_zeros(source)
-    # Hot path: the slow evaluator embeds variable values, so most sources are
-    # new strings. Skip the AST walk when nothing can need checking or rewriting.
-    if (
-        '%' not in source and '//' not in source and '**' not in source
-        and not _RE_MAYBE_UNSAFE.search(source)
-    ):
-        return compile(source, '<string>', 'eval')
     tree = ast.parse(source, filename='<string>', mode='eval')
     check_expression_tree(tree)
     tree = ast.fix_missing_locations(_BasicSemantics(source).visit(tree))
-    return compile(tree, '<string>', 'eval')
+    return tree
 
 
 def safe_eval(source: str, namespace: Optional[dict] = None) -> object:
-    return eval(compile_safe(source), SAFE_EVAL_GLOBALS, {} if namespace is None else namespace)
+    return evaluate_ast(compile_safe(source), SAFE_EVAL_GLOBALS, {} if namespace is None else namespace)
 
 
-__all__ = ['check_expression_tree', 'compile_safe', 'safe_eval']
+__all__ = ['check_expression_tree', 'compile_safe', 'safe_eval', 'evaluate_ast']

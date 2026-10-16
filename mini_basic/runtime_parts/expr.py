@@ -28,7 +28,7 @@ from ..constants import (
     SAFE_EVAL_GLOBALS as _SAFE_EVAL_GLOBALS,
 )
 from ..expr.compile import CompiledExpr, int_slot
-from ..expr.safe_eval import compile_safe, safe_eval
+from ..expr.safe_eval import compile_safe, safe_eval, evaluate_ast
 from ..util.basic_errors import basic_error_wording
 from ..expr.patterns import (
     is_var_base,
@@ -3614,7 +3614,7 @@ class RuntimeExprMixin:
             compiled = self._get_compiled_expr(expr, is_condition=False)
             if compiled.code is not None and not compiled.use_fallback:
                 return float(
-                    eval(compiled.code, _SAFE_EVAL_GLOBALS, compiled._namespace(self)),
+                    evaluate_ast(compiled.code, _SAFE_EVAL_GLOBALS, compiled._namespace(self)),
                 )
         return self._eval_arith_core_slow(expr)
 
