@@ -836,15 +836,29 @@ class PygameDisplay(DisplayBackend):
         rgb = self._pixel_rgb(colour)
         scale_y = max(1, cell_h // 8)
         scale_x = max(1, cell_w // 8)
-        for row_i, row_byte in enumerate(rows[:8]):
-            for col_i in range(8):
-                if row_byte & (0x80 >> col_i):
-                    px = x + col_i * scale_x
-                    py = y + row_i * scale_y
-                    if scale_x == 1 and scale_y == 1:
-                        self._canvas.set_at((px, py), rgb)
-                    else:
-                        self._canvas.fill(rgb, (px, py, scale_x, scale_y))
+        key = (tuple(rows[:8]), rgb, scale_x, scale_y)
+
+        cache = getattr(self, '_user_glyph_cache', None)
+        if cache is None:
+            cache = {}
+            self._user_glyph_cache = cache
+
+        if key in cache:
+            surf = cache[key]
+        else:
+            surf = self._pygame.Surface((scale_x * 8, scale_y * 8), self._pygame.SRCALPHA)
+            for row_i, row_byte in enumerate(rows[:8]):
+                for col_i in range(8):
+                    if row_byte & (0x80 >> col_i):
+                        px = col_i * scale_x
+                        py = row_i * scale_y
+                        if scale_x == 1 and scale_y == 1:
+                            surf.set_at((px, py), rgb)
+                        else:
+                            surf.fill(rgb, (px, py, scale_x, scale_y))
+            cache[key] = surf
+
+        self._canvas.blit(surf, (x, y))
 
     def _scale_surface(self, surface, target_w: int, target_h: int):
         """Upscale/downscale; integer ratios use crisp pixel replication."""

@@ -1,7 +1,7 @@
 """Acorn / BBC Micro MOS 8x8 character matrix (font_acorn_8x8)."""
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Dict, Tuple
 
 RGB = Tuple[int, int, int]
 
@@ -147,6 +147,29 @@ def glyph_rows(char: str) -> Tuple[int, ...]:
 ##
     return rows
 
+_glyph_cache: Dict[Tuple[Tuple[int, ...], RGB, int, int], object] = {}
+
+def get_glyph_surface(rows: Tuple[int, ...], rgb: RGB, scale_x: int, scale_y: int):
+    key = (rows, rgb, scale_x, scale_y)
+    if key in _glyph_cache:
+        return _glyph_cache[key]
+
+    import pygame
+    surf = pygame.Surface((scale_x * 8, scale_y * 8), pygame.SRCALPHA)
+    for row_i, row_byte in enumerate(rows):
+        for col_i in range(8):
+            if row_byte & (0x80 >> col_i):
+                px = col_i * scale_x
+                py = row_i * scale_y
+                if scale_x == 1 and scale_y == 1:
+                    surf.set_at((px, py), rgb)
+                else:
+                    surf.fill(rgb, (px, py, scale_x, scale_y))
+
+    _glyph_cache[key] = surf
+    return surf
+
+
 def blit_char(
     canvas,
     char: str,
@@ -168,12 +191,5 @@ def blit_char(
 ##            f"BLIT {char} at ({x},{y}) cell={cell_w}x{cell_h}",
 ##            flush=True,
 ##        )
-    for row_i, row_byte in enumerate(rows):
-        for col_i in range(8):
-            if row_byte & (0x80 >> col_i):
-                px = x + col_i * scale_x
-                py = y + row_i * scale_y
-                if scale_x == 1 and scale_y == 1:
-                    canvas.set_at((px, py), rgb)
-                else:
-                    canvas.fill(rgb, (px, py, scale_x, scale_y))
+    surf = get_glyph_surface(rows, rgb, scale_x, scale_y)
+    canvas.blit(surf, (x, y))
