@@ -42,10 +42,10 @@ def _modifiers_from_text(text: str) -> Tuple[bool, Optional[bool]]:
     lower = text.lower()
     strict = 'strict' in lower or '--strict-dialect' in lower
     case_sensitive: Optional[bool] = None
-    if re.search(r'\b(case|sensitive)\b', lower):
-        case_sensitive = True
-    elif re.search(r'\b(fold|casefold|insensitive)\b', lower):
+    if re.search(r'\b(fold|casefold|insensitive)\b', lower):
         case_sensitive = False
+    elif re.search(r'\b(case|sensitive)\b', lower):
+        case_sensitive = True
     return strict, case_sensitive
 
 
@@ -63,16 +63,17 @@ def parse_shebang_line(line: str) -> Optional[DialectHint]:
     direct = re.match(rf'^{_DIALECT_TOKEN}\b', lower)
     if direct:
         dialect = _normalize_dialect_token(direct.group(1))
-    elif re.search(r'mini[_ -]?basic', lower):
-        env_match = re.search(rf'--dialect[=\s]+{_DIALECT_TOKEN}', lower)
+    elif (basic_match := re.search(r'mini[_ -]?basic', lower)):
+        after_basic = lower[basic_match.end():]
+        env_match = re.search(rf'--dialect[=\s]+{_DIALECT_TOKEN}', after_basic)
         if env_match:
             dialect = _normalize_dialect_token(env_match.group(1))
         else:
-            colon_match = re.search(rf':\s*{_DIALECT_TOKEN}\b', lower)
+            colon_match = re.search(rf':\s*{_DIALECT_TOKEN}\b', after_basic)
             if colon_match:
                 dialect = _normalize_dialect_token(colon_match.group(1))
             else:
-                token_match = re.search(rf'\b{_DIALECT_TOKEN}\b', lower)
+                token_match = re.search(rf'\b{_DIALECT_TOKEN}\b', after_basic)
                 if token_match:
                     dialect = _normalize_dialect_token(token_match.group(1))
 
