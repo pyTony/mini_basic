@@ -184,10 +184,6 @@ def bbc_os_scales(gfx_width: int, gfx_height: int) -> Tuple[int, int]:
     if y_ok:
         scale = BBC_OS_Y_UNITS // height
         return scale, scale
-    if width == 320 and height == 256:
-        return 4, 4
-    if width == 160 and height == 256:
-        return 8, 8
     return 1, 1
 
 
