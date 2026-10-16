@@ -94,7 +94,6 @@ _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
        
 # BBC Micro MODE specs (text grid, graphics resolution, PAR) — see bbc_modes.py.
-from mini_basic.bbc_modes import bbc_mode_spec
 
 from .helpers import (
     _get_readline_module,
