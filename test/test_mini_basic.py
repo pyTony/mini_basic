@@ -2539,6 +2539,43 @@ class MiniBASICTests(unittest.TestCase):
             self.assertNotIn('FG$/ RESET$', pretty)
             self.assertIn('FG$/RESET$', pretty)
 
+    def test_load_large_comment_preamble_stays_contiguous(self):
+        """More header comments than free slots must not split into two chunks.
+
+        Before the fix, overflow comments got pushed past the highest used
+        line number, scattering one header into a block at the start and
+        another block at the end of the file (the Breakout showcase bug).
+        """
+        import os
+        import tempfile
+
+        interp = self.make_interp()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'big_header.bas')
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write(
+                    ''.join(f"REM header line {i}\n" for i in range(15))
+                    + '10 GOTO 20\n'
+                    '20 PRINT "end"\n',
+                )
+            interp.working_dir = tmp
+            self.assertTrue(interp.load('big_header.bas', announce=False))
+            comment_lines = sorted(
+                n for n, text in interp.program.items() if text.startswith('REM')
+            )
+            code_lines = sorted(
+                n for n, text in interp.program.items() if not text.startswith('REM')
+            )
+            # All 15 comments must land contiguously below the first real
+            # code line, with none stranded past it.
+            self.assertEqual(len(comment_lines), 15)
+            self.assertTrue(all(n < code_lines[0] for n in comment_lines))
+            # GOTO target must have been renumbered along with its line.
+            goto_line = interp.program[code_lines[0]]
+            self.assertRegex(goto_line, r'GOTO\s+(\d+)')
+            target = int(re.search(r'GOTO\s+(\d+)', goto_line).group(1))
+            self.assertEqual(interp.program[target], 'PRINT "end"')
+
     def test_immediate_assignment_and_print(self):
         interp = self.make_interp()
         buf = io.StringIO()
