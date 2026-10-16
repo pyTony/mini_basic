@@ -142,9 +142,6 @@ def glyph_rows(char: str) -> Tuple[int, ...]:
     code = ord(char) & 0xFF
     rows = tuple(ACORN_8X8[code * 8 : code * 8 + 8])
 
-##    if char in "1234567890#":
-##        print(char, rows, flush=True)
-##
     return rows
 
 def blit_char(
@@ -163,11 +160,6 @@ def blit_char(
         return
     scale_y = max(1, cell_h // 8)
     scale_x = max(1, cell_w // 8)
-##    if char in ("1", "2", "3", "#"):
-##        print(
-##            f"BLIT {char} at ({x},{y}) cell={cell_w}x{cell_h}",
-##            flush=True,
-##        )
     for row_i, row_byte in enumerate(rows):
         for col_i in range(8):
             if row_byte & (0x80 >> col_i):
