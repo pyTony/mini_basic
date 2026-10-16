@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-16
 
+- [#128](https://github.com/pyTony/mini_basic/pull/128) 🧪 Add tests for basic_error_wording in basic_errors.py — 🎯 What: The testing gap for `basic_error_wording` in `mini_basic/util/basic_errors.py` has been addressed by introducing a new pytest suite.
 - [#135](https://github.com/pyTony/mini_basic/pull/135) Add comprehensive documentation and example programs — https://claude.ai/code/session_01XEtY7KXqoNtmrvatUqC19v
 - [#130](https://github.com/pyTony/mini_basic/pull/130) 🧪 Add tests for parse_shebang_line — 🎯 What: Added tests for `parse_shebang_line` in `mini_basic/dialect_hint.py` to fill a testing gap and increase codebase reliability. Addressed minor bugs related to modifier priority and token matching in executable names found during test development.
 - [#134](https://github.com/pyTony/mini_basic/pull/134) 🧪 Add tests for detect_bbc_binary_format — 🎯 What: The testing gap addressed This pull request introduces missing test coverage for the `detect_bbc_binary_format` function in `mini_basic/bbc_detokenize.py`. The lack of tests for this critical function posed a reliability risk when reading varying binary formats (like Wilson or Russell) in BBC BASIC.
