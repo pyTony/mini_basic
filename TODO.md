@@ -13,6 +13,7 @@ merge to main.
 
 - [#124](https://github.com/pyTony/mini_basic/pull/124) ⚡ Pre-render and cache glyphs to boost pygame display rendering (2026-10-16)
 - [#123](https://github.com/pyTony/mini_basic/pull/123) ⚡ Optimize display text grid initialization using list multiplication (2026-10-16)
+- [#122](https://github.com/pyTony/mini_basic/pull/122) ⚡ Optimize rectangle fill performance in BBC graphics (2026-10-16)
 - [#120](https://github.com/pyTony/mini_basic/pull/120) ⚡ Performance Optimization: regex finditer inside replace loop (2026-10-16)
 - [#117](https://github.com/pyTony/mini_basic/pull/117) editor: open .bas via file association, add Open Tokenized BBC (2026-10-14)
 - [#116](https://github.com/pyTony/mini_basic/pull/116) Never shrink the runtime scale below a draggable window width (2026-10-14)
@@ -20,4 +21,3 @@ merge to main.
 - [#114](https://github.com/pyTony/mini_basic/pull/114) Bump version to 1.0.0 for the v1.0 release (2026-10-14)
 - [#113](https://github.com/pyTony/mini_basic/pull/113) Allow runtime scale shortcut to go below native (1x) size (2026-10-14)
 - [#112](https://github.com/pyTony/mini_basic/pull/112) docs: v1.0 release pass — fix broken install paths, add release notes (2026-10-14)
-- [#111](https://github.com/pyTony/mini_basic/pull/111) Display-scale test fixes + EDIT-close fix + Ctrl+digit scale shortcut (2026-10-14)
