@@ -1,0 +1,102 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      MODE 9
+      VDU 23,23,1|
+      DIM p 8
+      A%=&0A
+      X%=p MOD 256
+      Y%=p DIV 256
+      FOR N%=32 TO 127
+        ?p=N%
+        CALL &FFF1
+        VDU 23,N%,p?1,p?2,p?3,p?4,p?5,p?6,p?7,p?8
+      NEXT
+      
+      GCOL 15 : VDU 32
+      RECTANGLE FILL 80,80,480,352
+      GCOL 15
+      RECTANGLE FILL 720,80,480,352
+      GCOL 7
+      RECTANGLE FILL 80,592,480,352
+      GCOL 11
+      RECTANGLE FILL 720,592,480,352
+      
+      GCOL 15
+      LINE 560,256,720,256
+      LINE 960,430,960,594
+      LINE 560,768,720,768
+      
+      GCOL 0
+      VDU 5
+      MOVE 100,310 : PRINT "Filling around";
+      MOVE 140,270 : PRINT "text is ";CHR$18;CHR$0;CHR$1;"not";
+      GCOL 0
+      MOVE 84,230 : PRINT "straightforward.";
+      
+      MOVE 960,256
+      FOR a = 0 TO 24*PI STEP PI/100
+        DRAW 960 + 2*a*COS(a), 256 + 2*a*SIN(a)
+      NEXT
+      
+      dist = 2
+      MOVE 192, 640
+      PROCsierpA(5) : PLOT 1, +dist, +dist
+      PROCsierpB(5) : PLOT 1, -dist, +dist
+      PROCsierpC(5) : PLOT 1, -dist, -dist
+      PROCsierpD(5) : PLOT 1, +dist, -dist
+      
+      FOR R% = 7 TO 0 STEP -1
+        GCOL R%
+        CIRCLE FILL 960,768,R%*20+20
+      NEXT
+      
+      
+      GCOL 15
+      MOVE 80,524
+      PRINT "Click or press a key to fill.....";
+      REPEAT
+        MOUSE X%,Y%,B%
+      UNTIL INKEY(1) <> -1 OR B%
+      
+      GCOL 0
+      GCOL 128+2
+      T1% = TIME
+      PLOT 143,280,256
+      T2% = TIME
+      report$ = "Filled in " + STR$(T2%-T1%) + " centiseconds"
+      IF INKEY(-256) = &57 THEN
+        SYS "SetWindowText", @hwnd%, report$
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%, report$, @memhdc%
+      ENDIF
+      
+      REPEAT WAIT 1 : UNTIL FALSE
+      END
+      
+      DEF PROCsierpA(level) : IF level=0 ENDPROC
+      PROCsierpA(level-1) : PLOT 1, +dist, +dist
+      PROCsierpB(level-1) : PLOT 1, +2*dist, 0
+      PROCsierpD(level-1) : PLOT 1, +dist, -dist
+      PROCsierpA(level-1)
+      ENDPROC
+      
+      DEF PROCsierpB(level) : IF level=0 ENDPROC
+      PROCsierpB(level-1) : PLOT 1, -dist, +dist
+      PROCsierpC(level-1) : PLOT 1, 0, +2*dist
+      PROCsierpA(level-1) : PLOT 1, +dist, +dist
+      PROCsierpB(level-1)
+      ENDPROC
+      
+      DEF PROCsierpC(level) : IF level=0 ENDPROC
+      PROCsierpC(level-1) : PLOT 1, -dist, -dist
+      PROCsierpD(level-1) : PLOT 1, -2*dist, 0
+      PROCsierpB(level-1) : PLOT 1, -dist, +dist
+      PROCsierpC(level-1)
+      ENDPROC
+      
+      DEF PROCsierpD(level) : IF level=0 ENDPROC
+      PROCsierpD(level-1) : PLOT 1, +dist, -dist
+      PROCsierpA(level-1) : PLOT 1, 0, -2*dist
+      PROCsierpC(level-1) : PLOT 1, -dist, -dist
+      PROCsierpD(level-1)
+      ENDPROC

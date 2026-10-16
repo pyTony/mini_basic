@@ -1,0 +1,19 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM A Flying Saucer ?
+      REM A simple but effective 3D drawing
+      
+      MODE 8:ORIGIN 640,512:XS=2:YS=2
+      GCOL 14:OFF
+      A=640:B=A*A:C=512
+      FOR X=0 TO A STEP XS:S=X*X:P=SQR(B-S)
+        FOR I=-P TO P STEP 6*YS
+          R=SQR(S+I*I)/A
+          Q=(R-1)*SIN(24*R)
+          Y=INT(I/3+Q*C)
+          IF I=-P M=Y:N=Y
+          IF Y>M M=Y
+          IF Y<N N=Y
+          IF M=Y OR N=Y PLOT 69,NOTX,Y:PLOT 69,X,Y
+        NEXT:NEXT
+      REPEAT WAIT 1:UNTIL FALSE

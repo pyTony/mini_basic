@@ -1522,7 +1522,37 @@ class RuntimeProgramMixin:
                         add(func)
                 if re.search(r'\bINKEY\s*\(\s*-', upper):
                     add('INKEY(-n)')
+                star_match = re.match(r'^\*\s*([A-Za-z]+)', stripped)
+                if star_match and star_match.group(1).upper() in self._MINI_ONLY_STAR_CMDS:
+                    add('*' + star_match.group(1).upper())
         return found
+
+    def wrap_mini_only_star_commands(self) -> List[int]:
+        """Rewrite standalone ``*PLAY``/``*MUSIC`` program lines as
+        ``REM MINI_BASIC *CMD ...`` so the listing stays loadable (as an
+        inert comment) on real BBC BASIC. Only a line whose *entire*
+        statement is one mini-only star-command is rewritten -- a line
+        combining it with other statements via ``:`` is left untouched,
+        since REM would also swallow the rest of the line.
+
+        Returns the list of rewritten line numbers.
+        """
+        changed: List[int] = []
+        for line_num in sorted(self.program):
+            raw = self.program[line_num]
+            parts = self._split_colon_statements(raw)
+            if len(parts) != 1:
+                continue
+            _, text = self._extract_label_prefix(parts[0])
+            stripped = text.strip()
+            star_match = re.match(r'^\*\s*([A-Za-z]+)\b.*$', stripped)
+            if not star_match:
+                continue
+            if star_match.group(1).upper() not in self._MINI_ONLY_STAR_CMDS:
+                continue
+            self.program[line_num] = f'REM MINI_BASIC {stripped}'
+            changed.append(line_num)
+        return changed
 
     @classmethod
     def _normalize_hash_file_commands(cls, line: str) -> str:
@@ -2736,7 +2766,9 @@ class RuntimeProgramMixin:
                     prompt, vars_ = glued
                     rest_vars = [item.strip() for item, _ in items[1:] if self._is_input_lvalue(item)]
                     return prompt, vars_ + rest_vars
-            return '', []
+            # No variable anywhere: BBC treats this as a prompt-only INPUT —
+            # it just prints the content with no variable to read into.
+            return self._join_print_items(items), []
         if var_start == 0:
             return '', [item.strip() for item, _ in items]
         # Keep separators so string vars in the prompt (PROMPT$; ": ") evaluate.
@@ -3182,17 +3214,36 @@ class RuntimeProgramMixin:
                 return [found]
         return None
 
+    def _tkinter_editor_command(self, path: str) -> Optional[List[str]]:
+        """``[python, tools/editor.py, path]`` when a GUI editor looks launchable."""
+        try:
+            import tkinter  # noqa: F401
+        except ImportError:
+            return None
+        if sys.platform not in ('darwin', 'win32'):
+            if not (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
+                return None
+        repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        editor_path = os.path.join(repo_root, 'tools', 'editor.py')
+        if not os.path.isfile(editor_path):
+            return None
+        return [sys.executable, editor_path, path]
+
     def _launch_external_editor(self, path: str) -> bool:
-        """Open *path* in the system editor and wait. False if it could not start."""
+        """Open *path* in the tkinter editor, or the system editor. False if neither started."""
         import subprocess
 
-        cmd = self._choose_external_editor()
+        cmd = self._tkinter_editor_command(path)
         if not cmd:
-            print('? no editor (set EDITOR or VISUAL)')
+            cmd = self._choose_external_editor()
+            if cmd:
+                cmd = [*cmd, path]
+        if not cmd:
+            print('? no editor (no GUI editor, and EDITOR/VISUAL not set)')
             print('  EDIT n     edit one line (prefilled; arrows move in the text)')
             return False
         try:
-            status = subprocess.call([*cmd, path])
+            status = subprocess.call(cmd)
         except OSError as exc:
             print(f'? cannot start editor: {exc}')
             return False

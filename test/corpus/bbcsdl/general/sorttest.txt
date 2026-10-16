@@ -1,0 +1,140 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Test program for SORTLIB library
+      
+      INSTALL @lib$+"sortlib"
+      sort%% = FN_sortinit(0,2)
+      F% = TRUE
+      
+      DIM A&(9999),B&(9999),C&(9999)
+      FOR I%=0    TO 3333:A&(I%)=RND(256)-1:NEXT
+      FOR I%=3334 TO 6666:B&(I%)=RND(256)-1:NEXT
+      FOR I%=6667 TO 9999:C&(I%)=RND(256)-1:NEXT
+      :
+      PRINT "Sorting three 10000-element byte arrays...."
+      T%=TIME
+      C% = 10000 : CALL sort%%,A&(0),B&(0),C&(0)
+      T%=TIME-T%
+      :
+      FOR I%=0 TO 7:PRINT A&(I%),;:NEXT:PRINT".."
+      FOR I%=9992 TO 9999:PRINT A&(I%),;:NEXT:PRINT
+      @%=&90A
+      PRINT "That took ";T%/100;" seconds"'
+      FOR I%=0 TO 9998:IF FN2(I%) THEN PRINT "Failed":STOP ELSE NEXT
+      
+      DIM A%(9999),B%(9999),C%(9999)
+      FOR I%=0    TO 3333:A%(I%)=RND:NEXT
+      FOR I%=3334 TO 6666:B%(I%)=RND:NEXT
+      FOR I%=6667 TO 9999:C%(I%)=RND:NEXT
+      :
+      PRINT "Sorting three 10000-element 32-bit integer arrays...."
+      T%=TIME
+      C% = 10000 : CALL sort%%,A%(0),B%(0),C%(0)
+      T%=TIME-T%
+      :
+      FOR I%=0 TO 7:PRINT ~A%(I%),;:NEXT:PRINT".."
+      FOR I%=9992 TO 9999:PRINT ~A%(I%),;:NEXT:PRINT
+      @%=&90A
+      PRINT "That took ";T%/100;" seconds"'
+      FOR I%=0 TO 9998:IF FN3(I%) THEN PRINT "Failed":STOP ELSE NEXT
+      
+      DIM A%%(9999),B%%(9999),C%%(9999)
+      FOR I%=0    TO 3333:A%%(I%)=RND <<< 32 OR RND:NEXT
+      FOR I%=3334 TO 6666:B%%(I%)=RND <<< 32 OR RND:NEXT
+      FOR I%=6667 TO 9999:C%%(I%)=RND <<< 32 OR RND:NEXT
+      :
+      PRINT "Sorting three 10000-element 64-bit integer arrays...."
+      T%=TIME
+      C% = 10000 : CALL sort%%,A%%(0),B%%(0),C%%(0)
+      T%=TIME-T%
+      :
+      *HEX 64
+      FOR I%=0 TO 7:PRINT ~A%%(I%),;:NEXT:PRINT".."
+      FOR I%=9992 TO 9999:PRINT ~A%%(I%),;:NEXT:PRINT
+      @%=&90A
+      PRINT "That took ";T%/100;" seconds"'
+      FOR I%=0 TO 9998:IF FN6(I%) THEN PRINT "Failed":STOP ELSE NEXT
+      
+      @%=&101030A
+      DIM A(9999),B(9999),C(9999)
+      FOR I%=0    TO 3333:A(I%)=RND*2^(97-RND(256)):NEXT
+      FOR I%=3334 TO 6666:B(I%)=RND*2^(97-RND(256)):NEXT
+      FOR I%=6667 TO 9999:C(I%)=RND*2^(97-RND(256)):NEXT
+      :
+      PRINT "Sorting three 10000-element variant arrays...."
+      T%=TIME
+      C% = 10000 : CALL sort%%,A(0),B(0),C(0)
+      T%=TIME-T%
+      :
+      FOR I%=0 TO 7:PRINT A(I%),;:NEXT:PRINT".."
+      FOR I%=9992 TO 9999:PRINT A(I%),;:NEXT:PRINT
+      @%=&90A
+      PRINT "That took ";T%/100;" seconds"'
+      FOR I%=0 TO 9998:IF FN1(I%) THEN PRINT "Failed":STOP ELSE NEXT
+      
+      @%=&101030A
+      DIM A#(9999),B#(9999),C#(9999)
+      FOR I%=0    TO 3333:A#(I%)=RND*2.0#^(994-RND(2048)):NEXT
+      FOR I%=3334 TO 6666:B#(I%)=RND*2.0#^(994-RND(2048)):NEXT
+      FOR I%=6667 TO 9999:C#(I%)=RND*2.0#^(994-RND(2048)):NEXT
+      :
+      PRINT "Sorting three 10000-element float64 arrays...."
+      T%=TIME
+      C% = 10000 : CALL sort%%,A#(0),B#(0),C#(0)
+      T%=TIME-T%
+      :
+      FOR I%=0 TO 7:PRINT A#(I%),;:NEXT:PRINT".."
+      FOR I%=9992 TO 9999:PRINT A#(I%),;:NEXT:PRINT
+      @%=&90A
+      PRINT "That took ";T%/100;" seconds"'
+      FOR I%=0 TO 9998:IF FN4(I%) THEN PRINT "Failed":STOP ELSE NEXT
+      
+      DIM A$(9999),B$(9999),C$(9999)
+      FOR I%=0    TO 3333:FOR J%=1 TO RND(32):A$(I%)+=CHR$(64+RND(26)):NEXT:NEXT
+      FOR I%=3334 TO 6666:FOR J%=1 TO RND(32):B$(I%)+=CHR$(64+RND(26)):NEXT:NEXT
+      FOR I%=6667 TO 9999:FOR J%=1 TO RND(32):C$(I%)+=CHR$(64+RND(26)):NEXT:NEXT
+      :
+      PRINT "Sorting three 10000-element string arrays...."
+      T%=TIME
+      C% = 10000 : CALL sort%%,A$(0),B$(0),C$(0)
+      T%=TIME-T%
+      :
+      FOR I%=6667 TO 6674:PRINT LEFT$(A$(I%),7),;:NEXT:PRINT".."
+      FOR I%=9992 TO 9999:PRINT LEFT$(A$(I%),7),;:NEXT:PRINT
+      @%=&90A
+      PRINT "That took ";T%/100;" seconds"'
+      FOR I%=0 TO 9998:IF FN5(I%) THEN PRINT "Failed":STOP ELSE NEXT
+      
+      PRINT "Tests completed successfully"
+      REPEAT WAIT 1 : UNTIL FALSE
+      
+      DEF FN1(I%)
+      IF A(I%)<>A(I%+1) THEN = A(I%)>A(I%+1)
+      IF B(I%)<>B(I%+1) THEN = B(I%)>B(I%+1)
+      = C(I%)>C(I%+1)
+      
+      DEF FN2(I%)
+      IF A&(I%)<>A&(I%+1) THEN = A&(I%)>A&(I%+1)
+      IF B&(I%)<>B&(I%+1) THEN = B&(I%)>B&(I%+1)
+      = C&(I%)>C&(I%+1)
+      
+      DEF FN3(I%)
+      IF A%(I%)<>A%(I%+1) THEN = A%(I%)>A%(I%+1)
+      IF B%(I%)<>B%(I%+1) THEN = B%(I%)>B%(I%+1)
+      = C%(I%)>C%(I%+1)
+      
+      DEF FN4(I%)
+      IF A#(I%)<>A#(I%+1) THEN = A#(I%)>A#(I%+1)
+      IF B#(I%)<>B#(I%+1) THEN = B#(I%)>B#(I%+1)
+      = C#(I%)>C#(I%+1)
+      
+      DEF FN5(I%)
+      IF A$(I%)<>A$(I%+1) THEN = A$(I%)>A$(I%+1)
+      IF B$(I%)<>B$(I%+1) THEN = B$(I%)>B$(I%+1)
+      = C$(I%)>C$(I%+1)
+      
+      DEF FN6(I%)
+      IF A%%(I%)<>A%%(I%+1) THEN = A%%(I%)>A%%(I%+1)
+      IF B%%(I%)<>B%%(I%+1) THEN = B%%(I%)>B%%(I%+1)
+      = C%%(I%)>C%%(I%+1)
+      

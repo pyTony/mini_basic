@@ -1,0 +1,35 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Program to draw a spectrum of colours and display the RGB value
+      :
+      IF @ispal% THEN
+        PRINT "This program needs a 'High Color' display (32768 colours or more)"
+        END
+      ENDIF
+      :
+      MODE 8
+      Radius% = 402
+      VDU 24,100;100;1178;922;
+      ORIGIN 640,512
+      FOR angle% = 0 TO 359
+        sector% = angle% DIV 60
+        slope% = 10 + 4 * (angle% MOD 60)
+        CASE sector% OF
+          WHEN 0: COLOR 1,246,slope%,0
+          WHEN 1: COLOR 1,256-slope%,246,0
+          WHEN 2: COLOR 1,0,246,slope%
+          WHEN 3: COLOR 1,0,256-slope%,246
+          WHEN 4: COLOR 1,slope%,0,246
+          WHEN 5: COLOR 1,246,0,256-slope%
+        ENDCASE
+        GCOL 1
+        MOVE 0,0
+        MOVE Radius%*COS(angle%/180*PI),Radius%*SIN(angle%/180*PI)
+        PLOT 181,Radius%*COS((angle%+2)/180*PI),Radius%*SIN((angle%+2)/180*PI)
+      NEXT angle%
+      OFF
+      REPEAT
+        MOUSE x%,y%,b%
+        PRINT TAB(0,0)"TINT = ";RIGHT$("0000000"+STR$~TINT(x%,y%),8);
+        PRINT TAB(0,1)"POINT = ";POINT(x%,y%);" ";
+      UNTIL INKEY(1)=0

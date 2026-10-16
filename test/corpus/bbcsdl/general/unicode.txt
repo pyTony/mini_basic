@@ -1,0 +1,111 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Program to demonstrate the Unicode and right-to-left printing
+      REM. capabilities of BBC BASIC.  The strings are in UTF-8 format.
+      
+      INSTALL @lib$ + "script"
+      
+      VDU 23,22,640;512;8,16,16,8 : REM Select UTF-8 mode
+      @vdu%!220 = 26 : REM Set font height irrespective of DPI
+      OSCLI "FONT """+@lib$+"DejaVuSans"""
+      VDU 5,30
+      
+      REM---------------------------------------------------------------------------
+      
+      GCOL 9
+      REM PRINT "Chinese:"
+      
+      chinese1$ = "      这是中国文字"
+      chinese2$ = "      它被写入左到右"
+      
+      REM PRINT chinese1$ ' chinese2$
+      
+      REM---------------------------------------------------------------------------
+      
+      GCOL 13 : REM PLOT 0,0,-32
+      PRINT "Arabic:"
+      
+      arabic1$ = "هنا مثال يمكنك من الكتابة من اليمين"
+      arabic2$ = "الى اليسار باللغة العربية"
+      
+      IF SYS("TTF_SetFontScriptName") THEN
+      VDU 23,16,2;0;0;0;13 : REM Select right-to-left printing
+      PROC_script(arabic1$, "Arab", 1) : PRINT
+      PROC_script(arabic2$, "Arab", 1) : PRINT
+      VDU 23,16,0;0;0;0;13 : REM Select left-to-right printing
+      ELSE
+      VDU 23,16,2;0;0;0;13 : REM Select right-to-left printing
+      PRINT FNarabic(arabic1$) ' FNarabic(arabic2$)
+      VDU 23,16,0;0;0;0;13 : REM Select left-to-right printing
+      ENDIF
+      
+      REM---------------------------------------------------------------------------
+      
+      GCOL 11 : PLOT 0,0,-80
+      PRINT "Greek:"
+      
+      greek1$ = "Αυτό είναι μια επίδειξη του ελληνικού κειμένου,"
+      greek2$ = "είναι γραπτή αριστερά προς τα δεξιά."
+      
+      PRINT greek1$ ' greek2$
+      
+      REM---------------------------------------------------------------------------
+      
+      GCOL 10 : PLOT 0,0,-80
+      PRINT "Hebrew:"
+      
+      hebrew$ = "זוהי הדגמה של כתיבת טקסט בעברית מימין לשמאל"
+      
+      VDU 23,16,2;0;0;0;13 : REM Select right-to-left printing
+      PRINT hebrew$
+      VDU 23,16,0;0;0;0;13 : REM Select left-to-right printing
+      
+      REM---------------------------------------------------------------------------
+      
+      GCOL 14 : PLOT 0,0,-80
+      PRINT "Russian:"
+      
+      russian1$ = "Это демонстрация российского текста,"
+      russian2$ = "это пишется слева направо."
+      
+      PRINT russian1$ ' russian2$
+      
+      REPEAT WAIT 1 : UNTIL FALSE
+      END
+      
+      REM!Eject --------------------------------------------------------------------
+      DEF FNarabic(A$)
+      LOCAL a%%, B%, L%, O%, P%, U%, B$
+      A$ += CHR$0
+      FOR a%% = PTR(A$) TO PTR(A$)+LENA$-1
+      IF ?a%%<&80 OR ?a%%>=&C0 THEN
+        L% = O% : O% = P% : P% = U%
+        U% = ((?a%% AND &3F) << 6) + (a%%?1 AND &3F)
+        IF ?a%%<&80 U% = 0
+        CASE TRUE OF
+          WHEN U%=&60C OR U%=&61F: U% = 0
+          WHEN U%<&622:
+          WHEN U%<&626: U% = &01+2*(U%-&622)
+          WHEN U%<&628: U% = &09+4*(U%-&626)
+          WHEN U%<&62A: U% = &0F+4*(U%-&628)
+          WHEN U%<&62F: U% = &15+4*(U%-&62A)
+          WHEN U%<&633: U% = &29+2*(U%-&62F)
+          WHEN U%<&63B: U% = &31+4*(U%-&633)
+          WHEN U%<&641:
+          WHEN U%<&648: U% = &51+4*(U%-&641)
+          WHEN U%<&64B: U% = &6D+2*(U%-&648)
+        ENDCASE
+        IF P% IF P%<&80 THEN
+          B% = P%
+          IF O%=&5D IF P%<&5 B% += &74
+          IF O%=&5D IF P%=&7 B% += &72
+          IF O%=&5D IF P%=&D B% += &6E
+          IF B%>P% B$=LEFT$(B$,LENB$-3) : O% = L%
+          IF U% IF P%>7 IF P%<>&D IF P%<>&13 IF P%<>&29 IF P%<>&2B IF P%<>&2D IF P%<>&2F IF P%<>&6D IF P%<>&6F B% += 2
+          IF O% IF O%>7 IF O%<>&D IF O%<>&13 IF O%<>&29 IF O%<>&2B IF O%<>&2D IF O%<>&2F IF O%<>&6D IF O%<>&6F B% += 1
+          B$ = LEFT$(LEFT$(B$))+CHR$&EF+CHR$(&BA+(B%>>6))+CHR$(&80+(B%AND&3F))
+        ENDIF
+      ENDIF
+      B$ += CHR$?a%%
+      NEXT
+      = LEFT$(B$)

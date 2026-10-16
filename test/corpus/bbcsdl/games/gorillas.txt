@@ -1,0 +1,2230 @@
+      REM  +---------------------------------+
+      REM  |                                 |
+      REM  |  Gorillas // v1.10 [11-03-2012] |
+      REM  |  BBCSDL version RTR 13-12-2020  |
+      REM  |                                 |
+      REM  +---------------------------------+
+      
+      
+      REM  Invoke 64-bit (double precision) maths mode for | indirection
+      *FLOAT 64
+      
+      
+      REM  Set up close and error handlers
+      ON CLOSE PROC_cleanup : QUIT
+      ON ERROR PROC_cleanup : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE PROC_error( REPORT$, TRUE ) : END
+      Erl% = 0
+      
+      
+      REM  Make 12 MB of RAM available for this program (n.b. portrait orientation)
+      M% = 12
+      HIMEM = LOMEM + M%*&100000
+      
+      
+      REM  Align HIMEM to 32-byte boundary for possibly faster program execution speed
+      REM  (Not sure this has much effect!)
+      HIMEM = (HIMEM + 31) AND -32
+      
+      
+      REM  Change program window title bar text to read "Gorillas vX.YY"
+      ProgTitle$   = "Gorillas"
+      ProgVersion$ = "v1.10"
+      SYS "SDL_SetWindowTitle", @hwnd%, ProgTitle$ + " " + ProgVersion$, @memhdc%
+      
+      
+      REM  We want our window to have the same aspect ratio as the screen,
+      REM  so first obtain the full-screen dimensions (width & height)
+      DIM rc{x%, y%, w%, h%}
+      SYS "SDL_GetDisplayUsableBounds", 0, rc{}, @memhdc%
+      
+      
+      REM  Our window will be 800 pixels in width, and the height will depend
+      REM  on the aspect ratio of the screen.
+      WinW% = 800
+      WinH% = (rc.h%/rc.w%) * WinW%
+      WinH% = (WinH% + 3) AND -4 : REM  Make the height divisible by 4
+      IF (@platform% AND &F) = 5 WinH% = 600 :  REM Fix height in browser
+      
+      REM  Set our program window size to dimensions WinW% by WinH% pixels
+      VDU 23, 22, WinW%; WinH%; 8, 16, 16, 0
+      
+      
+      REM  ----------------------------------------------------------------------------
+      REM  Note that the internal bitmap (screen memory) to which the program's
+      REM  graphics and text are rendered also has the dimenions WinW% by WinH% pixels.
+      REM  ----------------------------------------------------------------------------
+      
+      
+      REM  Display program title and version
+      Arial12$ = "FONT """ + @lib$ + "DejaVuSans"", 14"
+      Arial16$ = "FONT """ + @lib$ + "DejaVuSans"", 16"
+      Arial32$ = "FONT """ + @lib$ + "DejaVuSans"", 31"
+      
+      OSCLI Arial16$
+      COLOR 15
+      PRINT '"  Gorillas " + ProgVersion$ + ""''
+      *FONT
+      
+      
+      REM  Let the user know that things are being loaded...
+      PRINT '''"  Loading..."' : PRINT "  ";
+      
+      `GetTickCount`       = SYS( "SDL_GetTicks" )
+      `SDL_memcpy`         = SYS( "SDL_memcpy" )
+      `SDL_memset`         = SYS( "SDL_memset" )
+      `SDL_RenderCopy`     = SYS( "SDL_RenderCopy" )
+      `SDL_RenderClear`    = SYS( "SDL_RenderClear" )
+      `SDL_RenderCopyEx`   = SYS( "SDL_RenderCopyEx" )
+      `SDL_SetTextureColorMod` = SYS( "SDL_SetTextureColorMod" )
+      `SDL_SetTextureAlphaMod` = SYS( "SDL_SetTextureAlphaMod" )
+      `SDL_SetTextureBlendMode`= SYS( "SDL_SetTextureBlendMode" )
+      `SDL_SetRenderDrawColor` = SYS( "SDL_SetRenderDrawColor" )
+      `SDL_RenderDrawLine`     = SYS( "SDL_RenderDrawLine" )
+      `SDL_RenderDrawPoint`    = SYS( "SDL_RenderDrawPoint" )
+      `SDL_RenderDrawPoints`   = SYS( "SDL_RenderDrawPoints" )
+      `SDL_RenderFillRect`     = SYS( "SDL_RenderFillRect" )
+      `SDL_RenderFillRects`    = SYS( "SDL_RenderFillRects" )
+      `SDL_SetSurfaceAlphaMod` = SYS( "SDL_SetSurfaceAlphaMod" )
+      `SDL_BlitSurface`        = SYS( "SDL_UpperBlit" )
+      `SDL_FillRect`           = SYS( "SDL_FillRect" )
+      `SDL_SetWindowTitle`     = SYS( "SDL_SetWindowTitle" )
+      `SDL_GetRenderTarget`    = SYS( "SDL_GetRenderTarget" )
+      `SDL_SetRenderTarget`    = SYS( "SDL_SetRenderTarget" )
+      `SDL_DestroyTexture`     = SYS( "SDL_DestroyTexture" )
+      `SDL_RenderReadPixels`   = SYS( "SDL_RenderReadPixels" )
+      `SDL_SetRenderDrawBlendMode`   = SYS( "SDL_SetRenderDrawBlendMode" )
+      `SDL_CreateTextureFromSurface` = SYS( "SDL_CreateTextureFromSurface" )
+      
+      REM  ==============================================
+      REM  Define global variables, structures and arrays
+      REM  ==============================================
+      
+      CASE @platform% AND &F OF
+        WHEN 0,1,2: PIXELFORMAT = &16362004 : REM ARGB8888
+        WHEN 3,4,5: PIXELFORMAT = &16762004 : REM ABGR8888
+      ENDCASE
+      SDL_BLENDMODE_NONE = 0
+      SDL_BLENDMODE_BLEND = 1
+      SDL_BLENDMODE_ADD = 2
+      SYS "SDL_ComposeCustomBlendMode", 1, 1, 1, 1, 1, 1 TO SDL_BLENDMODE_ZERO_COLOR_AND_ALPHA
+      
+      g#                   = -0.08 : REM  Acceleration due to gravity
+      
+      WinningScore%        = 5     : REM  The first to reach this score wins the game
+      
+      NumBlueBananas%           = 20
+      MaxNumBananaParticles%    = 300
+      MaxNumExplosionParticles% = 300
+      MaxNumFireBlobs%          = 100
+      MaxNumBuildings%          = 30
+      ParticleColourListSize%   = 128
+      ParticleBatchSize%        = 60
+      
+      BananaParticles%    = TRUE
+      ExplosionParticles% = TRUE
+      Fire%               = TRUE
+      ShowPreviousArrow%  = TRUE
+      
+      REM Arrays to create the moon in different phases
+      MOONPTS = 10000
+      DIM moonp(2, MOONPTS - 1), moonq(2, MOONPTS - 1)
+      
+      REM Create a hemisphere of evenly-distributed points, with radius 1.0
+      phi = PI * (3 - SQR(5)) : REM golden angle in radians
+      FOR I% = 0 TO MOONPTS-1
+        moonp(1,I%) = I% / (MOONPTS-1)  : REM y goes from 0 to 1
+        rdius = SQR(1 - moonp(1,I%)^2)  : REM radius at y
+        theta = phi * I% : REM golden angle increment
+        moonp(0,I%) = COS(theta) * rdius
+        moonp(2,I%) = SIN(theta) * rdius
+      NEXT
+      
+      REM  The textures (graphics & game sprites) are stored in the bm{} structure
+      DIM bm{ gorillasTitle_400x100%%, blueBanana_69x98%%, buttonSelected%%, buttonNotSelected%%, triButtonLeft%%, triButtonRight%%, \
+      \ tickBox%%, tickBoxTicked%%, startButton%%, greenPtr%%, banana%%, fireBlob%%, close%%, \
+      \ gorilla{normal%%, leftArmUp%%, rightArmUp%%}, explosion%%, mousePtr%%, \
+      \ sky%%, city%%, bg%%, banana20x20%%, ptr2%%, temp%%, moon%% }
+      
+      
+      REM  The surfaces (for click and collision detection) are stored in the sf{} structure
+      DIM sf{ buttonSelected%%, buttonNotSelected%%, triButtonLeft%%, triButtonRight%%, \
+      \ tickBox%%, tickBoxTicked%%, startButton%%, gorilla{normal%%, leftArmUp%%, rightArmUp%%}, \
+      \ canvas%%, bitmap%% }
+      
+      
+      REM  The sounds are stored in the wav{} structure
+      DIM wav{ click%%, kill%%, miss%%, out%%, throw%%(5) }
+      
+      
+      REM  Load all the graphics into memory
+      F% = &1000000
+      bm.gorillasTitle_400x100%% = FNLoadTexture( @dir$ + ".Gorillas/gorillas_400x100.gif",               F% )
+      bm.blueBanana_69x98%%      = FNLoadTexture( @dir$ + ".Gorillas/blue_banana_69x98.bmp",              F% )
+      bm.greenPtr%%              = FNLoadTexture( @dir$ + ".Gorillas/green_ptr_32x32.gif",                F% )
+      bm.banana%%                = FNLoadTexture( @dir$ + ".Gorillas/banana_128x128x24.bmp",              F% )
+      bm.fireBlob%%              = FNLoadTexture( @dir$ + ".Gorillas/fireblob_32x32.bmp",                 F% )
+      bm.explosion%%             = FNLoadTexture( @dir$ + ".Gorillas/explosion_128x128x24.bmp",           F% )
+      
+      bm.buttonSelected%%        = FNLoadTextureAndSurface( @dir$ + ".Gorillas/button_selected_32x32x8.bmp",    F%, sf.buttonSelected%%)
+      bm.buttonNotSelected%%     = FNLoadTextureAndSurface( @dir$ + ".Gorillas/button_nonselected_32x32x8.bmp", F%, sf.buttonNotSelected%%)
+      bm.triButtonLeft%%         = FNLoadTextureAndSurface( @dir$ + ".Gorillas/tri_button_left_32x32x8.bmp",    F%, sf.triButtonLeft%%)
+      bm.triButtonRight%%        = FNLoadTextureAndSurface( @dir$ + ".Gorillas/tri_button_right_32x32x8.bmp",   F%, sf.triButtonRight%%)
+      bm.tickBox%%               = FNLoadTextureAndSurface( @dir$ + ".Gorillas/tickbox_32x32.bmp",              F%, sf.tickBox%%)
+      bm.tickBoxTicked%%         = FNLoadTextureAndSurface( @dir$ + ".Gorillas/tickbox_ticked_32x32.bmp",       F%, sf.tickBoxTicked%%)
+      bm.startButton%%           = FNLoadTextureAndSurface( @dir$ + ".Gorillas/start_button_160x64.bmp",        F%, sf.startButton%%)
+      bm.gorilla.normal%%        = FNLoadTextureAndSurface( @dir$ + ".Gorillas/gorilla_27x29.bmp",              F%, sf.gorilla.normal%% )
+      bm.gorilla.leftArmUp%%     = FNLoadTextureAndSurface( @dir$ + ".Gorillas/gorilla_throw_left_27x29.bmp",   F%, sf.gorilla.leftArmUp%% )
+      bm.gorilla.rightArmUp%%    = FNLoadTextureAndSurface( @dir$ + ".Gorillas/gorilla_throw_right_27x29.bmp",  F%, sf.gorilla.rightArmUp%% )
+      
+      REM  Set up some bitmap buffers (addresses bm.sky%%, bm.city%%, etc., are all QWORD-aligned)
+      bm.sky%%         = FNCreateTexture( WinW%,WinH% ) : REM  The graduated-colour sky, stars and moon are rendered to this bitmap
+      bm.city%%        = FNCreateTexture( WinW%,WinH% ) : REM  The buildings are rendered to this bitmap
+      bm.bg%%          = FNCreateTexture( WinW%,WinH% ) : REM  The buildings and sky are combined and rendered to this bitmap
+      bm.banana20x20%% = FNCreateTexture( 20,20 )       : REM  The rotated and scaled banana is rendered to this bitmap before plotting
+      bm.moon%%        = FNCreateTexture( 100,100 )     : REM  The moon before scaling and blurring
+      bm.temp%%        = FNCreateTexture( WinW%,WinH% ) : REM  A temporary bitmap
+      
+      REM Create the surface for collision detection
+      IF @platform% AND &40 THEN
+        DIM canvas{f%, pad1%, pf%%, w%, h%, s%, pad2%, p%%, u%%, l%, pad3%, ld%%, cx%, cy%, cw%, ch%, bm%%, rc%}
+      ELSE
+        DIM canvas{f%, pf%, w%, h%, s%, p%, u%, l%, ld%, cx%, cy%, cw%, ch%, bm%, rc%}
+      ENDIF
+      SYS "SDL_CreateRGBSurface", 0, WinW%, WinH%, 32, &000000FF, &0000FF00, &00FF0000, &FF000000 TO sf.canvas%%
+      PTR(canvas{}) = sf.canvas%%
+      
+      REM Create the surface and array for conversion to monochrome
+      DIM bitmap{} = canvas{}, bitmap&(WinW% * WinH% - 1, 3)
+      SYS "SDL_CreateRGBSurface", 0, WinW%, WinH%, 32, &000000FF, &0000FF00, &00FF0000, &FF000000 TO sf.bitmap%%
+      PTR(bitmap{}) = sf.bitmap%%
+      
+      
+      REM  Load in the sounds
+      wav.kill%%    = FNLoadWAV( @dir$ + ".Gorillas/kill.wav" )
+      wav.miss%%    = FNLoadWAV( @dir$ + ".Gorillas/miss.wav" )
+      wav.out%%     = FNLoadWAV( @dir$ + ".Gorillas/out.wav" )
+      wav.click%%   = FNLoadWAV( @dir$ + ".Gorillas/click.wav" )
+      wav.throw%%(0)= FNLoadWAV( @dir$ + ".Gorillas/throw0.wav" )
+      wav.throw%%(1)= FNLoadWAV( @dir$ + ".Gorillas/throw1.wav" )
+      wav.throw%%(2)= FNLoadWAV( @dir$ + ".Gorillas/throw2.wav" )
+      wav.throw%%(3)= FNLoadWAV( @dir$ + ".Gorillas/throw3.wav" )
+      wav.throw%%(4)= FNLoadWAV( @dir$ + ".Gorillas/throw4.wav" )
+      wav.throw%%(5)= FNLoadWAV( @dir$ + ".Gorillas/throw5.wav" )
+      
+      
+      DIM player{(1) alive%, xPos%, yPos%, bm%%, sf%%, oldArrow%, autoImprove%, \
+      \ type&, baseSkill&, skill&, thinking&, delay&, celebrating&, throw&, \
+      \ score&, firstGo& }
+      
+      REM  player{()}.type& = 0 (human) or 1 (computer)
+      REM  player{()}.baseSkill& (range 0 to 100) only applies to computer player
+      
+      player{( 0 )}.type&        = 0
+      player{( 0 )}.baseSkill&   = 50
+      player{( 0 )}.skill&       = player{( 0 )}.baseSkill&
+      player{( 0 )}.autoImprove% = FALSE
+      
+      player{( 1 )}.type&        = 1
+      player{( 1 )}.baseSkill&   = 50
+      player{( 1 )}.skill&       = player{( 1 )}.baseSkill&
+      player{( 1 )}.autoImprove% = FALSE
+      
+      
+      REM  Seed the random number generator
+      REM R% = RND( -TIME )
+      
+      
+      REM  Switch off the flashing cursor
+      OFF
+      
+      
+      
+      REM  ----------------------------------------------------------------------------------------------------------------------
+      
+      
+      REM  +-------------------------------+
+      REM  |                               |
+      REM  |     THE MAIN PROGRAM LOOP     |
+      REM  |                               |
+      REM  +-------------------------------+
+      
+      
+      REPEAT
+        
+        PROC_TitlePage
+        
+        PROC_Main
+        
+      UNTIL FALSE
+      
+      END : REM  Just for completeness :)
+      
+      
+      REM  ----------------------------------------------------------------------------------------------------------------------
+      
+      
+      
+      
+      
+      
+      DEF PROC_Main
+      
+      LOCAL I%, Y%, Z%, b%%, s%%
+      LOCAL arrowScale%, player%, createNewScene%
+      LOCAL celebration%, celebrationCounter%, celebrationCounterStartValue%, celebrator%
+      LOCAL close%, quit%, win%
+      LOCAL pressEscMsg%, debounce%, frames%, frameRate%, time0%, time1%
+      LOCAL msX%, msY%, msBtn%
+      
+      LOCAL explosion{}, fireBlob{}, banana{}, quadratic{}, buildings{}
+      LOCAL bananaParticle{()}, explosionParticle{()}, bananaParticle%(), explosionParticle%()
+      LOCAL oldArrow{()}, r{} : DIM r{x%, y%, w%, h%} : r.w% = WinW% : r.h% = WinH%
+      
+      PRIVATE arrowObjDefined%, arrowObj{()}
+      PRIVATE particleColourListBuilt%, particleColourList%()
+      
+      DIM explosion{ active%, x%, y%, size#, inc# }
+      DIM fireBlob{( MaxNumFireBlobs%-1 ) active%, life%, x0%, y0%, x#, y#, xv#, yv#, acc# }
+      DIM banana{ thrown%, t%, x#, y#, xv#, yv#, v#, nxv#, nyv#, angle#, angleInc# }
+      DIM quadratic{ x1%, y1%, x2%, y2%, x3%, y3%, a#, b#, c# }
+      DIM buildings{ numBuildings%, maxHeight%, x%(MaxNumBuildings%-1), width%(MaxNumBuildings%-1), height%(MaxNumBuildings%-1) }
+      DIM bananaParticle{( MaxNumBananaParticles% ) active%, life%, xv#, yv#, yacc#, x#, y#, colour%, padding%(2)}
+      DIM explosionParticle{( MaxNumExplosionParticles% ) active%, life%, xv#, yv#, x#, y#, colour%, padding%(3)}
+      DIM arrowObj{(10) x#, y#, x`#, y`#}
+      DIM oldArrow{(10) x1#(1), y1#(1), x2#(1), y2#(1)}
+      DIM bananaParticle%( MaxNumBananaParticles%, 1 ), explosionParticle%( MaxNumExplosionParticles%, 3 )
+      
+      IF arrowObjDefined% = 0 THEN
+        arrowScale% = 35
+        arrowObj{( 0 )}.x# = arrowScale% * -0.25
+        arrowObj{( 1 )}.x# = arrowScale% * 0.25
+        arrowObj{( 2 )}.x# = arrowScale% * 0.25
+        arrowObj{( 3 )}.x# = arrowScale% * 0.6
+        arrowObj{( 4 )}.x# = arrowScale% * 0.0
+        arrowObj{( 5 )}.x# = arrowScale% * -0.6
+        arrowObj{( 6 )}.x# = arrowScale% * -0.25
+        arrowObj{( 7 )}.x# = arrowScale% * -0.25
+        arrowObjDefined% = 1
+      ENDIF
+      
+      IF particleColourListBuilt% = 0 THEN
+        PROC_buildParticleColourList( particleColourList%(), ParticleColourListSize% )
+        particleColourListBuilt% = 1
+      ENDIF
+      
+      REM  Disable the Escape key
+      *ESC OFF
+      
+      player% = 0                              : REM  0 = Player One,  1 = Player Two (sorry if this confuses!)
+      
+      createNewScene% = TRUE                   : REM  PROC_createNewScene called when createNewScene% is TRUE
+      
+      banana.thrown% = FALSE                   : REM  Banana thrown flag
+      
+      celebration% = FALSE                     : REM  When a player wins a game (or round), this flag is set
+      celebrationCounter% = 0                  : REM  While positive, winning gorilla will celebrate if celebration% is TRUE
+      celebrationCounterStartValue% = 260      : REM  Determines for how long a victorious gorilla will celebrate
+      celebrator% = 0                          : REM  Identifies which player (0 or 1) threw the fatal banana
+      
+      player{( 0 )}.score& = 0                 : REM  Init players' scores to zero
+      player{( 1 )}.score& = 0
+      
+      close% = FALSE                           : REM  Program close flag
+      quit% = FALSE                            : REM  Quit game flag
+      win% = FALSE                             : REM  If a player attains the winning score, then this flag is set
+      
+      pressEscMsg% = 300                       : REM  Display "Press Escape..." message while pressEscMsg% > 0
+      
+      debounce% = TRUE                         : REM  Mouse button debounce flag
+      
+      frames% = 0                              : REM  Number of frames counted in 1 second (1000 ms)
+      frameRate% = 0                           : REM  Frame rate (fps) value reported for full-screen display
+      
+      REM  In Windowed display mode, it's important to disable the automatic window refresh
+      *REFRESH OFF
+      
+      SYS `GetTickCount` TO time0%              : REM  Start timing frame rendering times!
+      
+      COLOR 1,&00,&80,&30
+      COLOR 2,&00,&FF,&60
+      COLOR 3,&FF,&20,&A0
+      COLOR 4,&00,&80,&FF
+      COLOR 5,&30,&30,&30
+      COLOR 6,&A0,&A0,&A0
+      
+      REPEAT
+        
+        
+        REM  Do we need to draw a brand new scene?
+        IF createNewScene% THEN
+          PROC_createNewScene
+          createNewScene% = FALSE
+        ENDIF
+        
+        
+        REM  Draw the background bitmap (i.e. sky and city)
+        SYS `SDL_RenderCopy`, @memhdc%, bm.bg%%, FALSE, r{}
+        
+        
+        REM  Get (possibly scaled) mouse coordinates and button state
+        PROC_readMouse( msX%, msY%, msBtn% )
+        IF msBtn% IF msX% < 32 IF msY% > (WinH% - 32) close% = TRUE
+        
+        IF debounce% THEN
+          IF msBtn% = 0 THEN
+            debounce% = FALSE
+          ELSE
+            msBtn% = 0
+          ENDIF
+        ENDIF
+        
+        
+        REM  Choose the correct gorilla sprites to display
+        IF NOT celebration% THEN
+          
+          FOR I% = 0 TO 1
+            IF I% = 0 THEN
+              b%% = bm.gorilla.rightArmUp%%
+              s%% = sf.gorilla.rightArmUp%%
+            ELSE
+              b%% = bm.gorilla.leftArmUp%%
+              s%% = sf.gorilla.leftArmUp%%
+            ENDIF
+            IF player{( I% )}.throw& > 0 THEN
+              player{( I% )}.throw& -= 1
+              player{( I% )}.bm%% = b%%
+              player{( I% EOR 1 )}.bm%% = bm.gorilla.normal%%
+              player{( I% )}.sf%% = s%%
+              player{( I% EOR 1 )}.sf%% = sf.gorilla.normal%%
+            ELSE
+              player{( I% )}.bm%% = bm.gorilla.normal%%
+              player{( I% )}.sf%% = sf.gorilla.normal%%
+            ENDIF
+          NEXT
+          
+        ELSE
+          
+          IF (celebrationCounter% DIV 20) MOD 2 = 0 THEN
+            player{( celebrator% )}.bm%% = bm.gorilla.leftArmUp%%
+            player{( celebrator% EOR 1 )}.bm%% = bm.gorilla.normal%%
+            player{( celebrator% )}.sf%% = sf.gorilla.leftArmUp%%
+            player{( celebrator% EOR 1 )}.sf%% = sf.gorilla.normal%%
+          ELSE
+            player{( celebrator% )}.bm%% = bm.gorilla.rightArmUp%%
+            player{( celebrator% EOR 1 )}.bm%% = bm.gorilla.normal%%
+            player{( celebrator% )}.sf%% = sf.gorilla.rightArmUp%%
+            player{( celebrator% EOR 1 )}.sf%% = sf.gorilla.normal%%
+          ENDIF
+          
+        ENDIF
+        
+        
+        REM  Display the gorillas
+        REM
+        REM  Player 1's gorilla sets bit 1 in the alpha byte of overwritten background pixels
+        REM  Player 2's gorilla sets bit 2 ...
+        REM
+        FOR I% = 0 TO 1
+          
+          IF player{( I% )}.alive% THEN
+            
+            REM  First draw the gorilla's shadow
+            REM  X = player{( I% )}.xPos% - 27/2 + 8,  Y = player{( I% )}.yPos%-14 - 2
+            PROC_PlotShapeBlend( player{( I% )}.bm%%, 27, 29, player{( I% )}.xPos%-21, player{( I% )}.yPos%-16, 64 )
+            
+            REM  Now draw the gorilla proper, setting the appropriate bit (I%+1) in the aforementioned alpha bytes
+            REM  X = player{( I% )}.xPos% - 27/2,  Y = player{( I% )}.yPos%-14
+            PROC_PlotSetAlpha( player{( I% )}.bm%%, player{( I% )}.sf%%, 27, 29, player{( I% )}.xPos%-13, player{( I% )}.yPos%-14, 2^(I%+1) )
+            
+          ENDIF
+          
+        NEXT
+        
+        
+        
+        IF NOT banana.thrown% THEN
+          IF NOT celebration% THEN
+            
+            IF player{( player% )}.type& = 0 THEN
+              
+              PROC_getHumanAction( player%, msX%, msY%, msBtn% )
+              
+            ELSE
+              
+              PROC_getComputerAction( player% )
+              
+            ENDIF
+            
+          ENDIF
+        ENDIF
+        
+        
+        IF player{( player% )}.type& = 0 THEN
+          IF player{( player% )}.delay& > 0 THEN
+            player{( player% )}.delay& -= 1
+          ENDIF
+        ENDIF
+        
+        
+        REM  **********************************************
+        REM  *                                            *
+        REM  *  To cheat, the human player can press F12  *
+        REM  *                                            *
+        REM  **********************************************
+        IF NOT banana.thrown% THEN
+          IF player{( player% )}.type& = 0 THEN
+            IF INKEY-30 THEN
+              PROC_getCorrectInitialVelocity( player%, ux#, uy# )
+              PROC_initBanana( player%, ux#, uy# )
+              player{( player% )}.throw& = 20
+              player{( player% EOR 1 )}.throw& = 0
+            ENDIF
+          ENDIF
+        ENDIF
+        
+        
+        IF banana.thrown% THEN
+          
+          banana.t% += 1
+          
+          REM  Draw the banana, and while doing so, collect any cumulative
+          REM  set alpha bits in the overwritten background pixels.
+          REM    Bit 0 set means collision with building
+          REM    Bit 1 set means collision with Player 1
+          REM    Bit 2 set means collision with Player 2
+          alphaBits% = FN_drawBanana
+          
+          REM  Create a 'tail' of yellow particles as the banana flies through the air.
+          REM  The number of particles produced each frame depends on the speed of the banana
+          REM  (hence the banana.v#/2 value passed to PROC_createBananaParticles).
+          IF BananaParticles% THEN
+            PROC_createBananaParticles( INT(banana.v#/2) )
+          ENDIF
+          
+          
+          REM  ---------------------------------
+          REM  Banana-Player collision detection
+          REM  ---------------------------------
+          REM  Player 1 alpha collision bit is bit 1
+          REM  Player 2 alpha collision bit is bit 2
+          
+          REM  Check for banana collision with Player 1
+          IF banana.t% > 15 AND (alphaBits% AND 2) THEN
+            IF player% = 1 THEN
+              PROC_handleBananaHumanCollision( 0 )
+            ELSE
+              REM  Check if banana has fallen back onto Player 1 (with lethal consequences!)
+              IF (banana.y# + banana.yv#) < banana.y# THEN
+                PROC_handleBananaHumanCollision( 0 )
+              ENDIF
+            ENDIF
+            alphaBits% = 0
+          ENDIF
+          
+          REM  Check for banana collision with Player 2
+          IF banana.t% > 15 AND (alphaBits% AND 4) THEN
+            IF player% = 0 THEN
+              PROC_handleBananaHumanCollision( 1 )
+            ELSE
+              REM  Check if banana has fallen back onto Player 2
+              IF (banana.y# + banana.yv#) < banana.y# THEN
+                PROC_handleBananaHumanCollision( 1 )
+              ENDIF
+            ENDIF
+            alphaBits% = 0
+          ENDIF
+          
+          
+          REM  Check for collision of banana with building
+          REM  The building graphics set bit 0 (hence the AND mask of 1) in the alpha byte of the background pixels
+          IF (alphaBits% AND 1) THEN
+            PROC_handleBananaBuildingCollision( player% )
+          ENDIF
+          
+          
+          REM  Update the banana's position and rotation angle
+          REM  (Better check the banana's still flying through the air first!)
+          IF banana.thrown% THEN
+            PROC_updateBanana( player% )
+          ENDIF
+          
+        ENDIF
+        
+        
+        REM  Draw and update all active banana particles
+        PROC_drawBananaParticles
+        
+        
+        REM  Draw explosion particles
+        IF ExplosionParticles% THEN
+          PROC_drawExplosionParticles
+        ENDIF
+        
+        
+        REM  Draw all active fires
+        IF Fire% THEN
+          PROC_drawFires
+        ENDIF
+        
+        
+        REM  Draw and update explosion (if active)
+        IF explosion.active% THEN
+          PROC_drawExplosion
+        ENDIF
+        
+        
+        REM  If one of the gorillas is celebrating a kill, then check if it's
+        REM  time to draw a new scene (as long as the winning score hasn't yet
+        REM  been attained).
+        IF celebration% THEN
+          IF celebrationCounter% > 0 THEN
+            celebrationCounter% -= 1
+          ELSE
+            IF player{( celebrator% )}.score& = WinningScore% THEN
+              win% = TRUE
+            ELSE
+              createNewScene% = TRUE
+            ENDIF
+            celebration% = FALSE
+          ENDIF
+        ENDIF
+        
+        
+        REM  If there's no kill celebration taking place, then display
+        REM  the "Player 1" and "Player 2" text ('highlighted' for the current player)
+        IF player{( celebrator% )}.score& < WinningScore% THEN
+          OSCLI Arial16$
+          Y% = (WinH%+@char.y%)*2-56
+          IF player% = 0 THEN
+            PROC_PlotAvg(bm.greenPtr%%, 32, 32, 0, WinH% - 32)
+            GCOL 2 : MOVE 72,Y% : PRINT "Player 1";
+            GCOL 1 : MOVE WinW%*2-240,Y% : PRINT "Player 2";
+          ELSE
+            PROC_PlotAvg(bm.greenPtr%%, 32, 32, WinW% - 156, WinH% - 32)
+            GCOL 1 : MOVE 72,Y% : PRINT "Player 1";
+            GCOL 2 : MOVE WinW%*2-240,Y% : PRINT "Player 2";
+          ENDIF
+        ENDIF
+        
+        
+        REM  Display the scores so far each player
+        OSCLI Arial32$ : GCOL 3
+        Z% = FNwidth(STR$player{(0)}.score&)
+        Y% = (WinH%+@char.y%)*2-160
+        MOVE 172-Z%,Y% : PRINT STR$player{(0)}.score&;
+        
+        Z% = FNwidth(STR$player{(1)}.score&)
+        MOVE WinW%*2-140-Z%,Y% : PRINT STR$player{(1)}.score&;
+        
+        
+        REM  Press F11 to reveal current computer player's skill level
+        IF INKEY-29 THEN
+          OSCLI Arial12$
+          IF player{( 0 )}.type& = 1 THEN
+            GCOL 4 : MOVE 72,(WinH%+@char.y%)*2-200 : PRINT STR$player{(0)}.skill&;
+          ENDIF
+          
+          IF player{( 1 )}.type& = 1 THEN
+            GCOL 4 : MOVE WinW%*2-240,(WinH%+@char.y%)*2-200 : PRINT STR$player{(1)}.skill&;
+          ENDIF
+        ENDIF
+        
+        
+        REM  Display the "Press Escape..." message for a few seconds
+        IF pressEscMsg% > 0 THEN
+          OSCLI Arial12$
+          pe$ = "Press Escape to exit to Title Page"
+          Z% = FNwidth(pe$)
+          Y% = WinH%*2-4
+          GCOL 5 : MOVE WinW%-Z%-2, Y%+2 : PRINT pe$;
+          GCOL 6 : MOVE WinW%-Z%,   Y%   : PRINT pe$;
+          pressEscMsg% -= 1
+        ENDIF
+        
+        
+        REM Update the program window
+        *REFRESH
+        
+        REM  A frame has just been displayed, so bump the frame counter
+        frames% += 1
+        
+        
+        REM  After 1 second (give or take a few milliseconds!), the frames are counted
+        SYS `GetTickCount` TO time1%
+        IF time1% - time0% >= 1000 THEN
+          SYS `SDL_SetWindowTitle`, @hwnd%, ProgTitle$ + " | " + STR$frames% + " fps", @memhdc%
+          frameRate% = frames%
+          frames% = 0
+          SYS `GetTickCount` TO time0%
+        ENDIF
+        
+        
+        REM  Check for Escape keypress
+        IF NOT win% THEN
+          IF INKEY(0)=27 OR close% THEN
+            PROCPlaySound(wav.click%%)
+            quit% = FN_exitGame
+            IF NOT quit% THEN close% = FALSE
+            debounce% = TRUE
+          ENDIF
+        ENDIF
+        
+      UNTIL quit% OR win%
+      
+      IF win% THEN
+        PROC_playerWins( celebrator% )
+      ENDIF
+      
+      REM Enable escape key
+      *ESC ON
+      
+      ENDPROC
+      
+      
+      
+      DEF PROC_TitlePage
+      
+      LOCAL msX%, msY%, msBtn%, alpha%, W%, Y%, Z%, delay%, debounce%, I%, click%, close%
+      LOCAL blueBanana{()}
+      
+      DIM blueBanana{( NumBlueBananas%-1 ) x%, y#, dy#, angle#, angleInc#}
+      
+      SYS `SDL_SetWindowTitle`, @hwnd%, ProgTitle$ + " " + ProgVersion$, @memhdc%
+      SYS `SDL_memset`, canvas.p%, 0, canvas.h% * canvas.s%
+      
+      delay% = 0
+      debounce% = TRUE
+      click% = FALSE
+      close% = FALSE
+      
+      FOR I% = 0 TO NumBlueBananas%-1
+        blueBanana{( I% )}.x% = RND(WinW%)
+        blueBanana{( I% )}.y# = WinH% + RND(WinH%)
+        blueBanana{( I% )}.dy# = -(0.5 + RND(1))
+        blueBanana{( I% )}.angle# = 360.0 * RND(1)
+        blueBanana{( I% )}.angleInc# = FN_rndSgn * 1.0 * RND(1)
+      NEXT I%
+      
+      *REFRESH OFF
+      
+      COLOR 1,&20,&20,&60
+      COLOR 2,&FF,&FF,&00
+      COLOR 3,&FF,&A0,&00
+      COLOR 4,&EE,&EE,&00
+      COLOR 5,&D0,&D0,&D0
+      COLOR 6,&F0,&F0,&F0
+      COLOR 7,&C0,&C0,&C0
+      
+      VDU 5,23,24,2|
+      COLOR 129
+      
+      REPEAT
+        
+        PROC_readMouse( msX%, msY%, msBtn% )
+        
+        CLS
+        
+        FOR I% = 0 TO NumBlueBananas%-1
+          PROC_PlotRotateScale( bm.blueBanana_69x98%%, 69, 98, blueBanana{(I%)}.x%, \
+          \          WinH% - blueBanana{(I%)}.y#, blueBanana{(I%)}.angle#, 0.5)
+          blueBanana{(I%)}.angle# += blueBanana{(I%)}.angleInc#
+          blueBanana{(I%)}.y# += blueBanana{(I%)}.dy#
+          IF blueBanana{(I%)}.y# < -64 THEN
+            blueBanana{( I% )}.x% = RND(WinW%)
+            blueBanana{( I% )}.y# = WinH% + RND(WinH%)
+            blueBanana{( I% )}.dy# = -(0.5 + RND(1))
+            blueBanana{( I% )}.angle# = 360.0 * RND(1)
+            blueBanana{( I% )}.angleInc# = FN_rndSgn * 1.0 * RND(1)
+          ENDIF
+          IF ABSblueBanana{(I%)}.angle# >= 360 THEN
+            blueBanana{(I%)}.angle# -= SGN(blueBanana{(I%)}.angleInc#) * 360.0
+          ENDIF
+        NEXT
+        
+        PROC_PlotShapeBlend( bm.gorillasTitle_400x100%%, 400, 100, (WinW% - 400)DIV2-13, WinH%-100-8-12, &80)
+        PROC_Plot( bm.gorillasTitle_400x100%%, 400, 100, (WinW% - 400)DIV2, WinH%-100-8 )
+        
+        Y% = 0.6 * WinH%
+        
+        OSCLI Arial32$ : GCOL 2
+        MOVE 64*2, (Y%+@char.y%)*2 : PRINT "Player 1";
+        
+        W% = FNwidth("Player 2")
+        MOVE (WinW%-W%)*2-128, (Y%+@char.y%)*2 : PRINT "Player 2";
+        
+        Z% = FNwidth(STR$WinningScore%)
+        GCOL 6 : MOVE WinW% - Z%, (Y%+@char.y%)*2-320 : PRINT STR$WinningScore%;
+        
+        IF player{( 0 )}.type& = 0 THEN
+          PROC_PlotSetAlpha( bm.buttonSelected%%, sf.buttonSelected%%, 32, 32, 64, Y%-64, 1 )
+          PROC_PlotSetAlpha( bm.buttonNotSelected%%, sf.buttonNotSelected%%, 32, 32, 64, Y%-64 - 40, 2 )
+        ELSE
+          PROC_PlotSetAlpha( bm.buttonNotSelected%%, sf.buttonNotSelected%%, 32, 32, 64, Y%-64, 1 )
+          PROC_PlotSetAlpha( bm.buttonSelected%%, sf.buttonSelected%%, 32, 32, 64, Y%-64 - 40, 2 )
+        ENDIF
+        
+        IF player{( 1 )}.type& = 0 THEN
+          PROC_PlotSetAlpha( bm.buttonSelected%%, sf.buttonSelected%%, 32, 32, WinW%-W%-64, Y%-64, 3 )
+          PROC_PlotSetAlpha( bm.buttonNotSelected%%, sf.buttonNotSelected%%, 32, 32, WinW%-W%-64, Y%-64 - 40, 4 )
+        ELSE
+          PROC_PlotSetAlpha( bm.buttonNotSelected%%, sf.buttonNotSelected%%, 32, 32, WinW%-W%-64, Y%-64, 3 )
+          PROC_PlotSetAlpha( bm.buttonSelected%%, sf.buttonSelected%%, 32, 32, WinW%-W%-64, Y%-64 - 40, 4 )
+        ENDIF
+        
+        OSCLI Arial16$ : GCOL 3
+        MOVE 108*2,(Y%+@char.y%)*2-128 + 10 : PRINT "Human";
+        MOVE 108*2,(Y%+@char.y%)*2-128 + 10 - 80 : PRINT "Computer";
+        MOVE (WinW%-W%)*2-40,(Y%+@char.y%)*2-128 + 10 : PRINT "Human";
+        MOVE (WinW%-W%)*2-40,(Y%+@char.y%)*2-128 + 10 - 80 : PRINT "Computer";
+        
+        Z% = FNwidth("Winning score")
+        GCOL 7 : MOVE WinW% - Z%, (Y%+@char.y%)*2-208 : PRINT "Winning score";
+        
+        IF player{(0)}.type& = 1 THEN
+          PROC_RectangleSolid( 100, Y%-200, 140, 32, &00, &00, &40 )
+          PROC_RectangleSolid( 102, Y%-200+2, player{(0)}.baseSkill&/100 * (140-4), 32-4, &20, &40, &A0 )
+          Z% = FNwidth(STR$player{(0)}.baseSkill&) : GCOL 4
+          MOVE 200 + (140 - Z%), (Y%+@char.y%)*2-394 : PRINT STR$player{(0)}.baseSkill&;
+        ENDIF
+        
+        IF player{(1)}.type& = 1 THEN
+          PROC_RectangleSolid( WinW%-W%-28, Y%-200, 140, 32, &00, &00, &40 )
+          PROC_RectangleSolid( WinW%-W%-26, Y%-200+2, player{(1)}.baseSkill&/100 * (140-4), 32-4, &20, &40, &A0 )
+          Z% = FNwidth(STR$player{(1)}.baseSkill&) : GCOL 4
+          MOVE (WinW%-W%)*2-56 + (140 - Z%), (Y%+@char.y%)*2-394 : PRINT STR$player{(1)}.baseSkill&;
+        ENDIF
+        
+        OSCLI Arial12$
+        IF player{(0)}.type& = 1 THEN
+          PROC_PlotSetAlpha( bm.triButtonLeft%%, sf.triButtonLeft%%, 32, 32, 64, Y%-200, 5 )
+          PROC_PlotSetAlpha( bm.triButtonRight%%, sf.triButtonRight%%, 32, 32, 104+140, Y%-200, 6 )
+          GCOL 5 : MOVE (100+12)*2, (Y%+@char.y%)*2-320 : PRINT "Skill level";
+          IF player{(0)}.autoImprove% THEN
+            PROC_PlotSetAlpha( bm.tickBoxTicked%%, sf.tickBoxTicked%%, 32, 32, 64, Y%-250, 12 )
+          ELSE
+            PROC_PlotSetAlpha( bm.tickBox%%, sf.tickBox%%, 32, 32, 64, Y%-250, 12 )
+          ENDIF
+          GCOL 4 : MOVE 108*2, (Y%+@char.y%)*2-492 : PRINT "Auto-improve";
+        ENDIF
+        
+        IF player{(1)}.type& = 1 THEN
+          PROC_PlotSetAlpha( bm.triButtonLeft%%, sf.triButtonLeft%%, 32, 32, WinW%-W%-64, Y%-200, 7 )
+          PROC_PlotSetAlpha( bm.triButtonRight%%, sf.triButtonRight%%, 32, 32, WinW%-W%+116, Y%-200, 8 )
+          GCOL 5 : MOVE (WinW%-W%-28+12)*2, (Y%+@char.y%)*2-320 : PRINT "Skill level";
+          IF player{(1)}.autoImprove% THEN
+            PROC_PlotSetAlpha( bm.tickBoxTicked%%, sf.tickBoxTicked%%, 32, 32, WinW%-W%-64, Y%-250, 13 )
+          ELSE
+            PROC_PlotSetAlpha( bm.tickBox%%, sf.tickBox%%, 32, 32, WinW%-W%-64, Y%-250, 13 )
+          ENDIF
+          GCOL 4 : MOVE (WinW%-W%-22)*2, (Y%+@char.y%)*2-492 : PRINT "Auto-improve";
+        ENDIF
+        
+        PROC_PlotSetAlpha( bm.startButton%%, sf.startButton%%, 160, 64, (WinW% - 160)DIV2, 8, 9 )
+        
+        PROC_PlotSetAlpha( bm.triButtonLeft%%, sf.triButtonLeft%%, 32, 32, 310, Y%-152, 10 )
+        PROC_PlotSetAlpha( bm.triButtonRight%%, sf.triButtonRight%%, 32, 32, 466, Y%-152, 11 )
+        
+        IF msBtn% = 4 IF delay% = 0 IF debounce% = FALSE THEN
+          
+          alpha% = FN_ReadAlpha( msX%, msY% )
+          
+          IF alpha% = 0 THEN
+            debounce% = TRUE
+            click% = FALSE
+          ENDIF
+          
+          REM  Select Player 1 as Human
+          IF alpha% = 1 THEN
+            player{( 0 )}.type& = 0
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM  Select Player 1 as Computer
+          IF alpha% = 2 THEN
+            player{( 0 )}.type& = 1
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM  Select Player 2 as Human
+          IF alpha% = 3 THEN
+            player{( 1 )}.type& = 0
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM  Select Player 2 as Computer
+          IF alpha% = 4 THEN
+            player{( 1 )}.type& = 1
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM  Player 1 (computer) skill level (left button)
+          IF alpha% = 5 THEN
+            IF player{( 0 )}.baseSkill& > 0 THEN
+              player{( 0 )}.baseSkill& -= 1
+              delay% = 5
+            ENDIF
+          ENDIF
+          
+          REM  Player 1 (computer) skill level (right button)
+          IF alpha% = 6 THEN
+            IF player{( 0 )}.baseSkill& < 100 THEN
+              player{( 0 )}.baseSkill& += 1
+              delay% = 5
+            ENDIF
+          ENDIF
+          
+          REM  Player 2 (computer) skill level (left button)
+          IF alpha% = 7 THEN
+            IF player{( 1 )}.baseSkill& > 0 THEN
+              player{( 1 )}.baseSkill& -= 1
+              delay% = 5
+            ENDIF
+          ENDIF
+          
+          REM  Player 2 (computer) skill level (right button)
+          IF alpha% = 8 THEN
+            IF player{( 1 )}.baseSkill& < 100 THEN
+              player{( 1 )}.baseSkill& += 1
+              delay% = 5
+            ENDIF
+          ENDIF
+          
+          REM. Adjust winning score (left button)
+          IF alpha% = 10 THEN
+            IF WinningScore% > 1 THEN
+              WinningScore% -= 1
+              delay% = 10
+            ENDIF
+          ENDIF
+          
+          REM. Adjust winning score (right button)
+          IF alpha% = 11 THEN
+            IF WinningScore% < 100 THEN
+              WinningScore% += 1
+              delay% = 10
+            ENDIF
+          ENDIF
+          
+          REM. Select/deselect player 1 (computer) auto-improve option
+          IF alpha% = 12 THEN
+            player{(0)}.autoImprove% = NOT player{(0)}.autoImprove%
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM. Select/deselect player 2 (computer) auto-improve option
+          IF alpha% = 13 THEN
+            player{(1)}.autoImprove% = NOT player{(1)}.autoImprove%
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM. Toggle "banana particles" flag
+          IF alpha% = 16 THEN
+            BananaParticles% = NOT BananaParticles%
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM. Toggle "explosion particles" flag
+          IF alpha% = 17 THEN
+            ExplosionParticles% = NOT ExplosionParticles%
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM. Toggle "Fire" flag
+          IF alpha% = 18 THEN
+            Fire% = NOT Fire%
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          REM. Toggle "PreviousArrow" flag
+          IF alpha% = 19 THEN
+            ShowPreviousArrow% = NOT ShowPreviousArrow%
+            debounce% = TRUE
+            click% = TRUE
+          ENDIF
+          
+          
+        ENDIF
+        
+        IF debounce% = TRUE AND msBtn% = 0 THEN
+          debounce% = FALSE
+          click% = FALSE
+        ENDIF
+        
+        IF delay% > 0 THEN
+          delay% -= 1
+        ENDIF
+        
+        IF click% THEN
+          PROCPlaySound(wav.click%%)
+          click% = FALSE
+        ENDIF
+        
+        *REFRESH
+        
+      UNTIL close% = TRUE OR alpha% = 9
+      
+      IF close% THEN
+        VDU 7
+        SOUND 1, 0, 0, 0
+        SOUND OFF
+        QUIT
+      ENDIF
+      
+      PROCPlaySound(wav.click%%)
+      
+      ENDPROC
+      
+      
+      
+      DEF PROC_getHumanAction( player%, msX%, msY%, msBtn% )
+      
+      LOCAL x0#, y0#, x1#, y1#, len#, ndx#, ndy#, xv#, yv#
+      PRIVATE oldmsBtn%
+      
+      IF player{( player% )}.delay& > 0 THEN ENDPROC
+      
+      PROC_getHumanPlayerBananaVelocity( player%, msX%, msY%, len#, ndx#, ndy# )
+      
+      IF len# > 200 THEN len# = 200
+      
+      xv# = 0.1 * len# * ndx#
+      yv# = 0.1 * len# * ndy#
+      
+      x0# = 1.0 * player{( player% )}.xPos%
+      y0# = 1.0 * player{( player% )}.yPos%
+      
+      x1# = x0# + len#*ndx#
+      y1# = y0# + len#*ndy#
+      
+      IF ShowPreviousArrow% THEN
+        IF player{( player% )}.oldArrow% THEN
+          PROC_drawArrowCopy( player% )
+        ENDIF
+      ENDIF
+      
+      PROC_drawArrow( x0#, y0#, x1#, y1#, &40, &FF, &40 )
+      
+      IF oldmsBtn% = 4 IF msBtn% = 0 IF msX% >= 0 IF msX% < WinW% IF msY% >= 0 IF msY% < WinH% THEN
+        
+        player{( player% )}.oldArrow% = TRUE
+        
+        PROC_copyCurrentArrow( player% )
+        
+        PROC_initBanana( player%, xv#, yv# )
+        
+        player{( player% )}.firstGo& = 0
+        player{( player% )}.throw& = 20
+        player{( player% EOR 1 )}.throw& = 0
+        
+        PROCPlaySound(wav.throw%%( RND(6)-1 ))
+        
+      ENDIF
+      oldmsBtn% = msBtn%
+      
+      ENDPROC
+      
+      
+      DEF PROC_getComputerAction( player% )
+      
+      LOCAL ux#, uy#, k#, x_err#, y_err#, skill#
+      
+      IF player{( player% )}.thinking& > 0 THEN
+        player{( player% )}.thinking& -= 1
+        ENDPROC
+      ENDIF
+      
+      PROC_getCorrectInitialVelocity( player%, ux#, uy# )
+      
+      REM  Let's try not to obliterate the human player on the computer's first go!
+      IF player{( player% )}.firstGo& = 1 THEN
+        k# = 1.8
+      ELSE
+        k# = 0.75
+      ENDIF
+      
+      REM  ux# and uy# are the 'perfect' initial velocity components.
+      REM  Let's add an error to them proportional to the computer's skill level.
+      skill# = 1.0 - player{( player% )}.skill& / 100
+      x_err# = FN_rndSgn * RND(1) * k# * skill#
+      y_err# = FN_rndSgn * RND(1) * k# * skill#
+      
+      ux# += x_err#
+      uy# += y_err#
+      
+      IF player% = 0 AND SGN(ux#) = -1 THEN ux# *= -1
+      IF player% = 1 AND SGN(ux#) = 1 THEN ux# *= -1
+      
+      PROC_initBanana( player%, ux#, uy# )
+      
+      IF player{( player% )}.autoImprove% THEN
+        player{( player% )}.skill& += RND(5)
+        IF  player{( player% )}.skill& > 100 THEN
+          player{( player% )}.skill& = 100
+        ENDIF
+      ENDIF
+      
+      player{( player% )}.firstGo&     = 0
+      player{( player% )}.throw&       = 20
+      player{( player% EOR 1 )}.throw& = 0
+      player{( player% )}.thinking&    = 100 + RND(100)
+      
+      PROCPlaySound(wav.throw%%( RND(6)-1 ))
+      
+      ENDPROC
+      
+      
+      
+      DEF PROC_playerWins( celebrator% )
+      LOCAL I%, X%, Y%, W%, H%, S%, T%, U%, S$, P$, t%%, a, r{}
+      DIM r{x%, y%, w%, h%} : r.w% = WinW% : r.h% = WinH%
+      SYS `SDL_SetWindowTitle`, @hwnd%, ProgTitle$, @memhdc%
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : Erl% = ERL : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, bm.temp%%
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, r{}, FALSE
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      IF celebrator% = 0 THEN P$ = "ONE" ELSE P$ = "TWO"
+      S$ = "PLAYER " + P$ + " WINS"
+      OSCLI Arial32$
+      S% = FNwidth(S$) : U% = FNwidth("WELL DONE !")
+      FOR W% = WinW% TO 1 STEP -8
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, &00, &00, &00, &FF
+        SYS `SDL_RenderClear`, @memhdc%
+        H% = WinH%/WinW% * W%
+        X% = (WinW% - W%) / 2
+        Y% = (WinH% - H%) / 2
+        T% = TIME
+        PROC_PlotScaleGain( bm.temp%%, W%, H%, X%, Y%, W% / WinW% * 255 )
+        COLOR 7, 128+127*SIN(T%/29), 128+127*COS(T%/25), 128+127*SIN(COS(T%/30))
+        GCOL 7 : MOVE WinW% - S%, WinH% + @char.y% + 60 : PRINT S$;
+        IF player{( celebrator% )}.type& = 0 THEN
+          GCOL 10 : MOVE WinW% - U%, WinH% + @char.y% - 140 : PRINT "WELL DONE !";
+        ENDIF
+        *REFRESH
+      NEXT W%
+      
+      FOR I% = 1 TO 100
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, &00, &00, &00, &FF
+        SYS `SDL_RenderClear`, @memhdc%
+        T% = TIME
+        COLOR 7, 128+127*SIN(T%/29), 128+127*COS(T%/25), 128+127*SIN(COS(T%/30))
+        GCOL 7 : MOVE WinW% - S%, WinH% + @char.y% + 60 : PRINT S$;
+        IF player{( celebrator% )}.type& = 0 THEN
+          GCOL 10 : MOVE WinW% - U%, WinH% + @char.y% - 140 : PRINT "WELL DONE !";
+        ENDIF
+        *REFRESH
+      NEXT I%
+      
+      FOR  I% = 63 TO 1 STEP -1
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, &00, &00, &00, &FF
+        SYS `SDL_RenderClear`, @memhdc%
+        T% = TIME
+        a = I% / 64
+        COLOR 7, a*(128+127*SIN(T%/29)), a*(128+127*COS(T%/25)), a*(128+127*SIN(COS(T%/30)))
+        GCOL 7 : MOVE WinW% - S%, WinH% + @char.y% + 60 : PRINT S$;
+        IF player{( celebrator% )}.type& = 0 THEN
+          GCOL 10 : MOVE WinW% - U%, WinH% + @char.y% - 140 : PRINT "WELL DONE !";
+        ENDIF
+        *REFRESH
+      NEXT I%
+      ENDPROC
+      
+      
+      DEF FN_exitGame
+      LOCAL exit%, yesStrW%, noStrW%, exitStrW%
+      LOCAL msX%, msY%, msBtn%, selected%, alpha%, t%%, r{}, matrix&()
+      DIM r{x%, y%, w%, h%} : r.w% = WinW% : r.h% = WinH%
+      DIM matrix&(3,3) : matrix&() = 1,1,1,0, 1,1,1,0, 1,1,1,0, 0,0,0,3
+      
+      exit% = FALSE
+      
+      SYS `SDL_memset`, canvas.p%, 0, canvas.h% * canvas.s%
+      
+      OSCLI Arial32$
+      yesStrW%  = FNwidth("YES")
+      noStrW%   = FNwidth("NO")
+      exitStrW% = FNwidth("Exit?")
+      
+      SYS `SDL_RenderReadPixels`, @memhdc%, r{}, PIXELFORMAT, ^bitmap&(0,0), WinW% * 4
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, 0, 0, 0, &FF
+      SYS `SDL_RenderClear`, @memhdc%
+      bitmap&() DIV= 3 : bitmap&() = bitmap&(). matrix&()
+      SYS `SDL_memcpy`, bitmap.p%, ^bitmap&(0,0), WinW% * WinH% * 4
+      SYS `SDL_CreateTextureFromSurface`, @memhdc%, bitmap{} TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      PROC_PlotScaleBlur( t%%, WinW%, WinH%, 0, 0, &C0, 4 )
+      SYS `SDL_DestroyTexture`, t%%, @memhdc%
+      
+      PROC_RectangleSolidSetAlpha( WinW%*0.35 - 60, WinH%*0.45 - 30, 120, 60, &80, &00, &00, 1 )
+      PROC_RectangleSolidSetAlpha( WinW%*0.65 - 60, WinH%*0.45 - 30, 120, 60, &00, &80, &00, 2 )
+      
+      COLOR 7,&C0,&C0,&C0 : GCOL 7
+      MOVE WinW% * 0.7 - noStrW%, WinH% * 0.9 + @char.y% : PRINT"NO";
+      MOVE WinW% * 1.3 - yesStrW%, WinH% * 0.9 + @char.y% : PRINT"YES";
+      COLOR 7,&0A,&0A,&0A
+      MOVE WinW% - exitStrW% - 4, WinH% * 1.3 + @char.y% + 4 : PRINT"Exit?";
+      COLOR 7,&FF,&A0,&00
+      MOVE WinW% - exitStrW%, WinH% * 1.3 + @char.y% : PRINT"Exit?";
+      
+      selected% = FALSE
+      
+      REPEAT
+        
+        
+        PROC_readMouse( msX%, msY%, msBtn% )
+        
+        alpha% = FN_ReadAlpha(msX%, msY%)
+        
+        IF (msBtn% = 4 AND alpha% = 1) OR INKEY-86 THEN
+          exit% = FALSE
+          selected% = TRUE
+        ENDIF
+        
+        IF (msBtn% = 4 AND alpha% = 2) OR INKEY-69 THEN
+          exit% = TRUE
+          selected% = TRUE
+        ENDIF
+        
+        
+        *REFRESH
+        
+      UNTIL selected% OR INKEY(1)=0
+      
+      PROCPlaySound(wav.click%%)
+      
+      
+      = exit%
+      
+      
+      DEF PROC_createNewFireBlobs( N%, x0%, y0% )
+      LOCAL I%, M%, P%
+      PRIVATE fireBlobPtr%
+      
+      P% = fireBlobPtr%
+      M% = MaxNumFireBlobs%
+      
+      FOR I% = 0 TO N%-1
+        fireBlob{(P%)}.active% = TRUE
+        fireBlob{(P%)}.life%   = RND(&64)
+        fireBlob{(P%)}.x0%     = x0% + &5*(RND(&1)-RND(&1))
+        fireBlob{(P%)}.y0%     = y0% + &5*(RND(&1)-RND(&1))
+        fireBlob{(P%)}.x#      = x0%
+        fireBlob{(P%)}.y#      = y0%
+        fireBlob{(P%)}.xv#     = 0.5*(RND(&1)-RND(&1))
+        fireBlob{(P%)}.yv#     = 0.005*RND(&1)
+        fireBlob{(P%)}.acc#    = 0.01*RND(&1)
+        P% -= TRUE
+        IF P% = M% THEN
+          P% = FALSE
+        ENDIF
+      NEXT
+      fireBlobPtr% = P%
+      ENDPROC
+      
+      
+      DEF PROC_createNewScene
+      LOCAL I%, R%, X%, Y%, y%, maxY%
+      
+      REM  Re-seed the random number generator
+      SYS `GetTickCount` TO I%
+      I% = RND( -I% )
+      
+      REM Clear the canvas
+      SYS `SDL_memset`, canvas.p%, 0, canvas.h% * canvas.s%
+      
+      PROC_drawSkyBackground( bm.sky%%, WinW%, WinH% )
+      PROC_drawCity( bm.city%%, WinW%, WinH% )
+      PROC_drawMoon( bm.sky%%, RND(WinW%), RND(WinH%), WinH%)
+      PROC_updateBackground
+      
+      REM  Choose the buildings upon which the gorillas stand
+      building1% = RND(4) - 1
+      building2% = (buildings.numBuildings% - 5) + RND(3)
+      
+      player{(0)}.xPos% = buildings.x%( building1% ) + buildings.width%( building1% )/2
+      player{(0)}.yPos% = buildings.height%( building1% ) + 14
+      
+      player{(1)}.xPos% = buildings.x%( building2% ) + buildings.width%( building2% )/2
+      player{(1)}.yPos% = buildings.height%( building2% ) + 14
+      
+      FOR I% = 0 TO 1
+        player{( I% )}.alive%    = TRUE
+        player{( I% )}.throw&    = 0
+        player{( I% )}.oldArrow% = FALSE
+        player{( I% )}.thinking& = 100 + RND(100)
+        player{( I% )}.delay&    = 60
+        player{( I% )}.firstGo&  = 1
+        player{( I% )}.skill&    = player{( 0 )}.baseSkill&
+      NEXT
+      
+      REM  De-activate all the explosion particles
+      FOR I% = 0 TO MaxNumExplosionParticles%-1
+        explosionParticle{( I% )}.active% = FALSE
+        explosionParticle{( I% )}.life%   = 0
+        explosionParticle{( I% )}.x#      = -4.0
+        explosionParticle{( I% )}.y#      = -4.0
+        explosionParticle{( I% )}.colour% = &FFFFFF
+        explosionParticle{( I% )}.xv#     = 0.0
+        explosionParticle{( I% )}.yv#     = 0.0
+      NEXT
+      
+      REM  De-activate all the banana particles
+      FOR I% = 0 TO MaxNumBananaParticles%-1
+        bananaParticle{( I% )}.active%    = FALSE
+        bananaParticle{( I% )}.life%      = 0
+        bananaParticle{( I% )}.x#         = -4.0
+        bananaParticle{( I% )}.y#         = -4.0
+        bananaParticle{( I% )}.xv#        = 0.0
+        bananaParticle{( I% )}.yv#        = 0.0
+        bananaParticle{( I% )}.yacc#      = 0.0
+      NEXT
+      
+      REM  De-activate all the fire blobs
+      FOR I% = 0 TO MaxNumFireBlobs%-1
+        fireBlob{(I%)}.active% = FALSE
+      NEXT
+      
+      REM  De-activate the explosion
+      explosion.active% = FALSE
+      explosion.size#   = 32.0
+      explosion.inc#    = 0.0
+      explosion.x%      = WinW% DIV 2
+      explosion.y%      = WinH% DIV 2
+      
+      REM  Determine which player has the largest Y co-ordinate
+      playerHighestY% = 0
+      IF player{(0)}.yPos% > player{(1)}.yPos% THEN
+        playerHighestY% = player{(0)}.yPos%
+      ELSE
+        playerHighestY% = player{(1)}.yPos%
+      ENDIF
+      
+      REM  Determine which building is the tallest
+      maxY% = 0
+      IF buildings.maxHeight% > playerHighestY% THEN
+        maxY% = buildings.maxHeight%
+      ELSE
+        maxY% = playerHighestY%
+      ENDIF
+      
+      REM  Define the start and end points of the parabola (quadratic curve)
+      REM  The X co-ordinate of the midpoint is known
+      quadratic.x1% = player{(0)}.xPos%
+      quadratic.y1% = player{(0)}.yPos%
+      quadratic.x3% = player{(1)}.xPos%
+      quadratic.y3% = player{(1)}.yPos%
+      
+      quadratic.x2% = (quadratic.x1% + quadratic.x3%) DIV 2
+      
+      REM  Determine the Y co-ordinate of the parabola's midpoint, and calculate
+      REM  the coefficients (a, b, c) of the quadratic curve  Y = aX^2 + bX + c
+      REM  We need to find the parabolic curve which avoids intersecting the buildings.
+      REM  There is, of course, a much better - and faster - way of doing this, but it
+      REM  can wait until a possibly later version of this program.
+      
+      FOR Y% = maxY% TO WinH%+2000 STEP 8
+        
+        quadratic.y2% = Y%
+        
+        PROC_getQuadraticCoeffs( quadratic.x1%, quadratic.y1%, quadratic.x2%, quadratic.y2%, \
+        \ quadratic.x3%, quadratic.y3%, quadratic.a#, quadratic.b#, quadratic.c# )
+        
+        FOR X% = quadratic.x1% TO quadratic.x3% STEP 4
+          y% = quadratic.a#*X%^2 + quadratic.b#*X% + quadratic.c#
+          R% = FN_ReadAlpha(X%, y%)
+          IF R% <> 0 THEN
+            X% = quadratic.x3%
+          ENDIF
+        NEXT
+        
+        IF R% = 0 THEN
+          quadratic.y2% += 48 + RND(200)
+          Y% = WinH%+2000 : REM  EXIT FOR
+        ENDIF
+        
+      NEXT
+      
+      ENDPROC
+      
+      
+      REM  explosionParticle{( MaxNumExplosionParticles% ) active%, life%, xv#, yv#, x#, y#, colour%, padding%(3)}
+      REM                                                  0        4      8    16   24  32  40
+      REM                                                  &0       &4     &8   &10  &18 &20 &28
+      DEF PROC_createParticleExplosion( N%, X%, Y% )
+      LOCAL a%%, b%%, I%, P%, S%, M%, Z%, x#, y#
+      PRIVATE explosionParticleIndex%
+      
+      b%% = ^explosionParticle{( 0 )}.active%
+      a%% = ^explosionParticle{( P% )}.active%
+      Z% = MaxNumExplosionParticles%
+      P% = explosionParticleIndex%
+      S% = DIM(explosionParticle{(0)})
+      M% = ParticleColourListSize%
+      x# = 1.0 * X%
+      y# = 1.0 * Y%
+      
+      REM  This needs to be quite fast, hence the recourse to indirection operators.
+      REM  Perhaps using ordinary array/structure access is faster after all -- haven't tested it.
+      FOR I% = 0 TO N%-1
+        !a%% = TRUE
+        a%%!&4 = RND(&12C)
+        |(a%%+&8) = &4*(RND(&1) - RND(&1))
+        |(a%%+&10) = &6*(RND(&1) - RND(&1))
+        |(a%%+&18) = x#
+        |(a%%+&20) = y#
+        a%%!&28 = particleColourList%( RND(M%)+TRUE )
+        a%% += S%
+        P% -= TRUE
+        IF P% = Z% THEN
+          P% = 0
+          a%% = b%%
+        ENDIF
+      NEXT
+      
+      explosionParticleIndex% = P%
+      ENDPROC
+      
+      
+      DEF PROC_createBananaParticles( N% )
+      LOCAL I%, M%, P%, r#, x#, y#
+      PRIVATE bananaParticleIndex%
+      
+      P% = bananaParticleIndex%
+      M% = MaxNumBananaParticles%
+      
+      IF banana.y# < 2*WinH% THEN
+        x# = banana.x#
+        y# = banana.y#
+        FOR I% = 1 TO N%
+          r#                             = banana.v# * RND(&1)
+          bananaParticle{( P% )}.active% = TRUE
+          bananaParticle{( P% )}.life%   = &C8 + RND(&64)
+          bananaParticle{( P% )}.x#      = x# - r#*banana.nxv# + &4*(RND(&1) - RND(&1))
+          bananaParticle{( P% )}.y#      = y# - r#*banana.nyv# + &4*(RND(&1) - RND(&1))
+          bananaParticle{( P% )}.xv#     = banana.xv# * 0.025 * RND(&1)
+          bananaParticle{( P% )}.yv#     = banana.yv# * 0.01 * RND(&1)
+          bananaParticle{( P% )}.yacc#   = -0.01 * RND(&1)
+          P% -= TRUE
+          IF P% = M% THEN
+            P% = FALSE
+          ENDIF
+        NEXT
+        bananaParticleIndex% = P%
+      ENDIF
+      ENDPROC
+      
+      
+      REM  This subroutine merges the city bitmap (bm.city%) with the sky bitmap (bm.sky%)
+      REM  The resulting combined bitmap is written to the background bitmap (bm.bg%)
+      DEF PROC_updateBackground
+      LOCAL t%%
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : Erl% = ERL : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, bm.bg%%
+      REM  First clear the background bitmap (bm.bg%) -- although this is not strictly necessary!
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, 0, 0, 0, 0
+      SYS `SDL_RenderClear`, @memhdc%
+      SYS `SDL_RenderCopy`, @memhdc%, bm.sky%%, FALSE, FALSE
+      SYS `SDL_SetTextureBlendMode`, bm.city%%, SDL_BLENDMODE_BLEND
+      SYS `SDL_RenderCopy`, @memhdc%, bm.city%%, FALSE, FALSE
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      ENDPROC
+      
+      
+      DEF PROC_getHumanPlayerBananaVelocity( player%, msX%, msY%, RETURN len#, RETURN ndx#, RETURN ndy# )
+      LOCAL x0%, y0%, dx%, dy%
+      
+      x0% = player{( player% )}.xPos%
+      y0% = player{( player% )}.yPos%
+      
+      IF msY% < y0% THEN msY% = y0%
+      
+      IF player% = 0 THEN
+        IF msX% < x0%+2 THEN msX% = x0%+2
+      ELSE
+        IF msX% > x0%-2 THEN msX% = x0%-2
+      ENDIF
+      
+      len# = SQR((msX% - x0%)^2 + (msY% - y0%)^2)
+      
+      IF len# < 1 THEN len# = 1
+      
+      dx% = msX% - x0%
+      dy% = msY% - y0%
+      
+      ndx# = dx% / len#
+      ndy# = dy% / len#
+      
+      ENDPROC
+      
+      
+      REM  Set the initial velocity of the banana, and compute some other possibly useful values
+      DEF PROC_initBanana( player%, xVel#, yVel# )
+      banana.x#        = player{( player% )}.xPos%
+      banana.y#        = player{( player% )}.yPos%
+      banana.xv#       = xVel#
+      banana.yv#       = yVel#
+      banana.v#        = SQR( xVel#^2 + yVel#^2 )
+      banana.nxv#      = xVel# / banana.v#
+      banana.nyv#      = yVel# / banana.v#
+      banana.angle#    = 0.0
+      banana.angleInc# = 5 + banana.v#
+      banana.thrown%   = TRUE
+      banana.t%        = 0
+      IF player% = 1 THEN banana.angleInc# *= -1
+      ENDPROC
+      
+      
+      REM  Update the banana's position and angle of rotation
+      DEF PROC_updateBanana( RETURN player% )
+      banana.x# += banana.xv#
+      banana.y# += banana.yv#
+      banana.yv# += g#
+      banana.angle# += banana.angleInc#
+      IF ABSbanana.angle# >= 360 THEN
+        banana.angle# -= 360 * SGNbanana.angleInc#
+      ENDIF
+      IF banana.x# < -64 OR banana.x# >= WinW%+64 OR banana.y# < 0 THEN
+        player{( player% )}.delay& = 60
+        player% = player% EOR 1
+        banana.thrown% = FALSE
+        PROCPlaySound(wav.out%%)
+      ENDIF
+      ENDPROC
+      
+      
+      DEF PROC_handleBananaBuildingCollision( RETURN player% )
+      banana.thrown% = FALSE
+      player{( player% )}.delay& = 60
+      player% = player% EOR 1
+      PROC_makeHoleInBuilding( bm.city%%, banana.x#, banana.y#, 10 )
+      PROC_updateBackground
+      IF Fire% THEN
+        PROC_createNewFireBlobs( 5+RND(10), banana.x#-16, banana.y#-24 )
+      ENDIF
+      IF ExplosionParticles% THEN
+        PROC_createParticleExplosion( RND(30), banana.x#, banana.y#-16)
+      ENDIF
+      PROCPlaySound(wav.miss%%)
+      ENDPROC
+      
+      
+      DEF PROC_handleBananaHumanCollision( P% )
+      
+      REM  Where P% (0 or 1) is the player with which the banana has collided
+      
+      banana.thrown% = FALSE                     : REM  Disable the banana
+      
+      player{( P% )}.alive% = FALSE              : REM  Kill player P%
+      player{( P% EOR 1 )}.delay& = 60           : REM  Set "throw delay" for other computer player (delay& doesn't apply to human player)
+      player{( P% EOR 1 )}.score& += 1           : REM  Other player gets a point
+      
+      explosion.active% = TRUE                   : REM  Set the explosion flag
+      explosion.x% = player{( P% )}.xPos%        : REM  Define explosion coordinates
+      explosion.y% = player{( P% )}.yPos% - 16
+      
+      celebrator% = P% EOR 1                     : REM  The other player can now start celebrating!
+      celebration% = TRUE
+      celebrationCounter% = celebrationCounterStartValue%
+      
+      PROC_makeHoleInBuilding( bm.city%%, player{( P% )}.xPos%, player{( P% )}.yPos%-14, 25 )
+      
+      IF Fire% THEN
+        PROC_createNewFireBlobs( 30+RND(30), player{( P% )}.xPos%-14, player{( P% )}.yPos%-55 )
+      ENDIF
+      
+      IF ExplosionParticles% THEN
+        PROC_createParticleExplosion( 200, player{( P% )}.xPos%, player{( P% )}.yPos%-16 )
+      ENDIF
+      
+      player% = player% EOR 1
+      
+      PROC_updateBackground
+      
+      PROCPlaySound(wav.kill%%)
+      ENDPROC
+      
+      
+      DEF PROC_makeHoleInBuilding( b%%, X%, Y%, M% )
+      LOCAL I%, A%, C%, R%, x%, y%, t%%, r{} : DIM r{x%, y%, w%, h%}
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : Erl% = ERL : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, b%%
+      GCOL 0 : SYS `SDL_SetRenderDrawBlendMode`, @memhdc%, SDL_BLENDMODE_ZERO_COLOR_AND_ALPHA
+      FOR I% = 0 TO 4
+        A% = RND(360) - 1
+        R% = RND(10) : C% = 5 + RND(M%)
+        x% = X%+R%*SINRADA% : y% = Y%+R%*COSRADA%
+        CIRCLE FILL x%*2, y%*2, 2*C%
+        r.x% = x% - C% : r.y% = WinH% - 1 - y% - C% : r.w% = 2*C% : r.h% = 2*C%
+        SYS `SDL_FillRect`, canvas{}, r{}, 0
+      NEXT
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      SYS `SDL_SetRenderDrawBlendMode`, @memhdc%, SDL_BLENDMODE_NONE
+      ENDPROC
+      
+      
+      DEF FN_drawBanana
+      LOCAL b%%, t%%, X%, Y%
+      b%% = bm.banana20x20%%
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : Erl% = ERL : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, b%%
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, FALSE, FALSE, FALSE, FALSE
+      SYS `SDL_RenderClear`, @memhdc%
+      PROC_PlotRotateScale( bm.banana%%, 128, 128, 10, 10, banana.angle#, 0.2 )
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      SYS `SDL_SetTextureBlendMode`, b%%, SDL_BLENDMODE_BLEND
+      X% = banana.x# : Y% = banana.y#
+      PROC_PlotShapeBlend( b%%, 20, 20, X%-10 + 4, Y%-10 - 4, 80 )
+      PROC_Plot( b%%, 20, 20, X%-10, Y%-10 )
+      = FN_ReadAlpha(X%-6,Y%-6) OR FN_ReadAlpha(X%+6,Y%-6) OR FN_ReadAlpha(X%-6,Y%+6) OR FN_ReadAlpha(X%+6,Y%+6)
+      
+      
+      DEF PROC_drawFires
+      LOCAL b%%, I%
+      
+      b%% = bm.fireBlob%%
+      
+      FOR I% = 0 TO MaxNumFireBlobs%-1
+        IF fireBlob{(I%)}.active% THEN
+          PROC_PlotAddSaturate( b%%, &20, &20, fireBlob{(I%)}.x#, fireBlob{(I%)}.y# )
+          fireBlob{(I%)}.x# += fireBlob{(I%)}.xv#
+          fireBlob{(I%)}.y# += fireBlob{(I%)}.yv#
+          fireBlob{(I%)}.yv# += fireBlob{(I%)}.acc#
+          IF fireBlob{(I%)}.life% > FALSE THEN
+            fireBlob{(I%)}.life% += TRUE
+          ELSE
+            fireBlob{(I%)}.x# = fireBlob{(I%)}.x0%
+            fireBlob{(I%)}.y# = fireBlob{(I%)}.y0%
+            fireBlob{(I%)}.xv# = FN_rndSgn * 0.075*RND(1)
+            fireBlob{(I%)}.yv# = 0.01*RND(1)
+            fireBlob{(I%)}.acc# = 0.01*RND(1)
+            fireBlob{(I%)}.life% = RND(&64)
+          ENDIF
+        ENDIF
+      NEXT
+      ENDPROC
+      
+      
+      DEF PROC_drawExplosion
+      PROC_PlotScaleBlend( bm.explosion%%, explosion.size#, explosion.size#, \
+      \ explosion.x%-explosion.size#/2, explosion.y%-explosion.size#/2, 255-explosion.size# )
+      explosion.size# += explosion.inc#
+      explosion.inc# += 2.0
+      IF explosion.size# >= 256 THEN
+        explosion.active% = FALSE
+      ENDIF
+      ENDPROC
+      
+      
+      DEF PROC_drawExplosionParticles
+      LOCAL C%, I%, J%
+      
+      FOR I% = 0 TO MaxNumExplosionParticles%-1
+        IF explosionParticle{(I%)}.active% THEN
+          explosionParticle{(I%)}.x# += explosionParticle{(I%)}.xv#
+          explosionParticle{(I%)}.y# += explosionParticle{(I%)}.yv#
+          explosionParticle{(I%)}.yv# -= 0.035
+          IF explosionParticle{(I%)}.life% > FALSE THEN
+            explosionParticle{(I%)}.life% += TRUE
+          ELSE
+            explosionParticle{(I%)}.active% = FALSE
+            explosionParticle{(I%)}.x# = -4.0
+            explosionParticle{(I%)}.y# = -4.0
+          ENDIF
+          explosionParticle%( J%, 0) = INT(explosionParticle{(I%)}.x# + 0.5)
+          explosionParticle%( J%, 1) = INT(WinH% - 1 - explosionParticle{(I%)}.y# - 0.5)
+          explosionParticle%( J%, 2) = 2
+          explosionParticle%( J%, 3) = 2
+          J% += 1
+        ENDIF
+      NEXT
+      
+      IF J% THEN
+        REM  Draw the particles each four times (but at different X,Y offsets)
+        FOR I% = 0 TO J%-1 STEP ParticleBatchSize%
+          C% = explosionParticle{(I%)}.colour%
+          SYS `SDL_SetRenderDrawColor`, @memhdc%, C% >> 16 AND &FF, C% >> 8 AND &FF, C% AND &FF, &FF
+          SYS `SDL_RenderFillRects`, @memhdc%, ^explosionParticle%(I%,0), FN_min(ParticleBatchSize%, J%-I%)
+        NEXT
+      ENDIF
+      
+      ENDPROC
+      
+      
+      DEF PROC_drawBananaParticles
+      LOCAL I%, J%
+      
+      FOR I% = 0 TO MaxNumBananaParticles%-1
+        IF bananaParticle{(I%)}.active% THEN
+          bananaParticle{(I%)}.x# += bananaParticle{(I%)}.xv#
+          bananaParticle{(I%)}.y# += bananaParticle{(I%)}.yv#
+          bananaParticle{(I%)}.yv# += bananaParticle{(I%)}.yacc#
+          IF bananaParticle{(I%)}.life% > FALSE THEN
+            bananaParticle{(I%)}.life% += TRUE
+          ELSE
+            bananaParticle{(I%)}.active% = FALSE
+            bananaParticle{(I%)}.x# = TRUE
+            bananaParticle{(I%)}.y# = TRUE
+          ENDIF
+          bananaParticle%( J%, 0 ) = INT(bananaParticle{( I% )}.x# + 0.5)
+          bananaParticle%( J%, 1 ) = INT(WinH% - bananaParticle{( I% )}.y# - 0.5)
+          J% += 1
+        ENDIF
+      NEXT
+      
+      IF J% THEN
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, &FF, &FF, &00, &FF
+        SYS `SDL_RenderDrawPoints`, @memhdc%, ^bananaParticle%(0,0), J%
+      ENDIF
+      ENDPROC
+      
+      
+      REM  Draw a moon with random phase and orientation, and make its size and colour
+      REM  depend on its altitude (small and bright when high up overhead, dull orange and big
+      REM  when closer to the horizon)
+      DEF PROC_drawMoon( b%%, X%, Y%, maxY% )
+      
+      LOCAL I%, a, b, c, a(), b(), c(), r(), t%%, scale#
+      DIM a(2,2), b(2,2), c(2,2), r(2,2)
+      
+      REM Random moon phase (six-months period):
+      a = 12 * PI * RND(1)
+      c = 0.4 * COS(a) * SIN(a/7)
+      
+      REM Create the rotation matrix
+      a() = 1, 0, 0, 0, COS(a), -SIN(a), 0, SIN(a), COS(a)
+      b() = COS(b), 0, SIN(b), 0, 1, 0, -SIN(b), 0, COS(b)
+      c() = COS(c), -SIN(c), 0, SIN(c), COS(c), 0, 0, 0, 1
+      r() = b() . a()
+      r() = c() . r()
+      
+      REM Rotate the 3D positions of the points according to the phase:
+      moonq() = r() . moonp()
+      
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : Erl% = ERL : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, bm.moon%%
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, FALSE, FALSE, FALSE, FALSE
+      SYS `SDL_RenderClear`, @memhdc%
+      
+      REM Plot the visible points:
+      scale# = 0.8 - 0.3 * (Y% / maxY%)
+      
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, FN_min(255*(1-scale#^3)+150, 255), \
+      \                     FN_min(255*(1-scale#^2)+64, 255), FN_min(255*(1-scale#)+32, 255), &FF
+      FOR I% = 0 TO MOONPTS-1
+        IF moonq(2,I%) > 0 THEN
+          SYS `SDL_RenderDrawPoint`, @memhdc%, 50 + INT(moonq(1,I%)*50), 50 + INT(moonq(0,I%)*50)
+        ENDIF
+      NEXT
+      
+      SYS `SDL_SetRenderTarget`, @memhdc%, b%%
+      PROC_PlotScaleBlur(bm.moon%%, 100*scale#, 100*scale#, X%, Y%, &FF, 2)
+      
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      
+      ENDPROC
+      
+      
+      REM  Calculate the 'correct' initial velocity of the banana that would score a hit
+      REM  (at least in the absence of wind and air drag!)
+      DEF PROC_getCorrectInitialVelocity( player%, RETURN ux#, RETURN uy_1# )
+      LOCAL yDisp1#, yDisp2#, vy_2#, t1#, t2#, t#
+      
+      REM  Calculate Y displacements for each 'half' of the banana's trajectory (quadratic curve)
+      REM  quadratic.y2% should always be greater than both quadratic.y1% and quadratic.y3%
+      IF player% = 0 THEN
+        yDisp1# = quadratic.y2% - quadratic.y1%
+        yDisp2# = quadratic.y2% - quadratic.y3%
+      ELSE
+        yDisp1# = quadratic.y2% - quadratic.y3%
+        yDisp2# = quadratic.y2% - quadratic.y1%
+      ENDIF
+      
+      REM  Calculate the Y component of the initial velocity for the first half of the curve
+      uy_1# = SQR(2 * ABSg# * yDisp1#)
+      
+      REM  Calculate the Y component of the final velocity for the second half of the curve
+      vy_2# = SQR(2 * ABSg# * yDisp2#)
+      
+      REM  Calculate the total time
+      t1# = uy_1# / ABSg#
+      t2# = vy_2# / ABSg#
+      t# = t1# + t2#
+      
+      REM  Calculate the X component of the initial velocity
+      ux# = (quadratic.x3% - quadratic.x1%) / t#
+      
+      IF player% = 1 THEN ux# *= -1
+      ENDPROC
+      
+      
+      REM  Draw the sky bitmap (graduated colour fill and stars)
+      DEF PROC_drawSkyBackground( b%%, W%, H% )
+      LOCAL Y%, M%, I%, G%, R%, m#, a#, b#, starX%, starY%, t%%
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, b%%
+      
+      M% = H% - 1
+      R% = RND(128)
+      G% = RND(128)
+      a# = RND(1)
+      b# = RND(1)
+      m# = 128.0 / M%
+      FOR Y% = 0 TO M%
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, INT(a#*R%*(1-Y%/M%)), INT(b#*G%*(1-Y%/M%)), INT(128-Y%*m#), &FF
+        SYS `SDL_RenderDrawLine`, @memhdc%, 0, M% - Y%, W%, M% - Y%
+      NEXT
+      
+      FOR I% = 1 TO 50 + RND(150)
+        starY% = H% - 1 - (H% + 2) * (1.0 - RND(1)^2)
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, RND(W%), starY%
+      NEXT
+      
+      FOR I% = 1 TO 5 + RND(15)
+        starX% = RND(W%)
+        starY% = H% - 1 - (H% + 2) * (1.0 - RND(1)^2)
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%, starY%
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%+1, starY%
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%, starY%+1
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%+1, starY%+1
+      NEXT
+      
+      FOR I% = 1 TO 3 + RND(5)
+        starX% = RND(W%)
+        starY% = H% - 1 - (H% + 2) * (1.0 - RND(1)^2)
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%, starY%
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%+1, starY%
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%, starY%+1
+        SYS `SDL_SetRenderDrawColor`, @memhdc%, 200+RND(55), 200+RND(55), 200+RND(55), &FF
+        SYS `SDL_RenderDrawPoint`, @memhdc%, starX%+1, starY%+1
+      NEXT
+      
+      FOR I% = 1 TO RND(4)
+        starX% = RND(W%)
+        starY% = H% - 1 - (H% + 2) * (1.0 - RND(1)^2)
+        COLOR 8, 200+RND(55), 200+RND(55), RND(64) : GCOL 8
+        CIRCLE FILL starX% * 2, starY% * 2, 2*RND(5)
+      NEXT
+      
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      ENDPROC
+      
+      
+      DEF PROC_drawCity( b%%, W%, H% )
+      LOCAL x%, w%, h%, t%%
+      SYS `SDL_GetRenderTarget`, @memhdc% TO t%% : IF @platform% AND &40 ELSE t%% = !^t%%
+      ON ERROR LOCAL SYS `SDL_SetRenderTarget`, @memhdc%, t%% : Erl% = ERL : RESTORE LOCAL : ERROR ERR,REPORT$
+      SYS `SDL_SetRenderTarget`, @memhdc%, b%%
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, 0, 0, 0, 0
+      SYS `SDL_RenderClear`, @memhdc%
+      x% = 0
+      h% = 0.25*H% + RND(100)
+      buildings.numBuildings% = 0
+      buildings.maxHeight% = 0
+      REPEAT
+        w% = 32 + RND(80)
+        PROC_drawBuilding( x%, w%, h%, 32+RND(64), 32+RND(64), 32+RND(64) )
+        buildings.x%( buildings.numBuildings% ) = x%
+        buildings.width%( buildings.numBuildings% ) = w%
+        buildings.height%( buildings.numBuildings% ) = h%
+        IF h% > buildings.maxHeight% THEN buildings.maxHeight% = h%
+        buildings.numBuildings% += 1
+        h% += FN_rndSgn * (16 + RND(200))
+        IF h% < 32 THEN h% = 32 + RND(32)
+        IF h% > 0.7*H% THEN h% = 0.7*H% - RND(50)
+        x% += w%
+      UNTIL x% >= W%
+      SYS `SDL_SetRenderTarget`, @memhdc%, t%%
+      ENDPROC
+      
+      
+      DEF PROC_drawBuilding( x%, width%, height%, R%, G%, B% )
+      LOCAL X%, Y%, winWidth%, winHeight%, winXGap%, winYGap%
+      winWidth% = 8
+      winHeight% = 12
+      winXGap% = 16
+      winYGap% = 6
+      PROC_RectangleSolidSetAlpha( x%, 0, width%, height%, R%, G%, B%, 1 )
+      FOR Y% = height%-winHeight%-5 TO 0 STEP -(winHeight% + winYGap%)
+        FOR X% = x%+5 TO x%+width%-winXGap% STEP winXGap%
+          IF RND(10) > 5 THEN
+            R% = 200+RND(55) : G% = 200+RND(55) : B% = 200+RND(55)
+          ELSE
+            R% = 32+RND(32) : G% = 32+RND(32) : B% = 32+RND(32)
+          ENDIF
+          IF RND(100) = 1 THEN
+            R% = 180+RND(75) : G% = RND(32) : B% = RND(32)
+          ENDIF
+          PROC_RectangleSolidSetAlpha( X%+4, Y%-2, winWidth%, winHeight%, R%, G%, B%, 1 )
+        NEXT
+      NEXT
+      ENDPROC
+      
+      
+      DEF PROC_drawArrow( x0#, y0#, x1#, y1#, R%, G%, B% )
+      LOCAL I%, len#, l#, angle#, y1`#, y2`#
+      
+      angle# = FN_atan2( y1#-y0#, x1#-x0# )
+      
+      len# = 1.0 * SQR((x0# - x1#)^2 + (y0# - y1#)^2)
+      l# = 0.8 * len#
+      
+      arrowObj{(2)}.y# = l#
+      arrowObj{(3)}.y# = l#
+      arrowObj{(4)}.y# = len#
+      arrowObj{(5)}.y# = l#
+      arrowObj{(6)}.y# = l#
+      
+      FOR I% = 0 TO 7
+        PROC_rotPoint( 0, 0, arrowObj{(I%)}.x#, arrowObj{(I%)}.y#, angle#, arrowObj{(I%)}.x`#, arrowObj{(I%)}.y`# )
+        arrowObj{(I%)}.x`# += x0#
+        arrowObj{(I%)}.y`# += y0#
+      NEXT
+      
+      REM. Draw arrow shadow
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, &00, &00, &00, &FF
+      FOR I% = 0 TO 6
+        y1`# = arrowObj{(I%)}.y`# + 2
+        y2`# = arrowObj{(I%+1)}.y`# + 2
+        SYS `SDL_RenderDrawLine`, @memhdc%, INT(arrowObj{(I%)}.x`# - 2), INT(WinH% - 1 - y1`#), \
+        \                         INT(arrowObj{(I%+1)}.x`# - 2), INT(WinH% - 1 - y2`#)
+      NEXT
+      
+      REM. Draw the arrow proper
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, R%, G%, B%, &FF
+      FOR I% = 0 TO 6
+        y1`# = arrowObj{(I%)}.y`#
+        y2`# = arrowObj{(I%+1)}.y`#
+        SYS `SDL_RenderDrawLine`, @memhdc%, INT(arrowObj{(I%)}.x`#), INT(WinH% - 1 - y1`#), \
+        \                         INT(arrowObj{(I%+1)}.x`#), INT(WinH% - 1 - y2`#)
+      NEXT
+      
+      ENDPROC
+      
+      
+      DEF PROC_copyCurrentArrow( P% )
+      REM  P% = player (0 or 1)
+      LOCAL I%
+      FOR I% = 0 TO 6
+        oldArrow{( I% )}.x1#( P% ) = arrowObj{(I%)}.x`#
+        oldArrow{( I% )}.y1#( P% ) = arrowObj{(I%)}.y`#
+        oldArrow{( I% )}.x2#( P% ) = arrowObj{(I%+1)}.x`#
+        oldArrow{( I% )}.y2#( P% ) = arrowObj{(I%+1)}.y`#
+      NEXT
+      ENDPROC
+      
+      
+      DEF PROC_drawArrowCopy( P% )
+      REM  P% = player (0 or 1)
+      LOCAL I%, y1`#, y2`#
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, &A0, &A0, &00, &FF
+      FOR I% = 0 TO 6
+        y1`# = oldArrow{( I% )}.y1#( P% )
+        y2`# = oldArrow{( I% )}.y2#( P% )
+        SYS `SDL_RenderDrawLine`, @memhdc%, INT(oldArrow{( I% )}.x1#( P% )), INT(WinH% - 1 - y1`#), \
+        \                         INT(oldArrow{( I% )}.x2#( P% )), INT(WinH% - 1 - y2`#)
+      NEXT
+      ENDPROC
+      
+      
+      DEF PROC_buildParticleColourList( RETURN t%(), N% )
+      LOCAL I%, red&, green&, blue&
+      DIM t%( N%-1 )
+      
+      FOR I% = 0 TO N%-1
+        CASE RND(8) OF
+          WHEN 1
+            red& = 230 + RND(25)
+            t%( I% ) = red& * &10000
+          WHEN 2, 3
+            red& = 230 + RND(25)
+            green& = red&
+            t%( I% ) = red&*&10000 + green&*&100
+          WHEN 4, 5
+            red& = 230 + RND(35)
+            green& = 0.75 * red&
+            t%( I% ) = red&*&10000 + green&*&100
+          WHEN 6, 7, 8
+            red& = 230 + RND(25)
+            green& = 0.9 * red&
+            blue& = 230 + RND(25)
+            t%( I% ) = red&*&10000 + green&*&100 + blue&
+        ENDCASE
+      NEXT I%
+      ENDPROC
+      
+      
+      REM  'Compatible' with FNatan2 function!
+      DEF PROC_rotPoint( x0#, y0#, x#, y#, a#, RETURN rx#, RETURN ry# )
+      LOCAL dx#, dy#, s#, c#
+      dx# = x# - x0#
+      dy# = y# - y0#
+      s# = COSa#
+      c# = SINa#
+      rx# = dx#*c# + dy#*s#
+      ry# = dy#*c# - dx#*s#
+      ENDPROC
+      
+      
+      REM  Given three points (x1,y1), (x2,y2) and (x3,y3) on a quadratic curve,
+      REM  return the coefficients a, b, c of the quadratic equation Y = aX^2 + bX + c
+      DEF PROC_getQuadraticCoeffs( x1, y1, x2, y2, x3, y3, RETURN a, RETURN b, RETURN c )
+      PROC_solve2x2( x1^2-x2^2, x1-x2, y1-y2, \
+      \ x1^2-x3^2, x1-x3, y1-y3, \
+      \ a, b )
+      c = y1 - (a*x1^2 + b*x1)
+      ENDPROC
+      
+      
+      DEF PROC_solve2x2(A, B, C, D, E, F, RETURN x, RETURN y)
+      REM  This is not a robust solver!
+      LOCAL d
+      d = (A*E - B*D)^-1
+      x = d * (E*C - B*F)
+      y = d * (A*F - D*C)
+      ENDPROC
+      
+      
+      DEF FN_atan2(y,x) : ON ERROR LOCAL = SGN(y)*PI/2
+      IF x>0 THEN = ATN(y/x) ELSE IF y>0 THEN = ATN(y/x)+PI ELSE = ATN(y/x)-PI
+      
+      
+      DEF FN_rndSgn : IF RND(2)-2 THEN =1 ELSE =-1
+      
+      
+      DEF FN_min(A%, B%) IF A% < B% THEN = A% ELSE = B%
+      
+      
+      DEF PROC_readMouse( RETURN X%, RETURN Y%, RETURN B% )
+      MOUSE X%, Y%, B%
+      X% DIV= 2
+      Y% DIV= 2
+      ENDPROC
+      
+      
+      DEF PROC_error( msg$, L% )
+      OSCLI "REFRESH ON" : MODE 3 : ON
+      PRINT TAB(1,1)msg$;
+      Erl% += 0 : IF Erl% = 0 Erl% = ERL
+      IF L% THEN PRINT " at line "; Erl%;
+      PRINT
+      ENDPROC
+      
+      
+      DEF PROC_cleanup
+      IF !^bm{} THEN
+        IF bm.gorillasTitle_400x100%% SYS "SDL_DestroyTexture", bm.gorillasTitle_400x100%%, @memhdc%
+        IF bm.blueBanana_69x98%%      SYS "SDL_DestroyTexture", bm.blueBanana_69x98%%,      @memhdc%
+        IF bm.greenPtr%%              SYS "SDL_DestroyTexture", bm.greenPtr%%,              @memhdc%
+        IF bm.banana%%                SYS "SDL_DestroyTexture", bm.banana%%,                @memhdc%
+        IF bm.fireBlob%%              SYS "SDL_DestroyTexture", bm.fireBlob%%,              @memhdc%
+        IF bm.explosion%%             SYS "SDL_DestroyTexture", bm.explosion%%,             @memhdc%
+        IF bm.buttonSelected%%        SYS "SDL_DestroyTexture", bm.buttonSelected%%,        @memhdc%
+        IF bm.buttonNotSelected%%     SYS "SDL_DestroyTexture", bm.buttonNotSelected%%,     @memhdc%
+        IF bm.triButtonLeft%%         SYS "SDL_DestroyTexture", bm.triButtonLeft%%,         @memhdc%
+        IF bm.triButtonRight%%        SYS "SDL_DestroyTexture", bm.triButtonRight%%,        @memhdc%
+        IF bm.tickBox%%               SYS "SDL_DestroyTexture", bm.tickBox%%,               @memhdc%
+        IF bm.tickBoxTicked%%         SYS "SDL_DestroyTexture", bm.tickBoxTicked%%,         @memhdc%
+        IF bm.startButton%%           SYS "SDL_DestroyTexture", bm.startButton%%,           @memhdc%
+        IF bm.gorilla.normal%%        SYS "SDL_DestroyTexture", bm.gorilla.normal%%,        @memhdc%
+        IF bm.gorilla.leftArmUp%%     SYS "SDL_DestroyTexture", bm.gorilla.leftArmUp%%,     @memhdc%
+        IF bm.gorilla.rightArmUp%%    SYS "SDL_DestroyTexture", bm.gorilla.rightArmUp%%,    @memhdc%
+        IF bm.sky%%                   SYS "SDL_DestroyTexture", bm.sky%%,                   @memhdc%
+        IF bm.city%%                  SYS "SDL_DestroyTexture", bm.city%%,                  @memhdc%
+        IF bm.bg%%                    SYS "SDL_DestroyTexture", bm.bg%%,                    @memhdc%
+        IF bm.banana20x20%%           SYS "SDL_DestroyTexture", bm.banana20x20%%,           @memhdc%
+        IF bm.moon%%                  SYS "SDL_DestroyTexture", bm.moon%%,                  @memhdc%
+        IF bm.temp%%                  SYS "SDL_DestroyTexture", bm.temp%%,                  @memhdc%
+      ENDIF
+      
+      IF !^sf{} THEN
+        IF sf.buttonSelected%%        SYS "SDL_FreeSurface", sf.buttonSelected%%
+        IF sf.buttonNotSelected%%     SYS "SDL_FreeSurface", sf.buttonNotSelected%%
+        IF sf.triButtonLeft%%         SYS "SDL_FreeSurface", sf.triButtonLeft%%
+        IF sf.triButtonRight%%        SYS "SDL_FreeSurface", sf.triButtonRight%%
+        IF sf.tickBox%%               SYS "SDL_FreeSurface", sf.tickBox%%
+        IF sf.tickBoxTicked%%         SYS "SDL_FreeSurface", sf.tickBoxTicked%%
+        IF sf.startButton%%           SYS "SDL_FreeSurface", sf.startButton%%
+        IF sf.gorilla.normal%%        SYS "SDL_FreeSurface", sf.gorilla.normal%%
+        IF sf.gorilla.leftArmUp%%     SYS "SDL_FreeSurface", sf.gorilla.leftArmUp%%
+        IF sf.gorilla.rightArmUp%%    SYS "SDL_FreeSurface", sf.gorilla.rightArmUp%%
+        IF sf.canvas%%                SYS "SDL_FreeSurface", sf.canvas%%
+        IF sf.bitmap%%                SYS "SDL_FreeSurface", sf.bitmap%%
+      ENDIF
+      ENDPROC
+      
+      
+      DEF FNLoadTextureAndSurface(file$, key%, RETURN s%%) : LOCAL F%
+      DEF FNLoadTexture(file$, key%) : LOCAL F%, s%% : F% = TRUE
+      LOCAL t%%
+      SYS "STBIMG_Load", file$ TO s%%
+      IF @platform% AND &40 ELSE s%% = !^s%%
+      IF s%%=0 ERROR 104, "Unable to load image: " + file$
+      IF key% SYS "SDL_SetColorKey", s%%, 1, key% OR &FF000000
+      SYS "SDL_CreateTextureFromSurface", @memhdc%, s%% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      IF t%%=0 ERROR 105, "Unable to create texture: " + file$
+      IF F% SYS "SDL_FreeSurface", s%%
+      = t%%
+      
+      DEF FNLoadWAV(file$)
+      LOCAL a%%, p%%, r%%
+      IF @platform% AND &40 THEN
+        DIM AudioSpec{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%%, userdata%%}
+      ELSE
+        DIM AudioSpec{freq%, format{l&,h&}, channels&, silence&, samples%, size%, callback%, userdata%}
+      ENDIF
+      DIM p%% 11 : REM allocate from heap
+      SYS "SDL_RWFromFile", file$, "rb" TO r%%
+      IF @platform% AND &40 ELSE r%% = !^r%%
+      IF r%% = 0 ERROR 118, "Couldn't open WAV file " + file$
+      SYS "SDL_LoadWAV_RW", r%%, 1, AudioSpec{}, p%%, p%%+8 TO a%%
+      IF @platform% AND &40 ELSE a%% = !^a%%
+      IF a%% = FALSE ERROR 119, "Couldn't buffer sound"
+      = p%%
+      
+      DEF PROCPlaySound(p%%)
+      IF @hwo% = FALSE SYS "SDL_OpenAudioDevice", FALSE, FALSE, AudioSpec{}, 0, 0, @memhdc% TO @hwo%
+      IF @hwo% = FALSE ERROR 117, "Couldn't open audio device"
+      SYS "SDL_ClearQueuedAudio", @hwo%, @memhdc%
+      IF @platform% AND &40 THEN
+        SYS "SDL_QueueAudio", @hwo%, ]p%%, p%%!8, @memhdc%
+      ELSE
+        SYS "SDL_QueueAudio", @hwo%, !p%%, p%%!8, @memhdc%
+      ENDIF
+      SYS "SDL_PauseAudioDevice", @hwo%, FALSE, @memhdc%
+      ENDPROC
+      
+      DEF FNCreateTexture(W%, H%)
+      LOCAL t%%
+      SYS "SDL_CreateTexture", @memhdc%, PIXELFORMAT, 2, W%, H% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      = t%%
+      
+      DEF PROC_PlotRotateScale( t%%, W%, H%, X%, Y%, a#, s )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% * s : r.h% = H% * s
+      r.x% = X% - r.w% / 2 : r.y% = Y% - r.h% / 2
+      IF @platform% AND &40 THEN
+        IF a#=0 ?(^a#+7)=&80
+        SYS `SDL_RenderCopyEx`, @memhdc%, t%%, FALSE, r{}, a#, 0, 0
+      ELSE
+        SYS `SDL_RenderCopyEx`, @memhdc%, t%%, FALSE, r{}, !^a#, !(^a#+4), 0, 0
+      ENDIF
+      ENDPROC
+      
+      DEF PROC_PlotShapeBlend( t%%, W%, H%, X%, Y%, B% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetTextureColorMod`, t%%, 0, 0, 0
+      SYS `SDL_SetTextureAlphaMod`, t%%, B%
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      SYS `SDL_SetTextureColorMod`, t%%, &FF, &FF, &FF
+      SYS `SDL_SetTextureAlphaMod`, t%%, &FF
+      ENDPROC
+      
+      DEF PROC_Plot( t%%, W%, H%, X%, Y% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      ENDPROC
+      
+      DEF PROC_PlotScaleBlend( t%%, W%, H%, X%, Y%, B% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetTextureAlphaMod`, t%%, B%
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      SYS `SDL_SetTextureAlphaMod`, t%%, &FF
+      ENDPROC
+      
+      DEF PROC_PlotScaleGain( t%%, W%, H%, X%, Y%, B% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetTextureColorMod`, t%%, B%, B%, B%
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      SYS `SDL_SetTextureColorMod`, t%%, &FF, &FF, &FF
+      ENDPROC
+      
+      DEF PROC_PlotScaleBlur( t%%, W%, H%, X%, Y%, A%, B% )
+      LOCAL C%, D%, I%, J%, a, r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H%
+      SYS `SDL_SetTextureBlendMode`, t%%, SDL_BLENDMODE_ADD
+      FOR J% = -B% TO B%
+        r.y% = WinH% - 1 - H% - Y% + J%
+        FOR I% = -B% TO B%
+          r.x% = X% + I%
+          a += A% / (2 * B% + 1)^2
+          D% = a - C% + RND(1) : C% += D%
+          SYS `SDL_SetTextureColorMod`, t%%, D%, D%, D%
+          SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+        NEXT
+      NEXT
+      SYS `SDL_SetTextureBlendMode`, t%%, SDL_BLENDMODE_BLEND
+      SYS `SDL_SetTextureColorMod`, t%%, &FF, &FF, &FF
+      ENDPROC
+      
+      DEF PROC_PlotAddSaturate( t%%, W%, H%, X%, Y% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetTextureBlendMode`, t%%, SDL_BLENDMODE_ADD
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      SYS `SDL_SetTextureBlendMode`, t%%, SDL_BLENDMODE_BLEND
+      ENDPROC
+      
+      DEF PROC_PlotAvg( t%%, W%, H%, X%, Y% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetTextureAlphaMod`, t%%, &80
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      SYS `SDL_SetTextureAlphaMod`, t%%, &FF
+      ENDPROC
+      
+      DEF PROC_PlotSetAlpha( t%%, s%%, W%, H%, X%, Y%, A% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_RenderCopy`, @memhdc%, t%%, FALSE, r{}
+      SYS `SDL_SetSurfaceAlphaMod`, s%%, A%
+      SYS `SDL_BlitSurface`, s%%, FALSE, canvas{}, r{}
+      ENDPROC
+      
+      DEF FN_ReadAlpha(X%, Y%)
+      IF X% < 0 OR X% >= WinW% OR Y% < 0 OR Y% >= WinH% THEN = 0
+      = canvas.p%?(X%*4+(WinH%-Y%-1)*canvas.s%+3)
+      
+      DEF PROC_RectangleSolid( X%, Y%, W%, H%, R%, G%, B% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, R%, G%, B%, &FF
+      SYS `SDL_RenderFillRect`, @memhdc%, r{}
+      ENDPROC
+      
+      DEF PROC_RectangleSolidSetAlpha( X%, Y%, W%, H%, R%, G%, B%, A% )
+      LOCAL r{} : DIM r{x%, y%, w%, h%}
+      r.w% = W% : r.h% = H% : r.x% = X% : r.y% = WinH% - 1 - H% - Y%
+      SYS `SDL_SetRenderDrawColor`, @memhdc%, R%, G%, B%, &FF
+      SYS `SDL_RenderFillRect`, @memhdc%, r{}
+      SYS `SDL_FillRect`, canvas{}, r{}, A% << 24
+      ENDPROC
+      
+      DEF FNwidth(a$) = WIDTH(a$) DIV 2 + @vdu.w.d&*(LENa$-1)

@@ -963,6 +963,18 @@ class RuntimeCoreMixin:
             f'(dialect is {self.config.dialect}, not mini). '
             f'Use --dialect mini or add `1 REM dialect: mini`.'
         )
+        star_features = [f for f in features if f.startswith('*')]
+        if star_features:
+            names = '/'.join(star_features)
+            article = 'a ' if len(star_features) == 1 else ''
+            print(
+                f'  {names} {"is" if len(star_features) == 1 else "are"} {article}mini_basic '
+                f'sound extension{"" if len(star_features) == 1 else "s"}, not real BBC '
+                f'BASIC OS commands, and will error if run under this dialect. Run '
+                f'*WRAPMINI to rewrite those line(s) as `REM MINI_BASIC {star_features[0]} ...` '
+                f'so the listing stays loadable (as an inert comment) on real BBC BASIC -- or '
+                f'switch dialect to mini as above to keep sound active here.'
+            )
 
     def _refresh_defint_bare_subst_patterns(self) -> None:
         """DEFINT makes bare A..Z names alias the same integer as A%..Z%."""
@@ -2394,8 +2406,13 @@ class RuntimeCoreMixin:
         self._run_interrupt_watch = True
         timing = bool(getattr(self, 'timing_enabled', False))
         t0 = time.perf_counter() if timing else None
+        start = getattr(self, '_chain_start_line', None)
+        self._chain_start_line = None
+        start_index = 0
+        if start is not None:
+            start_index = self._run_line_index.get(start, 0)
         try:
-            self._run_program_loop(0)
+            self._run_program_loop(start_index)
         except KeyboardInterrupt:
             self._run_aborted = True
             print('\nGoodbye!')

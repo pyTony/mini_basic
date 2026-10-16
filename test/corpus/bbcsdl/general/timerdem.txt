@@ -1,0 +1,47 @@
+      VDU 23,22,640;500;16,20,16,128
+      COLOR 2,0,128,0 : OFF
+      
+      INSTALL @lib$+"timerlib"
+      
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE PRINT 'REPORT$ : END
+      
+      *TIMER 400
+      ON TIME PROCtimer0 : RETURN
+      
+      Tid1% = FN_ontimer(700, PROCtimer1, 1)
+      IF Tid1% = 0 ERROR 101, "Failed to start timer1"
+      Tid2% = FN_ontimer(1000, PROCtimer2, 1)
+      IF Tid2% = 0 ERROR 102, "Failed to start timer2"
+      Tid3% = FN_ontimer(1300, PROCtimer3, 1)
+      IF Tid3% = 0 ERROR 103, "Failed to start timer3"
+      
+      R% = TIME
+      REPEAT
+        T% = TIME - R% : R% += T%
+        RECTANGLE FILL 0,0,1280,998 TO 0,2*T%
+        WAIT 1
+      UNTIL FALSE
+      END
+      
+      DEF PROCtimer0
+      PRINT CHR$31;CHR$0;CHR$24;CHR$17;CHR$0;"ON TIME";
+      ENDPROC
+      
+      DEF PROCtimer1
+      PRINT CHR$31;CHR$10;CHR$24;CHR$17;CHR$1;"Timer 1";
+      ENDPROC
+      
+      DEF PROCtimer2
+      PRINT CHR$31;CHR$20;CHR$24;CHR$17;CHR$2;"Timer 2";
+      ENDPROC
+      
+      DEF PROCtimer3
+      PRINT CHR$31;CHR$30;CHR$24;CHR$17;CHR$4;"Timer 3";
+      ENDPROC
+      
+      DEF PROCcleanup
+      PROC_killtimer(Tid1%)
+      PROC_killtimer(Tid2%)
+      PROC_killtimer(Tid3%)
+      ENDPROC

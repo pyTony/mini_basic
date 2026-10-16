@@ -1,0 +1,41 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM An optical illusion
+      
+      MODE 8 : OFF
+      COLOR 1,144,208,255
+      COLOR 2, 64, 64,255
+      COLOR 3,255,255,255
+      
+      GCOL 1
+      FOR X% = 46 TO 1126 STEP 216
+        RECTANGLE FILL X%,0,106,1022
+      NEXT
+      
+      GCOL 2
+      FOR Y% = 134 TO 782 STEP 216
+        RECTANGLE FILL 0,Y%,1278,106
+      NEXT
+      
+      GCOL 0
+      FOR X% = 46 TO 1234 STEP 108
+        FOR Y% = 134 TO 890 STEP 108
+          MOVE X%-20,Y%:MOVE BY 20,20:PLOT 113,20,-20
+        NEXT
+      NEXT X%
+      
+      GCOL 3
+      FOR R% = 0 TO 7 : Y% = 134 + 108 * R%
+        FOR C% = 0 TO 11 : X% = 46 + 108 * C%
+          IF (C% EOR R% EOR R% DIV 2) AND 1 THEN
+            MOVE X%-20,Y%:MOVE BY 10,10:PLOT 113,10,-10
+            MOVE BY 10,10:PLOT 113,10,-10
+          ELSE
+            MOVE X%,Y%-20:MOVE BY 10,10:PLOT 113,-10,10
+            MOVE BY 10,10:PLOT 113,-10,10
+          ENDIF
+        NEXT
+      NEXT R%
+      
+      REPEAT WAIT 2 : UNTIL FALSE
+      

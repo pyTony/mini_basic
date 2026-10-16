@@ -22,6 +22,10 @@ _WINDOW_CHROME_HEIGHT = 48
 _WINDOW_CHROME_WIDTH = 16
 _WINDOW_MARGIN = 8
 _TITLE_BAR_ESTIMATE = 40
+# Real Windows reserves this much height for the taskbar; the OS never clips
+# an oversized window into the remaining space the way GNOME does, so a
+# window that ignores this can end up with its title bar pushed off-screen.
+_WINDOWS_TASKBAR_ESTIMATE = 48
 
 DEBUG = False
 
@@ -909,14 +913,17 @@ class PygameDisplay(DisplayBackend):
         ph = max(1, self.scale * par_h)
         return pw, ph
 
-    def _window_client_size_at_scale(self, scale: int) -> Tuple[int, int]:
+    def _window_client_size_at_scale(self, scale: float) -> Tuple[int, int]:
         logical_w, logical_h = self._logical_canvas_size()
         par_w = max(1, self._par_w)
         par_h = max(1, self._par_h)
         # MODE 5 was tiny: old formula only scaled height by par_h/par_w (//2 → 0).
-        pw = max(1, scale * par_w)
-        ph = max(1, scale * par_h)
-        return logical_w * pw, logical_h * ph
+        # The floor here used to be 1 (scale was always an int >= 1); it's a
+        # tiny epsilon instead so set_runtime_scale's sub-1x nudge can shrink
+        # the window below native size (see nudge_runtime_scale).
+        pw = max(1e-6, scale * par_w)
+        ph = max(1e-6, scale * par_h)
+        return int(round(logical_w * pw)), int(round(logical_h * ph))
 
     def _window_client_size(self) -> Tuple[int, int]:
         return self._window_client_size_at_scale(self.scale)
@@ -1033,6 +1040,79 @@ class PygameDisplay(DisplayBackend):
         except Exception:
             pass
 
+    # Below native size (1x), step by quarters rather than whole pixels —
+    # Tony asked for Ctrl+Minus to keep shrinking past 1x (e.g. to fit a
+    # logical resolution bigger than the monitor) instead of floor-ing
+    # there, and a whole-pixel step makes no sense below native size.
+    _SCALE_LADDER = (0.25, 0.5, 0.75, 1, 2, 3, 4, 5, 6, 7, 8)
+
+    # A window narrower than this has no usable title bar left to drag by
+    # (icon + min/max/close buttons alone eat most of it) — Tony hit this
+    # at 0.25x on MODE 9 (screenshot: window barely wider than its own
+    # buttons, floating stuck over other windows). set_runtime_scale raises
+    # its floor on narrow canvases so this can't happen.
+    _MIN_DRAGGABLE_WINDOW_WIDTH = 240
+
+    def _scale_nudge_for_key(self, key: int) -> Optional[int]:
+        """Ctrl+Numpad+ / Ctrl+Numpad- : step the pixel scale up/down."""
+        pygame = self._pygame
+        if key == getattr(pygame, 'K_KP_PLUS', None):
+            return 1
+        if key == getattr(pygame, 'K_KP_MINUS', None):
+            return -1
+        return None
+
+    def nudge_runtime_scale(self, delta: int) -> None:
+        """Ctrl+Numpad+/-: step to the next/previous value on
+        :attr:`_SCALE_LADDER`.
+
+        This is an explicit choice, so unlike the startup auto-pick it does
+        not reserve room for the taskbar/title bar (Tony: "that 2x with
+        title out could be allowed") — it only refuses a scale that would
+        not even fit the monitor's raw pixel dimensions, since that would
+        need virtual-screen/scrolling support mini_basic doesn't have.
+        """
+        if self._screen is None:
+            return
+        ladder = self._SCALE_LADDER
+        current = self.scale
+        min_scale = self._min_draggable_scale()
+        if delta > 0:
+            candidates = [v for v in ladder if v > current + 1e-9]
+            new_val = candidates[0] if candidates else ladder[-1]
+        else:
+            candidates = [v for v in ladder if v < current - 1e-9 and v >= min_scale - 1e-9]
+            new_val = candidates[-1] if candidates else min_scale
+        self.set_runtime_scale(new_val)
+
+    def _min_draggable_scale(self) -> float:
+        """Smallest scale that still leaves a usable title bar to drag by."""
+        base_w, _ = self._window_client_size_at_scale(1)
+        return max(self._SCALE_LADDER[0], self._MIN_DRAGGABLE_WINDOW_WIDTH / max(1, base_w))
+
+    def set_runtime_scale(self, requested: float) -> None:
+        """Jump straight to this pixel scale, clamped to the raw monitor
+        size on the way up and to the smallest draggable size on the way
+        down (see :meth:`nudge_runtime_scale`).
+        """
+        if self._screen is None:
+            return
+        pygame = self._pygame
+        try:
+            screen_w, screen_h = desktop_size(pygame)
+        except Exception:
+            screen_w, screen_h = 1920, 1080
+        base_w, base_h = self._window_client_size_at_scale(1)
+        raw_max = max(1, min(screen_w // max(1, base_w), screen_h // max(1, base_h)))
+        new_scale = max(self._min_draggable_scale(), min(float(requested), raw_max))
+        if abs(new_scale - self.scale) < 1e-9:
+            return
+        self._requested_scale = new_scale
+        self.scale_locked = True
+        self._open_window(center=False)
+        self._dirty = True
+        self._compose_full = True
+
     def _open_window(self, *, center: bool = False) -> None:
         pygame = self._pygame
         if not pygame.get_init():
@@ -1047,8 +1127,10 @@ class PygameDisplay(DisplayBackend):
         if self.scale_locked:
             # CLI --scale N: honour N exactly. Clamping to max_fit made --scale 3
             # and --scale 4 identical on typical desktops (MODE 8 640×512 only
-            # fits 2× on 1080p/1440p height).
-            self.scale = max(1, self._requested_scale)
+            # fits 2× on 1080p/1440p height). No extra floor here: the
+            # constructor already floors CLI scale at 1, and set_runtime_scale
+            # applies its own floor for the sub-1x shortcut.
+            self.scale = self._requested_scale
             win_w, win_h = self._window_client_size_at_scale(self.scale)
             self._screen = self._set_display_mode((win_w, win_h))
             self._fit_window_to_os_size(win_w, win_h)
@@ -1161,20 +1243,27 @@ class PygameDisplay(DisplayBackend):
         screen_w, screen_h = desktop_size(pygame)
         win_w = w + _WINDOW_CHROME_WIDTH
         win_h = h + _TITLE_BAR_ESTIMATE + _WINDOW_MARGIN
-        # Do not apply a 92% height cutoff on Windows. Default 2x MODE 8/9 is
-        # 1280x1024; plus chrome that is 1072px, and 1072 > 1080*0.92 (=993)
-        # forced 1x while WSL (no cutoff) kept 2x on the same monitor.
+        # Real Windows reserves taskbar space the OS never clips a window into
+        # (unlike GNOME, which hands back a smaller actual size we then
+        # aspect-fit into — see _fit_window_to_os_size). An earlier "fix" here
+        # tried to match WSL by dropping the Windows-only cutoff and adding a
+        # blanket +_TITLE_BAR_ESTIMATE leniency on every platform, but WSL's
+        # sys.platform is 'linux' and was never affected by that cutoff in the
+        # first place — the leniency just let a too-tall window report as
+        # fitting, so the OS squeezed it and the title bar went off-screen.
+        taskbar = _WINDOWS_TASKBAR_ESTIMATE if sys.platform == 'win32' else 0
+        usable_h = screen_h - taskbar
         if not hasattr(pygame, 'Window'):
-            return win_h <= screen_h + _TITLE_BAR_ESTIMATE and win_w <= screen_w
+            return win_h <= usable_h and win_w <= screen_w
         try:
             window = self._window_from_display_module(pygame)
             x, y = window.position
             client_w, client_h = window.size
             bottom = y + client_h + _TITLE_BAR_ESTIMATE
             right = x + client_w + _WINDOW_CHROME_WIDTH
-            return x >= 0 and y >= 0 and bottom <= screen_h and right <= screen_w
+            return x >= 0 and y >= 0 and bottom <= usable_h and right <= screen_w
         except Exception:
-            return win_h <= screen_h and win_w <= screen_w
+            return win_h <= usable_h and win_w <= screen_w
 
     @property
     def is_open(self) -> bool:
@@ -2299,6 +2388,13 @@ class PygameDisplay(DisplayBackend):
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self._open = False
                 return False
+            if event.type == pygame.KEYDOWN and (
+                getattr(event, 'mod', 0) & getattr(pygame, 'KMOD_CTRL', 0)
+            ):
+                delta = self._scale_nudge_for_key(event.key)
+                if delta is not None:
+                    self.nudge_runtime_scale(delta)
+                    continue
             preserved.append(event)
         for event in preserved:
             pygame.event.post(event)
@@ -2477,8 +2573,9 @@ def fit_display_scale(
     except Exception:
         return max(1, min(requested_scale, max_scale))
 
+    taskbar = _WINDOWS_TASKBAR_ESTIMATE if sys.platform == 'win32' else 0
     limit_w = screen_w - _WINDOW_CHROME_WIDTH - _WINDOW_MARGIN
-    limit_h = screen_h - _WINDOW_CHROME_HEIGHT - _WINDOW_MARGIN
+    limit_h = screen_h - _WINDOW_CHROME_HEIGHT - _WINDOW_MARGIN - taskbar
     fit = min(
         limit_w // max(1, base_w),
         limit_h // max(1, base_h),

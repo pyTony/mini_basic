@@ -1,0 +1,7 @@
+6
+FOYER,You stand in a dusty entrance hall,2,0,0,0
+GREAT HALL,A long hall is lined with faded portraits,5,1,3,4
+LIBRARY,Tall shelves hold hundreds of ancient books,0,0,0,2
+KITCHEN,Cold ovens and a heavy table fill the room,0,0,2,0
+GARDEN,Weeds surround a cracked stone fountain,0,2,6,0
+SHED,Rusty tools hang from wooden walls,0,0,0,5

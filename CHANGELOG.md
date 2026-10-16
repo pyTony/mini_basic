@@ -3,6 +3,48 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-16
+
+- [#130](https://github.com/pyTony/mini_basic/pull/130) 🧪 Add tests for parse_shebang_line — 🎯 What: Added tests for `parse_shebang_line` in `mini_basic/dialect_hint.py` to fill a testing gap and increase codebase reliability. Addressed minor bugs related to modifier priority and token matching in executable names found during test development.
+- [#134](https://github.com/pyTony/mini_basic/pull/134) 🧪 Add tests for detect_bbc_binary_format — 🎯 What: The testing gap addressed This pull request introduces missing test coverage for the `detect_bbc_binary_format` function in `mini_basic/bbc_detokenize.py`. The lack of tests for this critical function posed a reliability risk when reading varying binary formats (like Wilson or Russell) in BBC BASIC.
+- [#127](https://github.com/pyTony/mini_basic/pull/127) 🧪 [Testing Improvement] Add full test coverage for bbc_os_scales — 🎯 What: Missing tests for `bbc_os_scales` function in `mini_basic/bbc_modes.py`. Unreachable dead code that checked specific dimensions was also discovered and removed. 📊 Coverage: Added coverage for scenario when both x and y dimensions correctly scale into OS Units, when only one axis divides perfectly, when…
+- [#126](https://github.com/pyTony/mini_basic/pull/126) 🔒 Fix arbitrary code execution via eval() in safe_eval — 🎯 What: The vulnerability fixed The codebase used `eval()` to execute parsed BASIC expressions. While restricted by a custom AST check, bypasses via f-strings or other paths could allow arbitrary code execution, especially via `compile()` fast path which skipped the AST check entirely.
+- [#121](https://github.com/pyTony/mini_basic/pull/121) 🧹 [code health improvement] Remove unused import bbc_mode_spec — 🎯 What: Removed unused import `bbc_mode_spec` from multiple runtime parts (e.g., `core.py`, `defs.py`, `dialect.py`, `execution.py`, `io.py`, `program.py`). 💡 Why: `bbc_mode_spec` was imported but never used in these modules. Removing unused imports improves codebase cleanliness, reduces clutter, and prevents…
+- [#125](https://github.com/pyTony/mini_basic/pull/125) 🧪 Add missing tests for bbc_mode_spec — 🎯 What: The testing gap addressed The `bbc_mode_spec` function was missing comprehensive tests to ensure correct dispatch to the appropriate mode specifications and to handle invalid inputs correctly.
+- [#122](https://github.com/pyTony/mini_basic/pull/122) ⚡ Optimize rectangle fill performance in BBC graphics — 💡 What: Refactored `BBCGraphics._rectangle` to use the more efficient `_fill_hspan_screen` method. 🎯 Why: The previous implementation used nested Python loops to plot rectangles pixel-by-pixel, calculating `_to_screen` and other overhead for every single pixel. This resulted in extremely poor performance when…
+- [#123](https://github.com/pyTony/mini_basic/pull/123) ⚡ Optimize display text grid initialization using list multiplication — 💡 What: Replaced nested list comprehensions `[blank for _ in range(self.text_cols)]` with list multiplication `[blank] * self.text_cols` to initialize and update the display text grids in `mini_basic/display.py`.
+- [#124](https://github.com/pyTony/mini_basic/pull/124) ⚡ Pre-render and cache glyphs to boost pygame display rendering — 💡 What: Added caching logic in `mini_basic/bbc_font.py` for default glyphs and in `mini_basic/display.py` for custom characters so they are rendered pixel-by-pixel once and reused as `pygame.Surface` instances.
+- [#120](https://github.com/pyTony/mini_basic/pull/120) ⚡ Performance Optimization: regex finditer inside replace loop — 💡 What: The optimization implemented is refactoring `_expand_parenthesized_bbc_comparisons` to use `re.sub(replacer, expr)` to perform single-pass string replacement instead of string slicing inside a `finditer` loop. The 32 guard outer loop was preserved to process nested parenthesis expressions. 🎯 Why: The…
+
+## 2026-10-14
+
+- [#115](https://github.com/pyTony/mini_basic/pull/115) docs: backport v1.0 release pass + fix stale 1.0.0.dev0 references — Backported the `dev` doc fixes onto `main` (including adding `docs/RELEASE_NOTES_1.0.md`, linked from `docs/INDEX.md`, `index.html`, and both `docs/site` navs — the hand-maintained `docs/site/index.html` too, which the `dev`-side pass didn't touch). Also updated every doc that said `1.0.0.dev0 until tagged`…
+- [#114](https://github.com/pyTony/mini_basic/pull/114) Bump version to 1.0.0 for the v1.0 release — Both now say `1.0.0`, ahead of tagging the `1.0.0` release on this commit. `python -m mini_basic --version` confirmed to report `mini_basic 1.0.0`; `python -m mini_basic -c "PRINT 6*7"` still runs fine.
+
+## 2026-10-13
+
+- [#98](https://github.com/pyTony/mini_basic/pull/98) Rename showcase/breakout.bbc to breakout.bas — the file is `showcase/breakout.bas`, same content, under the extension that matches what it actually is — showcasing mini_basic's own extended sound features directly, as intended for the showcase folder.
+
+## 2026-10-12
+
+- [#92](https://github.com/pyTony/mini_basic/pull/92) Backport: fix cursor-move escape sequences swallowing all later PRINT output — Backport of [#91](https://github.com/pyTony/mini_basic/pull/91) (merged to `dev`) onto `main`, same change: `_print_emit` only recognized `m` (SGR colour codes) as a CSI escape terminator, so any other CSI sequence — `PRINT TAB(x,y)`'s cursor-move escape among them — was treated as incomplete and silently swallowed…
+
+## 2026-10-10
+
+- [#90](https://github.com/pyTony/mini_basic/pull/90) Backport/code fixes main
+- [#89](https://github.com/pyTony/mini_basic/pull/89) fix: Russell-format SYS token was loaded as a tab (main backport) — Backport of c4828b4 from the dev line (main has no test/ tree, so the regression tests live on dev). ccaed8b passes byte 0x09 through as whitespace before the keyword lookup, but in Russell-format tokenized .bbc files 0x09 is the SYS keyword, so every SYS statement lost its keyword (41 of 82 tokenized files in the…
+- [#88](https://github.com/pyTony/mini_basic/pull/88) Fix/russell sys token
+
+## 2026-10-09
+
+- [#87](https://github.com/pyTony/mini_basic/pull/87) Breakout: add speed% control variable, sub-step ball movement (main) — a single `speedmul%` (percent, 100 = current speed) scales both the serve velocity and the paddle-hit redirect. `PROCmoveball` splits each tick's ball movement into `ballsubsteps%` (3) smaller steps, redrawing (and running wall/paddle/brick collision checks on) each one. `PROCdrawpaddle` moved earlier in the main…
+- [#85](https://github.com/pyTony/mini_basic/pull/85) Breakout: pull back ball speed ~25%, add dialect hint (main) — ball speed scaled down ~25% (serve velocity 21/27 → 16/20, paddle-hit redirect multiplier 3/10 → 9/40, minimum redirect 12 → 9). Added `REM dialect: bbc` as the first line so the file self-selects the `bbc` dialect on load, matching the documented hint syntax in `docs/BASIC_VARIANTS.md`.
+- [#80](https://github.com/pyTony/mini_basic/pull/80) Normalize star-command spacing on tokenized LOAD (*MUSIC not * MUSIC) — Same as #79, targeting `main` directly (the affected files are identical between `dev` and `main`).
+- [#81](https://github.com/pyTony/mini_basic/pull/81) Restore main to its lean release tree — main is pruned back to exactly its pre-leak file set (`.github`, `basics`, `docs`, `mini_basic`, `showcase`, plus the usual root files) while keeping the real fix (already in `mini_basic/runtime_parts/program.py`) and the later sprite-art work (PR #78) intact.
+- [#74](https://github.com/pyTony/mini_basic/pull/74) Fix LOAD parsing for bare line numbers and OSCLI spacing — Fix LOAD parsing for bare line numbers and OSCLI spacing.
+- [#76](https://github.com/pyTony/mini_basic/pull/76) Fix blank spacer line numbers breaking LOAD/LIST (tokenized .bbc fails, .bas shows ": N" garbling) — Same fix as #75, targeting `main` directly since the affected code (`mini_basic/runtime_parts/program.py`) is identical on both branches (no diff between `dev` and `main` for that file) and the loader bug affects any tokenized `.bbc` or spacer-line `.bas` program, not just the `dev`-only `examples/` assets.
+- [#78](https://github.com/pyTony/mini_basic/pull/78) Breakout: wire in sprite art (logo, ball, brick) — &lt;!-- ccr-projects-attribution: {"github_login":"pyTony"} --&gt;
+
 ## 2026-10-08
 
 - [#73](https://github.com/pyTony/mini_basic/pull/73) Speed up breakout.bbc game movements — Speed up breakout game movements and fix paddle collision

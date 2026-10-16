@@ -1,0 +1,405 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM  ===========
+      REM  Buggy v1.02
+      REM  ===========
+      
+      VERSION$ = "1.02 (SDL)"
+      
+      REM original program by David Williams, 03-Mar-2006
+      REM adapted for SDL/Android by Richard Russell, 20-May-2016
+      REM adapted for BBCSDL/iOS  by Richard Russell, 08-Mar-2018
+      
+      REM  set the window title...
+      SYS "SDL_SetWindowTitle", @hwnd%, "Buggy v"+VERSION$, @memhdc%
+      
+      ScrW% = 320 * 2
+      ScrH% = 256 * 2
+      
+      REM  get the highscore...
+      f% = OPENIN(@usr$ + ".BuggyHiScore")
+      IF f% THEN
+        INPUT #f%, HiScore%
+        CLOSE #f%
+      ELSE
+        HiScore% = 0
+      ENDIF
+      
+      REM  load sprites...
+      buggy0%% = FNloadsprite(@dir$+"buggy0.bmp") : IF buggy0%% = 0 ERROR 0, "Couldn't load buggy0.bmp"
+      buggy1%% = FNloadsprite(@dir$+"buggy1.bmp") : IF buggy1%% = 0 ERROR 0, "Couldn't load buggy1.bmp"
+      repair%% = FNloadsprite(@dir$+"repair.bmp") : IF repair%% = 0 ERROR 0, "Couldn't load repair.bmp"
+      
+      REM  initialise sound...
+      ENVELOPE 1,1,0,0,0,0,0,0,120,-2,-2,-2,120,0
+      ENVELOPE 2,1,0,0,0,0,0,0,127,-4,-4,-4,127,0
+      SOUND 1,0,0,0
+      *tempo 1
+      
+      REM  initialise accelerometer (if any)...
+      SYS "SDL_NumJoysticks" TO nj%
+      i% = 0
+      IF nj% THEN
+        FOR i% = 0 TO nj%-1
+          IF @platform% AND &40 THEN
+            SYS "SDL_JoystickNameForIndex", i% TO p%%
+            IF INSTR($$p%%, "Accelerometer") EXIT FOR
+          ELSE
+            SYS "SDL_JoystickNameForIndex", i% TO p%
+            IF INSTR($$p%, "Accelerometer") EXIT FOR
+          ENDIF
+        NEXT
+      ENDIF
+      IF i% < nj% THEN
+        IF @platform% AND &40 THEN
+          SYS "SDL_JoystickOpen", i% TO joystick%%
+        ELSE
+          SYS "SDL_JoystickOpen", i% TO joystick% : joystick%% = joystick%
+        ENDIF
+      ELSE
+        joystick%% = 0
+      ENDIF
+      
+      REM  disable colour dithering on 16bpp display...
+      SYS "glDisable", &BD0, @memhdc%
+      
+      REPEAT
+        VDU 23,22,ScrW%DIV2;ScrH%DIV2;8,16,16,128+8
+        OFF
+        
+        COLOR 2, 0, 192, 0     : REM  grass colour
+        COLOR 3, 64, 64, 64    : REM  pothole colour
+        COLOR 4, 0, 0, 192     : REM  flag colour
+        COLOR 5, 192, 0, 192   : REM  finish line colour
+        COLOR 7, 192, 192, 192 : REM  road colour
+        COLOR 14, 0, 128, 0    : REM  grass spots colour
+        
+        COLOR 0
+        PRINT TAB(12, 0)"Hi Score: ";HiScore%
+        PRINT'"           Welcome to Buggy!"'
+        PRINT " Guide the buggy along the treacherous"
+        PRINT " road,  avoiding the potholes and the"
+        PRINT " dangerous grass. Touch the blue flags"
+        PRINT " to score.  Collect the repair pills."
+        PRINT'"   Left arrow key ...... Move left"
+        PRINT "   Right arrow key ..... Move right"
+        PRINT'" On an Android or iOS device steer by"
+        PRINT "  twisting it like a steering wheel!"
+        COLOR 4 : PRINT TAB(2,15)"Press <SPACE> or Click/Tap to start";
+        
+        ON MOUSE click% = TRUE : RETURN
+        click% = FALSE
+        *FX 21,0
+        REPEAT UNTIL INKEY$(10) = " " OR click% OR INKEY(-73)
+        
+        PROC_main
+        
+      UNTIL FALSE
+      END
+      
+      DEF PROC_main
+      
+      rw_0% = 256                :REM  = initial road width
+      rw% = rw_0%                :REM
+      th% = 0                    :REM  = theta (or angle) value for 'wiggling' the road
+      rx% = (ScrW% - rw%) DIV 2  :REM  = initial position of left 'kerb'
+      rx_new% = rx%              :REM  = the new position which rx% drifts towards
+      rc% = 128                  :REM  = rx_new% changes when rc%=0
+      buggy_x = ScrW% DIV 2      :REM  = buggy horizontal (X) position
+      buggy_xv = 0               :REM  = horizontal velocity
+      buggy_xa = 0.2             :REM  = constant of acceleration
+      buggy_max_xv = 4           :REM  = maximum horizontal velocity
+      buggy_xv_damp = buggy_xa/4 :REM  = horizontal velocity damping factor
+      
+      update_info% = TRUE
+      score% = 0
+      difficulty% = 1
+      difficulty_count% = 0
+      difficulty_count_limit% = 1000
+      flag_delay% = 0
+      flag_wait% = 0
+      collision_wait% = 0
+      pill_active% = FALSE
+      pill_x% = 0
+      pill_y% = 0
+      f% = 0
+      damage = 0
+      pace% = 0
+      finish% = FALSE
+      bmptmp$ = @tmp$ + "buggy.bmp.tmp"
+      
+      CLS
+      COLOR 0
+      PRINT TAB(0,15)"Difficulty:";
+      PRINT TAB(16,15)"Score:";
+      PRINT TAB(28,15)"Damage:";
+      
+      GCOL 7
+      RECTANGLE FILL rx%, &20, rw%, ScrH%-&20
+      GCOL 2
+      RECTANGLE FILL 0, &20, rx%, ScrH%-&20
+      RECTANGLE FILL rx%+rw%, &20, ScrW%-rx%-rw%-2, ScrH%-&20
+      GCOL 14
+      FOR y%=&20 TO (ScrH%-1) DIV 2
+        PLOT &45, RND(rx%), 2*y%
+        PLOT &45, rw%+rx%+RND(ScrW%-rx%-rw%), 2*y%
+      NEXT y%
+      
+      REM  make sure we get the same 'track form', and pothole, flag, etc., positions for each game...
+      RNG_seed% = RND( -12345 )
+      
+      *REFRESH OFF
+      TIME = 0
+      REPEAT
+        REM  calibrate speed to 60 pixels per second...
+        cal% = TIME * 0.6 - pace% : pace% += cal%
+        
+        REM  scroll the game area down 'cal%' pixels...
+        RECTANGLE &0, &20 + 2*cal%, ScrW% - 2, ScrH% - &22 - 2*cal% TO &0, &20
+        
+        REM  draw 'revealed' area...
+        FOR y% = ScrH% - 2*cal% TO ScrH% - 2 STEP 2
+          
+          REM  plot grass verge...
+          GCOL 7 : LINE rx%, y%, rx%+rw%, y%
+          GCOL 2 : LINE 0, y%, rx%, y% : LINE rx%+rw%, y%, ScrW%-2, y%
+          
+          REM  plot random points on the grass...
+          GCOL 14 : PLOT &45, RND(rx%), y% : PLOT &45, rw%+rx%+RND(ScrW%-rx%-rw%), y%
+          
+          REM  move the kerb (the left one being at position rx%) towards new position rx_new%...
+          IF difficulty%<8 f%=difficulty% ELSE f%=8
+          rx% -= f%*SINRAD(rc%)*SGN(rx% - rx_new%)
+          IF rc% rc% -= 1
+          
+        NEXT y%
+        
+        REM  plot trails...
+        GCOL 8 : PLOT &45, buggy_x+2, &50 : PLOT &45, buggy_x+&2C, &50
+        
+        REM  display, if required, the updated "Difficulty", "Score" and "Damage" information
+        IF update_info% PROC_display_info(difficulty%, score%, damage) : update_info% = FALSE
+        
+        REM  randomly plot a pothole...
+        IF RND(&40+4*difficulty%)<=cal% AND rc%<16 GCOL 3 : CIRCLE FILL rx%+RND(rw%), &1EA, 8+2*RND(4)
+        
+        REM  create random protrusions of grass after difficulty% >= 8
+        IF difficulty%>=8 AND RND(200-2*difficulty%)<=cal% AND rc%<16 THEN
+          GCOL 2
+          t% = 12+2*RND(16)
+          IF RND(2)-2 THEN
+            RECTANGLE FILL 0, ScrH%-t%, rx%+RND(rw%DIV3), t%
+          ELSE
+            RECTANGLE FILL rx%+2*rw%DIV3+RND(64), ScrH%-t%, ScrW%, t%
+          ENDIF
+        ENDIF
+        
+        REM  check if it's time to change value of rx_new%...
+        IF rc%=0 rx_new% = RND(ScrW% - rw%) : rc% = &10+RND(&32)
+        
+        REM  display a flag if it is time to do so...
+        IF flag_delay%<=0 PROC_display_flag( rx%+8+RND(rw%-&10), &1DC ) : flag_delay% = 200
+        
+        REM  handle the 'repair pill' and check for possible collision with it...
+        IF pill_y%<&40+2*cal% pill_active% = FALSE
+        IF pill_active% THEN
+          pill_y% -= 2*cal%
+          PROCplotsprite(repair%%, pill_x%, pill_y%-&20, &20, &20, &FF7F27)
+          IF pill_x%>=buggy_x-&20 AND pill_x%<=&30+buggy_x AND pill_y%>=&50 AND pill_y%<=&A0 THEN
+            pill_active% = FALSE
+            damage -= 10
+            update_info% = TRUE
+            SOUND 2, 2, 170, 35
+            IF damage<0 damage=0
+            GCOL 7 : CIRCLE FILL pill_x%+&10, pill_y%-&12, &10
+          ENDIF
+        ELSE
+          IF RND(&5DC)<=cal% AND difficulty%>7 THEN
+            pill_active% = TRUE : pill_x% = rx%+&10+RND(rw%-&20) : pill_y% = &20+ScrH%
+          ENDIF
+        ENDIF
+        
+        REM  Collision Detection
+        REM  -------------------
+        collision_word% = 0
+        REM  collision with  grass        sets bit 2 (%100)   of collsion_word%
+        REM        "..."     pothole      sets bit 3 (%1000)      "..."
+        REM        "..."     blue flag    sets bit 4 (%10000)     "..."
+        REM        "..."     finish line  sets bit 5 (%100000)    "..."
+        collision_word% OR= 1<<POINT(buggy_x+2, &54)
+        collision_word% OR= 1<<POINT(buggy_x+&2C, &54)
+        collision_word% OR= 1<<POINT(buggy_x+2, &7C)
+        collision_word% OR= 1<<POINT(buggy_x+&2C, &7C)
+        
+        REM  has the buggy collided with grass or a pothole?...
+        OSCLI "GSAVE """ + bmptmp$ + """ " +STR$INT(buggy_x) + ",80,48,48"
+        IF collision_word% AND &C THEN
+          REM  ... display the redded-out buggy sprite and record the damage...
+          IF collision_wait%<=0 collision_wait% = &A : SOUND &10, -12, 6, 20
+          PROCplotsprite(buggy1%%, buggy_x, &50, &30, &30, &FF7F27)
+          update_info% = TRUE
+          damage += cal% / 3
+        ELSE
+          REM  ... else just display the damned buggy
+          PROCplotsprite(buggy0%%, buggy_x, &50, &30, &30, &FF7F27)
+        ENDIF
+        
+        REM  spare the CPU and battery...
+        WAIT 1
+        
+        REM  Update the display...
+        *REFRESH
+        
+        REM Restore the sprite rectangle...
+        OSCLI "DISPLAY """ + bmptmp$ + """ " +STR$INT(buggy_x) + ",80"
+        
+        REM  the check for collision with a blue flag could have been included above but
+        REM  what if the buggy collides with grass/pothole AND a blue flag simultaneously?...
+        IF flag_wait%<=0 IF collision_word% AND &10 THEN
+          score%+=&A : flag_wait%=&40 : update_info% = TRUE
+          SOUND 1, 1, 148, 35
+        ENDIF
+        
+        REM  after 'difficulty level 12', start wiggling the track a bit more radically...
+        IF difficulty%>12 rw%=rw_0%+(19+difficulty%)*SINRAD(th%) : th%+=1 : IF th%>359 th%=0
+        
+        REM  check for keypresses and change the buggy's x velocity accordingly...
+        IF INKEY-26 buggy_xv -= buggy_xa * cal% : buggy_xv_damp = buggy_xa/4 : joystick%% = 0
+        IF INKEY-122 buggy_xv += buggy_xa * cal% : buggy_xv_damp = buggy_xa/4 : joystick%% = 0
+        
+        REM  if accelerometer available steer by tilting...
+        IF joystick%% THEN
+          SYS "SDL_JoystickGetAxis", joystick%%, 0 TO x% : x% = (x% << 16) >> 16
+          SYS "SDL_JoystickGetAxis", joystick%%, 1 TO y% : y% = (y% << 16) >> 16
+          IF (@platform% AND 7) = 4 THEN
+            SYS "SDL_GetWindowSize", @hwnd%, ^w%, ^h%
+            IF w% > h% SWAP x%,y% : x% *= -1 : REM iPhone fix (but what about iPad?)
+          ENDIF
+          IF y% THEN
+            buggy_xv = 3 * ATN(x%/y%) * cal%
+            buggy_xv_damp = 0
+          ENDIF
+        ENDIF
+        
+        REM  modify the buggy's motion...
+        buggy_x += buggy_xv * cal%
+        buggy_xv -= buggy_xv_damp*SGNbuggy_xv*cal%
+        
+        REM  limit the buggy's horizontal position...
+        IF buggy_x < 0 buggy_x = 0
+        IF buggy_x > ScrW%-48 buggy_x = ScrW%-48
+        
+        REM  limit the buggy's horizontal velocity...
+        IF ABSbuggy_xv > buggy_max_xv buggy_xv = buggy_max_xv*SGNbuggy_xv
+        
+        REM  bump the various counters...
+        flag_delay% -= cal%
+        flag_wait% -= cal%
+        collision_wait% -= cal%
+        difficulty_count% += cal%
+        IF difficulty_count%>=difficulty_count_limit% THEN
+          difficulty% += 1
+          difficulty_count%=0
+          difficulty_count_limit% += 100
+          update_info% = TRUE
+          IF difficulty%=16 PROC_display_finish_line
+        ENDIF
+        
+        REM  check for the 'Finish Line'...
+        IF difficulty%>=16 IF collision_word% AND &20 finish%=TRUE
+        
+      UNTIL finish% OR damage>=100
+      *REFRESH ON
+      
+      REM  set the new highscore if appropriate...
+      IF score% > HiScore% THEN
+        HiScore% = score%
+        f% = OPENOUT(@usr$ + ".BuggyHiScore")
+        PRINT #f%, HiScore%
+        CLOSE #f%
+      ENDIF
+      
+      IF damage >= 100 THEN
+        VDU 7 : GCOL 2, 1 : RECTANGLE FILL 0, 0, ScrW%-2, ScrH%-2
+        PROC_text( "FreeSans", 16, "Game Over", 15, 108, 16+ScrH%DIV4 )
+        FOR loop%=1 TO 3
+          FOR pitch%=255 TO 1 STEP -32
+            SOUND 3, -(15 - INT(15*pitch%/255)), pitch%, 5
+          NEXT pitch%
+        NEXT loop%
+        TIME = 0 : REPEAT UNTIL TIME>200 OR INKEY(1)=0
+      ENDIF
+      
+      IF finish% THEN
+        VDU 7 : GCOL 2, 5 : RECTANGLE FILL 0, 0, ScrW%-2, ScrH%-2
+        PROC_text( "FreeSans", 16, "Well done !", 15, 108, 200 )
+        PROC_text( "FreeSans", 16, "You have completed the game", 15, 18, 160 )
+        FOR pitch%=1 TO 255 STEP 16
+          SOUND 3, -(15 - INT(15*pitch%/255)), pitch%, 5 :
+        NEXT pitch%
+        TIME = 0 : REPEAT UNTIL TIME>400 OR INKEY(1)=0
+      ENDIF
+      ENDPROC
+      
+      DEF PROC_display_flag( x%, y% )
+      GCOL 4
+      MOVE x%, y% : MOVE x%, y%+32 : PLOT 85, x%+24, y%+16
+      LINE x%, y%-16, x%, y%
+      ENDPROC
+      
+      DEF PROC_display_info(difficulty%, score%, damage%)
+      COLOR 1
+      PRINT TAB(12,15);difficulty%; TAB(23,15);score%; TAB(36,15);damage%"% ";
+      ENDPROC
+      
+      DEF PROC_display_finish_line
+      GCOL 5
+      RECTANGLE FILL 0, ScrH%-48, ScrW%, 48
+      GCOL 15
+      VDU 5
+      MOVE 200, ScrH%-8
+      PRINT "*** FINISH ***"
+      VDU 4
+      ENDPROC
+      
+      DEF PROC_text( ft$, pt%, txt$, col%, x%, y% )
+      LOCAL wd%
+      VDU 5
+      OSCLI "FONT """+@lib$+ft$+""", "+STR$pt%
+      IF x%=-1 THEN
+        wd% = WIDTH(txt$)
+        x% = (ScrW% - wd%DIV2)DIV2
+      ENDIF
+      GCOL 0, 0
+      MOVE 2*(x%-2), 2*(y%+2) : PRINT txt$
+      MOVE 2*x%, 2*(y%+2)     : PRINT txt$
+      MOVE 2*(x%+2), 2*(y%+2) : PRINT txt$
+      MOVE 2*(x%-2), 2*y%     : PRINT txt$
+      MOVE 2*(x%+2), 2*y%     : PRINT txt$
+      MOVE 2*(x%-2), 2*(y%-2) : PRINT txt$
+      MOVE 2*x%, 2*(y%-2)     : PRINT txt$
+      MOVE 2*(x%+2), 2*(y%-2) : PRINT txt$
+      GCOL 0, col%
+      MOVE 2*x%, 2*y% : PRINT txt$
+      *FONT
+      VDU 4
+      ENDPROC
+      
+      DEF PROCplotsprite(s%%, x%, y%, w%, h%, c%)
+      *hex 64
+      OSCLI "MDISPLAY " + STR$~s%% + " " + STR$x% + "," + STR$y% + "," + \
+      \                   STR$w% + "," + STR$h% + "," + STR$~c%
+      *hex 32
+      ENDPROC
+      
+      DEF FNloadsprite(f$)
+      LOCAL F%,L%,p%%
+      F% = OPENIN(f$)
+      IF F% = 0 THEN = 0
+      L% = EXT#F%
+      CLOSE #F%
+      DIM p%% L% : p%% = (p%% + 1) AND -2
+      *hex 64
+      OSCLI "LOAD """ + f$ + """ " + STR$~p%%
+      *hex 32
+      = p%%

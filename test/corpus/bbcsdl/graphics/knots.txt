@@ -1,0 +1,405 @@
+      REM Celtic_Knots v2.1 by David Marples  07/08/2007
+      REM Adapted for 'BBC BASIC for SDL 2.0' by Richard Russell, 02-Sep-2019
+      REM As the name suggests, it draws Celtic-style knotwork.
+      REM It works on the principle that if you draw each square as two lines, with one going
+      REM top left to bottom right overlying one going TR to BL, then it will always be valid.
+      REM Lines going through the corners are confusing, but consistent with this!
+      
+      VDU 23,22,600;600;16,16,16,0
+      OFF
+      
+      ON ERROR OSCLI "REFRESH ON" : IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide" ELSE REPORT : END
+      ON MOUSE click% = TRUE : RETURN
+      
+      IF POS REM SDL thread sync
+      xres%=@vdu%!208
+      yres%=@vdu%!212
+      numsqx%=10
+      numsqy%=10
+      maxnumsq%=100
+      
+      DIM sq&(maxnumsq%,maxnumsq%,3)     :REM byte array to store colour and knot data
+      showgrid%=TRUE
+      click% = FALSE
+      sym$="none"
+      
+      INSTALL @lib$+"aagfxlib"
+      LineEndFlat = 0
+      LineStartFlat=0
+      
+      DIM cols%(15,2)     :REM stores data for 16 colour pairs
+      cols%()=&FFFFFF
+      cols%(0,1)=&000000
+      cols%(1,1)=&000080
+      cols%(2,1)=&008000
+      cols%(3,1)=&800000
+      cols%(4,1)=&008080
+      cols%(5,1)=&800080
+      cols%(6,1)=&808000
+      cols%(7,1)=&808080
+      cols%(8,1)=&4040B0
+      cols%(9,1)=&40B040
+      cols%(10,1)=&B04040
+      cols%(11,1)=&B0B040
+      cols%(12,1)=&40B0B0
+      cols%(13,1)=&B040B0
+      cols%(14,1)=&B0B0B0
+      cols%(15,1)=&0000F0
+      
+      sp%=2*yres% DIV (numsqy%+2)
+      REM Set initial background colour for all strands to white,
+      REM and set the line thickness to be 1/8 of the box size
+      FOR x%=0 TO 15
+        cols%(x%,0)=&FFFFFF
+        cols%(x%,2)=sp% DIV 8
+      NEXT x%
+      
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 18"
+      
+      *REFRESH OFF
+      REPEAT
+        
+        CLS
+        text$ = "Click or tap for another Celtic Knot"
+        VDU 5,30 : MOVE BY xres% - WIDTH(text$) / 2, -12
+        PRINT text$ ;
+        
+        numsqx%=RND(8) + 2
+        numsqy%=numsqx%
+        CASE RND(6) OF
+          WHEN 1:sym$="none"
+          WHEN 2:sym$="mh"
+          WHEN 3:sym$="mv"
+          WHEN 4:sym$="m4"
+          WHEN 5:sym$="r2"
+          WHEN 6:sym$="r4"
+        ENDCASE
+        
+        text$ = "(symmetry = " + sym$ + ")"
+        MOVE xres% - WIDTH(text$) / 2, 80
+        PRINT text$ ;
+        
+        PROCdo_it
+        *REFRESH
+        REPEAT
+          CASE INKEY$(10) OF
+            WHEN "g","G":
+              showgrid% EOR= TRUE
+              VDU 24,sp%;sp%;2*yres%-sp%;2*yres%-sp%;16,24,0;0;2*yres%-2;2*yres%-2;
+              PROCdraw(numsqx%,numsqy%,xres%,yres%)
+            WHEN "": K% = FALSE
+            OTHERWISE: K% = TRUE
+          ENDCASE
+          *REFRESH
+          IF NOT K% SWAP K%,click%
+        UNTIL K%
+      UNTIL FALSE
+      :
+      DEFPROCdo_it
+      LOCAL x%,y%,z%,tx%,ty%,tz%
+      sq&()=&FF
+      FOR x%=0 TO numsqx%-1
+        FOR y%=0 TO numsqy%-1
+          FOR z%=0 TO 3
+            REM each square contains two lines: the bottom one runs top right to bottom left
+            REM and the upper one runs TL to BR: these 4 points are indicated by the z value (TL,TR,BR,BL)
+            IF sq&(x%,y%,z%)=&FF THEN
+              sq&(x%,y%,z%)=RND(3)
+              PROCsetpat(sq&(),numsqx%,numsqy%,x%,y%,z%,sym$)
+              tx%=numsqx%-x%-1
+              ty%=numsqy%- y%-1
+              REM deal with symmetry
+              CASE sym$ OF
+                WHEN "mh"
+                  IF z%=0 OR z%=2 THEN tz%=z%+1 ELSE tz%=z%-1
+                  sq&(tx%,y%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,tx%,y%,tz%,sym$)
+                WHEN "mv"
+                  tz%=3-z%
+                  sq&(x%,ty%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,x%,ty%,tz%,sym$)
+                WHEN "m4"
+                  IF z%=0 OR z%=2 THEN tz%=z%+1 ELSE tz%=z%-1
+                  sq&(tx%,y%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,tx%,y%,tz%,sym$)
+                  tz%=3-z%
+                  sq&(x%,ty%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,x%,ty%,tz%,sym$)
+                  tz%=(z%+2) MOD 4
+                  sq&(tx%,ty%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,tx%,ty%,tz%,sym$)
+                WHEN "r2"
+                  tz%=(z%+2) MOD 4
+                  sq&(tx%,ty%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,tx%,ty%,tz%,sym$)
+                WHEN "r4"
+                  tz%=(z%+1) MOD 4
+                  sq&(y%,tx%,tz%)=4-sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,y%,tx%,tz%,sym$)
+                  tz%=(z%+2) MOD 4
+                  sq&(tx%,ty%,tz%)=sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,tx%,ty%,tz%,sym$)
+                  tz%=(z%+3) MOD 4
+                  sq&(ty%,x%,tz%)=4-sq&(x%,y%,z%)
+                  PROCsetpat(sq&(),numsqx%,numsqy%,ty%,x%,tz%,sym$)
+              ENDCASE
+            ENDIF
+          NEXT z%
+        NEXT y%
+      NEXT x%
+      PROCsetcol(sq&(),numsqx%,numsqy%)
+      PROCdraw(numsqx%,numsqy%,xres%,yres%)
+      ENDPROC
+      :
+      DEFPROCsetpat(sq&(),numsqx%,numsqy%,x%,y%,z%,sym$)
+      LOCAL nsx%,nsy%
+      nsx%=numsqx%-1
+      nsy%=numsqy%-1
+      REM each corner can have one of 4 types: 0=corner of grid, the others indicate passes through in x, corner, or y directions
+      IF x%=0 AND (z%=0 OR z%=3) THEN sq&(x%,y%,z%)=3
+      IF x%=nsx% AND (z%=1 OR z%=2) THEN sq&(x%,y%,z%)=3
+      IF y%=0 AND (z%=2 OR z%=3) THEN sq&(x%,y%,z%)=1
+      IF y%=nsy% AND (z%=0 OR z%=1) THEN sq&(x%,y%,z%)=1
+      IF x%=0 AND y%=0 THEN sq&(x%,y%,3)=0
+      IF x%=0 AND y%=nsy% THEN sq&(x%,y%,0)=0
+      IF x%=nsx% AND y%=0 THEN sq&(x%,y%,2)=0
+      IF x%=nsx% AND y%=nsy% THEN sq&(x%,y%,1)=0
+      CASE z% OF
+        WHEN 0:
+          IF y%<nsy% THEN sq&(x%,y%+1,3)=sq&(x%,y%,z%):IF x%>0 THEN sq&(x%-1,y%+1,2)=sq&(x%,y%,z%)
+          IF x%>0 THEN sq&(x%-1,y%,1)=sq&(x%,y%,z%)
+        WHEN 1:
+          IF y%<nsy% THEN sq&(x%,y%+1,2)=sq&(x%,y%,z%):IF x%<nsx% THEN sq&(x%+1,y%+1,3)=sq&(x%,y%,z%)
+          IF x%<nsx% THEN sq&(x%+1,y%,0)=sq&(x%,y%,z%)
+        WHEN 2:
+          IF y%>0 THEN sq&(x%,y%-1,1)=sq&(x%,y%,z%):IF x%<nsx% THEN sq&(x%+1,y%-1,0)=sq&(x%,y%,z%)
+          IF x%<nsx% THEN sq&(x%+1,y%,3)=sq&(x%,y%,z%)
+        WHEN 3:
+          IF y%>0 THEN sq&(x%,y%-1,0)=sq&(x%,y%,z%):IF x%>0 THEN sq&(x%-1,y%-1,1)=sq&(x%,y%,z%)
+          IF x%>0 THEN sq&(x%-1,y%,2)=sq&(x%,y%,z%)
+      ENDCASE
+      ENDPROC
+      :
+      DEFPROCsetcol(sq&(),numsqx%,numsqy%)
+      LOCAL x%,y%,cn%,colbit%,nsx%,nsy%
+      REM Finds strands which aren't coloured yet, allocates them a colour,
+      REM and then follows along that strand to the end, or until it meets itself (using procfollow)
+      nsx%=numsqx%-1
+      nsy%=numsqy%-1
+      cn%=1
+      colbit%=(cn%*16) AND &F0
+      FOR x%=0 TO nsx%
+        FOR y%=0 TO nsy%
+          IF sq&(x%,y%,0) DIV 16=0 THEN
+            sq&(x%,y%,0)+=colbit%
+            REM sq&(x%,y%,2)+=colbit%
+            CASE sq&(x%,y%,0) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%-1,y%,1,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%-1,y%+1,2,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%+1,3,colbit%)
+            ENDCASE
+            CASE sq&(x%,y%,2) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%+1,y%,3,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%+1,y%-1,0,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%-1,1,colbit%)
+            ENDCASE
+            cn%+=1
+            IF cn%>15 THEN cn%=1
+            colbit%=(cn%*16) AND &F0
+          ENDIF
+          IF sq&(x%,y%,1)DIV 16=0 THEN
+            sq&(x%,y%,1)+=colbit%
+            REM sq&(x%,y%,3)+=colbit%
+            CASE sq&(x%,y%,1) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%+1,y%,0,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%+1,y%+1,3,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%+1,2,colbit%)
+            ENDCASE
+            CASE sq&(x%,y%,3) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%-1,y%,2,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%-1,y%-1,1,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%-1,0,colbit%)
+            ENDCASE
+            cn%+=1
+            IF cn%>15 THEN cn%=1
+            colbit%=(cn%*16) AND &F0
+          ENDIF
+          sq&(x%,y%,2)=16*(sq&(x%,y%,0) DIV 16)+(sq&(x%,y%,2) AND 3)
+          sq&(x%,y%,3)=16*(sq&(x%,y%,1) DIV 16)+(sq&(x%,y%,3) AND 3)
+        NEXT y%
+      NEXT x%
+      ENDPROC
+      :
+      DEFPROCfollow(sq&(),x%,y%,z%,colbit%)
+      REM OK, here's the bit that actually does the following!
+      IF (sq&(x%,y%,z%) AND &F0)<>colbit% THEN
+        CASE z% OF
+          WHEN 0:
+            sq&(x%,y%,0)=colbit%+(sq&(x%,y%,0)AND 3)
+            sq&(x%,y%,2)=colbit%+(sq&(x%,y%,2)AND 3)
+            CASE sq&(x%,y%,2) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%+1,y%,3,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%+1,y%-1,0,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%-1,1,colbit%)
+            ENDCASE
+          WHEN 1:
+            sq&(x%,y%,1)=colbit%+(sq&(x%,y%,1)AND 3)
+            sq&(x%,y%,3)=colbit%+(sq&(x%,y%,3)AND 3)
+            CASE sq&(x%,y%,3) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%-1,y%,2,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%-1,y%-1,1,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%-1,0,colbit%)
+            ENDCASE
+          WHEN 2:
+            sq&(x%,y%,2)=colbit%+(sq&(x%,y%,2)AND 3)
+            sq&(x%,y%,0)=colbit%+(sq&(x%,y%,0)AND 3)
+            CASE sq&(x%,y%,0) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%-1,y%,1,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%-1,y%+1,2,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%+1,3,colbit%)
+            ENDCASE
+          WHEN 3:
+            sq&(x%,y%,1)=colbit%+(sq&(x%,y%,1)AND 3)
+            sq&(x%,y%,3)=colbit%+(sq&(x%,y%,3)AND 3)
+            CASE sq&(x%,y%,1) AND 3 OF
+              WHEN 1:PROCfollow(sq&(),x%+1,y%,0,colbit%)
+              WHEN 2:PROCfollow(sq&(),x%+1,y%+1,3,colbit%)
+              WHEN 3:PROCfollow(sq&(),x%,y%+1,2,colbit%)
+            ENDCASE
+        ENDCASE
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCdraw(numsqx%,numsqy%,xres%,yres%)
+      LOCAL x%,y%,sp%,dx1%,dy1%,dx2%,dy2%,c1%,nsx%,nsy%,pts%()
+      REM logically enough, draws the knot (and grid if required)
+      DIM pts%(3,1)
+      sp%=2*yres% DIV (numsqy%+2)
+      IF  (2*yres% DIV (numsqx%+2))<sp% THEN sp%=2*yres% DIV (numsqx%+2)
+      nsx%=numsqx%-1
+      nsy%=numsqy%-1
+      IF showgrid% THEN
+        REM Show the grid of squares on which knot is constructed
+        FOR x%=1 TO numsqx%+1
+          LINE x%*sp%,sp%,x%*sp%,sp%*(numsqy%+1)
+        NEXT x%
+        FOR y%=1 TO numsqy%+1
+          LINE sp%,y%*sp%,sp%*(numsqx%+1),y%*sp%
+        NEXT y%
+      ENDIF
+      :
+      REM For each square, draw 2 lines using Bezier curves (points calculated in PROCsetarray)
+      FOR x%=0 TO nsx%
+        FOR y%=0 TO nsy%
+          CASE sq&(x%,y%,1) AND 3 OF
+            WHEN 1: dx1%=sp%:dy1%=3*sp% DIV 4
+            WHEN 2: dx1%=sp%:dy1%=sp%
+            WHEN 3: dx1%=3*sp% DIV 4:dy1%=sp%
+            WHEN 0:dx1%=3*sp% DIV 4:dy1%=3*sp% DIV 4
+          ENDCASE
+          CASE sq&(x%,y%,3) AND 3 OF
+            WHEN 1: dx2%=0:dy2%=sp% DIV 4
+            WHEN 2: dx2%=0:dy2%=0
+            WHEN 3: dx2%=sp% DIV 4:dy2%=0
+            WHEN 0:dx2%=sp% DIV 4:dy2%=sp% DIV 4
+          ENDCASE
+          PROCsetarray(pts%(),x%,y%,sp%,dx1%,dy1%,dx2%,dy2%)
+          c1%=(sq&(x%,y%,1) AND &F0) DIV 16
+          
+          PROCdrawcurve(c1%,sp%,pts%())
+          
+          CASE sq&(x%,y%,0) AND 3 OF
+            WHEN 1: dx1%=0:dy1%=3*sp% DIV 4
+            WHEN 2: dx1%=0:dy1%=sp%
+            WHEN 3: dx1%=sp% DIV 4:dy1%=sp%
+            WHEN 0:dx1%=sp% DIV 4:dy1%=3*sp% DIV 4
+          ENDCASE
+          CASE sq&(x%,y%,2) AND 3 OF
+            WHEN 1: dx2%=sp%:dy2%=sp% DIV 4
+            WHEN 2: dx2%=sp%:dy2%=0
+            WHEN 3: dx2%=3*sp% DIV 4:dy2%=0
+            WHEN 0:dx2%=3*sp% DIV 4:dy2%=sp% DIV 4
+          ENDCASE
+          PROCsetarray(pts%(),x%,y%,sp%,dx1%,dy1%,dx2%,dy2%)
+          c1%=(sq&(x%,y%,0) AND &F0)  DIV 16
+          PROCdrawcurve(c1%,sp%,pts%())
+        NEXT y%
+      NEXT x%
+      FOR x%=0 TO nsx%
+        FOR y%=0 TO nsy%
+          IF (sq&(x%,y%,3) AND 3)=2 THEN
+            REM If line goes through diagonals, tidy up top line again
+            PROCsetarray(pts%(),x%,y%,sp%,sp% DIV 5,sp% DIV 5,-1*(sp% DIV 5),-1*(sp% DIV 5))
+            c1%=(sq&(x%,y%,1) AND &F0) DIV 16
+            PROCdrawcurve(c1%,sp%,pts%())
+          ENDIF
+        NEXT y%
+      NEXT x%
+      ENDPROC
+      :
+      DEFPROCsetarray(pts%(),x%,y%,sp%,dx1%,dy1%,dx2%,dy2%)
+      REM set up curve in array pts%
+      pts%(0,0)=sp%*(x%+1)+dx1%
+      pts%(0,1)=sp%*(y%+1)+dy1%
+      CASE dx1% OF
+        WHEN 0: pts%(1,0)=pts%(0,0)+sp% DIV 2 :pts%(0,0)-=1
+        WHEN sp% DIV 4,3*sp% DIV 4:pts%(1,0)=pts%(0,0)
+        WHEN sp%: pts%(1,0)=pts%(0,0)-sp% DIV 2:pts%(0,0)+=1
+        WHEN sp% DIV 5:pts%(1,0)=sp%*(x%+1)
+      ENDCASE
+      CASE dy1% OF
+        WHEN 0: pts%(1,1)=pts%(0,1)+sp% DIV 2:pts%(0,1)-=1
+        WHEN sp% DIV 4,3*sp% DIV 4:pts%(1,1)=pts%(0,1)
+        WHEN sp%: pts%(1,1)=pts%(0,1)-sp% DIV 2:pts%(0,1)+=1
+        WHEN sp% DIV 5:pts%(1,1)=sp%*(y%+1)
+      ENDCASE
+      pts%(3,0)=sp%*(x%+1)+dx2%
+      pts%(3,1)=sp%*(y%+1)+dy2%
+      CASE dx2% OF
+        WHEN 0: pts%(2,0)=pts%(3,0)+sp% DIV 2:pts%(3,0)-=1
+        WHEN sp% DIV 4,3*sp% DIV 4:pts%(2,0)=pts%(3,0)
+        WHEN sp%: pts%(2,0)=pts%(3,0)-sp% DIV 2:pts%(3,0)+=1
+        WHEN -1*(sp% DIV 5):pts%(2,0)=sp%*(x%+1)
+      ENDCASE
+      CASE dy2% OF
+        WHEN 0: pts%(2,1)=pts%(3,1)+sp% DIV 2 :pts%(3,1)-=1
+        WHEN sp% DIV 4,3*sp% DIV 4:pts%(2,1)=pts%(3,1)
+        WHEN sp%: pts%(2,1)=pts%(3,1)-sp% DIV 2 :pts%(3,1)+=1
+        WHEN -1*(sp% DIV 5):pts%(2,1)=sp%*(y%+1)
+      ENDCASE
+      IF dx1%=0 AND dy1%=0 THEN pts%(0,0)+=sp% DIV 5:pts%(0,1)+=sp% DIV 5
+      IF dx1%=sp% AND dy1%=sp% THEN pts%(0,0)-=sp% DIV 5:pts%(0,1)-=sp% DIV 5
+      IF dx2%=0 AND dy2%=0 THEN pts%(3,0)+=sp% DIV 5:pts%(3,1)+=sp% DIV 5
+      IF dx2%=sp% AND dy2%=sp% THEN pts%(3,0)-=sp% DIV 5:pts%(3,1)-=sp% DIV 5
+      ENDPROC  :REM PROCsetarray
+      :
+      DEFPROCdrawcurve(col%,sp%,pts%())
+      LOCAL w1%,w2%,pencolour%,penstyle%,penwidth
+      REM Draw Bezier curve using anti-aliased graphics, and colours set in cols%(col%)
+      REM Lines are drawn twice, once in background colour, then again in foreground (but thinner)
+      IF cols%(col%,2)=&FFFFFF THEN w1%=sp% DIV 8 ELSE w1%=cols%(col%,2)
+      w2%=w1% DIV 2
+      IF w2%=0 THEN w2%=1:w1%=3
+      
+      pencolour% = &FF000000+cols%(col%,0) : REM. Opaque, colour background to col%
+      penstyle% = LineStartFlat + LineEndFlat
+      penwidth = w1%
+      IF ((pts%(3,0)=sp%+(sp% DIV 4)) AND (pts%(3,1)=sp%+(sp% DIV 4))) OR ((pts%(3,0)=sp%*numsqx%+(3*sp% DIV 4)) AND (pts%(3,1)=sp%+(sp% DIV 4))) THEN
+        PROC_aaellipsefill(pts%(3,0),pts%(3,1), penwidth*1.5, penwidth*1.5, 0, pencolour%)
+      ENDIF
+      IF ((pts%(0,0)=sp%+(sp% DIV 4)) AND (pts%(0,1)=sp%*numsqy%+(3*sp% DIV 4))) OR ((pts%(0,0)=sp%*numsqx%+(3*sp% DIV 4)) AND (pts%(0,1)=sp%*numsqy%+(3*sp% DIV 4))) THEN
+        PROC_aaellipsefill(pts%(0,0),pts%(0,1), penwidth*1.5, penwidth*1.5, 0, pencolour%)
+      ENDIF
+      PROC_aabezier(pts%(0,0),pts%(0,1), pts%(1,0),pts%(1,1),pts%(2,0),pts%(2,1),pts%(3,0),pts%(3,1), penwidth, pencolour%, penstyle%)
+      
+      pencolour% = &FF000000+cols%(col%,1) : REM. Opaque, foreground colour col%
+      penstyle% = LineStartFlat + LineEndFlat
+      penwidth = w2%
+      IF ((pts%(3,0)=sp%+(sp% DIV 4)) AND (pts%(3,1)=sp%+(sp% DIV 4))) OR ((pts%(3,0)=sp%*numsqx%+(3*sp% DIV 4)) AND (pts%(3,1)=sp%+(sp% DIV 4))) THEN
+        PROC_aaellipsefill(pts%(3,0),pts%(3,1), penwidth*2, penwidth*2, 0, pencolour%)
+      ENDIF
+      IF ((pts%(0,0)=sp%+(sp% DIV 4)) AND (pts%(0,1)=sp%*numsqy%+(3*sp% DIV 4))) OR ((pts%(0,0)=sp%*numsqx%+(3*sp% DIV 4)) AND (pts%(0,1)=sp%*numsqy%+(3*sp% DIV 4))) THEN
+        PROC_aaellipsefill(pts%(0,0),pts%(0,1), penwidth*2, penwidth*2, 0, pencolour%)
+      ENDIF
+      PROC_aabezier(pts%(0,0),pts%(0,1), pts%(1,0),pts%(1,1),pts%(2,0),pts%(2,1),pts%(3,0),pts%(3,1), penwidth, pencolour%, penstyle%)
+      ENDPROC  :REM PROCdrawcurve

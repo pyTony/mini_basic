@@ -1,0 +1,44 @@
+=== Page 13 ===
+2
+
+=== Page 14 ===
+1 About the BBC BASIC Reference
+Manua l
+T
+his manual provides a comp lete description of BBC BASIC. one of the most popular and widely-used programming languages
+Intended readership
+You should read this manual if you are
+• a co mput er user who ha s never used BBC BAS IC before. who wants an intr oduct ion to a n ew computer language;
+• an experienced programmer in other computer languages. who wants an insight into BBC BASIC's features without having to resort to a lengthy tutorial-type manual:
+• an experienced BBC BASIC programmer. who needs specific information about
+the structure of BBC BASIC. and the use of its commands
+Structure of the manual
+The manual is divided into the following parts
+Part I : Overview - includes this chapter. and the chapter entitled About BBC BASIC. which gives an introduction to BAS IC VI. It compares BASIC VI with BASIC
+V. and describes the benefits and effects of using both versions
+Pa rt 2: Programming tec hni ques - explains how to program in BBC BASIC. and intr oduces many of the commands (or keyword s) provided by the language. Th e last chapter in this sec tion describes the BASIC screen edit or.
+Pa rt 3: Keywords - contai ns a co mp lete li st of BBC BAS IC keyword s. in alphabetical order. It defines the syntax of all the keywords. and giv es you examples of how to use them.
+Part 4: Refer ence - contains the appendices. which have useful referen ce material. such as numeric representation. error messages. keyword abbreviations and VDU commands. Appendix I - BBC BASIC's history gives a brief history of BBC BASIC
+3
+
+=== Page 15 ===
+Conventions used in this manual
+The foilowing conventions are applied throughout this manual:
+Conventions used in this manual
+• Specific key s to p re ss are denoted as Ctrl. Delete and so on
+• Instructions which require you to press a combination of keys are shown thus Shift-Break means hold down the S hift key and press and relea se the Break key.
+• Text you type on the keyboard and text that is di splayed on the screen a pp ea rs as follow s:
+PRINT "Hello "
+• Classes of item are shown in italics For example. in th e descriptions of BASIC keywords. you might see something like:
+LET va1 - expression
+where va ra nd expression are items you n ee d to supply. for example
+LET a$ "h ello "
+• Items within square brackets [ ; are op tionaL For exa mple,
+GCO ( exp1·ession2 , - expr ossionl
+means that you must supply at least one expression If you supply two you must separate them with a comma.
+• All interactive commands are e nt e red by pressing the Return key. Howe ver. this is not actually shown in the examples or syntax of commands.
+• Extra spaces are inserted into program listings to aid clarity. but need not be typed in
+• Program listings are indent ed to il lustrate the structure of the programs
+If at any tim e you wi sh to interrupt a program the computer is executing you ca n do so safely by pr ess ing Esc.
+Feel free to experiment. Try m od ifying the programs li sted in this manual and writing new ones of your own
+4

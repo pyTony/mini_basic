@@ -1,0 +1,147 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Shader-based Mandelbrot Plotting Demo, with Mouse and Touch Control
+      REM BBCSDL version by Richard Russell, www.rtrussell.co.uk, 12-May-2019
+      REM See http://iquilezles.org/www/articles/mset_smooth/mset_smooth.htm
+      REM This version has been adapted to work in both OpenGL and OpenGL ES2
+      
+      REM Initialise window:
+      MODE 20
+      
+      REM Install libraries:
+      INSTALL @lib$ + "shaderlib"
+      
+      REM Create arrays and structures:
+      DIM Vertex$(10), Fragment$(999), Float{0%,1%}
+      
+      REM Fill vertex and fragment shader arrays from DATA statements:
+      PROC_readshader(Vertex$())
+      PROC_readshader(Fragment$())
+      
+      REM Initialise global variables:
+      Zoom = 1.2
+      PanX = -0.5
+      PanY = 0.0
+      Auto% = FALSE
+      Touch% = 0
+      
+      REM Get window size, handle resize, touch and pinch events:
+      *SYS 6
+      ON SYS Zoom *= 1 - @wparam% / &4000 : RETURN
+      ON MOUSE Touch% += (@msg% == &701) - (@msg% == &700) : RETURN
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup
+      VDU 26
+      IF POS REM SDL thread sync
+      ScrW% = @size.x%
+      ScrH% = @size.y%
+      
+      REM Ensure cleanup on exit:
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Initialise shader library:
+      PROC_shaderinit(oVertex%, oFragment%)
+      
+      REM Compile shaders:
+      PROC_compileshader(oVertex%, Vertex$(), "Vertex")
+      PROC_compileshader(oFragment%, Fragment$(), "Fragment")
+      
+      REM Link and use shaders:
+      oProgram% = FN_useshaders(oVertex%, oFragment%)
+      SYS `glGetUniformLocation`, oProgram%, "iZoom",       @memhdc% TO pZoom%
+      SYS `glGetUniformLocation`, oProgram%, "iPan",        @memhdc% TO pPan%
+      SYS `glGetUniformLocation`, oProgram%, "iResolution", @memhdc% TO pResolution%
+      
+      REM Render loop:
+      allow% = TRUE
+      MOUSE oldx%,oldy%,oldb%
+      REPEAT
+        CASE INKEY(0) OF
+          WHEN 32: Auto% = TRUE : TIME = 0
+          WHEN 140: Zoom *= 1.05 : Auto% = FALSE
+          WHEN 141: Zoom /= 1.05 : Auto% = FALSE
+        ENDCASE
+        
+        IF Auto% THEN
+          Zoom = (0.69 + 0.333*COS(0.0007*TIME)) ^ 8
+          PanX += (-0.74499 - PanX) / 500 / Zoom
+          PanY += ( 0.18600 - PanY) / 500 / Zoom
+        ENDIF
+        
+        IF INKEY(-26)  PanX += Zoom / 100 : Auto% = FALSE
+        IF INKEY(-122) PanX -= Zoom / 100 : Auto% = FALSE
+        IF INKEY(-58)  PanY -= Zoom / 100 : Auto% = FALSE
+        IF INKEY(-42)  PanY += Zoom / 100 : Auto% = FALSE
+        IF INKEY(-64)  Zoom /= 1.01 : Auto% = FALSE
+        IF INKEY(-79)  Zoom *= 1.01 : Auto% = FALSE
+        
+        MOUSE X%,Y%,B%
+        IF Touch% < 0 Touch% = 0
+        IF Touch% = 0 allow% = TRUE ELSE IF Touch% > 1 allow% = FALSE
+        IF B% AND oldb% AND 1 THEN Zoom /= 1.01 : Auto% = FALSE
+        IF B% AND oldb% AND 2 THEN Zoom *= 1.01 : Auto% = FALSE
+        IF B% AND oldb% AND 4 THEN
+          MOUSE ON 134
+          IF X%<>oldx% OR X%<>oldy% IF allow% THEN
+            PanX -= (X% - oldx%)/ScrH% * Zoom
+            PanY -= (Y% - oldy%)/ScrH% * Zoom
+          ENDIF
+        ELSE
+          MOUSE ON 0
+        ENDIF
+        oldb% = B%
+        oldx% = X%
+        oldy% = Y%
+        
+        Float.0% = FN_f4(Zoom)
+        SYS `glUniform1fv`, pZoom%, 1, Float{}, @memhdc%
+        Float.0% = FN_f4(PanX) : Float.1% = FN_f4(PanY)
+        SYS `glUniform2fv`, pPan%, 1, Float{}, @memhdc%
+        Float.0% = FN_f4(ScrW%) : Float.1% = FN_f4(ScrH%)
+        SYS `glUniform2fv`, pResolution%, 1, Float{}, @memhdc%
+        
+        PROC_render
+        
+        WAIT 4
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      oProgram% += 0 : oVertex% += 0 : oFragment% += 0
+      PROC_shaderexit(oProgram%, oVertex%, oFragment%)
+      *REFRESH ON
+      ENDPROC
+      
+      REM Minimal vertex shader:
+      DATA "attribute vec4 vPosition;"
+      DATA "void main()"
+      DATA "{"
+      DATA "gl_Position = vPosition ;"
+      DATA "}"
+      DATA ""
+      
+      DATA "uniform float iZoom;"
+      DATA "uniform vec2 iPan;"
+      DATA "uniform vec2 iResolution;"
+      DATA "const int ITER = 100;"
+      
+      DATA "void main()"
+      DATA "{"
+      DATA "vec2 p = (-iResolution.xy + 2.0*gl_FragCoord.xy)/iResolution.y;"
+      DATA "vec2 c = p*iZoom + iPan;"
+      DATA "vec2 z = vec2(0.0);"
+      DATA "for( int i=0; i<ITER; i++ )"
+      DATA " {"
+      DATA "  z = vec2( z.x*z.x - z.y*z.y, 2.0*z.x*z.y ) + c; // z = z*z + c"
+      DATA "  if( dot(z,z) > 65536.0 )"
+      DATA "   {"
+      DATA "    float l = float(i) - log2(log2(dot(z,z))) + 4.0; // smooth iteration count"
+      DATA "    float col = 0.5 - 0.5*cos(l*0.02454369*3.0);"
+      DATA "    gl_FragColor = vec4( 1.0, 0.4 + 0.6*col, 0.0, 1.0 );"
+      DATA "    return ;"
+      DATA "   }"
+      DATA " }"
+      DATA "gl_FragColor = vec4( 0.0, 0.0, 0.0, 1.0 );"
+      DATA "}"
+      DATA ""

@@ -1,4 +1,4 @@
-    10 SIZE = 8192
+    10 SIZE = 8192: TIME = 0
     20 DIM FLAGS(8192)
     30 PRINT "Starting 10 iterations of the Sieve..."
     40 FOR I = 1 TO 10
@@ -13,4 +13,6 @@
    130      COUNT = COUNT + 1
    140  NEXT J
    150 NEXT I
-   160 PRINT "Done. Primes found: "; COUNT
+   155 t = TIME / 100
+   160 PRINT "Done. Primes found: "; COUNT;" TIME "; t
+   170 REM INPUT "DONE",DUMMY$

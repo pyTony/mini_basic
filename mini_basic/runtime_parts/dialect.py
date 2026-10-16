@@ -136,6 +136,10 @@ class RuntimeDialectMixin:
             return dialect == 'mini'
         if feature.upper() in self._MINI_ONLY_CMDS:
             return dialect == 'mini'
+        if feature.upper() in self._MINI_ONLY_STAR_CMDS:
+            # *PLAY/*MUSIC are mini_basic sound extensions, not real BBC OS
+            # commands (unlike SOUND, which is real BBC BASIC).
+            return dialect == 'mini'
         if feature in self._MITS_FORBIDDEN_CMDS:
             return dialect not in self._NUMBERED_GOTO_DIALECTS
         return True

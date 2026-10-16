@@ -1,0 +1,83 @@
+      ON ERROR IF ERR=17 CHAIN @lib$ + "../examples/tools/touchide" ELSE \
+      \ MODE 7 : REPORT : PRINT " at line ";ERL : END
+      
+      REM "Multi-Scale Truchet Tiles (symmetrical)" for 'BBC BASIC for SDL 2.0'
+      REM by Richard Russell based on a PostScript program by Stuart E Anderson
+      
+      REM Initialise screen:
+      S% = 768
+      VDU 23,22,S%;S%;16,20,16,0
+      ORIGIN S%,S%
+      OFF
+      
+      REM Install the anti-aliased graphics library:
+      INSTALL @lib$ + "aagfxlib"
+      
+      REM Draw the tiles:
+      N% = 0
+      C% = &FF000000
+      REPEAT
+        S% DIV= 2
+        T% = N% * S%
+        FOR X% = -T% TO T% STEP S%
+          PROCtruchet(X%,  T%,  S%,  S%, C%)
+          PROCtruchet(X%, -T%, -S%, -S%, C%)
+        NEXT
+        FOR Y% = -T% TO T% STEP S%
+          PROCtruchet( T%, Y%,  S%, -S%, C%)
+          PROCtruchet(-T%, Y%, -S%,  S%, C%)
+        NEXT
+        N% = (N% + 1) * 2
+        C% EOR= &FFFFFF
+      UNTIL S% <= 3
+      REPEAT WAIT 5 : UNTIL FALSE
+      END
+      
+      REM Draw one tile:
+      DEF PROCtruchet(x, y, u, v, C%)
+      LOCAL D%, a, s, x(), y() : DIM x(3), y(3)
+      D% = C% EOR &FFFFFF
+      x() = x, x + u, x + u, x
+      y() = y, y, y + v, y + v
+      PROC_aapolygon(4, x(), y(), D%)
+      
+      REM Wings:
+      a = 180*(u<0) - 90*(u<0 EOR v<0)
+      s = ABS(u) * 2 / 3
+      PROC_aasector(x, y, s, s, a - 90, 90, C%)
+      PROC_aasector(x + u, y + v, s, s, a + 90, 90, C%)
+      s /= 2
+      PROC_aasector(x, y, s, s, a - 90, 90, D%)
+      PROC_aasector(x + u, y + v, s, s, a + 90, 90, D%)
+      
+      REM Corners:
+      s = ABS(u) / 6
+      REPEAT
+        a = 180*(u<0) + 270*(u<0 EOR v<0)
+        PROC_aasector(x,     y,     s, s, a - 90, 90, C%)
+        PROC_aasector(x + u, y + v, s, s, a + 90, 90, C%)
+        a = 180*(u<0) +  90*(u<0 EOR v<0)
+        PROC_aasector(x,     y + v, s, s, a, 90, C%)
+        PROC_aasector(x + u, y,     s, s, a + 180, 90, C%)
+        C% EOR= &FFFFFF
+        s /= 2
+      UNTIL s < 1
+      
+      REM Sides:
+      s = ABS(u) / 12
+      PROCside(x, y, u, 0, s, D%)
+      PROCside(x, y, 0, v, s, D%)
+      PROCside(x+u, y, 0, v, s, D%)
+      PROCside(x, y+v, u, 0, s, D%)
+      ENDPROC
+      
+      REM Draw the mid-side circles:
+      DEF PROCside(x, y, u, v, s, C%) : IF s < 1 ENDPROC
+      PROCside(x,     y,     u/2, v/2, s/2, C% EOR &FFFFFF)
+      PROCside(x+u/2, y+v/2, u/2, v/2, s/2, C% EOR &FFFFFF)
+      REPEAT
+        PROC_aaellipsefill(x+u/2, y+v/2, s, s, 0, C%)
+        C% EOR= &FFFFFF
+        s /= 2
+      UNTIL s < 1
+      ENDPROC

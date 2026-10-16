@@ -546,6 +546,24 @@ class RuntimeExprMixin:
         if announce and self.config.dialect != 'mini' and mini_used:
             self._announce_mini_dialect_mismatch(mini_used)
 
+        # *PLAY/*MUSIC are mini_basic sound extensions, not real BBC OS
+        # commands -- never accepted outside dialect mini, regardless of
+        # --strict-dialect and regardless of whether the non-mini dialect
+        # came from --dialect or from the file's own REM dialect: hint. A
+        # program that needs them declares `REM dialect: mini`, not bbc.
+        star_used = [f for f in mini_used if f.startswith('*')]
+        if star_used and self.config.dialect != 'mini':
+            names = ', '.join(star_used)
+            self._emit_error(
+                f'? {names} not allowed in {self.config.dialect} dialect '
+                f'(mini_basic sound extension, not real BBC BASIC)'
+            )
+            self._emit_error(
+                '  use --dialect mini, add `1 REM dialect: mini`, or run '
+                '*WRAPMINI to comment out the line(s) first'
+            )
+            return False
+
         seen: Set[str] = set()
         for _, statement, _ in parsed_lines:
             for violation in self._scan_statement_dialect_violations(statement):

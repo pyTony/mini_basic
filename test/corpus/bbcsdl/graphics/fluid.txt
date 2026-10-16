@@ -1,0 +1,82 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Plasma effect by Teqqles from https://www.shadertoy.com/view/ltGcDc
+      REM BBCSDL version by Richard Russell, www.rtrussell.co.uk, 19-Jul-2019
+      REM This version has been adapted to work in both OpenGL and OpenGL ES2
+      
+      REM Install libraries:
+      INSTALL @lib$ + "shaderlib"
+      
+      REM Create arrays and structures:
+      DIM Vertex$(10), Fragment$(999), Float{0%,1%}
+      
+      REM Fill vertex and fragment shader arrays from DATA statements:
+      PROC_readshader(Vertex$())
+      PROC_readshader(Fragment$())
+      
+      REM Initialise window and get its size:
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup
+      VDU 26
+      
+      REM Ensure cleanup on exit:
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Initialise shader library:
+      PROC_shaderinit(oVertex%, oFragment%)
+      
+      REM Compile shaders:
+      PROC_compileshader(oVertex%, Vertex$(), "Vertex")
+      PROC_compileshader(oFragment%, Fragment$(), "Fragment")
+      
+      REM Link and use shaders:
+      oProgram% = FN_useshaders(oVertex%, oFragment%)
+      
+      SYS `glGetUniformLocation`, oProgram%, "iTime",       @memhdc% TO pTime%
+      SYS `glGetUniformLocation`, oProgram%, "iResolution", @memhdc% TO pResolution%
+      
+      REM Render loop:
+      TIME = 0
+      REPEAT
+        Float.0% = FN_f4(TIME/100)
+        SYS `glUniform1fv`, pTime%, 1, Float{}, @memhdc%
+        Float.0% = FN_f4(@vdu%!208) : Float.1% = FN_f4(@vdu%!212)
+        SYS `glUniform2fv`, pResolution%, 1, Float{}, @memhdc%
+        PROC_render
+      UNTIL FALSE
+      END
+      
+      DEF PROCcleanup
+      ON ERROR OFF
+      oProgram% += 0 : oVertex% += 0 : oFragment% += 0
+      PROC_shaderexit(oProgram%, oVertex%, oFragment%)
+      *REFRESH ON
+      ENDPROC
+      
+      REM Minimal vertex shader:
+      DATA "attribute vec4 vPosition;"
+      DATA "void main()"
+      DATA "{"
+      DATA "gl_Position = vPosition ;"
+      DATA "}"
+      DATA ""
+      
+      REM Fragment Shader code adapted from https://www.shadertoy.com/view/ltGcDc
+      DATA "uniform float iTime;"
+      DATA "uniform vec2 iResolution;"
+      
+      DATA "void main()"
+      DATA "{"
+      DATA "vec2 p=(2.0*gl_FragCoord.xy-iResolution.xy)/max(iResolution.x,iResolution.y);"
+      DATA "for(int i=1;i<10;i++)"
+      DATA "{"
+      DATA "vec2 newp=p;"
+      DATA "float fi=float(i)*1.6667;"
+      DATA "newp.x+=sin(fi*p.y+0.5*iTime+0.18*fi)/fi+1.0;"
+      DATA "newp.y+=sin(fi*p.x+0.7*iTime+0.18*fi+3.0)/fi-1.4;"
+      DATA "p=newp;"
+      DATA "}"
+      DATA "vec3 col=vec3(1.0,1.0-(sin(p.y)),sin(p.x+p.y));"
+      DATA "gl_FragColor=vec4(col, 1.0);"
+      DATA "}"
+      DATA ""

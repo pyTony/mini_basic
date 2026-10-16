@@ -1,0 +1,1053 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      IF HIMEM < PAGE + 48000 THEN HIMEM = PAGE + 48000
+      
+      REM  by P.E.Marshall
+      REM 1/8/91 for Acorn A3000
+      REM This version Sept 2001 using BBC Basic for Windows by R.T.Russell
+      version$=" Version 3.1  26/1/2017  by P.E.Marshall  DarkwoodDesigns.co.uk"
+      REM " 2.11 22/10/2001  V2.2 3/7/2005 by P.E.Marshall "
+      REM " 2.22 13/03/2006 by R.T.Russell  richard@rtrussell.co.uk"
+      REM " 3.10 26/01/2017 by P.E. Marshall Revised and renamed"
+      REM " 3.20 11/4/2017 Control for Fire TV and stereo sound added.
+      REM  Cat graphic used is from www.clipartsgram.com/cool-cat-clipart-24233
+      REM
+      REM  DELETE @usr$/DIBLEY.DAT to reset game to beginning
+      
+      PROCtitle("Dibley")
+      IF INKEY$(-256)<>"W" INSTALL @lib$ + "dlglib" : INSTALL @lib$ + "msgbox"
+      IF INKEY$(-256)="W" OR INSTR(@usr$, "com.rtrussell.dibley") THEN *esc off
+      *tempo 1
+      PROCinit
+      VDU19,14,16,72,32,96
+      GCOL0,14
+      RECTANGLEFILL0,0,1280,1024
+      GCOL 0,0
+      RECTANGLEFILL48,56,960,864
+      
+      PROCstartnew
+      menuactive = FALSE
+      keyboard_buffer$="" : lt$=CHR$136 : rt$=CHR$137 : up$=CHR$139 : dn$=CHR$138
+      
+      REPEAT
+        REPEAT:UNTIL FNmouse=0
+        Time=TIME:lasttime%=-100
+        REPEAT
+          REPEAT
+            mb=FNmouse
+            REM VDU 4:PRINTTAB(0,0)mx,my;"  ";
+            IF mx>1000 AND (((my>420 AND my<864)) OR my<358) THEN MOUSEON 137 ELSE MOUSEON 0
+            IF demo THEN
+              PROCdelay(15)
+              keyboard_buffer$=LEFT$(Moves$,1)
+              Moves$=MID$(Moves$,2)
+            ENDIF
+            IF keyboard_buffer$<>"" THEN
+              key$=keyboard_buffer$
+              keyboard_buffer$=""
+            ELSE
+              keycode=INKEY(10)
+              CASE keycode OF
+                WHEN 136:key$ ="z"
+                WHEN 137:key$="x"
+                WHEN 138:key$="/"
+                WHEN 139:key$="'"
+                WHEN 9:menuactive = TRUE
+                OTHERWISE key$ = CHR$(keycode)
+              ENDCASE
+              IF mb<>0 THEN
+                CASE TRUE OF
+                  WHEN (mx>1000 AND mx<1090) AND (my<236 AND my>146) :key$="z"
+                  WHEN (mx>1182 AND mx<1260) AND (my<236 AND my>146) :key$="x"
+                  WHEN (mx>1090 AND mx<1182) AND (my<146 AND my>54)  :key$="/"
+                  WHEN (mx>1090 AND mx<1182) AND (my<330 AND my>236) :key$="'"
+                ENDCASE
+              ENDIF
+            ENDIF
+          UNTIL key$<>"" OR mb
+          :
+          IF menuactive = TRUE THEN
+            select = 2 : gap=83
+            PROCmenubox(420+ (select * gap))
+            REPEAT
+              keycode= INKEY(10)
+              CASE keycode OF
+                WHEN 139:PROCmenubox(420+ (select * gap)):IF select< 4 THEN select +=1:IF select=1 THEN select=2
+                  PROCmenubox(420+ (select * gap))
+                WHEN 138:PROCmenubox(420+ (select * gap)):IF select >0 THEN select -=1:IF select=1 THEN select=0
+                  PROCmenubox(420+ (select * gap))
+              ENDCASE
+            UNTIL keycode = 13 OR keycode = 9
+            PROCmenubox(420+ (select * gap))
+            IF keycode =13 THEN
+              CASE select OF
+                WHEN 0:PROCdemo
+                WHEN 1:PROCdesign
+                WHEN 2:PROCrestart
+                WHEN 3:PROCsave(@usr$+"DIBLEY.DAT"):PROCwindows_message("Current game saved.")
+                WHEN 4 AND demo = TRUE:PROCtitle(version$):Moves$="":demo=FALSE:REPEAT:UNTIL FNmouse=0:PROCtitle("Dibley"):PROCstartnew
+                WHEN 4 AND NOT demo:PROCloadlevel:PROCstartnew
+              ENDCASE
+            ENDIF
+            menuactive = FALSE
+          ENDIF
+          
+          IF mb AND (my< 800) AND mx<1000 THEN PROCsound("meow",1,-64)
+          IF mb AND (mx>1000 AND mx<1270) THEN
+            CASE TRUE OF
+              WHEN (my>780 AND my<940 ) AND demo = TRUE:PROCtitle(version$):Moves$="":demo=FALSE:REPEAT:UNTIL FNmouse=0:PROCtitle("Dibley"):PROCstartnew
+              WHEN (my>750 AND my<840) AND NOT demo:PROCloadlevel:PROCstartnew
+              WHEN my>660 AND my<750:PROCsave(@usr$+"DIBLEY.DAT"):PROCwindows_message("Current game saved.")
+              WHEN my>580 AND my<660:PROCrestart
+              WHEN my>490 AND my<580:PROCdesign
+              WHEN (my>420 AND my<490):PROCdemo
+            ENDCASE
+          ENDIF
+          IF NOT done THEN
+            CASE key$ OF
+              WHEN "Z","z",lt$:dir=-1:PROCplay
+              WHEN "X","x",rt$:dir=+1:PROCplay
+              WHEN "'","@",up$:dir=-20:PROCplay
+              WHEN "/","?",dn$:dir=+20:PROCplay
+            ENDCASE
+          ENDIF
+        UNTIL sprite%(manpos)=exit
+        IF NOT done THEN PROCexit
+        done=TRUE
+        lasttime=Time
+        IF demo THEN
+          *FX15,0
+          demo=FALSE
+          PROCmessage(2,"Demo level complete.")
+          PROCrestart
+          VDU5
+        ELSE
+          PROCload(path$+"/.Levels/"+FNautolevel+".DAT"):PROCstartnew
+        ENDIF
+      UNTIL 0
+      END
+      :
+      DEFPROCmenubox(y)
+      x=1012
+      MOVE x,y : PLOT &62,244,6
+      MOVEx,y+8:PLOT &62,4,60
+      MOVEx+240,y+8:PLOT&62,4,60
+      MOVEx,y+70:PLOT &62,244,8
+      
+      ENDPROC
+      :
+      DEFPROCdemo
+      PROCtitle("Dibley Demo")
+      demo=TRUE
+      done=FALSE
+      PROCload(path$+"/.Demo/DEMOLEVL.DAT")
+      PROCscreen("63")
+      Moves$=""
+      dc%=OPENIN(path$+"/.Demo/DEMO.DAT")
+      REPEAT
+        INPUT#dc%,K$
+        Moves$=Moves$+K$
+      UNTIL EOF#dc%
+      CLOSE#dc%
+      ENDPROC
+      :
+      DEFPROCstartnew
+      PROCscreen("60")
+      PROCtitle("Dibley "+version$):version$=""
+      done=FALSE : dir=0
+      Time=TIME
+      lasttime%=-100
+      ENDPROC
+      :
+      DEFPROCrestart
+      PROCtitle("Dibley")
+      sprite%()=sprite2%()
+      block%()=block2%()
+      info%()=info2%()
+      dir=0
+      manpos=manpos2
+      PROCscreen("60")
+      done=FALSE
+      ENDPROC
+      :
+      DEFPROCplay
+      PROCcheckmansmove
+      IF Moveok THEN
+        PROCmoveman
+        manpos=manpos+dir
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCdesign
+      PROCtitle("Dibley Level Designer")
+      ON
+      REPEAT:UNTIL FNmouse=0
+      REM mouserectangle 24,92,1248,864
+      sp=grass:sel=-1:ref=designref
+      xsize=2:ysize=1
+      PROCSpriteOp(34,"61",1000,48,0,0)
+      PROCshow_tiles(sp)
+      PROCgrid
+      REPEAT
+        REPEAT
+          mb = FNmouse
+          REM VDU 4:PRINTTAB(0,0)mx,my;"  ";
+          IF mx>1000 AND my>580 THEN MOUSEON 137
+          IF mx<1000 OR my<580 THEN MOUSEON 134
+          IF mx<984 AND sp<>-1 THEN
+            square=FNmousepos
+            PROCshow
+          ENDIF
+          PROCdelay(3)
+        UNTIL mb
+        IF mb=4 AND mx<984 THEN PROCplot(FNmousepos,STR$(sp))
+        IF mx> 1026 THEN
+          sel=(mx-1048)DIV64+((my-80)DIV64*4)
+          CASE sel OF
+            WHEN 0:sp=Dibley
+            WHEN 1:sp=exit
+            WHEN 2:sp=hole
+            WHEN 4:sp=floor
+            WHEN 5:sp=brick1
+            WHEN 6:sp=brick2
+            WHEN 8:sp=grass
+            WHEN 9:sp=water
+            WHEN 10:sp=block
+            WHEN 17:sp=30 :REM gate centre
+            WHEN 13:sp=37 :REM gate arms
+            WHEN 16:sp=38
+            WHEN 18:sp=36
+            WHEN 21:sp=35
+            WHEN 24,25,26:sp=-1: PROCshow_tiles(99):PROCbigblock
+            WHEN 36,37,38:PROCprocessgates:PROCsavelevel:PROCscreen("0"):PROCgrid
+            WHEN 40,41,42:PROChelp:PROCscreen("0"):PROCgrid
+            WHEN 32,33,34:IF FNwindows_question("Do you really want to clear the board?")=6 PROCclear:PROCscreen("0"):PROCgrid
+          ENDCASE
+          PROCSpriteOp(34,"61",1000,48,0,0)
+          PROCshow_tiles(sp)
+        ENDIF
+        IF mx<984 AND sp<>-1 THEN
+          square=FNmousepos
+          PROCshow
+          sprite%(square)=sp
+          IF sp=Dibley THEN
+            PROCplot(manpos,STR$(floor))
+            manpos=square
+            PROCplot(manpos,STR$(Dibley))
+          ENDIF
+          IF sp=hole THEN info%(square)=1 ELSE info%(square)=0
+          IF sp=30 THEN info%(square)=ref:ref+=1
+          IF sp=block THEN block%(square)=&1111
+          IF sp=floor THEN block%(square)=0
+        ENDIF
+      UNTIL sel>=44 AND sel<=46
+      sprite%(manpos)=floor:dir=0
+      PROCprocessgates
+      sprite2%()=sprite%()
+      block2%()=block%()
+      info2%()=info%()
+      dir=0
+      manpos2=manpos
+      designref=ref
+      MOUSEON 0
+      REPEAT:UNTIL FNmouse=0:
+      PROCstartnew
+      ENDPROC
+      :
+      DEFPROCshow_tiles(hilight)
+      RESTORE +1
+      x=1048 : y=80
+      IF hilight=99 THEN GCOL 11:RECTANGLEFILL 1040,456,192,64
+      REPEAT
+        FOR I%=0 TO 2
+          READ a
+          IF a = hilight AND a<>-1 THEN GCOL 11:RECTANGLEFILL x+I%*64-8,y-8,64,64
+          IF a>=0 THEN PROCSpriteOp(34,STR$a,x+I%*64,y,0,0)
+        NEXT
+        y+=64
+      UNTIL a=-1
+      DATA 23,20,21,0,24,25,22,26,1,-2,37,-2,38,30,36,-2,35,-2,12,13,14,-1,-1,-1
+      ENDPROC
+      :
+      DEFPROCsetpassword : REM no longer used
+      ON
+      PROCmessage(1,"Enter PASSWORD for future access: ")
+      password$=text$
+      OFF
+      ENDPROC
+      :
+      DEFPROCloadlevel
+      PROCtitle("Dibley Choose Level")
+      ok=TRUE : ON
+      IF NOT ok THEN ENDPROC
+      REPEAT:UNTIL FNmouse=0
+      REM mouserectangle 24,92,1248,864
+      sp=grass:sel=-1:ref=designref
+      xsize=2:ysize=1
+      PROCSpriteOp(34,"65",1000,48,0,0)
+      go = FALSE
+      REPEAT
+        PROCshownumber(level%)
+        REPEAT
+          key = INKEY(10)
+          mb = FNmouse
+          REM VDU 4:PRINTTAB(0,0)mx,my;"  ";
+          IF mx>1000 AND (my>356 AND my <754) THEN MOUSEON 137 ELSE MOUSEON 0
+        UNTIL (mb<>0 AND mx>1000) OR key=13 OR key = 138 OR key=139
+        PROCdelay(10)
+        CASE key OF
+          WHEN 13: go = TRUE
+          WHEN 138:level%=FNprevlevel(level%) :PROCshownumber(level%) :REM down
+          WHEN 139:level%=FNnextlevel(level%) :PROCshownumber(level%) :REM up
+        ENDCASE
+        *FX15,1
+        IF mb<>0 THEN
+          CASE TRUE OF
+            WHEN (my>648 AND my<754 ): level%=FNnextlevel(level%):PROCshownumber(level%):REM up
+            WHEN (my>466 AND my<564) : level%=FNprevlevel(level%):PROCshownumber(level%):REM down
+            WHEN  my>356 AND my<466 : go = TRUE                  :REM go
+          ENDCASE
+        ENDIF
+      UNTIL go
+      PROCload(path$+"/.Levels/"+STR$(level%)+".DAT")
+      OFF
+      ENDPROC
+      :
+      DEFPROCshownumber(N%)
+      GCOL11 TINT 64:RECTANGLEFILL 1058,566,160,80
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 30,B"
+      GCOL4:MOVE 1074,654:PRINT ;N%
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"", 10"
+      ENDPROC
+      :
+      DEFFNnextlevel(L%)
+      REPEAT
+        L%+=1
+        IF L%>99 THEN L%=0
+        c%=OPENIN(path$+"/.Levels/"+STR$L%+".DAT")
+        CLOSE#c%
+      UNTIL (c%<>0)
+      =L%
+      :
+      DEFFNprevlevel(L%)
+      REPEAT
+        L%-=1
+        IF L% <0 THEN L%=99
+        c%=OPENIN(path$+"/.Levels/"+STR$L%+".DAT")
+        CLOSE#c%
+      UNTIL (c%<>0)
+      =L%
+      :
+      DEFFNnextemptylevel
+      L% = maxlevels
+      REPEAT
+        L%+=1
+        c%=OPENIN(path$+"/.Levels/"+STR$L%+".DAT")
+        CLOSE#c%
+      UNTIL (c%=0) OR L%=99
+      IF L%=99 THEN PROCwindows_message("There are no unused levels left.")
+      =L%
+      :
+      DEFPROCsavelevel
+      PROCscreen("66")
+      savelevel%= FNnextemptylevel
+      PROCshownumber(savelevel%)
+      go=FALSE
+      REPEAT
+        REPEAT
+          mb=FNmouse
+        UNTIL  mb<>0
+        REPEAT
+          pause= INKEY(10)
+          mb = FNmouse
+          REM VDU 4:PRINTTAB(0,0)mx,my;"  ";
+          IF mx>1000 AND (my>356 AND my <754) THEN MOUSEON 137 ELSE MOUSEON 0
+        UNTIL mb<>0
+        PROCdelay(10)
+        CASE TRUE OF
+          WHEN (my>648 AND my<754 ): savelevel%+=1 : IF savelevel%>99 THEN savelevel%=maxlevels+1
+            PROCshownumber(savelevel%) : REM up
+          WHEN (my>466 AND my<564) : savelevel%-=1 : IF savelevel%<maxlevels+1 THEN savelevel%=99
+            PROCshownumber(savelevel%) : REM down
+          WHEN  my>356 AND my<466 : go = TRUE :REM save
+        ENDCASE
+      UNTIL go
+      
+      L$=STR$(savelevel%)
+      filename$=path$+"/.Levels/"+L$+".DAT"
+      c%=OPENIN(filename$)
+      CLOSE#c%
+      yn=0
+      IF c%<>0 THEN  yn = FNwindows_question("This level already exists. Do you want to replace it?")
+      IF c%=0 OR yn=6 THEN PROCsave(filename$):PROCwindows_message("Level "+STR$savelevel% +" saved.")  ELSE PROCwindows_message("Level "+STR$savelevel% +" NOT saved.")
+      level%=savelevel%
+      PROCscreen("61")
+      PROCshow_tiles(22)
+      PROCgrid
+      ENDPROC
+      :
+      DEFPROCsave(file$)
+      ch%=OPENOUT(file$)
+      PRINT#ch%,manpos
+      FOR I%=0 TO 359
+        PRINT#ch%,sprite%(I%),info%(I%),block%(I%)
+      NEXT
+      PRINT#ch%,level%,password$
+      CLOSE#ch%
+      ENDPROC
+      :
+      DEFPROCload(file$)
+      ch%=OPENIN(file$)
+      IF ch% =0 THEN ch%=OPENIN(path$+"/.Demo/"+ "NEWGAME.DAT")
+      IF ch%=0 THEN PROCwindows_message("Data File NEWGAME.DAT not found."):ENDPROC
+      INPUT#ch%,manpos
+      FOR I%=0 TO 359
+        INPUT#ch%,sprite%(I%),info%(I%),block%(I%)
+        REM print  sprite%(I%) ,info%(I%),block%(I%)
+      NEXT
+      INPUT#ch%,level%,password$
+      CLOSE#ch%
+      sprite2%()=sprite%()
+      block2%()=block%()
+      info2%()=info%()
+      manpos2=manpos
+      done=FALSE
+      ENDPROC
+      :
+      DEFPROCbigblock
+      ON:REPEAT
+        PROCmessage(1,"Large block - Width "+STR$ xsize + CHR$13+CHR$10+CHR$10+ " Enter new Width or press RETURN")
+        xs=VAL(text$)
+        IF xs<>0 THEN xsize=xs
+        PROCmessage(1,"Large block - Height "+STR$ ysize + CHR$13+CHR$10+CHR$10+ " Enter new Height or press RETURN")
+        ys=VAL(text$)
+        IF ys<>0 THEN ysize=ys
+        IF xsize>15 OR ysize>15 THEN
+          PROCmessage(2,"Sorry, largest block size is 15 x 15!")
+        ENDIF
+      UNTIL xsize<16 AND ysize<16
+      OFF
+      PROCscreen("0"):PROCgrid
+      VDU30:PRINTSPC(40):OFF
+      IF xsize=1 AND ysize=1 THEN sp=block:ENDPROC
+      REM show size of block...
+      REPEAT
+        mb=FNmouse
+        IF mx<984 THEN
+          GCOL 4,0
+          RECTANGLE mx-24,my-24,xsize*48,ysize*48
+          PROCdelay(5)
+          RECTANGLE mx-24,my-24,xsize*48,ysize*48
+        ENDIF
+      UNTIL mb
+      REM exit if not in play area...
+      IF mx>984 THEN ENDPROC
+      REM store size info...
+      square=FNmousepos
+      FOR ypos=0 TO ysize-1
+        FOR xpos=0 TO xsize-1
+          block%(square+xpos-(ypos*20))=FNblockcode(xsize,ysize,xpos+1,ypos+1)
+        NEXT
+      NEXT
+      REM select and plot sprites...
+      CASE TRUE OF
+        WHEN xsize=1:
+          FOR ypos=1 TO ysize
+            S%=9
+            IF ypos=1 THEN S%=11
+            IF ypos=ysize THEN S%=10
+            PROCstore(1,ypos,S%)
+          NEXT
+        WHEN ysize=1:
+          FOR xpos=1 TO xsize
+            S%=13
+            IF xpos=1 THEN S%=12
+            IF xpos=xsize THEN S%=14
+            PROCstore(xpos,1,S%)
+          NEXT
+        WHEN xsize>1 AND ysize>1:
+          FOR ypos=1 TO ysize
+            FOR xpos=1 TO xsize
+              IF ypos=1 THEN
+                S%=17
+                IF xpos=1 THEN S%=7
+                IF xpos=xsize THEN S%=6
+              ENDIF
+              IF ypos=ysize THEN
+                S%=15
+                IF xpos=1 THEN S%=8
+                IF xpos=xsize THEN S%=5
+              ENDIF
+              IF ypos<>ysize AND ypos<>1 THEN
+                S%=4
+                IF xpos=1 THEN S%=16
+                IF xpos=xsize THEN S%=18
+              ENDIF
+              PROCstore(xpos,ypos,S%)
+            NEXT
+          NEXT
+      ENDCASE
+      PROCbutton_up
+      PROCshow_tiles(0)
+      ENDPROC
+      :
+      DEFPROCstore(x,y,S%)
+      P%=square+x-1-(20*(y-1))
+      sprite%(P%)=S%
+      PROCplot(P%,STR$S%)
+      ENDPROC
+      :
+      DEFPROCprocessgates
+      REM store reference info
+      LOCAL ref
+      FOR S%=0 TO 359
+        ref=info%(S%)
+        REM 30 = gate hub
+        IF sprite%(S%)=30 AND ref>=2 THEN
+          IF sprite%(S%-20)=35 THEN info%(S%-20)=ref
+          IF sprite%(S%+1)=36  THEN info%(S%+1)=ref
+          IF sprite%(S%+20)=37 THEN info%(S%+20)=ref
+          IF sprite%(S%-1)=38  THEN info%(S%-1)=ref
+        ENDIF
+      NEXT
+      ENDPROC
+      :
+      DEFPROCshow
+      REM flashing square
+      GCOL 4,0
+      RECTANGLE mx-24,my-24,48,48
+      PROCdelay(5)
+      RECTANGLE mx-24,my-24,48,48
+      ENDPROC
+      :
+      DEFFNmousepos
+      REM return square number of mouse pointer
+      mp=((mx-xorg) DIV48)+((948-my)DIV48*20)
+      IF mp <0 OR mp>360 THEN mp=0
+      =mp
+      :
+      DEFPROCclear
+      REM empty arrays for new design
+      sprite%()=floor
+      block%()=0
+      info%()=0
+      password$=""
+      level%=99
+      ENDPROC
+      :
+      DEFPROCgrid
+      GCOL 0
+      FOR Y%=0 TO 17
+        MOVE xorg,yorg-(Y%*48):PLOT17,960,0
+      NEXT
+      FOR X%=0 TO 19
+        MOVE xorg+(X%*48),yorg+48:PLOT17,0,-864
+      NEXT
+      ENDPROC
+      :
+      DEFPROCcheckmansmove
+      Moveok=FALSE
+      IF (manpos+dir<0) OR (manpos+dir>=gridsize) THEN ENDPROC
+      IF info%(manpos+dir)=1 THEN ENDPROC
+      Next=sprite%(manpos+dir)
+      CASE TRUE OF
+        WHEN Next=floor OR Next=exit:Moveok=TRUE
+        WHEN Next>0 AND Next<20 :PROCblock
+        WHEN Next>34 AND Next <=38:PROCgate
+      ENDCASE
+      ENDPROC
+      :
+      DEFPROCmoveman
+      PROCplot(manpos,STR$(sprite%(manpos)))
+      PROCplot(manpos+dir,STR$(Dibley))
+      PROCsound("pop",17,FNpanpos(manpos))
+      ENDPROC
+      :
+      DEFFNpanpos(P%)
+      = ((P% MOD20)*12)-120
+      
+      DEFPROCgate
+      REM exit if edge on...
+      IF sprite%(manpos+dir+dir)>=30 AND sprite%(manpos+dir+dir)<=33 THEN ENDPROC
+      
+      REM determine direction...
+      direction=1
+      CASE Next OF
+        WHEN 35:lefttop=manpos+dir-1: IF dir=-1 THEN direction=-1
+        WHEN 36:lefttop=manpos+dir-22:IF dir=-20 THEN direction=-1
+        WHEN 37:lefttop=manpos+dir-41:IF dir=1  THEN direction=-1
+        WHEN 38:lefttop=manpos+dir-20:IF dir=20 THEN direction=-1
+      ENDCASE
+      IF direction=-1 THEN rot()=anticlock() ELSE rot()=clockwise()
+      
+      REM check if rotation possible...
+      pntr=0
+      square=lefttop
+      ref=info%(manpos+dir)
+      turnok=TRUE
+      FOR P% = 0 TO 6
+        square=square+rot(pntr)
+        first=square+rot(pntr+1)
+        twonext=square+rot(pntr+1)+rot(pntr+2)
+        IF FNgatearm(square) AND info%(square)=ref THEN
+          IF NOT FNgate_clear(first) THEN turnok=FALSE
+          IF info%(twonext)<>ref AND NOT FNgate_clear(twonext) THEN turnok=FALSE
+        ENDIF
+        pntr+=1
+      NEXT
+      IF NOT turnok THEN ENDPROC
+      PROCsound("squeak",1,FNpanpos(square))
+      REM rotate reference data
+      REM first make temp. copy...
+      pntr=1
+      square=lefttop+rot(pntr)
+      FOR P%=0 TO 3
+        square=square+rot(pntr)+rot(pntr+1)
+        temp(P%)=info%(square)
+        temp2(P%)=square
+        pntr=pntr+2
+      NEXT
+      REM move data round...
+      FOR P%=0 TO 3
+        square=temp2((P%+1)MOD 4)
+        IF temp(P%)<>ref THEN temp(P%)=0
+        IF info%(square)=ref OR info%(square)=0 THEN info%(square)=temp(P%)
+      NEXT
+      REM plot arm sprites...
+      RESTORE +1
+      FOR I%=0 TO 3
+        READ P%
+        IF info%(lefttop+P%)=0 AND sprite%(lefttop+P%)>30 THEN S%=floor ELSE S%=sprite%(lefttop+P%)
+        IF info%(lefttop+P%)=ref THEN S%=I%+35
+        PROCplot(lefttop+P%,STR$(S%))
+        sprite%(lefttop+P%)=S%
+      NEXT
+      DATA 1,22,41,20
+      
+      REM rotate centre hub...
+      S%=sprite%(lefttop+21)-direction
+      IF S%>33 THEN S%=30
+      IF S%<30 THEN S%=33
+      sprite%(lefttop+21)=S%
+      PROCplot(lefttop+21,STR$(S%))
+      
+      REM move man extra square...
+      Moveok=TRUE
+      keyboard_buffer$=key$ : REM substitute for *fx138 !
+      ENDPROC
+      
+      :
+      DEFFNgatearm(T%)
+      REM check if sprite in square T is part of a gate...
+      IF sprite%(T%)>34 AND sprite%(T%)<39 THEN =TRUE
+      =FALSE
+      :
+      DEFFNclear(T%)
+      REM check if square T is empty...
+      IF sprite%(T%)=floor OR sprite%(T%)=Dibley THEN =TRUE
+      =FALSE
+      :
+      DEFFNgate_clear(T%)
+      REM check if square T is empty...
+      IF sprite%(T%)=floor OR sprite%(T%)=Dibley OR sprite%(T%)=hole THEN =TRUE
+      =FALSE
+      :
+      :
+      DEFPROCblock
+      PROCblocksize(block%(manpos+dir))
+      PROCcheckblockmove
+      IF clear THEN PROCmoveblock
+      IF holematch THEN PROCdisolve
+      ENDPROC
+      :
+      DEFPROCcheckblockmove
+      clear=TRUE
+      holematch=FALSE
+      REM check if all squares ahead clear for move...
+      IF dir =-1 OR dir =1 THEN
+        square=manpos+dir+(xsize*dir)+(20*(ypos-1))
+        FOR I%=1 TO ysize
+          IF sprite%(square)<>floor AND sprite%(square)<>hole THEN clear=FALSE
+          square-=20
+        NEXT
+      ELSE
+        square=manpos+dir+(ysize*dir)-(xpos-1)
+        FOR I%=1 TO xsize
+          IF sprite%(square)<>floor AND sprite%(square)<>hole THEN clear=FALSE
+          square+=1
+        NEXT
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCmoveblock
+      Filpntr=0
+      holematch=TRUE
+      PROCsound("scrub",1,FNpanpos(manpos))
+      REM move sprite data, store positions for plotting in new position
+      REM move block info, and check for matching hole...
+      CASE dir OF
+        WHEN -1,1:
+          FOR Y%=0 TO ysize-1
+            segment=manpos+(xsize*dir)+20*(ypos-1)-Y%*20
+            FOR X%=0 TO xsize-1
+              IF info%(segment+dir)=0 THEN holematch=FALSE
+              Filed%(Filpntr)=segment+dir:Filpntr+=1
+              sprite%(segment+dir) = sprite%(segment)
+              block%(segment+dir)  = block%(segment)
+              segment-=dir
+            NEXT
+          NEXT
+          segment=manpos+dir+20*(ypos-1)
+          FOR I%=1 TO ysize
+            IF info%(segment)=1 THEN ground=hole ELSE ground=floor
+            PROCplot(segment,STR$(ground))
+            sprite%(segment)=ground
+            block%(segment)=0
+            segment-=20
+          NEXT
+          :
+        WHEN -20,20:
+          FOR X%=0 TO xsize-1
+            segment=manpos+(dir*ysize)-(xpos-1)+X%
+            FOR Y%=0 TO ysize-1
+              IF info%(segment+dir)=0 THEN holematch=FALSE
+              Filed%(Filpntr)=segment+dir: Filpntr+=1
+              sprite%(segment+dir) = sprite%(segment)
+              block%(segment+dir)  = block%(segment)
+              segment-=dir
+            NEXT
+          NEXT
+          segment=manpos+dir-(xpos-1)
+          FOR X%=1 TO xsize
+            IF info%(segment)=1 THEN ground=hole ELSE ground=floor
+            PROCplot(segment,STR$(ground))
+            sprite%(segment)=ground
+            block%(segment)=0
+            segment+=1
+          NEXT
+      ENDCASE
+      REM plot sprites...
+      FOR I%=0 TO Filpntr-1
+        S%=sprite%(Filed%(I%))
+        PROCplot(Filed%(I%),STR$(S%))
+      NEXT
+      Moveok=TRUE
+      ENDPROC
+      :
+      DEFPROCdisolve
+      PROCsound("crunch",1,FNpanpos(manpos))
+      FOR S%=40 TO 46
+        T%=TIME
+        FOR I%=0 TO Filpntr-1
+          PROCplot(Filed%(I%),STR$(S%))
+          sprite%(Filed%(I%))=floor
+          info%(Filed%(I%))=0
+        NEXT
+        REPEAT UNTIL TIME>T%+5
+      NEXT
+      ENDPROC
+      :
+      DEFPROCplot(C%,S$)
+      PROCSpriteOp(34,S$,xorg+(C% MOD 20)*48,yorg-(C% DIV 20)*48,8,0)
+      ENDPROC
+      :
+      DEFFNblockcode(xsize,ysize,xpos,ypos)
+      REM encode block data into 1 number...
+      =(xsize*2^12)+ (ysize*2^8)+ (xpos*2^4)+ypos
+      :
+      DEFPROCblocksize(S%)
+      REM decode block sizes from info number...
+      xsize=(S% AND &F000)>>12
+      ysize=(S% AND &0F00)>>8
+      xpos= (S% AND &00F0)>>4
+      ypos=  S% AND &000F
+      ENDPROC
+      :
+      DEFPROCscreen(S$)
+      VDU5
+      Y%=yorg
+      X%=xorg
+      GCOL8,0
+      sprite%(manpos)=floor
+      FOR I%=0 TO gridsize-1
+        PROCSpriteOp(34,STR$(sprite%(I%)),X%,Y%,0,0)
+        X%+=48
+        IF I% MOD 20=19 THEN X%=xorg:Y%-=48
+      NEXT
+      IF S$<>"0" THEN
+        PROCplot(manpos,STR$(Dibley))
+        PROCSpriteOp(34,S$,1000,48,0,0)
+        IF S$="60" AND level%=1 THEN PROCSpriteOp(34,"70",24,80,0,0)
+        IF S$="60" THEN
+          OSCLI "FONT """ + @lib$ + "DejaVuSans"", 18,B"
+          GCOL4:MOVE 1120,410:PRINT;level%
+          OSCLI "FONT """ + @lib$ + "DejaVuSans"", 10"
+        ENDIF
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCSpriteOp(reason,name$,x,y,w,h)
+      LOCAL N%,X%,Y% : PRIVATE cached%() : DIM cached%(70)
+      IF name$="-1" THEN ENDPROC
+      N%=VAL(name$)
+      IF N%<48 OR N%=62 X%=(N%DIV3)*48 : Y%=(N%MOD3)*48-144 ELSE X%=x : Y%=y
+      IF NOT cached%(N%) OR reason=52 THEN
+        CASE reason OF
+          WHEN 34:
+            REM put sprite at coordinates
+            OSCLI("DISPLAY """+path$+"/.Graphics/"+name$+".BMP"" "+STR$X%+","+STR$Y%)
+            IF N%>47 AND N%<>62 ENDPROC
+          WHEN 52:
+            REM put sprite at coordinates scaled
+            OSCLI("DISPLAY """+path$+"/.Graphics/"+name$+".BMP"" "+STR$x+","+STR$y+","+STR$w+","+STR$h+",DDD5C5")
+            ENDPROC
+        ENDCASE
+        cached%(N%) = TRUE
+      ENDIF
+      RECTANGLE X%,Y%,46,46 TO x,y
+      ENDPROC
+      :
+      DEFPROCclock
+      T%=TIME-Time
+      IF T%-lasttime%>100 THEN
+        lasttime%=T%
+        S%=(T%/100) MOD 60
+        M%=(T%/100) DIV 60
+        time$=STR$(M%)+":"+RIGHT$("0"+STR$(S%),2)
+        GCOL15 TINT 128:RECTANGLEFILL 1120,96,120,40
+        GCOL 48 TINT 64:MOVE 1150,128:PRINT time$
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCdelay(T%)
+      WAIT T%
+      ENDPROC
+      :
+      DEFPROCexit
+      REM plot scaled sprite, size reducing...
+      PROCsound("boink",1,FNpanpos(manpos))
+      X%=xorg+(manpos MOD 20)*48:X2%=X%
+      Y%=yorg-(manpos DIV 20)*48:Y2%=Y%
+      FOR I=48 TO 1 STEP -2
+        X2%+=1:Y2%+=1
+        PROCSpriteOp(34,STR$(exit),X%,Y%,0,0)
+        PROCSpriteOp(52,STR$(Dibley),X2%,Y2%,I,I)
+        PROCdelay(5)
+      NEXT
+      PROCSpriteOp(34,STR$(exit),X%,Y%,0,0)
+      ENDPROC
+      :
+      DEFPROCinit
+      MODE8
+      VDU 24,0;-144;1278;1022; : REM Make room for sprite atlas
+      OFF
+      path$=LEFT$(@dir$)
+      xorg=24
+      yorg=900
+      GCOL 16
+      RECTANGLEFILL xorg-24,48,1280,936
+      gridsize=20*18
+      REM  sprite%() - Sprites number to display  Top Left corner = (0)
+      REM  block%() - Block description x & y size,x & y position each element
+      REM  info%() - Hole positions and gate description
+      REM            other=0  holes=1 (allows for partly covered holes)
+      REM            >1 = gate reference number
+      DIM sprite%(gridsize)
+      DIM block%(gridsize)
+      DIM info%(gridsize)
+      DIM sprite2%(gridsize): REM second set for quick restart
+      DIM block2%(gridsize)
+      DIM info2%(gridsize)
+      DIM Filed%(gridsize)
+      IF OPENIN(@usr$+"DIBLEY.DAT") CLOSE#0:PROCload(@usr$+"DIBLEY.DAT") ELSE PROCload(path$+"/.Demo/NEWGAME.DAT")
+      dir=0
+      designref=2
+      holematch=FALSE
+      DIM clockwise(8):clockwise()=1,1,20,20,-1,-1,-20,-20,1
+      DIM anticlock(8):anticlock()=20,20,1,1,-20,-20,-1,-1,20
+      DIM rot(8)
+      DIM temp(8)
+      DIM temp2(8)
+      lasttime%=0
+      demo=FALSE
+      done=FALSE
+      REM some sprite numbers:
+      floor=0
+      exit=20
+      hole=21
+      grass=22
+      Dibley=23
+      brick1=24
+      brick2=25
+      water=26
+      block=1
+      REM gate 30-38
+      REM blocks 1-18
+      REM block disolve 40-46
+      REM control panels 60-61
+      MB_YESNOCANCEL = 3
+      MB_YESNO = 4
+      MB_ICONQUESTION = 32
+      IDCANCEL = 2
+      IDNO = 7
+      IDYES = 6
+      maxlevels = 27 : REM highest included level
+      savelevel% = maxlevels+1
+      ENDPROC
+      :
+      DEFFNautolevel
+      level%= FNnextlevel(level%)
+      IF level% = 1 THEN PROCwindows_message("Congratulations! You have played the last level.")
+      =STR$level%
+      :
+      DEFPROCmessage(control,T$)
+      VDU28,9,16,58,10:COLOR128:CLS
+      VDU28,8,15,57,9:COLOR128+14:COLOR15:CLS
+      VDU4
+      PRINT '"  ";T$;
+      CASE control OF
+        WHEN 1:PRINTTAB(20); : text$ = FNpsinput(POS,VPOS,"")
+        WHEN 4:PRINTTAB(0,3)"   ( RETURN for list of levels... )";:INPUTTAB(24,1)" "text$
+        WHEN 2:
+          PRINT''"  Click, tap, or press a key...";
+          REPEAT
+            mb=FNmouse
+            K$=INKEY$(1)
+          UNTIL mb OR K$<>""
+        WHEN 3:REPEAT:text$=GET$:UNTIL INSTR("YyNn",text$)
+      ENDCASE
+      VDU5
+      ENDPROC
+      :
+      DEFPROChelp
+      VDU28,1,27,70,2:COLOR128:CLS
+      VDU28,2,26,69,3:COLOR128+14:COLOR15:CLS
+      VDU4
+      PRINT" Designing your own levels:"'
+      PRINT" Select an object by clicking with the mouse on the side panel"
+      PRINT" (it will be highlighted in yellow) then click again on a square"
+      PRINT" in the playing area to place it. You can paint an area by pressing"
+      PRINT" and holding for at least a second, and then dragging. For larger"
+      PRINT" blocks click on one of the red bricks and you will asked for a size."
+      PRINT" To place a large block click/tap the position of the lower left corner."
+      PRINT'" * Do not place a turnstile so that one of its arms may come to rest"
+      PRINT" over a black hole."
+      PRINT" * Restrain Dibley's movements with scenery on the left and right sides"
+      PRINT" (not needed top & bottom) otherwise Dibley will 'wrap around' - but"
+      PRINT" then again you could make use of this feature!"
+      PRINT" * It's a good idea to save the game before playing."
+      PRINT" * After you've done some designing you can test it by clicking Play."
+      PRINT" You can play a while then re-enter the designer and make changes but"
+      PRINT" click 'Restart' before you do so that your new level will return to"
+      PRINT" its starting point."
+      PRINT" Note however that if you test your game all the way to the exit"
+      PRINT" any changes will be lost. So save first."
+      PRINT""
+      REPEAT:UNTIL FNmouse=0
+      PRINT"  Click, tap, or press a key...";
+      REPEAT
+        mb=FNmouse
+        K$=INKEY$(1)
+      UNTIL mb OR K$<>""
+      VDU5
+      ENDPROC
+      :
+      DEF PROCwindows_message(message$)
+      LOCAL title$
+      title$ = "A message from Dibley"
+      IF INKEY$(-256)="W" THEN
+        SYS "MessageBox", @hwnd%, message$, title$, &40
+      ELSE
+        IF FN_messagebox(title$, message$, &40)
+      ENDIF
+      ENDPROC
+      :
+      DEF FNwindows_question(message$)
+      LOCAL title$, flags%, R%, mbd{}, bd{()}, button$(), id%()
+      title$ = "Dibley has a question:"
+      flags% = MB_ICONQUESTION + MB_YESNO
+      IF INKEY$(-256)="W" THEN
+        SYS "MessageBox", @hwnd%, message$, title$, flags% TO R%
+      ELSE
+        R% = FN_messagebox(title$, message$, flags%)
+      ENDIF
+      = R%
+      :
+      DEFPROCbutton_up
+      REPEAT:UNTIL FNmouse=0
+      ENDPROC
+      :
+      DEFPROCtitle(text$)
+      IF INKEY$(-256)="W" THEN
+        SYS "SetWindowText", @hwnd%,"  "+text$
+      ELSE
+        SYS "SDL_SetWindowTitle", @hwnd%,"  "+text$, @memhdc%
+      ENDIF
+      ENDPROC
+      :
+      DEFPROCsound(snd$,flags,pan)
+      IF INKEY$(-256)<>"W" THEN
+        OSCLI("STEREO 3,"+STR$pan)
+        OSCLI("STEREO 1,"+STR$pan)
+        OSCLI("STEREO 0,"+STR$pan)
+      ENDIF
+      CASE snd$ OF
+        WHEN "splot":
+          IF INKEY$(-256)<>"W" THEN *VOICE 1,0
+          ENVELOPE 1,1,2,4,6,3,3,4,126,0,-126,-126,126,0
+          SOUND 1,1,180,10 : SOUND 2,-2,50,10
+        WHEN "meow"
+          IF INKEY$(-256)<>"W" THEN *VOICE 1,6
+          ENVELOPE 1,RND(4),0,-1,0,RND(6),2,2,40,0,0,-40,126,0
+          SOUND 1,1,200,40
+        WHEN "pop":
+          ENVELOPE 3,1,2,0,0,5,0,0,126,-50,0,-126,126,0
+          SOUND &13,3,190,5
+        WHEN "squeak":
+          IF INKEY$(-256)<>"W" THEN *VOICE 1,0
+          ENVELOPE 1,1,0,55,0,10,1,0,126,0,-126,-126,80,0
+          SOUND 0,-5,4,15 : SOUND 1,1,200,20
+        WHEN "scrub":
+          IF INKEY$(-256)<>"W" THEN *VOICE 1,0
+          ENVELOPE 1,1,2,0,0,5,0,0,126,-3,+3,-126,126,0
+          SOUND 0,1,4,20 : SOUND 1,1,10,20
+        WHEN "crunch":
+          IF INKEY$(-256)<>"W" THEN *VOICE 1,0
+          ENVELOPE 1,1,0,0,0,0,0,0,126,-1,0,-126,126,0
+          SOUND 0,1,4,60 : SOUND 1,-10,1,60 : SOUND 2,1,20,60
+        WHEN "boink":
+          IF INKEY$(-256)<>"W" THEN *VOICE 1,0
+          ENVELOPE 1,1,1,2,0,20,40,0,126,0,0,-126,126,0
+          ENVELOPE 2,1,0,0,0,0,0,0,126,-5,0,-126,126,0
+          SOUND 0,-4,4,60 : SOUND 1,1,100,60 : SOUND 2,2,1,10
+      ENDCASE
+      ENDPROC
+      :
+      REM returns button state but also sets mx,my to coordinates
+      DEFFNmouse
+      LOCAL clicked%
+      PRIVATE repeat%
+      Clicked% += 0
+      ON MOUSE Clicked% = TRUE : RETURN
+      SWAP clicked%, Clicked%
+      MOUSE mx,my,B%
+      IF B% = 0 repeat% = TIME
+      IF clicked% THEN = 4
+      IF (TIME - repeat%) > 100 THEN = B%
+      = FALSE
+      :
+      DEF FNpsinput(X%,Y%,prompt$) : LOCAL A$,C%,K%
+      REPEAT : OFF
+        PRINT TAB(X%,Y%) prompt$;A$;"    ";
+        PRINT TAB(X%,Y%) prompt$;LEFT$(A$,C%);
+        ON : K% = GET
+        CASE K% OF
+          WHEN 8,127: IF C% A$ = LEFT$(A$,C%-1) + MID$(A$,C%+1) : C% -= 1
+          WHEN 13:
+          WHEN 136: IF C% C% -= 1
+          WHEN 137: IF C% < LEN(A$) C% += 1
+          OTHERWISE: A$ = LEFT$(A$,C%) + CHR$K% + MID$(A$,C%+1) : C% += 1
+        ENDCASE
+      UNTIL K% = 13
+      PRINT
+      = A$

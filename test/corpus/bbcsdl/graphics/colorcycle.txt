@@ -1,0 +1,77 @@
+      REM Demonstration of colour-cycling using palette animation (100% BASIC)
+      REM Adapted from the introduction to David Williams' "Maizie Bones" game
+      REM (C) Copyright David Williams and Richard Russell, 20th October 2018.
+      
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      DIM coltab%(511), dst{x%, y%, w%, h%}
+      MODE 0 : OFF
+      
+      REM Create a colour table containing a 'spectrum':
+      r = 255 : g = 0 : b = 0
+      FOR I% =   0 TO  41 : g += 6.0 : coltab%(I%) = b + (g << 8) + (r << 16) : NEXT
+      FOR I% =  42 TO  84 : r -= 5.9 : coltab%(I%) = b + (g << 8) + (r << 16) : NEXT
+      FOR I% =  85 TO 127 : b += 5.9 : coltab%(I%) = b + (g << 8) + (r << 16) : NEXT
+      FOR I% = 128 TO 169 : g -= 6.0 : coltab%(I%) = b + (g << 8) + (r << 16) : NEXT
+      FOR I% = 170 TO 212 : r += 5.9 : coltab%(I%) = b + (g << 8) + (r << 16) : NEXT
+      FOR I% = 213 TO 255 : b -= 5.9 : coltab%(I%) = b + (g << 8) + (r << 16) : NEXT
+      FOR I% = 256 TO 511 : coltab%(I%) = coltab%(I% - 256) : NEXT
+      
+      infillSurf%% = FNLoadSurface( @dir$ + "maiziebones_infill.bmp", palette%% )
+      outlineTex%% = FNLoadTexture( @dir$ + "maiziebones_outline.gif", 0 )
+      SYS "SDL_SetTextureBlendMode", outlineTex%%, 2 : REM SDL_BLENDMODE_ADD
+      
+      *REFRESH OFF
+      
+      s = 0.0
+      ds = 0.0
+      dt = 1/60
+      dds = 1.0
+      i = 0.0
+      di = 100.0
+      REPEAT
+        dst.w% = 640 * s
+        dst.h% = 512 * s
+        dst.x% = (640-dst.w%)/2
+        dst.y% = (512-dst.h%)/2
+        SYS "SDL_SetPaletteColors", palette%%, ^coltab%(255-i), 1, 255
+        SYS "SDL_CreateTextureFromSurface", @memhdc%, infillSurf%% TO t%%
+        IF @platform% AND &40 ELSE t%% = !^t%%
+        SYS "SDL_SetTextureColorMod", t%%, INT(s*&FF), INT(s*&FF), INT(s*&FF)
+        SYS "SDL_RenderCopy", @memhdc%, t%%, 0, dst{}
+        SYS "SDL_RenderCopy", @memhdc%, outlineTex%%, 0, dst{}
+        SYS "SDL_DestroyTexture", t%%, @memhdc%
+        *REFRESH
+        s += ds * dt
+        ds += dds * dt
+        IF s > 1 s = 1
+        i += di * dt
+        IF i >= 256 THEN i -= 256
+      UNTIL FALSE
+      END
+      
+      DEF FNLoadTexture( file$, key% )
+      LOCAL s%%, t%%
+      SYS "STBIMG_Load", file$ TO s%%
+      IF @platform% AND &40 ELSE s%% = !^s%%
+      IF s%%=0 ERROR 104, "Unable to load image: " + file$
+      IF key% SYS "SDL_SetColorKey", s%%, 1, key% AND &FFFFFF
+      SYS "SDL_CreateTextureFromSurface", @memhdc%, s%% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      IF t%%=0 ERROR 105, "Unable to create texture: " + file$
+      SYS "SDL_FreeSurface", s%%
+      = t%%
+      
+      DEF FNLoadSurface( file$, RETURN pal%% )
+      LOCAL r%%, s%%
+      SYS "SDL_RWFromFile", file$, "rb" TO r%%
+      IF @platform% AND &40 ELSE r%% = !^r%%
+      IF r%%=0 ERROR 103, "Unable to load file: " + file$
+      SYS "SDL_LoadBMP_RW", r%%, 1 TO s%%
+      IF @platform% AND &40 THEN
+        pal%% = ](](s%%+8)+8)
+      ELSE
+        s%% = !^s%%
+        pal%% = !(s%%!4+4)
+      ENDIF
+      IF s%%=0 ERROR 104, "File format invalid: " + file$
+      = s%%

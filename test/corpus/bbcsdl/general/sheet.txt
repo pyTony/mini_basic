@@ -1,0 +1,309 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Simple spreadsheet program
+      
+      INSTALL @lib$ + "fnusing"
+      INSTALL @lib$ + "nowait"
+      INSTALL @lib$ + "dlglib"
+      INSTALL @lib$ + "msgbox"
+      INSTALL @lib$ + "filedlg"
+      INSTALL @lib$ + "menulib"
+      INSTALL @lib$ + "sortlib"
+      INSTALL @lib$ + "stringlib"
+      REM!Keep FNv()
+      
+      VDU 23,22,680;512;8,16,16,128
+      PROC_setmenupalette(FALSE)
+      COLOR 135 : CLS
+      
+      REM Set up fonts:
+      MonoFont$ = "FONT """ + @lib$ + "DejaVuSansMono"",11"
+      MenuFont$ = "FONT """ + @lib$ + "DejaVuSans"",11"
+      
+      REM Set up menus:
+      OSCLI MenuFont$
+      MenuBar% = FN_createmenubar
+      DIM FileMenu$(6), FileMenu%(6)
+      FileMenu%() = 6, 14, 12, &1000+19, 23, 0, 24
+      FileMenu$() = "  &File  ", \
+      \             "&New"+CHR$9+"Ctrl+N", \
+      \             "&Load"+CHR$9+"Ctrl+L", \
+      \             "&Save"+CHR$9+"Ctrl+S", \
+      \             "Save &As", \
+      \             "", \
+      \             "E&xit"
+      PROC_addmenu(MenuBar%, FileMenu$(), FileMenu%())
+      PROC_drawmenubar(MenuBar%)
+      
+      REM Set up toolbar:
+      OSCLI MonoFont$ : @char.y% = 16
+      OSCLI "DISPLAY """ + @dir$ + "toolbar"" 0,902"
+      GCOL 8 : LINE 0,900,1358,900
+      VDU 4,28,0,31,79,4
+      Width% = 80 : Height% = 27
+      COLOR 0 : CLS : OFF
+      
+      REM Initialise global variables:
+      Cols% = 7
+      Rows% = 999
+      DIM C$(Rows%,Cols%-1)
+      Click% = TRUE
+      Changed% = FALSE
+      FOR C% = 0 TO Cols%-1
+        C$(0,C%) = "#######.##"
+      NEXT
+      FileName$ = "untitled"
+      
+      REM Set up events:
+      ON CLOSE IF FNconfirm QUIT ELSE RETURN
+      ON SYS Click% = @wparam%:RETURN
+      ON MOUSE Click% = 0:RETURN
+      
+      REM Main loop:
+      X% = 0 : REM Current column
+      Y% = 1 : REM Current row
+      V% = 0 : REM Current scroll
+      PROCdisplay(V%)
+      PROCsettitle
+      PROChighlight(X%,Y%,V%)
+      REPEAT
+        REPEAT
+          key% = INKEY5
+          IF key% = TRUE SWAP key%,Click%
+          cmd% = FN_pollmenu(MenuBar%, ^PROCcallback())
+          VDU 4
+          IF cmd% key% = cmd%
+        UNTIL NOT key%
+        
+        F% = TRUE
+        PROChighlight(X%,Y%,V%) : REM Remove previous highlight
+        CASE key% OF
+          WHEN 0: PROCmouse(F%,X%,Y%,V%)
+          WHEN 14,1: IF FNconfirm RUN : FileName$ = "untitled" : REM New
+          WHEN 12,2: IF FNconfirm PROCload:COLOR 135:CLS:V% = 0 : REM Load
+          WHEN 19,3: IF FNsave Changed% = FALSE : REM Save
+          WHEN 23: IF FNsaveas Changed% = FALSE : REM Save As
+          WHEN 24: IF FNconfirm QUIT : REM Exit
+          WHEN 130: X% = 0:Y% = 1:V% = 0
+          WHEN 131: X% = 0:Y% = 26:V% = Rows%-Y%:IF V%<0 Y% += V%:V% = 0
+          WHEN 132: V% -= 25:IF V%<0 V% = 0
+          WHEN 133: V% += 25:IF V%>Rows%-26 V% = Rows%-26:IF V%<0 V% = 0
+          WHEN 136: F% = FALSE:IF X% X% -= 1
+          WHEN 137,9: F% = FALSE:IF X%<Cols%-1 X% += 1
+          WHEN 138,13: F% = FALSE:IF Y%+V%<Rows% Y% += 1
+          WHEN 139: F% = FALSE:IF Y% Y% -= 1
+          OTHERWISE: PROCentry(X%,Y%+V%,CHR$key%):IF Y%+V%<Rows% Y% += 1
+        ENDCASE
+        IF Changed% FileMenu%(3) AND= NOT &1000 ELSE FileMenu%(3) OR= &1000
+        IF Y% = 26 V% += 1:Y% = 25:F% = TRUE
+        IF Y% = 0 IF V% V% -= 1:Y% = 1:F% = TRUE
+        IF F% PROCdisplay(V%)
+        PROChighlight(X%,Y%,V%)
+        PROCsettitle
+      UNTIL FALSE
+      
+      DEF PROCmouse(RETURN F%, RETURN X%, RETURN Y%, V%)
+      LOCAL A%,B%,C%
+      MOUSE A%,B%,C% : B% += 128
+      IF B%>1024 IF A% < 192 Click% = (A% DIV 64) + 1 : ENDPROC
+      IF B%>992 PROCentry(X%,Y%+V%,FNcontents(C$(Y%+V%,X%))):ENDPROC
+      C% = 64
+      X% = TRUE
+      REPEAT
+        X% += 1
+        C% += WIDTH(C$(0,X%))
+      UNTIL C%>A% OR X% = Cols%-1
+      Y% = (992-B%)/32
+      IF Y%>Rows% Y% = Rows%
+      F% = FALSE
+      ENDPROC
+      
+      DEF PROCdisplay(V%)
+      LOCAL @%,C%,R%,S%,W%,X%
+      S% = Height%-3
+      COLOR 135
+      PRINT TAB(4,0)"="
+      X% = 4
+      FOR C% = 0 TO Cols%-1
+        W% = LENC$(0,C%)
+        IF X%+W% >= Width% EXIT FOR
+        PRINT TAB(X%+W%/2)CHR$(W%<>0 AND 65+C%);
+        X% += W%
+      NEXT
+      PRINT TAB(X%)
+      @% = 3
+      REPEAT R% += 1
+        PRINT R%+V%" "
+      UNTIL R%+V% = Rows% OR R%>S%
+      GCOL 7
+      COLOR 143
+      R% = 0
+      PRINT TAB(5,0) " "
+      REPEAT R% += 1
+        PRINT 'TAB(4,VPOS);
+        X% = 4
+        FOR C% = 0 TO Cols%-1
+          W% = LENC$(0,C%)
+          IF X%+W% >= Width% EXIT FOR
+          PRINT LEFT$(FNcell(R%+V%,C%),W%)TAB(X%+W%-4);
+          PROCrectangle(X%,R%,C%):X% += W%
+        NEXT
+      UNTIL R%+V% = Rows% OR R%>S%
+      ENDPROC
+      
+      DEF PROChighlight(A%,R%,V%)
+      LOCAL C%,X%
+      X% = 4
+      GCOL 11,3
+      WHILE A%>C% X% += LENC$(0,C%):C% += 1:ENDWHILE
+      PRINT 'TAB(0,0)CHR$(C%+65)STR$(R%+V%)TAB(4)TAB(6,0)FNcontents(C$(R%+V%,C%))SPC(80-POS)
+      REM Falls through...
+      DEF PROCrectangle(X%,R%,C%)
+      RECTANGLE @char.x%*2*X%-2,992-32*R%-128,WIDTH(C$(0,C%)),-32
+      ENDPROC
+      
+      DEF PROCentry(C%,R%,A$)
+      LOCAL F%
+      F% = OPENOUT(FNtempfile)
+      PRINT #F%,A$
+      PTR#F% = PTR#F%-1
+      BPUT#F%,0
+      CLOSE #F%
+      PRINT TAB(6,0)SPC74;
+      OSCLI "EXEC """+FNtempfile+""""
+      ON
+      PRINT TAB(6,0);
+      A$ = FNinput
+      OFF
+      C$(R%,C%) = FNexpression(A$)
+      Changed% = TRUE
+      IF R% = 0 CLS
+      ENDPROC
+      
+      DEF FNendrow
+      LOCAL A%
+      A% = Rows%*Cols%+Cols%
+      REPEAT
+        A% -= 1
+      UNTIL A% = 0 OR C$(A% DIV Cols%,A% MOD Cols%)<>""
+      = A% DIV Cols%
+      
+      DEF FNexpression(A$)
+      LOCAL C%,I%,J%
+      IF ASCA$<>61 THEN = A$
+      REPEAT I% += 1
+        C% = ASCMID$(A$,I%)
+        IF C%> = 65 IF C%< = 90 THEN
+          J% = I%
+          REPEAT J% += 1
+            C% = ASCMID$(A$,J%)
+            IF C% = 58 J% += 1
+          UNTIL C%<48 OR C%>58
+          IF J%-I%>1 THEN
+            A$ = LEFT$(A$,I%-1)+CHR$&A4+"v("""+MID$(A$,I%,J%-I%)+""")"+MID$(A$,J%):I% = J%+6
+          ENDIF
+        ENDIF
+      UNTIL I%> = LENA$
+      = A$
+      
+      DEF FNcontents(A$)
+      LOCAL I%,J%
+      REPEAT
+        I% = INSTR(A$,CHR$&A4+"v(""")
+        IF I% THEN
+          J% = INSTR(A$,")",I%+1)
+          A$ = LEFT$(A$,I%-1)+MID$(A$,I%+4,J%-I%-5)+MID$(A$,J%+1)
+        ENDIF
+      UNTIL I% = 0
+      = A$
+      
+      REM Do not rename!
+      DEF FNv(A$)
+      LOCAL C%,I%,R%,N
+      PRIVATE S% : S% += 1
+      IF S% >= 100 S% = 0 : RESTORE LOCAL : ERROR 100,"No room"
+      I% = INSTR(A$,":")
+      FOR R% = VALMID$(A$,2) TO VALMID$(A$,I%+2)
+        FOR C% = ASCA$-65 TO ASCMID$(A$,I%+1)-65
+          IF ASCC$(R%,C%) = 61 N += EVALMID$(C$(R%,C%),2) ELSE N += VALC$(R%,C%)
+        NEXT
+      NEXT
+      S% -= 1
+      = N
+      
+      DEF FNcell(R%,C%)
+      ON ERROR LOCAL = REPORT$
+      IF ASCC$(R%,C%) = 61 THEN = FNusing(C$(0,C%),EVALMID$(C$(R%,C%),2))
+      = C$(R%,C%)
+      
+      DEF PROCload
+      LOCAL F%,C%,I%,R%,A$,F$
+      OSCLI MenuFont$
+      F$ = FN_filedlg("Load spreadsheet", "OK", @dir$, "CSV files", ".csv", FALSE)
+      OSCLI MonoFont$ : @char.y% = 16
+      IF F$ = "" ENDPROC ELSE FileName$ = F$
+      F% = OPENIN(FileName$)
+      IF F% THEN
+        C$() = ""
+        REPEAT
+          INPUT #F%,A$
+          IF ASCA$ = 10 A$ = MID$(A$,2)
+          FOR C% = 0 TO Cols%-1
+            IF ASCA$ = 34 I% = INSTR(A$,",",INSTR(A$,"""",2)) ELSE I% = INSTR(A$,",")
+            IF I% = 0 I% = LENA$+1
+            IF ASCA$ = 34 C$(R%,C%) = EVAL(A$) ELSE C$(R%,C%) = FNexpression(LEFT$(A$,I%-1))
+            A$ = MID$(A$,I%+1)
+          NEXT
+          R% += 1
+        UNTIL R%>Rows% OR EOF#F%
+        CLOSE #F%
+      ELSE
+        ERROR 100,"Can't open file"
+      ENDIF
+      ENDPROC
+      
+      DEF FNsaveas
+      LOCAL F$
+      OSCLI MenuFont$
+      F$ = FN_filedlg("Save spreadsheet", "OK", "", "CSV files", ".csv", FALSE)
+      OSCLI MonoFont$ : @char.y% = 16
+      IF F$ = "" THEN = FALSE ELSE FileName$ = F$
+      DEF FNsave : IF FileName$ = "untitled" THEN = FNsaveas
+      LOCAL F%,C%,R%,A$,C$
+      F% = OPENOUT(FileName$)
+      IF F% THEN
+        FOR R% = 0 TO FNendrow
+          A$ = ""
+          FOR C% = 0 TO Cols%-1
+            C$ = FNcontents(C$(R%,C%))
+            IF INSTR(C$,",") A$ += """"+C$+"""," ELSE A$ += C$+","
+          NEXT
+          PRINT #F%,LEFT$(A$,LENA$-1)
+          BPUT#F%,10
+        NEXT
+        CLOSE #F%
+      ELSE
+        ERROR 101,"Can't create file"
+      ENDIF
+      = F%
+      
+      DEF FNconfirm
+      LOCAL R%
+      IF NOT Changed% THEN = TRUE
+      R% = FN_messagebox("Sheet", "Save changes?", 35)
+      IF R% = 6 IF FNsave Changed% = FALSE: = TRUE
+      IF R% = 7 Changed% = FALSE: = TRUE
+      = FALSE
+      
+      DEF PROCsettitle
+      SYS "SDL_SetWindowTitle", @hwnd%, "Sheet - " + FileName$, @memhdc%
+      ENDPROC
+      
+      DEF PROCcallback(N%)
+      CASE N% OF
+        WHEN FALSE: OSCLI MenuFont$
+        WHEN TRUE:  OSCLI MonoFont$ : @char.y% = 16
+      ENDCASE
+      ENDPROC
+      
+      DEF FNtempfile = @tmp$+"SHEET.TMP"

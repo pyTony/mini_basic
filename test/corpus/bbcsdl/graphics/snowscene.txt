@@ -1,0 +1,107 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM Snow Scene for BBC BASIC for Windows, Linux and Mac OS
+      REM (C) 2016  Richard Russell, http://www.rtrussell.co.uk/
+      
+      VDU 23,22,800;600;8,8,16,0
+      COLOR 128+4
+      CLS
+      OFF
+      *HEX 64
+      
+      Flakes% = 500
+      DIM flake(Flakes%,2), flag%(Flakes%)
+      floor = 1.0
+      
+      GCOL 0
+      IF POS : REM SDL Thread sync
+      PROCbranch(@vdu%!208 / 3, 0, @vdu%!212 / 5, 1.6, 10)
+      bmp%% = FNgetbmp
+      GCOL 4,0
+      VDU 23,23,1|
+      PROCinitflakes
+      REPEAT
+        WAIT 4
+        winda += RND(1) / 10
+        IF winda >= 2*PI winda -= 2*PI
+        wind = SIN(winda)
+        
+        FOR i% = 1 TO Flakes%
+          IF flag%(i%) THEN
+            GCOL 15
+            PROCflake(i%)
+            GCOL 4,0
+            flake(i%,0) = RND(@vdu%!208 * 2 + 200) - 100
+            flake(i%,1) = @vdu%!212 * 2 - RND(4)
+          ELSE
+            PROCflake(i%)
+          ENDIF
+          flake(i%,0) += wind*flake(i%,2)
+          flake(i%,1) -= 2*flake(i%,2)
+          flag%(i%) = flake(i%,1) <= floor
+          IF RND(1) < 0.02 IF FNgetpixel(bmp%%,flake(i%,0),flake(i%,1)) = 0 flag%(i%) = TRUE
+          IF NOT flag%(i%) PROCflake(i%)
+        NEXT
+        floor += 0.02
+      UNTIL FALSE
+      END
+      
+      DEF PROCinitflakes
+      LOCAL i%
+      FOR i% = 1 TO Flakes%
+        flake(i%,0) = RND(@vdu%!208 * 2 + 200) - 100
+        flake(i%,1) = RND(@vdu%!212 * 2)
+        flake(i%,2) = RND(4)
+        PROCflake(i%)
+      NEXT
+      ENDPROC
+      
+      DEF PROCbranch(x1, y1, size, angle, depth%)
+      LOCAL x2, y2
+      x2 = x1 + size * COS(angle)
+      y2 = y1 + size * SIN(angle)
+      VDU 23,23,1.4^depth%|
+      LINE x1*2,y1*2,x2*2,y2*2
+      IF depth% THEN
+        PROCbranch(x2, y2, size * (RND(1) / 5 + 0.64), angle - 0.1 - RND(1) / 2, depth% - 1)
+        PROCbranch(x2, y2, size * (RND(1) / 5 + 0.64), angle + 0.1 + RND(1) / 2, depth% - 1)
+        IF depth% > 2 THEN
+          PROCbranch((x1 + x2) / 2, (y1 + y2) / 2, size * 0.4, angle + RND(1) - 0.5, depth% - 3)
+        ENDIF
+      ENDIF
+      ENDPROC
+      
+      DEF PROCflake(I%)
+      LOCAL X%,Y%
+      X% = flake(I%,0)
+      Y% = flake(I%,1)
+      CASE flake(I%,2) OF
+        WHEN 1: MOVE X%-2,Y% : PLOT 9,4,0 : PLOT X%,Y%-2 : PLOT X%,Y%+2
+        WHEN 2: RECTANGLE FILL X%-2,Y%-2,4,4
+        WHEN 3: MOVE X%-4,Y%-2 : MOVE X%+4,Y%-2 : PLOT 85,X%,Y%+4
+        WHEN 4: MOVE X%-4,Y%-2 : MOVE X%+4,Y%-2 : PLOT 85,X%,Y%+4
+          PLOT X%,Y%-4 : PLOT X%-4,Y%+2 : PLOT X%+4,Y%+2
+      ENDCASE
+      ENDPROC
+      
+      DEF FNgetbmp
+      LOCAL F%, p%%
+      OSCLI "GSAVE """ + @tmp$ + "tmp.bmp"""
+      F% = OPENIN(@tmp$ + "tmp.bmp")
+      DIM p%% EXT#F%
+      CLOSE #F%
+      OSCLI "LOAD """ + @tmp$ + "tmp.bmp"" " + STR$~p%%
+      OSCLI "ERASE """ + @tmp$ + "tmp.bmp"""
+      = p%%
+      
+      DEF FNgetpixel(p%%, X%, Y%)
+      LOCAL B%, O%, W%, H%
+      X% DIV= 2
+      Y% DIV= 2
+      O% = p%%!10
+      W% = p%%!18
+      H% = p%%!22
+      B% = p%%?28 >> 3
+      W% = ((W% * B%) + 3) AND -4
+      IF H% < 0 Y% = - H% - Y% - 1
+      = p%%?(O% + B%*X% + W%*Y%)

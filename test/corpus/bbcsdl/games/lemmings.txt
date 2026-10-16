@@ -1,0 +1,395 @@
+      REM Lemmings for 'BBC BASIC for SDL 2.0', version v1.11, 24-Feb-2023
+      REM Adapted by Richard Russell from Rod Bird's Liberty BASIC version
+      
+      REM maximum available lems
+      MAXLEM=20
+      
+      REM our platform height array
+      DIM level(10,20) : REM 10x x 20y  80x20 pixel platforms
+      
+      REM store every lemming's status and position in an array
+      DIM lemInfo(MAXLEM,6)
+      
+      REM the array index values
+      STATUS=1
+      INDEX=2
+      XPOS=3
+      YPOS=4
+      DELTAX=5
+      DELTAY=6
+      
+      REM the possible status values
+      STARTING=0
+      FALLING=1
+      WALKING=2
+      BLOCKING=3
+      SNAPPED=4
+      SPLATTED=5
+      DEAD=6
+      HOME=7
+      FINISHED=8
+      
+      REM Initialisation
+      VDU 23,22,800;500;8,16,16,0,5 : GCOL 10 : OFF
+      SYS "SDL_SetWindowTitle", @hwnd%, "Platform Lemmings", @memhdc%
+      OSCLI "font """ + @lib$ + "DejaVuSans.ttf"",18,B"
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : REPORT : END
+      
+      INSTALL @lib$ + "dlglib"
+      INSTALL @lib$ + "msgbox"
+      INSTALL @lib$ + "audiolib"
+      
+      REM build all the sprites 20x20 multi framed
+      DIM w(9), f(4), sp(12), s(14), st(16), b(6), h(4)
+      dir$ = @dir$ + ".Lemmings/"
+      FOR n = 1 TO 9  : w(n)  = FNloadsprite(dir$ + "w"  + STR$(n) + ".png") : NEXT : REM walk
+      FOR n = 1 TO 4  : f(n)  = FNloadsprite(dir$ + "f"  + STR$(n) + ".png") : NEXT : REM fall
+      FOR n = 1 TO 12 : sp(n) = FNloadsprite(dir$ + "sp" + STR$(n) + ".png") : NEXT : REM splat
+      FOR n = 1 TO 14 : s(n)  = FNloadsprite(dir$ + "s"  + STR$(n) + ".png") : NEXT : REM snap
+      FOR n = 1 TO 16 : st(n) = FNloadsprite(dir$ + "st" + STR$(n) + ".png") : NEXT : REM block
+      FOR n = 1 TO 6  : b(n)  = FNloadsprite(dir$ + "b"  + STR$(n) + ".png") : NEXT : REM yippee
+      FOR n = 1 TO 4  : h(n)  = FNloadsprite(dir$ + "h"  + STR$(n) + ".png") : NEXT : REM home
+      
+      letsgo = FN_loadWAV(dir$ + "letsgo.wav", 44100, 1)
+      expire = FN_loadWAV(dir$ + "die.wav", 44100, 1)
+      splash = FN_loadWAV(dir$ + "splash.wav", 44100, 1)
+      snapup = FN_loadWAV(dir$ + "mantrap.wav", 44100, 1)
+      yippee = FN_loadWAV(dir$ + "bye.wav", 44100, 1)
+      music  = FN_loadMP3(dir$ + "lemmings.mp3", 44100, 1)
+      mcopy  = FN_copyMusic(music)
+      
+      REM create the platform scene
+      PROCpaintlevel
+      
+      REM set them all starting off screen
+      FOR lem=1 TO MAXLEM
+        lemInfo(lem,INDEX)=0
+        lemInfo(lem,STATUS)=STARTING
+        lemInfo(lem,XPOS)=INT(RND(20)+180)
+        lemInfo(lem,YPOS)=-20
+        IF RND(1)>.5 THEN
+          lemInfo(lem,DELTAX)=2
+        ELSE
+          lemInfo(lem,DELTAX)=-2
+        ENDIF
+        lemInfo(lem,DELTAY)=0
+      NEXT
+      
+      *REFRESH
+      PROCnotice("Guide the lemmings home, watch out for the snapper and long drops." + \
+      \ CHR$&D + CHR$&A + STRING$(20, " ") + "Click on a lemming to make him a blocker.")
+      PROC_playSoundFrom(music, 0)
+      WAIT 50
+      PROC_mixSound(letsgo, music)
+      WAIT 100
+      
+      REM set the starting variables
+      lemsout=MAXLEM
+      lemsin=0
+      lemsdead=0
+      starttime=TIME/100
+      
+      *TIMER 60
+      *REFRESH OFF
+      ON TIME tick = TRUE : RETURN
+      ON MOUSE PROCclick(@lparam%) : RETURN
+      REPEAT
+        tick = FALSE
+        
+        CLS
+        OSCLI "display """ + @tmp$ + "scene"""
+        
+        REM home animation
+        hi += 1
+        PROCplotsprite(h(hi), 640, 340, 0)
+        hi AND= 3
+        
+        REM snapper
+        PROCplotsprite(s(1), 8*80-50, level(8,12), 0)
+        
+        REM show score
+        PROCscore
+        
+        REM check for game over
+        IF lemsdead+lemsin=MAXLEM THEN
+          *REFRESH
+          PROCnotice("Game Over")
+          ERROR 17, ""
+        ENDIF
+        
+        REM requeue music if insufficient buffer to mix SFX
+        PROC_trackMusic(music, mcopy, 0, 0)
+        
+        REM depending on lem's status move and check for relevant status change
+        FOR lem=1 TO MAXLEM
+          
+          REM start if not started
+          IF lemInfo(lem,STATUS)=STARTING AND RND(1)>.995 THEN
+            lemInfo(lem,STATUS)=FALLING
+            lemInfo(lem,DELTAY)=4
+            lemInfo(lem,INDEX)=0
+            lemsout=lemsout-1
+          ENDIF
+          
+          REM fall until landed
+          IF lemInfo(lem,STATUS)=FALLING THEN
+            lemInfo(lem,YPOS)=lemInfo(lem,YPOS)+lemInfo(lem,DELTAY)
+            
+            PROCplotsprite(f(lemInfo(lem,INDEX) MOD 4 + 1), lemInfo(lem,XPOS), lemInfo(lem,YPOS), 0)
+            lemInfo(lem,INDEX) += 1
+            
+            IF lemInfo(lem,YPOS)>=level(lemInfo(lem,XPOS)/80,lemInfo(lem,YPOS)/20) THEN
+              
+              REM walking?
+              IF lemInfo(lem,INDEX)<21 AND lemInfo(lem,YPOS) < 380 THEN
+                lemInfo(lem,YPOS)=level(lemInfo(lem,XPOS)/80,lemInfo(lem,YPOS)/20)
+                lemInfo(lem,DELTAY)=0
+                lemInfo(lem,INDEX)=RND(10) : REM walk out of step
+                lemInfo(lem,STATUS)=WALKING
+                
+              ELSE
+                
+                REM splatted/drowned
+                lemInfo(lem,DELTAY)=0
+                lemInfo(lem,DELTAX)=0
+                lemInfo(lem,INDEX)=0
+                lemInfo(lem,STATUS)=SPLATTED
+                IF lemInfo(lem,YPOS)<380 THEN
+                  PROC_mixSound(expire, music)
+                ELSE
+                  PROC_mixSound(splash, music)
+                ENDIF
+                
+              ENDIF
+            ENDIF
+          ENDIF
+          
+          REM walk until turned, snapped, blocked or falling
+          IF lemInfo(lem,STATUS)=WALKING THEN
+            PROCplotsprite(w(lemInfo(lem,INDEX) MOD 9 + 1), lemInfo(lem,XPOS), \
+            \              lemInfo(lem,YPOS), (lemInfo(lem,DELTAX) < 0) AND 1)
+            lemInfo(lem,INDEX) += 1
+            lemInfo(lem,XPOS)=lemInfo(lem,XPOS)+lemInfo(lem,DELTAX)
+            
+            REM check for blocker
+            turn=0
+            FOR n= 1 TO MAXLEM
+              IF lemInfo(n,STATUS)=BLOCKING THEN
+                IF ABS(lemInfo(lem,XPOS)-lemInfo(n,XPOS))<=1 AND lemInfo(lem,YPOS)=lemInfo(n,YPOS) THEN
+                  turn=1
+                  EXIT FOR
+                ENDIF
+              ENDIF
+            NEXT
+            
+            REM check for turn
+            IF lemInfo(lem,XPOS)>780 OR lemInfo(lem,XPOS)<0 OR turn THEN
+              IF lemInfo(lem,DELTAX)=2 THEN
+                lemInfo(lem,DELTAX)=-2
+              ELSE
+                lemInfo(lem,DELTAX)=2
+              ENDIF
+            ENDIF
+            
+            REM check if snapped
+            IF lemInfo(lem,YPOS)=level(8,12) AND ABS(8*80-50-lemInfo(lem,XPOS))<2 THEN
+              lemInfo(lem,XPOS)=8*80-50
+              lemInfo(lem,INDEX)=0
+              lemInfo(lem,STATUS)=SNAPPED
+              PROC_mixSound(snapup,music)
+            ENDIF
+            
+            REM check if home
+            IF lemInfo(lem,YPOS)=level(8,18) AND lemInfo(lem,XPOS)>670 THEN
+              lemInfo(lem,INDEX)=0
+              lemInfo(lem,STATUS)=HOME
+              PROC_mixSound(yippee,music)
+            ENDIF
+            
+            REM check if about to fall
+            IF lemInfo(lem,YPOS)<level((lemInfo(lem,XPOS)+20)/80,lemInfo(lem,YPOS)/20) THEN
+              lemInfo(lem,DELTAY)=4
+              lemInfo(lem,INDEX)=0
+              lemInfo(lem,STATUS)=FALLING
+            ENDIF
+          ENDIF
+          
+          CASE lemInfo(lem,STATUS) OF
+            WHEN BLOCKING
+              PROCplotsprite(st(lemInfo(lem,INDEX) MOD 16 + 1), lemInfo(lem,XPOS), lemInfo(lem,YPOS), 0)
+              lemInfo(lem,INDEX) += 1
+              
+            WHEN SPLATTED REM twelve frames of splatting then dead
+              PROCplotsprite(sp(lemInfo(lem,INDEX) MOD 12 + 1), lemInfo(lem,XPOS), lemInfo(lem,YPOS), 0)
+              lemInfo(lem,INDEX) += 1
+              IF lemInfo(lem,INDEX)=12 THEN
+                lemInfo(lem,STATUS)=DEAD
+                lemsdead += 1
+              ENDIF
+              
+            WHEN SNAPPED REM fourteen frames of snapping then dead
+              PROCplotsprite(s(lemInfo(lem,INDEX) MOD 14 + 1), lemInfo(lem,XPOS), lemInfo(lem,YPOS), 0)
+              lemInfo(lem,INDEX) += 1
+              IF lemInfo(lem,INDEX)=14 THEN
+                lemInfo(lem,STATUS)=DEAD
+                PROC_mixSound(expire,music)
+                lemsdead += 1
+              ENDIF
+              
+            WHEN HOME REM eleven frames of yippee then finish
+              PROCplotsprite(b(lemInfo(lem,INDEX) MOD 6 + 1), lemInfo(lem,XPOS), lemInfo(lem,YPOS), 0)
+              lemInfo(lem,INDEX) += 1
+              IF lemInfo(lem,INDEX)=11 THEN
+                lemInfo(lem,STATUS)=FINISHED
+                lemsin += 1
+              ENDIF
+          ENDCASE
+        NEXT
+        
+        *REFRESH
+        REPEAT WAIT 1 : UNTIL tick
+      UNTIL FALSE
+      END
+      
+      DEF PROCscore
+      LOCAL s,m
+      MOVE 270,180 : PRINT RIGHT$("00"+STR$(lemsout),2);
+      MOVE 670,180 : PRINT RIGHT$("00"+STR$(lemsdead),2);
+      MOVE 1070,180 : PRINT RIGHT$("00"+STR$(lemsin),2);
+      s=INT(TIME/100-starttime)
+      m=INT(s/60)
+      s=s-m*60
+      MOVE 1420,180 : PRINT RIGHT$("00"+STR$(m),2);":";RIGHT$("00"+STR$(s),2);
+      ENDPROC
+      
+      REM find which lemming we clicked on
+      DEF PROCclick(L%)
+      LOCAL n, mousex, mousey
+      mousex = (L% << 16) >> 16
+      mousey = L% >> 16
+      FOR n= 1 TO MAXLEM
+        IF mousex<lemInfo(n,XPOS)+20 AND mousex>= lemInfo(n,XPOS) AND mousey<lemInfo(n,YPOS)+20 AND mousey>lemInfo(n,YPOS) THEN
+          IF lemInfo(n,STATUS)=WALKING THEN
+            lemInfo(n,DELTAY)=0
+            lemInfo(n,STATUS)=BLOCKING
+            EXIT FOR
+          ENDIF
+          IF lemInfo(n,STATUS)=BLOCKING THEN
+            IF lemInfo(n,DELTAX)=2 THEN
+              lemInfo(n,DELTAX)=-2
+            ELSE
+              lemInfo(n,DELTAX)=2
+            ENDIF
+            lemInfo(n,STATUS)=WALKING
+            EXIT FOR
+          ENDIF
+        ENDIF
+      NEXT
+      ENDPROC
+      
+      REM we use 80 x 20 sprites to create the platform image
+      REM Once drawn it is captured and used as the background
+      DEF PROCpaintlevel
+      LOCAL x, y, l$, sprite$
+      CLS
+      OSCLI "display """ + @dir$ + ".Lemmings/sea.jpg"" 0,200"
+      FOR y=0 TO 19
+        READ l$
+        FOR x=0 TO 9
+          CASE MID$(l$,x+1,1) OF
+            WHEN "b": sprite$ = "blank"
+            WHEN "s": sprite$ = "start"
+            WHEN "p": sprite$ = "plynth"
+            WHEN "c": sprite$ = "column"
+            WHEN "j": sprite$ = "jaggy"
+            WHEN "w": sprite$ = "wall"
+            WHEN "h": sprite$ = "h1"
+            WHEN "g": sprite$ = "ground"
+            WHEN "i": sprite$ = "hill"
+            WHEN "r": sprite$ = "plank1"
+          ENDCASE
+          OSCLI "display """ + @dir$ + ".Lemmings/" + sprite$ + ".png"" " + STR$(x*160) + "," + STR$(960 - y*40)
+          IF INSTR("pwogr",MID$(l$,x+1,1))>0 THEN
+            level(x,y-1)=y*20-20
+          ELSE
+            level(x,y)=380
+          ENDIF
+        NEXT
+      NEXT
+      OSCLI "display """ + @dir$ + ".Lemmings/score.png"""
+      OSCLI "gsave """ + @tmp$ + "scene"""
+      ENDPROC
+      
+      REM this is the platform plan
+      DATA "bbbbbbbbbb"
+      DATA "bbsbbbbbbb"
+      DATA "bbbbbbbbbb"
+      DATA "bbbbbbbbbb"
+      DATA "pbpbbbbbbb"
+      DATA "cbcbbjbbbb"
+      DATA "cbcrrprbbb"
+      DATA "prcbbcbbbb"
+      DATA "cbcbbcrprb"
+      DATA "cbpbbcbcbb"
+      DATA "cbcbrprcbb"
+      DATA "cbcbbcbcbb"
+      DATA "crprbcbcbb"
+      DATA "cbcbbcrprr"
+      DATA "cbcbbcbcbb"
+      DATA "cbcbbcbcbb"
+      DATA "cbcbbcbcbb"
+      DATA "cbcbrpbcbb"
+      DATA "cbcbbcicbi"
+      DATA "wwwbbcgggg"
+      
+      DEF PROCcleanup
+      *REFRESH ON
+      IF !^w()  PROCfreesprites(w())
+      IF !^f()  PROCfreesprites(f())
+      IF !^sp() PROCfreesprites(sp())
+      IF !^s()  PROCfreesprites(s())
+      IF !^st() PROCfreesprites(st())
+      IF !^b()  PROCfreesprites(b())
+      IF !^h()  PROCfreesprites(h())
+      letsgo += 0 : IF letsgo PROC_freeWAV(letsgo)
+      expire += 0 : IF expire PROC_freeWAV(expire)
+      splash += 0 : IF splash PROC_freeWAV(splash)
+      snapup += 0 : IF snapup PROC_freeWAV(snapup)
+      yippee += 0 : IF yippee PROC_freeWAV(yippee)
+      music  += 0 : IF music  PROC_freeMP3(music)
+      mcopy  += 0 : IF mcopy  SYS "SDL_free", mcopy
+      ENDPROC
+      
+      DEF PROCnotice(msg$)
+      IF FN_messagebox("Lemmings", msg$, 0)
+      ENDPROC
+      
+      DEF FNloadsprite(file$)
+      LOCAL s%%, t%%
+      SYS "STBIMG_Load", file$ TO s%%
+      IF @platform% AND &40 ELSE s%% = !^s%%
+      IF s%%=0 ERROR 104, "Unable to load image: " + file$
+      SYS "SDL_CreateTextureFromSurface", @memhdc%, s%% TO t%%
+      IF @platform% AND &40 ELSE t%% = !^t%%
+      IF t%%=0 ERROR 105, "Unable to create texture: " + file$
+      SYS "SDL_FreeSurface", s%%
+      = t%%
+      
+      DEF PROCplotsprite(t%%, x%, y%, f%)
+      LOCAL dst{} : DIM dst{x%,y%,w%,h%}
+      SYS "SDL_QueryTexture", t%%, 0, 0, ^dst.w%, ^dst.h%
+      dst.x% = x% : dst.y% = y%
+      IF @platform% AND &40 THEN
+        SYS "SDL_RenderCopyEx", @memhdc%, t%%, 0, dst{}, 1E-9, 0, f%
+      ELSE
+        SYS "SDL_RenderCopyEx", @memhdc%, t%%, 0, dst{}, 0, 0, 0, f%
+      ENDIF
+      ENDPROC
+      
+      DEF PROCfreesprites(s())
+      LOCAL I%
+      FOR I% = 1 TO DIM(s(),1)
+        SYS "SDL_DestroyTexture", s(I%), @memhdc%
+        s(I%) = 0
+      NEXT
+      ENDPROC

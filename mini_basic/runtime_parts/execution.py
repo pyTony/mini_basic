@@ -43,6 +43,7 @@ from ..expr.patterns import (
     RE_TIME as _RE_TIME,
     RE_VAR_BASE_FULL as _RE_VAR_BASE_FULL,
     VAR_BASE_PATTERN as _VAR_BASE_PATTERN,
+    ident_prefix_len as _ident_prefix_len,
 )
 
 from ..format import UsingFormatter
@@ -989,7 +990,11 @@ class RuntimeExecutionMixin:
                     flags=re.IGNORECASE,
                 )
                 if not m:
-                    return None
+                    array_run = self._try_compile_array_store_runner(text)
+                    if array_run is None:
+                        return None
+                    runners.append(array_run)
+                    continue
                 var_tok = m.group(1)
                 expr_src = m.group(2).strip()
                 vname, vkind = self._parse_var_token(var_tok)
@@ -1152,6 +1157,64 @@ class RuntimeExecutionMixin:
             else:
                 return None
         return runners
+
+    def _try_compile_array_store_runner(self, text: str) -> Optional[callable]:
+        """Compile ``NAME(idx[,idx...]) = expr`` to a zero-arg callable.
+
+        Mirrors the slow path's ``_assign_array_element`` (parse lvalue, eval
+        indices, eval RHS, ``_array_set``) but evaluates index/RHS through the
+        compiled-expression cache instead of re-parsing text every call. Bails
+        to ``None`` (caller falls back to the interpreter) for anything not
+        already DIMmed, string arrays, or a whole-array copy — those keep
+        going through ``_assign_array_element`` unaccelerated.
+        """
+        end = _ident_prefix_len(text)
+        if not end:
+            return None
+        pos = end
+        if pos < len(text) and text[pos] in '%$!#&':
+            pos += 1
+        if pos >= len(text) or text[pos] != '(':
+            return None
+        close_idx = self._match_paren(text, pos)
+        if close_idx < 0:
+            return None
+        lhs_token = text[:close_idx + 1]
+        after = text[close_idx + 1:].lstrip()
+        if not after.startswith('=') or after.startswith('=='):
+            return None
+        rhs_src = after[1:].strip()
+        if not rhs_src:
+            return None
+        parsed = self._parse_array_lvalue(lhs_token)
+        if parsed is None:
+            return None
+        base, kind, indices_expr = parsed
+        if kind == 'str' or not indices_expr.strip():
+            return None
+        index_srcs = [p.strip() for p in self._split_args(indices_expr)]
+        if not index_srcs:
+            return None
+        key = self._resolve_array_key(base, kind)
+        if key not in self.array_storage:
+            return None
+
+        idx_ces = [self._get_compiled_expr(src, is_condition=False) for src in index_srcs]
+        rhs_ce = self._get_compiled_expr(rhs_src, is_condition=False)
+        is_int = kind == 'int'
+
+        def ev(ce: CompiledExpr, src: str) -> float:
+            if ce.code is not None and not ce.use_fallback:
+                return ce.eval_numeric(self)
+            return self._eval_numeric(src)
+
+        def run() -> None:
+            idx_vals = [int(ev(ce, src)) for ce, src in zip(idx_ces, index_srcs)]
+            val = ev(rhs_ce, rhs_src)
+            val = self._coerce_int_storage(val) if is_int else float(val)
+            self._array_set(base, kind, idx_vals, val)
+
+        return run
 
     def _try_fast_numeric_assignment(self, line: str) -> bool:
         """Run a compiled scalar LET when the line is only ``var = expr``.
@@ -1469,12 +1532,19 @@ class RuntimeExecutionMixin:
                 return False
             if cmd in ('', 'LET'):
                 payload = crest if cmd == 'LET' else text
-                if '=' not in payload or '(' in payload.split('=', 1)[0]:
+                if '=' not in payload:
+                    return False
+                lhs = payload.split('=', 1)[0]
+                # Array-element LHS (``FLAGS(K) = 0``) is a candidate here;
+                # anything else with a stray '(' on the LHS is malformed and
+                # ``_compile_accelerate_body`` will reject it strictly anyway.
+                if '(' in lhs and not lhs.rstrip().endswith(')'):
                     return False
                 body.append(('LET', payload))
                 return True
             if not cmd and '=' in text:
-                if '(' in text.split('=', 1)[0]:
+                lhs = text.split('=', 1)[0]
+                if '(' in lhs and not lhs.rstrip().endswith(')'):
                     return False
                 body.append(('LET', text))
                 return True
@@ -2907,6 +2977,19 @@ class RuntimeExecutionMixin:
                     coords.append(int(round(float(value))))
         return filename, coords
 
+    def _resolve_asset_path(self, filename: str) -> str:
+        """Resolve a relative asset path (DISPLAY/PLAY/MUSIC) against the
+        running program's own directory, matching BBC BASIC's ``@dir$``
+        convention (``_bbc_at_dir``) -- not the process's current working
+        directory, which can differ from where the program lives and would
+        otherwise double up a path already written relative to the program
+        (e.g. a program in ``showcase/`` doing ``*DISPLAY "showcase/x.png"``
+        meant relative to the repo, not to itself)."""
+        path = filename
+        if not os.path.isabs(path):
+            path = os.path.join(self._bbc_at_dir(), path)
+        return os.path.normpath(path)
+
     def _os_rect_to_screen(
         self, x: int, y: int, w: int, h: int
     ) -> Tuple[int, int, int, int]:
@@ -3089,10 +3172,7 @@ class RuntimeExecutionMixin:
         if len(coords) < 4:
             raise ValueError('DISPLAY needs x,y,w,h')
         x, y, w, h = coords[:4]
-        path = filename
-        if not os.path.isabs(path):
-            path = os.path.join(self.working_dir, path)
-        path = os.path.normpath(path)
+        path = self._resolve_asset_path(filename)
         if not os.path.isfile(path):
             raise ValueError(f'DISPLAY file not found: {path}')
         sx, sy, sw, sh = self._os_rect_to_screen(x, y, w, h)
@@ -3229,10 +3309,7 @@ class RuntimeExecutionMixin:
         mechanism for playing real sample files alongside synthesized
         ``SOUND`` tones."""
         filename, coords = self._parse_oscli_file_and_coords(rest)
-        path = filename
-        if not os.path.isabs(path):
-            path = os.path.join(self.working_dir, path)
-        path = os.path.normpath(path)
+        path = self._resolve_asset_path(filename)
         if not os.path.isfile(path):
             raise ValueError(f'PLAY file not found: {path}')
         channel = coords[0] if coords else None
@@ -3249,14 +3326,27 @@ class RuntimeExecutionMixin:
             get_sound_engine().stop_music()
             return
         filename, coords = self._parse_oscli_file_and_coords(rest)
-        path = filename
-        if not os.path.isabs(path):
-            path = os.path.join(self.working_dir, path)
-        path = os.path.normpath(path)
+        path = self._resolve_asset_path(filename)
         if not os.path.isfile(path):
             raise ValueError(f'MUSIC file not found: {path}')
         volume = (coords[0] / 100.0) if coords else 1.0
         get_sound_engine().play_music(path, volume=volume, loop=True)
+
+    def _handle_oscli_wrapmini(self) -> None:
+        """``*WRAPMINI`` -- mini_basic convenience, not a real BBC OS command.
+
+        Rewrites standalone ``*PLAY``/``*MUSIC`` lines in the loaded program
+        as ``REM MINI_BASIC *CMD ...`` so the listing stays loadable (as an
+        inert comment) on real BBC BASIC. Follow with SAVE to keep the
+        change; without SAVE it only affects the in-memory copy.
+        """
+        changed = self.wrap_mini_only_star_commands()
+        if not changed:
+            print('No mini-only *PLAY/*MUSIC lines to wrap.')
+            return
+        shown = ', '.join(str(n) for n in changed[:10])
+        extra = f' (+{len(changed) - 10} more)' if len(changed) > 10 else ''
+        print(f'Wrapped line(s) {shown}{extra} as REM MINI_BASIC comments. SAVE to keep.')
 
     def _execute_bbc_os_command(self, command: str) -> None:
         # === Robust handling for *REFRESH / *REFRESH ON / *REFRESH OFF ===
@@ -3286,10 +3376,25 @@ class RuntimeExecutionMixin:
             self._handle_oscli_display(raw[7:].strip())
             return
         if cmd.startswith('PLAY'):
+            if not self._dialect_allows('PLAY'):
+                raise ValueError(
+                    '*PLAY is a mini_basic (SDL) extension, not real BBC BASIC; '
+                    'use --dialect mini, add `1 REM dialect: mini`, or run '
+                    '*WRAPMINI to comment it out'
+                )
             self._handle_oscli_play(raw[4:].strip())
             return
         if cmd.startswith('MUSIC'):
+            if not self._dialect_allows('MUSIC'):
+                raise ValueError(
+                    '*MUSIC is a mini_basic (SDL) extension, not real BBC BASIC; '
+                    'use --dialect mini, add `1 REM dialect: mini`, or run '
+                    '*WRAPMINI to comment it out'
+                )
             self._handle_oscli_music(raw[5:].strip())
+            return
+        if cmd.startswith('WRAPMINI'):
+            self._handle_oscli_wrapmini()
             return
         if cmd.startswith('FX'):
             return
@@ -4131,6 +4236,16 @@ class RuntimeExecutionMixin:
         if cmd == 'INPUT':
             prompt_content, var_tokens = self._parse_input_statement(rest)
             if not var_tokens:
+                if prompt_content and self.config.dialect == 'bbc':
+                    # Real BBC BASIC V: INPUT with a prompt but no variable
+                    # just prints the prompt text — no wait, nothing to assign.
+                    self._emit_input_prompt(prompt_content)
+                    return None
+                if prompt_content:
+                    self._runtime_error(
+                        '? INPUT error: missing variable', line_num, stmt_index,
+                        stmt_count=stmt_count, statement=line)
+                    return None
                 self._runtime_error('? INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
             first_try = True
@@ -4493,6 +4608,11 @@ class RuntimeExecutionMixin:
           return None
 
         if cmd == 'WEND':
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: WEND takes no argument — type WEND alone, not WEND {rest.strip()}'
+                )
+                return None
             if not self.stack or self.stack[-1].kind != 'while':
                 self._runtime_error('? WEND without WHILE', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return -1
@@ -4715,6 +4835,11 @@ class RuntimeExecutionMixin:
             return None
 
         if cmd == 'ENDPROC':
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: ENDPROC takes no argument — type ENDPROC alone, not ENDPROC {rest.strip()}'
+                )
+                return None
             if not self.proc_stack:
                 self._runtime_error('? ENDPROC without PROC', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
@@ -4758,6 +4883,11 @@ class RuntimeExecutionMixin:
             return self._execute_resume(rest, line_nums, line_num, stmt_index)
 
         if cmd == 'RETURN':
+            if rest.strip():
+                self._emit_error(
+                    f'? Line {line_num}: RETURN takes no argument — type RETURN alone, not RETURN {rest.strip()}'
+                )
+                return None
             if not self.gosub_stack:
                 self._runtime_error('? RETURN without GOSUB', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
@@ -5656,6 +5786,61 @@ class RuntimeExecutionMixin:
         if cmd == 'RUN':
             # BBC: RUN restarts the current program from the first line (clear vars).
             # Used e.g. hanoi `IF F>13 RUN` after invalid INPUT.
+            # Common MS/MSX/Amstrad-style extensions: RUN "file" loads and runs
+            # it; RUN <linenum> restarts fresh (vars cleared) at that line,
+            # same as GOTO but after a full reset.
+            rest_stripped = rest.strip()
+            if rest_stripped:
+                filename = None
+                try:
+                    filename = self._eval_string_arg(rest_stripped)
+                except Exception:
+                    pass
+                if filename is not None:
+                    try:
+                        path = self.resolve_load_path(filename)
+                    except ValueError as exc:
+                        self._runtime_error(
+                            self._error_message('? RUN error', exc), line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    if not os.path.isfile(path):
+                        self._runtime_error(
+                            f'? RUN error: file not found ({path})', line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    if not self.load(path, announce=False):
+                        self._runtime_error(
+                            f'? RUN error: no program loaded from {path}', line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    self._chain_start_line = None
+                    raise ChainTransfer()
+                target_line = None
+                # Only a bare integer literal counts as a line number — an
+                # undeclared identifier (e.g. GARBAGE) defaults to 0.0 under
+                # eval_numeric and must not be mistaken for "line 0".
+                if re.fullmatch(r'\d+', rest_stripped):
+                    try:
+                        target_line = int(rest_stripped)
+                    except Exception:
+                        pass
+                if target_line is not None:
+                    if target_line not in self.program:
+                        self._runtime_error(
+                            '? Line not found', line_num, stmt_index,
+                            stmt_count=stmt_count, statement=line)
+                        return None
+                    try:
+                        self._reset_run_state()
+                    except Exception:
+                        pass
+                    self._chain_start_line = target_line
+                    raise ChainTransfer()
+                self._emit_error(
+                    f'? Line {line_num}: RUN takes no argument — type RUN alone, not RUN {rest_stripped}'
+                )
+                return None
             try:
                 self._reset_run_state()
             except Exception:
@@ -5761,15 +5946,47 @@ class RuntimeExecutionMixin:
         self._active_line_num = 0
         self._active_stmt_parts = parts
         try:
+            next_start_index = 0
             while True:
-                target = self._execute_statement_parts(0, parts, line_nums)
+                target = self._execute_statement_parts(0, parts, line_nums, start_index=next_start_index)
+                next_start_index = 0
                 if target is not None and target in self.program:
-                    self.execute_line(target, self.program[target], line_nums)
+                    # GOTO/GOSUB into the program from the REPL prompt: keep
+                    # running from there (preserving variables/stacks, unlike
+                    # RUN) rather than executing just that one line.
+                    self._prepare_run()
+                    self._ensure_display()
+                    start_index = self._run_line_index.get(target, 0)
+                    self._run_interrupt_watch = True
+                    timing = bool(getattr(self, 'timing_enabled', False))
+                    t0 = time.perf_counter() if timing else None
+                    try:
+                        self._run_program_loop(start_index)
+                    finally:
+                        self._run_interrupt_watch = False
+                        if t0 is not None:
+                            elapsed = time.perf_counter() - t0
+                            try:
+                                stream = self._get_error_stream()
+                                stream.write(f'Time: {elapsed:.3f} s\n')
+                                stream.flush()
+                            except Exception:
+                                pass
+                    if self.resume_at and self.resume_at[0] == 0:
+                        # RETURN unwound all the way back to this immediate-mode
+                        # line (real hardware: a GOSUB typed at the prompt keeps
+                        # executing whatever follows it on the same line once
+                        # the subroutine RETURNs, instead of erroring).
+                        next_start_index = self.resume_at[1]
+                        self.resume_at = None
+                        continue
                     break
                 if target is None or target != 0:
                     break
                 if not (self.resume_at and self.resume_at[0] == 0):
                     break
+                next_start_index = self.resume_at[1]
+                self.resume_at = None
         except ProgramStop:
             pass
         except BasicRuntimeError:
@@ -5982,6 +6199,14 @@ class RuntimeExecutionMixin:
                                 same_line_count = 0
                             next_index = self._run_line_index.get(next_target)
                             if next_index is None:
+                                if next_target == 0:
+                                    # RETURN unwinding to an immediate-mode
+                                    # GOSUB (line 0 is never a real program
+                                    # line) — self.resume_at already carries
+                                    # where to resume; let the caller (e.g.
+                                    # execute_immediate) pick that up instead
+                                    # of treating this as a bad jump target.
+                                    return
                                 self._emit_error('? Line not found')
                                 return
                             i = next_index

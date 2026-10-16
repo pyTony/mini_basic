@@ -1,0 +1,344 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM BBCBASIC version for Gabriele Cirulli's "2048" game.
+      REM By Mike Jansen. 27th January 2017
+      REM Thanks to Richard Russell for the animation code.
+      
+      REM Note that the font used in the original "2048" game is 'ClearSans-Bold.ttf', which mimics the gameplay even
+      REM better. This program will test for the presence of this font and will use alternatives if not located.
+      REM If desired you can download the font and install it into your OS. It can be found at:
+      REM https://01.org/clear-sans
+      PROCSetup
+      WHILE NewGame%
+        KeepGoing% = TRUE
+        Score% = 0
+        Board&() = 0
+        PROCSpawn
+        WHILE KeepGoing%
+          CLG
+          PROCSpawn
+          PROCPrint
+          REPEAT
+            Direction% = FNGetDirection : REM Or "Direction% = RND(4)" to simulate
+            IF Direction% > 0 AND Direction% < 5 THEN
+              PROCShift(Moved1%())
+              PROCMerge(Moved2%())
+              PROCShift(Moved3%())
+              IF SUM(Moved1%()) + SUM(Moved2%()) + SUM(Moved3%()) THEN
+                !Stuck%% = 0
+                IF NOT Won% PROCSpawn
+                PROCSlide(Moved1%())
+                PROCSlide(Moved2%())
+                PROCSlide(Moved3%())
+                PROCPrint
+              ELSE
+                ?(Stuck%% + Direction% - 1) = -1 : Lost% = !Stuck%% == -1
+              ENDIF
+            ENDIF
+          UNTIL Won% OR Lost%
+          PROCWhatToDo
+        ENDWHILE
+      ENDWHILE
+      PROCSetdown
+      IF BB4W% QUIT
+      CHAIN @dir$+"../tools/touchide"
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF PROCSetup
+      LOCAL f%
+      
+      ON ERROR IF ERR=17 PROCSetdown : CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON CLOSE PROCSetdown : QUIT
+      
+      BB4W% = INKEY$(-256) == "W"
+      IF BB4W% THEN *ESC OFF
+      
+      SIZE%   = 4
+      MAX%    = SIZE% - 1
+      AREA%   = 208
+      BORDER% = 32
+      HEADER% = 120
+      BASE%   = 0
+      BPATH$  = @usr$ + "Best2048.dat"
+      SPAN%   = AREA% + BORDER%
+      SPEED%  = 16
+      
+      DIM Board&(MAX%, MAX%), Moved1%(MAX%, MAX%), Moved2%(MAX%, MAX%), Moved3%(MAX%, MAX%), Stuck%% 3
+      DIM R&(13), G&(13), B&(13), TW&(13), TH&(13) : REM For up to 2^13 = 8192
+      
+      REM Red, Blue & Green component for the rectangle's colour.
+      R&()  = 205, 238, 237, 242, 245, 246, 246, 237, 237, 237, 237, 238, 238, 239
+      G&()  = 193, 228, 224, 177, 149, 124,  94, 207, 204, 200, 197, 194, 190, 185
+      B&()  = 180, 218, 200, 121,  99,  95,  59, 114,  97,  80,  63,  46,  33,  20
+      
+      REM Font Width & Height values for the different values.
+      TW&() = 0, 34, 34, 34, 70, 70, 70, 76, 76, 76, 82, 82, 82, 82
+      TH&() = 0, 80, 80, 80, 80, 80, 80, 58, 58, 58, 47, 47, 47, 47
+      
+      REM Check if user maybe has the font for the original game installed. If not
+      REM modify TH&() array to correct height for alternative font.
+      IF BB4W% THEN
+        DIM f% LOCAL 31
+        FONTCMD$ = "FONT Clear Sans Bold,"
+        OSCLI FONTCMD$ + ",10"
+        SYS "GetTextFace", @memhdc%, 32, f%
+        IF $$f% <> "Clear Sans Bold" THEN
+          TH&() = 0, 70, 70, 70, 70, 70, 70, 48, 48, 48, 37, 37, 37, 37
+          BASE% = -6
+        ENDIF
+      ELSE
+        f% = OPENIN(@lib$ + "ClearSans-Bold.ttf")
+        IF f% > 0 THEN
+          CLOSE#f%
+          FONTCMD$ = "FONT """ + @lib$ + "ClearSans-Bold.ttf"","
+        ELSE
+          FONTCMD$ = "FONT """ + @lib$ + "FreeSans.ttf"","
+          TH&() = 0, 60, 60, 60, 60, 60, 60, 38, 38, 38, 27, 27, 27, 27
+          BASE% = -10
+        ENDIF
+      ENDIF
+      
+      Animate%   = TRUE
+      Best%      = 0
+      KeepGoing% = TRUE
+      Lost%      = FALSE
+      NewGame%   = TRUE
+      Won%       = FALSE
+      
+      REM Get High score from previous games, if any was saved.
+      f%=OPENIN BPATH$
+      IF f% > 0 THEN
+        INPUT#f%,Best%
+        CLOSE#f%
+      ENDIF
+      
+      REM Calculate window width & height to use for the game and set it.
+      WW% = BORDER% + (AREA% + BORDER%) * SIZE%
+      WH% = HEADER% + BORDER% + (AREA% + BORDER%) * SIZE%
+      VDU 23, 22, WW% / 2; WH% / 2; 8, 16, 16, 0
+      
+      COLOR  0, 119, 110, 101: REM Black is rather dark grey
+      COLOR  1, 187, 173, 160: REM The background colour
+      COLOR 15, 249, 246, 242: REM White is rather beige
+      VDU 18, 0, 129, 16, 5, 23, 23, 2|
+      ENDPROC
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF PROCSetdown
+      LOCAL f%
+      
+      REM Save high score.
+      f%=OPENOUT BPATH$
+      IF f% > 0 THEN
+        PRINT#f%,Best%
+        CLOSE#f%
+      ENDIF
+      *ESC ON
+      VDU 4
+      ENDPROC
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF FNGetDirection
+      LOCAL buttons%, direction%, X%, Y%, oldx%, oldy%
+      
+      REPEAT
+        direction% = INKEY(1) - 135
+        MOUSE X%, Y%, buttons%
+        oldx% = X% : oldy% = Y%
+        WHILE buttons%
+          MOUSE X%, Y%, buttons%
+        ENDWHILE
+        X% -= oldx% : Y% -= oldy%
+        IF (X%^2 + Y%^2) > 10000 THEN
+          CASE TRUE OF
+            WHEN X%<Y% AND Y%<-X% direction% = 1
+            WHEN X%>Y% AND Y%>-X% direction% = 2
+            WHEN X%>Y% AND Y%<-X% direction% = 3
+            WHEN X%<Y% AND Y%>-X% direction% = 4
+          ENDCASE
+        ENDIF
+      UNTIL direction% > 0 AND direction% < 5
+      = direction%
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF FNScanButtons(x1%, w1%, t1$, x2%, w2%, t2$, x3%, w3%, t3$)
+      LOCAL x%, y%, b%, btn%
+      
+      REM Buttons background.
+      GCOL 0
+      RECTANGLE FILL x1%, 450, w1%, 70
+      RECTANGLE FILL x2%, 450, w2%, 70
+      IF x3% > 0 RECTANGLE FILL x3%, 450, w3%, 70
+      
+      REM Buttons texts.
+      OSCLI FONTCMD$ + "14"
+      GCOL 15
+      MOVE x1% + 40, 510 : PRINT t1$
+      MOVE x2% + 40, 510 : PRINT t2$
+      IF x3% > 0 MOVE x3% + 40, 510 : PRINT t3$
+      
+      REM Loop until a button is selected.
+      REPEAT
+        REPEAT
+          WAIT 1
+          MOUSE x%, y%, b%
+        UNTIL b% = 4 AND y% < 520 AND y% > 450
+        IF x% > x1% IF x% < x1% + w1% btn% = 1
+        IF x% > x2% IF x% < x2% + w2% btn% = 2
+        IF x% > x3% IF x% < x3% + w3% btn% = 3
+      UNTIL btn% > 0
+      =btn%
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF PROCWhatToDo
+      REM Fade background in some fashion.
+      IF Won% COLOR 2, 255, 255, 100 ELSE COLOR 2, 74, 255, 255
+      GCOL 2, 2
+      RECTANGLE FILL 0, 0, WW%, WH%
+      
+      OSCLI FONTCMD$ + "44"
+      IF Won% THEN
+        GCOL 15 : MOVE 250, 700 : PRINT "You win!"
+        CASE FNScanButtons(110, 270, "Keep going", 430, 240, "Try again", 720, 160, "Stop") OF
+          WHEN 2: KeepGoing% = FALSE
+          WHEN 3: KeepGoing% = FALSE : NewGame% = FALSE
+        ENDCASE
+        Won% = FALSE
+      ELSE
+        GCOL 0 : MOVE 200, 700 : PRINT "Game Over!"
+        CASE FNScanButtons(280, 240, "Try again", 550, 160, "Stop", 0, 0, "") OF
+          WHEN 2: NewGame% = FALSE
+        ENDCASE
+        KeepGoing% = FALSE
+        Lost% = FALSE
+        !Stuck%% = 0
+      ENDIF
+      *FX21, 0
+      ENDPROC
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF PROCPrint
+      LOCAL row%, col%, cell%, x0%, y0%, s$, b$
+      
+      REM Clear header area and update score/best text.
+      GCOL  1 : RECTANGLE FILL 0, WH% - HEADER%, WW% , HEADER%
+      GCOL 15
+      RECTANGLE WW% - 480 - BORDER%, WH% - HEADER%, 240, 100
+      RECTANGLE WW% - 240 - BORDER%, WH% - HEADER%, 240, 100
+      
+      OSCLI FONTCMD$ + "12"
+      MOVE WW% - 450, WH% - 20 + BASE%: PRINT "SCORE"
+      MOVE WW% - 190, WH% - 20 + BASE%: PRINT "BEST"
+      
+      s$ = STR$Score%
+      b$ = STR$Best%
+      OSCLI FONTCMD$ + "20"
+      MOVE WW% - 370 - BORDER% - LENs$ * 14, WH% - 50 + BASE%: PRINT s$
+      MOVE WW% - 120 - BORDER% - LENb$ * 14, WH% - 50 + BASE%: PRINT b$
+      
+      REM Refresh the matrix cell by cell.
+      FOR row% = 0 TO MAX%
+        FOR col% = 0 TO MAX%
+          x0% = BORDER% + col% * (AREA% + BORDER%)
+          y0% = BORDER% + (MAX% - row%) * (AREA% + BORDER%)
+          cell% = Board&(col%, row%)
+          COLOR 2, R&(cell%), G&(cell%), B&(cell%)
+          GCOL 2 : RECTANGLE FILL x0%, y0%, AREA%, AREA%
+          IF cell% > 0 THEN
+            GCOL 15 + 15 * (cell% < 3)
+            OSCLI FONTCMD$ + STR$(44 + 12 * (cell% > 6) + 6 * (cell% > 9))
+            MOVE x0% + AREA% / 2 - TW&(cell%), y0% + AREA% / 2 + TH&(cell%) : PRINT ;2^cell%
+          ENDIF
+        NEXT
+      NEXT
+      ENDPROC
+      
+      REM ----------------------------------------------------------------------------------------------------------------------
+      DEF PROCShift(movd%())
+      LOCAL row%, col%, zeros%, loopend%, fstep%
+      
+      IF Direction% == 2 OR Direction% == 3 loopend% = MAX% : fstep% = -1 ELSE loopend% = 0 : fstep% = 1
+      FOR row% = loopend% TO MAX% - loopend% STEP fstep%
+        zeros% = 0
+        FOR col% = loopend% TO MAX% - loopend% STEP fstep%
+          IF Direction% < 3 THEN
+            IF Board&(col%, row%) == 0 THEN
+              zeros% += fstep%
+            ELSE
+              IF zeros% SWAP Board&(col%, row%), Board&(col% - zeros%, row%) : movd%(col%,row%) = ABS(SPAN%*zeros%)
+            ENDIF
+          ELSE
+            IF Board&(row%, col%) == 0 THEN
+              zeros% += fstep%
+            ELSE
+              IF zeros% SWAP Board&(row%, col%), Board&(row%, col% - zeros%) : movd%(row%,col%) = ABS(SPAN%*zeros%)
+            ENDIF
+          ENDIF
+        NEXT
+      NEXT
+      ENDPROC
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF PROCMerge(movd%())
+      LOCAL row%, col%, loopend%, rowoff%, coloff%, fstep%
+      
+      IF Direction% == 1 loopend% =    0 : rowoff% =  0 : coloff% =  1 : fstep% =  1
+      IF Direction% == 2 loopend% = MAX% : rowoff% =  0 : coloff% = -1 : fstep% = -1
+      IF Direction% == 3 loopend% = MAX% : rowoff% = -1 : coloff% =  0 : fstep% = -1
+      IF Direction% == 4 loopend% =    0 : rowoff% =  1 : coloff% =  0 : fstep% =  1
+      FOR row% = loopend% TO MAX% - loopend% - rowoff% STEP fstep%
+        FOR col% = loopend% TO MAX% - loopend% - coloff% STEP fstep%
+          IF Board&(col%, row%) IF Board&(col%, row%) == Board&(col% + coloff%, row% + rowoff%) THEN
+            Board&(col%, row%) += 1
+            Board&(col% + coloff%, row% + rowoff%) = 0
+            Score% += 2^Board&(col%, row%)
+            IF Score% > Best% Best% = Score%
+            movd%(col% + coloff%, row% + rowoff%) = SPAN%
+            IF NOT Won% Won% = Board&(col%, row%) == 11
+          ENDIF
+        NEXT
+      NEXT
+      ENDPROC
+      
+      REM -----------------------------------------------------------------------------------------------------------------------
+      DEF PROCSpawn
+      LOCAL i%, zeros$
+      
+      FOR i%=0 TO SIZE% * SIZE% - 1
+        IF Board&(i% MOD SIZE%, i% DIV SIZE%) == 0 zeros$ += CHR$i%
+      NEXT
+      IF zeros$ > "" THEN
+        i% = ASCMID$(zeros$, RND(LENzeros$) - (LENzeros$ == 1), 1)
+        Board&(i% MOD SIZE%, i% DIV SIZE%) = 1 - (RND(10)==1)
+      ENDIF
+      ENDPROC
+      
+      REM ----------------------------------------------------------------------------------------------------------------------
+      DEF PROCSlide(movd%())
+      IF NOT Animate% movd%() = 0 : ENDPROC
+      LOCAL frame%, col%, row%, x0%, y0%
+      
+      COLOR 2, R&(0), G&(0), B&(0)
+      frame% = 0
+      REPEAT
+        FOR row% = 0 TO MAX%
+          FOR col% = 0 TO MAX%
+            IF movd%(col%,row%) THEN
+              x0% = BORDER% + col% * SPAN%
+              y0% = BORDER% + (MAX% - row%) * SPAN%
+              IF ((frame% + BORDER%) MOD SPAN%) < BORDER% GCOL 129 ELSE GCOL 130
+              CASE Direction% OF
+                WHEN 1: RECTANGLE FILL x0% - frame%, y0%, AREA%, AREA% TO x0% - frame% - SPEED%, y0%
+                WHEN 2: RECTANGLE FILL x0% + frame%, y0%, AREA%, AREA% TO x0% + frame% + SPEED%, y0%
+                WHEN 3: RECTANGLE FILL x0%, y0% - frame%, AREA%, AREA% TO x0%, y0% - frame% - SPEED%
+                WHEN 4: RECTANGLE FILL x0%, y0% + frame%, AREA%, AREA% TO x0%, y0% + frame% + SPEED%
+              ENDCASE
+              movd%(col%,row%) -= SPEED%
+            ENDIF
+          NEXT
+        NEXT
+        WAIT 1
+        frame% += SPEED%
+      UNTIL SUM(movd%()) = 0
+      GCOL 129
+      ENDPROC

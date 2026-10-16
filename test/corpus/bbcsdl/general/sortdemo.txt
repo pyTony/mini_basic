@@ -1,0 +1,625 @@
+      REM ============================================================================
+      REM                                 SORTDEMO
+      REM This program graphically demonstrates six common sorting algorithms.  It
+      REM displays a number of horizontal bars, all of different lengths and in
+      REM random order.  It then sorts the bars from shortest to longest (upwards).
+      REM
+      REM The program was adapted from the QuickBasic original by Richard Russell,
+      REM partly with the assistance of QB2BBC, the QBasic to BBC BASIC translator;
+      REM it is compatible with 'BBC BASIC for SDL 2.0' and 'BBC BASIC for Windows'
+      REM
+      REM n.b. for practical sorting applications you should use the 'sortlib.bbc'
+      REM assembly language library, which will outperform any BASIC sort routine.
+      REM
+      REM ============================================================================
+      
+      ON ERROR IF ERR<>17 CLS : REPORT : END ELSE IF INKEY$(-256) = "W" QUIT ELSE \
+      \        CHAIN @lib$ + "../examples/tools/touchide"
+      
+      INSTALL @lib$ + "fnusing"
+      *TEMPO 1
+      SOUND 1,0,0,0
+      
+      REM Initialise window:
+      VDU 23,22,640;500;16,20,16,0
+      VDU 28,23,24,39,0,17,15 : OFF
+      COLOR 8,255,128,0
+      
+      REM Declare constants:
+      NUMBARS = 50
+      NUMCOLORS = 15
+      NUMSORTS = 6
+      NUMOPTIONS = 11
+      BARHEIGHT = 12
+      BARPITCH = 20
+      BARSCALE = 14
+      
+      REM Declare global variables:
+      NoSound% = FALSE
+      Pause% = 3
+      Click% = 0
+      Selection% = 0
+      StartTime = 0
+      
+      REM Handle mouse clicks and taps:
+      ON MOUSE Click% = (@lparam% >>> 16) DIV 20 - 3 : RETURN
+      
+      REM Define the data type used to hold the information for each bar:
+      DIM SortType{ \
+      \ Size%,      \  Bar length (used as the sort key)
+      \ ColorVal%,  \  Bar colour
+      \ BarString$  \  A graphics command to draw the bar
+      \ }
+      
+      REM Declare global arrays.  SortArray and SortBackup are both arrays of the
+      REM data type SortType defined above:
+      DIM SortArray{(NUMBARS)} = SortType{}, SortBackup{(NUMBARS)} = SortType{}
+      DIM OptionTitle$(NUMOPTIONS)
+      
+      REM Data statements for the different options printed in the sort menu:
+      DATA Insertion, Bubble, HeapSort, Exchange, ShellSort, QuickSort,
+      DATA Toggle Sound, , <   (Slower), >   (Faster)
+      
+      REM Begin logic of module-level code:
+      PROCInitialize : REM Initialize data values.
+      PROCMainLoop   : REM Print sort menu and run
+      END
+      
+      REM ============================== Initialize ==================================
+      REM    Initializes the SortBackup and OptionTitle arrays.  It also calls the
+      REM    PROCReinitialize and PROCMenuInit procedures.
+      REM ============================================================================
+      
+      DEF PROCInitialize
+      LOCAL temparray%(), index%, barsize%, maxsize%, maxindex%, I%
+      DIM temparray%(NUMBARS)
+      
+      REM Initialise temporary array:
+      FOR I% = 1 TO NUMBARS
+        temparray%(I%) = I%
+      NEXT I%
+      
+      maxindex% = NUMBARS
+      maxsize% = NUMBARS * BARSCALE
+      
+      FOR I% = 1 TO NUMBARS
+        
+        REM Call FNRandInt() to find a random element in temparray between
+        REM 1 and maxindex%, then use its value to determine barsize%:
+        index% = FNRandInt(1, maxindex%)
+        barsize% = temparray%(index%) * BARSCALE
+        
+        REM Assign the barsize% value to the .Size% member, then store in
+        REM the .BarString$ member the graphics command to draw the bar:
+        SortBackup{(I%)}.Size% = barsize%
+        SortBackup{(I%)}.BarString$ = CHR$(25) + CHR$(99) + CHR$(maxsize%) + \
+        \ CHR$(maxsize% >> 8) + CHR$(BARHEIGHT) + CHR$(BARHEIGHT >> 8) + \
+        \ CHR$(25) + CHR$(0) + CHR$(-maxsize%) + CHR$(-maxsize% >> 8) + \
+        \ CHR$(0) + CHR$(0) + CHR$(25) + CHR$(97) + CHR$(barsize%) + \
+        \ CHR$(barsize% >> 8) + CHR$(-BARHEIGHT) + CHR$(-BARHEIGHT >> 8)
+        
+        REM Store the appropriate colour value in the .ColorVal% member:
+        SortBackup{(I%)}.ColorVal% = ((temparray%(index%) - 1) MOD NUMCOLORS) + 1
+        
+        REM Overwrite the value in temparray%(index%) with the value in
+        REM temparray%(maxindex%) so the value in temparray%(index%) is
+        REM chosen only once:
+        temparray%(index%) = temparray%(maxindex%)
+        
+        REM Decrease the value of maxindex% so that temparray(maxindex%) can't
+        REM be chosen on the next pass through the loop:
+        maxindex% = maxindex% - 1
+      NEXT I%
+      
+      FOR I% = 1 TO NUMOPTIONS : REM Read SORTDEMO menu options and store
+        READ OptionTitle$(I%)  : REM them in the OptionTitle array.
+      NEXT I%
+      
+      CLS
+      PROCReinitialize : REM Assign values in SortBackup to SortArray and draw bars
+      PROCMenuInit     : REM Show the sort menu
+      
+      ENDPROC
+      
+      REM =============================== MenuInit ===================================
+      REM    Draw the menu, clearing any previous time measurements
+      REM ============================================================================
+      
+      DEF PROCMenuInit
+      LOCAL I%
+      
+      PRINT TAB(2, 2) "SORTING DEMO" '
+      FOR I% = 1 TO NUMOPTIONS - 1
+        PRINT OptionTitle$(I%);
+        IF I% <= NUMSORTS PRINT TAB(9); SPC(6);
+        PRINT
+      NEXT I%
+      
+      REM Don't print the last option (> Faster) if the length of the Pause%
+      REM is down to 1 centisecond tick:
+      IF Pause% > 1 THEN
+        PRINT OptionTitle$(NUMOPTIONS)
+      ELSE
+        PRINT SPC(15)
+      ENDIF
+      
+      PRINT '"Click or tap on"
+      PRINT "choice, or type"
+      PRINT "first character:" '
+      PRINT "I B H E S Q T < >"
+      PRINT "or ESC to end."
+      
+      REM Toggle sound on or off, then print the current value for NoSound%:
+      NoSound% = NOT NoSound%
+      PROCToggleSound(12, 11)
+      
+      ENDPROC
+      
+      REM =============================== MainLoop ===================================
+      REM  The MainLoop procedure prompts the user to make one of these choices:
+      REM
+      REM               * One of the sorting algorithms
+      REM               * Toggle sound on or off
+      REM               * Increase or decrease speed
+      REM
+      REM  If he selects a sorting algorithm, the Reinitialize procedure is called to
+      REM  make sure the SortArray is in its unsorted form.
+      REM ============================================================================
+      
+      DEF PROCMainLoop
+      LOCAL option$
+      
+      REM Create a string consisting of all legal choices:
+      option$ = "IBHESQ T <>"
+      
+      REPEAT
+        
+        REPEAT
+          Selection% = 0
+          SWAP Selection%,Click%
+          IF Selection% = 0 Selection% = INSTR(option$, FNupper(CHR$(INKEY(10))))
+        UNTIL Selection%
+        
+        REM User chose one of the sorting procedures:
+        IF (Selection% >= 1) AND (Selection% <= NUMSORTS) THEN
+          PROCReinitialize : REM Rescramble the bars.
+          StartTime = (TIME/100) : REM Record the starting time.
+        ENDIF
+        
+        REM Branch to the appropriate procedure depending on the key typed:
+        CASE Selection% OF
+          WHEN 1:
+            PROCInsertionSort
+          WHEN 2:
+            PROCBubbleSort
+          WHEN 3:
+            PROCHeapSort
+          WHEN 4:
+            PROCExchangeSort
+          WHEN 5:
+            PROCShellSort
+          WHEN 6:
+            PROCQuickSort(1, NUMBARS)
+            
+          WHEN 8:
+            PROCToggleSound(12, 11)
+            
+          WHEN 10:
+            REM Increase pause length to slow down sorting time, then redraw
+            REM the menu to clear any timing results (since they won't compare
+            REM with future results):
+            Pause% += 1
+            PROCMenuInit
+            
+          WHEN 11:
+            REM Decrease pause length to speed up sorting time, then redraw
+            REM the menu to clear any timing results (since they won't compare
+            REM with future results):
+            IF Pause% > 1 Pause% -= 1
+            PROCMenuInit
+            
+          OTHERWISE:
+            REM Invalid selection
+            
+        ENDCASE
+        
+        IF (Selection% >= 1) AND (Selection% <= NUMSORTS) THEN
+          PROCElapsedTime(0) : REM Print final time.
+        ENDIF
+        
+      UNTIL FALSE
+      ENDPROC
+      
+      REM =============================== SwapBars ===================================
+      REM   Calls PrintOneBar twice to switch the two bars in row1% and row2%,
+      REM   then calls the ElapsedTime procedure.
+      REM ============================================================================
+      
+      DEF PROCSwapBars(row1%, row2%)
+      PROCPrintOneBar(row1%)
+      PROCPrintOneBar(row2%)
+      PROCElapsedTime(row1%)
+      ENDPROC
+      
+      REM ============================== ToggleSound =================================
+      REM   Reverses the current value for NoSound%, then prints that value next
+      REM   to the 'Toggle Sound' option on the sort menu.
+      REM ============================================================================
+      
+      DEF PROCToggleSound(column%, row%)
+      NoSound% = NOT NoSound%
+      PRINT TAB(column%, row%);
+      IF NoSound% THEN
+        PRINT ": OFF";
+      ELSE
+        PRINT ": ON ";
+      ENDIF
+      ENDPROC
+      
+      REM ============================= ElapsedTime ==================================
+      REM    Prints seconds elapsed since the given sorting routine started.
+      REM    Note that this time includes both the time it takes to redraw the
+      REM    bars plus the pause while the SOUND statement plays a note, and
+      REM    thus is not an accurate absolute indication of sorting speed.
+      REM ============================================================================
+      
+      DEF PROCElapsedTime(currentrow%)
+      
+      REM Print current selection and number of seconds elapsed:
+      IF currentrow% COLOR 0 : COLOR 128+7 ELSE COLOR NUMCOLORS : COLOR 128+0
+      PRINT TAB(0, Selection% + 3);
+      PRINT OptionTitle$(Selection%); SPC(9 - POS);
+      PRINT FNusing("###.##", TIME/100 - StartTime);
+      
+      IF NoSound% THEN
+        SOUND 1,-15,0,Pause% : REM Sound off, so just pause.
+      ELSE
+        SOUND 1,-15,currentrow% + 200,Pause% : REM Sound on, so play a note
+      ENDIF
+      
+      COLOR NUMCOLORS : COLOR 128+0 : REM Restore regular foreground and background
+      ENDPROC
+      
+      REM ================================ RandInt ===================================
+      REM   Returns a random integer greater than or equal to the lower% parameter
+      REM   and less than or equal to the upper% parameter.
+      REM ============================================================================
+      
+      DEF FNRandInt(lower%, upper%)
+      IF lower% = upper% THEN = lower%
+      = RND(upper% - lower% + 1) + lower% - 1
+      
+      REM ============================== Reinitialize ================================
+      REM   Restores the array SortArray to its original unsorted state, then
+      REM   prints the unsorted colour bars.
+      REM ============================================================================
+      
+      DEF PROCReinitialize
+      LOCAL I%
+      FOR I% = 1 TO NUMBARS
+        SortArray{(I%)} = SortBackup{(I%)}
+        PROCPrintOneBar(I%)
+      NEXT I%
+      ENDPROC
+      
+      REM ============================== PrintOneBar =================================
+      REM  Prints the SortArray().BarString$ mamber at the row indicated by the row%
+      REM  parameter, using the colour in SortArray(row%).ColorVal%
+      REM ============================================================================
+      
+      DEF PROCPrintOneBar(row%)
+      MOVE 0, row% * BARPITCH - BARHEIGHT
+      GCOL SortArray{(row%)}.ColorVal%
+      PRINT SortArray{(row%)}.BarString$;
+      ENDPROC
+      
+      REM!Eject
+      DEF The Sort Algorithms
+      
+      REM ============================= Insertion Sort ===============================
+      REM   The Insertion Sort procedure compares the length of each successive
+      REM   element in SortArray with the lengths of all the preceding elements.
+      REM   When the procedure finds the appropriate place for the new element, it
+      REM   inserts the element in its new place, and moves all the other elements
+      REM   down one place.
+      REM ============================================================================
+      
+      DEF PROCInsertionSort
+      LOCAL row%, tempval{}, tempsize%, J%
+      DIM tempval{} = SortType{}
+      FOR row% = 2 TO NUMBARS
+        tempval{} = SortArray{(row%)}
+        tempsize% = tempval.Size%
+        FOR J% = row% TO 2 STEP -1
+          
+          REM As long as the length of the J-1st element is greater than the
+          REM length of the original element in SortArray(row), keep shifting
+          REM the array elements down:
+          IF SortArray{(J% - 1)}.Size% > tempsize% THEN
+            SortArray{(J%)} = SortArray{(J% - 1)}
+            PROCPrintOneBar(J%) : REM Print the new bar.
+            PROCElapsedTime(J%) : REM Print the elapsed time.
+            
+            REM Otherwise, exit the FOR...NEXT loop:
+          ELSE
+            EXIT FOR
+          ENDIF
+        NEXT J%
+        
+        REM Insert the original value of SortArray(Row) in SortArray(J):
+        SortArray{(J%)} = tempval{}
+        PROCPrintOneBar(J%)
+        PROCElapsedTime(J%)
+      NEXT row%
+      ENDPROC
+      
+      REM ============================== Bubble Sort =================================
+      REM    The Bubble Sort algorithm cycles through SortArray, comparing adjacent
+      REM    elements and swapping pairs that are out of order.  It continues to
+      REM    do this until no pairs are swapped.
+      REM ============================================================================
+      
+      DEF PROCBubbleSort
+      LOCAL row%, switch%, limit%
+      limit% = NUMBARS
+      REPEAT
+        switch% = FALSE
+        FOR row% = 1 TO (limit% - 1)
+          IF limit% < 2 EXIT FOR
+          
+          REM Two adjacent elements are out of order, so swap their values
+          REM and redraw those two bars:
+          IF SortArray{(row%)}.Size% > SortArray{(row% + 1)}.Size% THEN
+            SWAP SortArray{(row%)}, SortArray{(row% + 1)}
+            PROCSwapBars(row%, row% + 1)
+            switch% = row%
+          ENDIF
+        NEXT row%
+        
+        REM Sort on next pass only to where the last switch was made:
+        limit% = switch%
+      UNTIL switch% = FALSE
+      
+      ENDPROC
+      
+      REM =============================== HeapSort ===================================
+      REM  The HeapSort procedure works by calling two other procedures - PercolateUp
+      REM  and PercolateDown.  PercolateUp turns SortArray into a 'heap', which has
+      REM  the properties outlined in the diagram below:
+      REM
+      REM                               SortArray(1)
+      REM                               /          \
+      REM                    SortArray(2)           SortArray(3)
+      REM                   /          \            /          \
+      REM         SortArray(4)   SortArray(5)   SortArray(6)  SortArray(7)
+      REM          /      \       /       \       /      \      /      \
+      REM        ...      ...   ...       ...   ...      ...  ...      ...
+      REM
+      REM
+      REM  where each 'parent node' is greater than each of its 'child nodes'; for
+      REM  example, SortArray(1) is greater than SortArray(2) or SortArray(3),
+      REM  SortArray(3) is greater than SortArray(6) or SortArray(7), and so forth.
+      REM
+      REM  Therefore, once the first FOR...NEXT loop in HeapSort is finished, the
+      REM  largest element is in SortArray(1).
+      REM
+      REM  The second FOR...NEXT loop in HeapSort swaps the element in SortArray(1)
+      REM  with the element in MaxRow, rebuilds the heap (with PercolateDown) for
+      REM  MaxRow - 1, then swaps the element in SortArray(1) with the element in
+      REM  MaxRow - 1, rebuilds the heap for MaxRow - 2, and continues in this way
+      REM  until the array is sorted.
+      REM ============================================================================
+      
+      DEF PROCHeapSort
+      LOCAL I%
+      FOR I% = 2 TO NUMBARS
+        PROCPercolateUp(I%)
+      NEXT I%
+      
+      FOR I% = NUMBARS TO 2 STEP -1
+        SWAP SortArray{(1)}, SortArray{(I%)}
+        PROCSwapBars(1, I%)
+        PROCPercolateDown(I% - 1)
+      NEXT I%
+      ENDPROC
+      
+      REM ============================ Percolate Down ================================
+      REM   The PercolateDown procedure restores the elements of SortArray from 1 to
+      REM   maxlevel% to a 'heap' (see the diagram with the HeapSort procedure).
+      REM ============================================================================
+      
+      DEF PROCPercolateDown(maxlevel%)
+      LOCAL child%, I%
+      I% = 1
+      
+      REM Move the value in SortArray(1) down the heap until it has
+      REM reached its proper node (that is, until it is less than its parent
+      REM node or until it has reached maxlevel%, the bottom of the current heap):
+      REPEAT
+        child% = 2 * I% : REM Get the subscript for the child node.
+        
+        REM Reached the bottom of the heap, so exit this procedure:
+        IF child% > maxlevel% THEN EXIT REPEAT
+        
+        REM If there are two child nodes, find out which one is bigger:
+        IF child% + 1 <= maxlevel% THEN
+          IF SortArray{(child% + 1)}.Size% > SortArray{(child%)}.Size% THEN
+            child% = child% + 1
+          ENDIF
+        ENDIF
+        
+        REM Move the value down if it is still not bigger than either one of
+        REM its children:
+        IF SortArray{(I%)}.Size% < SortArray{(child%)}.Size% THEN
+          SWAP SortArray{(I%)}, SortArray{(child%)}
+          PROCSwapBars(I%, child%)
+          I% = child%
+          
+          REM Otherwise, SortArray has been restored to a heap from 1 to MaxLevel,
+          REM so exit:
+        ELSE
+          EXIT REPEAT
+        ENDIF
+      UNTIL FALSE
+      ENDPROC
+      
+      REM ============================== Percolate Up ================================
+      REM   The PercolateUp procedure converts the elements from 1 to maxlevel% in
+      REM   SortArray into a 'heap' (see the diagram with the HeapSort procedure).
+      REM ============================================================================
+      
+      DEF PROCPercolateUp(maxlevel%)
+      LOCAL parent%, I%
+      I% = maxlevel%
+      
+      REM Move the value in SortArray(maxlevel%) up the heap until it has
+      REM reached its proper node (that is, until it is greater than either
+      REM of its child nodes, or until it has reached 1, the top of the heap):
+      WHILE I% <> 1
+        parent% = I% DIV 2 : REM Get the subscript for the parent node.
+        
+        REM The value at the current node is still bigger than the value at
+        REM its parent node, so swap these two array elements:
+        IF SortArray{(I%)}.Size% > SortArray{(parent%)}.Size% THEN
+          SWAP SortArray{(parent%)}, SortArray{(I%)}
+          PROCSwapBars(parent%, I%)
+          I% = parent%
+          
+          REM Otherwise, the element has reached its proper place in the heap,
+          REM so exit this procedure:
+        ELSE
+          EXIT WHILE
+        ENDIF
+      ENDWHILE
+      ENDPROC
+      
+      REM ============================= Exchange Sort ================================
+      REM   The Exchange Sort compares each element in SortArray - starting with
+      REM   the first element - with every following element.  If any of the
+      REM   following elements is smaller than the current element, it is exchanged
+      REM   with the current element and the process is repeated for the next
+      REM   element in SortArray.
+      REM ============================================================================
+      
+      DEF PROCExchangeSort
+      LOCAL J%, row%, smallestrow%
+      FOR row% = 1 TO NUMBARS
+        smallestrow% = row%
+        FOR J% = row% + 1 TO NUMBARS
+          IF (row% + 1) > NUMBARS EXIT FOR
+          IF SortArray{(J%)}.Size% < SortArray{(smallestrow%)}.Size% THEN
+            smallestrow% = J%
+            PROCElapsedTime(J%)
+          ENDIF
+        NEXT J%
+        
+        REM Found a row shorter than the current row, so swap those
+        REM two array elements:
+        IF smallestrow% > row% THEN
+          SWAP SortArray{(row%)}, SortArray{(smallestrow%)}
+          PROCSwapBars(row%, smallestrow%)
+        ENDIF
+      NEXT row%
+      ENDPROC
+      
+      REM =============================== ShellSort ==================================
+      REM  The ShellSort procedure is similar to the BubbleSort procedure.  However,
+      REM  ShellSort begins by comparing elements that are far apart (separated by
+      REM  the value of the offset% variable, which is initially half the distance
+      REM  between the first and last elements), then comparing elements that are
+      REM  closer together (when offset% is one, the last iteration of this procedure
+      REM  is merely a bubble sort).
+      REM ============================================================================
+      
+      DEF PROCShellSort
+      LOCAL row%, switch%, limit%, offset%
+      
+      REM Set comparison offset to half the number of records in SortArray:
+      offset% = NUMBARS DIV 2
+      
+      WHILE offset% : REM Loop until offset gets to zero.
+        limit% = NUMBARS - offset%
+        REPEAT
+          switch% = FALSE : REM Assume no switches at this offset.
+          
+          REM Compare elements and switch ones out of order:
+          FOR row% = 1 TO limit%
+            IF SortArray{(row%)}.Size% > SortArray{(row% + offset%)}.Size% THEN
+              SWAP SortArray{(row%)}, SortArray{(row% + offset%)}
+              PROCSwapBars(row%, row% + offset%)
+              switch% = row%
+            ENDIF
+          NEXT row%
+          
+          REM Sort on next pass only to where last switch was made:
+          limit% = switch% - offset%
+        UNTIL switch% = FALSE
+        
+        REM No switches at last offset, try one approximately half as big:
+        offset% = offset% / 1.7
+        
+      ENDWHILE
+      ENDPROC
+      
+      REM ============================== QuickSort ===================================
+      REM   QuickSort works by picking a random 'pivot' element in SortArray, then
+      REM   moving every element that is bigger to one side of the pivot, and every
+      REM   element that is smaller to the other side.  QuickSort is then called
+      REM   recursively with the two subdivisions created by the pivot.  Once the
+      REM   number of elements in a subdivision reaches two, the recursive calls end
+      REM   and the array is sorted.
+      REM ============================================================================
+      
+      DEF PROCQuickSort(low%, high%)
+      LOCAL randindex%, partition%, J%, I%
+      IF low% < high% THEN
+        
+        REM Only two elements in this subdivision; swap them if they are out of
+        REM order, then end recursive calls:
+        IF high% - low% = 1 THEN
+          IF SortArray{(low%)}.Size% > SortArray{(high%)}.Size% THEN
+            SWAP SortArray{(low%)}, SortArray{(high%)}
+            PROCSwapBars(low%, high%)
+          ENDIF
+        ELSE
+          
+          REM Pick a pivot element at random, then move it to the end:
+          randindex% = FNRandInt(low%, high%)
+          SWAP SortArray{(high%)}, SortArray{(randindex%)}
+          PROCSwapBars(high%, randindex%)
+          partition% = SortArray{(high%)}.Size%
+          REPEAT
+            
+            REM Move in from both sides towards the pivot element:
+            I% = low% : J% = high%
+            WHILE (I% < J%) AND (SortArray{(I%)}.Size% <= partition%)
+              I% = I% + 1
+            ENDWHILE
+            WHILE (J% > I%) AND (SortArray{(J%)}.Size% >= partition%)
+              J% = J% - 1
+            ENDWHILE
+            
+            REM If we haven't reached the pivot element, it means that two
+            REM elements on either side are out of order, so swap them:
+            IF I% < J% THEN
+              SWAP SortArray{(I%)}, SortArray{(J%)}
+              PROCSwapBars(I%, J%)
+            ENDIF
+          UNTIL (I% < J%)=FALSE
+          
+          REM Move the pivot element back to its proper place in the array:
+          SWAP SortArray{(I%)}, SortArray{(high%)}
+          PROCSwapBars(I%, high%)
+          
+          REM Recursively call the QuickSort procedure (pass the smaller
+          REM subdivision first to use less stack space):
+          IF (I% - low%) < (high% - I%) THEN
+            PROCQuickSort(low%, I% - 1)
+            PROCQuickSort(I% + 1, high%)
+          ELSE
+            PROCQuickSort(I% + 1, high%)
+            PROCQuickSort(low%, I% - 1)
+          ENDIF
+        ENDIF
+      ENDIF
+      ENDPROC

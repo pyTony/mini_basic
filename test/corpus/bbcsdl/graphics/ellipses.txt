@@ -1,0 +1,20 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Patterns created by rotating ellipses
+      REM. Richard Russell 06-Jul-2004
+      
+      MODE 8
+      OFF
+      INSTALL @lib$+"ellipse"
+      
+      A% = 0
+      REPEAT
+        GCOL 3,RND(15)
+        PROCellipsefill(640,512,80,480,A%*PI/20)
+        GCOL RND(15)
+        PROCellipse(640,512,80,480,A%*PI/20)
+        A% = (A%+1) MOD 20
+        *REFRESH
+        WAIT 5
+      UNTIL FALSE
+      END

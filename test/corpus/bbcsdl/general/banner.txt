@@ -1,0 +1,151 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Scrolling banner demo, Richard Russell, 01-Oct-2017, 18-Oct-2020
+      MODE 8
+      INSTALL @lib$+"xmllib"
+      INSTALL @lib$+"socklib"
+      OSCLI "FONT """+@lib$+"FreeSans"",22"
+      
+      File% = OPENOUT(@tmp$ + "rss.tmp")
+      PROCrss(File%, "http://bbcbasic.co.uk/proxy1/bbc.co.uk/news/rss.xml")
+      
+      IF POS : REM SDL thread synchronisation
+      BannerHeight% = 2*@char.y% + 8
+      
+      *TIMER 32
+      ON TIME PROCtimer:RETURN
+      OFF
+      
+      old%=0
+      VDU 5,24,0;BannerHeight%;@size.x%*2-2;@size.y%*2-2;
+      REPEAT
+        WAIT 0
+        IF TIME>old% THEN
+          old%=TIME+100
+          GCOL RND(15) : CIRCLE FILL RND(1200),RND(1000),RND(200)
+          GCOL RND(15) : MOVE RND(1200),RND(1000) : PRINT "Banner demo";
+        ENDIF
+        
+        IF EOF#File% PROCrss(File%, "http://feeds.bbci.co.uk/news/rss.xml")
+      UNTIL FALSE
+      END
+      
+      DEF PROCtimer
+      PRIVATE H%,O%,T%,X%,S$ : T% += 6 : IF H% ENDPROC
+      H% = TRUE
+      LOCAL C%,W%,savevdu{}
+      DIM savevdu{}=@vdu{}
+      C% = POS
+      savevdu{}=@vdu{}
+      @vdu.hr% = 0
+      @vdu.m.c&=&C0
+      IF S$="" X% = 2 * @vdu.tr%
+      WHILE WIDTH(S$) <= (@size.x%*2 - X%)
+        S$ += GET$#File% TO &D + "   •   "
+        C% = BGET#File%
+      ENDWHILE
+      *REFRESH OFF
+      VDU 23,16,64;0;0;0;29,0;0;5,18,0,132,18,0,11,25,4,0;0;
+      VDU 25,99,@size.x%*2;BannerHeight%;25,4,X%;BannerHeight%-8;
+      PRINT S$;
+      *REFRESH ON
+      C% = 14
+      REPEAT C% += 1 : UNTIL ASCMID$(S$,C%,1) < 128
+      W% = WIDTH(LEFT$(S$,C%))
+      X%-= T%-O% : IF X%<=-W% X%+=W% : S$=MID$(S$,C%+1)
+      O% = T%
+      C% = POS
+      @vdu{}=savevdu{}
+      H% = FALSE
+      *REFRESH
+      ENDPROC
+      
+      DEF PROCrss(file%, url$)
+      LOCAL text$,rss$,F%,I%
+      PRIVATE xml{}
+      PROC_initsockets
+      text$ = FNhttpget(url$)
+      IF text$ = "" THEN
+        rss$ = @dir$+"banner.xml"
+      ELSE
+        rss$ = @tmp$+"temp.xml"
+        F% = OPENOUT(rss$)
+        BPUT#F%,text$;
+        CLOSE #F%
+      ENDIF
+      PROC_initXML(xml{},rss$)
+      text$ = ""
+      WHILE FN_skipTo(xml{},"item",0)
+        I% = FN_getLevel(xml{})
+        IF FN_skipTo(xml{},"title",I%) THEN
+          rss$ = FN_repEnt(FN_nextToken(xml{}))
+          IF LEFT$(rss$,9)="<![CDATA[" rss$ = MID$(rss$,10)
+          IF RIGHT$(rss$,3) = "]]>" rss$ = LEFT$(rss$,LEN(rss$)-3)
+          IF RIGHT$(rss$)="." rss$=LEFT$(rss$)
+          text$ += rss$ + ".  "
+        ENDIF
+        IF FN_skipTo(xml{},"description",I%) THEN
+          rss$ = FN_repEnt(FN_nextToken(xml{}))
+          IF LEFT$(rss$,9)="<![CDATA[" rss$ = MID$(rss$,10)
+          IF RIGHT$(rss$,3) = "]]>" rss$ = LEFT$(rss$,LEN(rss$)-3)
+          IF RIGHT$(rss$)="." rss$=LEFT$(rss$)
+          text$ += rss$ + CHR$&D + CHR$&A
+        ENDIF
+      ENDWHILE
+      PROC_exitXML(xml{})
+      PROC_exitsockets
+      PTR#file% = 0
+      BPUT#file%, text$;
+      PTR#file% = 0
+      ENDPROC
+      
+      DEF FNhttpget(url$)
+      IF INKEY(-256) <> &57 IF (@platform% AND &F) = 5 THEN = FNhttpget_wasm(url$)
+      = FNhttpget_sock(url$)
+      
+      DEF FNhttpget_sock(url$)
+      LOCAL b$,I%,S%,host$,path$,ret$
+      b$ = STRING$(256,CHR$0)
+      S% = INSTR(url$,"//")
+      I% = INSTR(url$,"/",S%+2)
+      host$ = MID$(url$,S%+2,I%-S%-2)
+      path$ = MID$(url$,I%)
+      S% = FN_tcpconnect(host$, "80")
+      IF S% = FALSE OR S% = TRUE THEN = ""
+      I% = FN_writelinesocket(S%,"GET "+path$+" HTTP/1.0")
+      I% = FN_writelinesocket(S%,"Host: "+host$)
+      I% = FN_writelinesocket(S%,"User-agent: BBC BASIC")
+      I% = FN_writelinesocket(S%,"Accept: */*")
+      I% = FN_writelinesocket(S%,"")
+      REPEAT
+        I% = FN_readsocket(S%,PTR(b$),256)
+        IF I% = 0 WAIT 1
+        IF I% > 0 ret$ += LEFT$(b$,I%)
+      UNTIL I% < 0
+      ON TIME LOCAL OFF
+      PROC_closesocket(S%)
+      CASE VALMID$(ret$,9,255) OF
+        WHEN 200:
+          I% = INSTR(ret$,CHR$&D+CHR$&A+CHR$&D+CHR$&A)
+          IF I% ret$ = MID$(ret$,I%+4)
+        WHEN 301:
+          I% = INSTR(ret$,"Location:")
+          IF I% = 0 I% = INSTR(ret$,"location:")
+          IF I% ret$ = FNhttpget("http://" + host$ + $(PTR(ret$) + I% + 9))
+      ENDCASE
+      = ret$
+      
+      DEF FNhttpget_wasm(url$)
+      LOCAL F%, T%, file$, ret$
+      file$ = @tmp$ + "banner.tmp"
+      SYS "emscripten_async_wget", "https://www.bbcbasic.co.uk/bbcsdl/wasm/proxy/" + url$, file$
+      T% = TIME + 3000
+      REPEAT
+        WAIT 10
+        F% = OPENIN(file$)
+      UNTIL F% OR TIME > T%
+      IF F% = 0 THEN = ""
+      ret$ = GET$#F% BY EXT#F%
+      CLOSE #F%
+      OSCLI "DELETE """ + file$ + """"
+      = ret$

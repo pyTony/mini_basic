@@ -1,0 +1,189 @@
+      REM Page Turn Effect by Richard Russell, 09-May-2022
+      REM (C) R.T.Russell http://www.rtrussell.co.uk, 2022
+      
+      dX% = 800
+      dY% = 400
+      VDU 23,22,dX%;dY%;8,16,16,0
+      
+      title$ = "Hold left mouse button to grab the corner!"
+      SYS "SDL_SetWindowTitle", @hwnd%, title$, @memhdc%
+      
+      ON ERROR IF ERR = 17 CHAIN @lib$ + "../examples/tools/touchide" ELSE \
+      \        OSCLI "REFRESH ON" : CLS : PRINT REPORT$ " at line "; ERL : END
+      ON MOVE Resized% OR= (@msg% = 5) : RETURN
+      Resized% = FALSE
+      OFF
+      
+      INSTALL @lib$+"aagfxlib"
+      INSTALL @lib$+"gfxlib"
+      PROC_gfxInit
+      
+      REPEAT
+        PROCpageturn(@dir$ + "../games/jigsaw.jpg")
+        PROCpageturn(@dir$ + "../physics/cranejib.jpg")
+        PROCpageturn(@dir$ + "../graphics/world.jpg")
+        PROCpageturn(@dir$ + "../sounds/organ.jpg")
+        PROCpageturn(@dir$ + "../games/.Hangman/bg0.jpg")
+      UNTIL FALSE
+      END
+      
+      DEF PROCpageturn(file$)
+      PRIVATE left%, prev$, g{}
+      LOCAL angle, x0, x1, x2, x3, y0, y1, y2, xm, ym, B%, N%, X%, Y%
+      LOCAL bkgd%%, clip%%, this%%, prev%%, x1%, x2%, x3%, y1%, y2%, y3%
+      LOCAL change%, delta%, flip%, ok%, l1, l2, dx, dy, x(), y()
+      DIM x(3), y(3)
+      
+      left% = NOT left%
+      IF left% prev$ = file$ : ENDPROC
+      
+      REM Grab the existing screen as the new background:
+      OSCLI "GSAVE """ + @tmp$ + "pageturn.bmp"""
+      bkgd%% = FN_gfxLoadTexture(@tmp$ + "pageturn.bmp", 0)
+      
+      *REFRESH OFF
+      clip%% = FN_gfxCreateTexture(dX%/2, dY%)
+      
+      REM Centre the images on a black background and add a border:
+      prev%% = FNfetch(prev$)
+      this%% = FNfetch(file$)
+      
+      delta% = dY% * 0.2
+      change% = TIME + 400
+      x0 = dX% - 2 : y0 = 0
+      
+      FOR flip% = 3 TO 180 STEP 3
+        IF Resized% Resized% = FALSE : PROCresize : change% = TIME : EXIT FOR
+        
+        REM Check for manual (mouse or touchscreen) movement:
+        MOUSE X%,Y%,B%
+        IF (B% AND 4) IF X% < 2*dX% THEN
+          IF (X%^2 + Y%^2 - 2*X%*dX%) < 0 IF (X%^2 + Y%^2 - 2*X%*dX% - 4*Y%*dY%) < 0 THEN
+            x0 = X% / 2 : y0 = Y% / 2
+          ENDIF
+          flip% = DEGACS(x0*2/dX% - 1) DIV 3 * 3
+          delta% = y0 / SINRADflip%
+        ELSE
+          x0 = dX%/2 + dX%/2 * COSRADflip%
+          y0 = delta% * SINRADflip%
+        ENDIF
+        
+        REM Calculate the position of the 'fold':
+        xm = (x0 + dX%) / 2 : ym = y0 / 2
+        dx = dX% - x0 : dy = y0
+        
+        x1 = xm - ym * dy / dx : y1 = 0
+        x2 = dX%
+        IF ABS(dy) > 0.1 y2 = ym + (x2 - xm) * dx / dy ELSE y2 = &3FFFFFFF
+        
+        REM Blit the background:
+        PROC_gfxPlotScale(bkgd%%, dX%, dY%, 0, 0)
+        
+        REM Blit the rotated left image:
+        l1 = SQR((x1-x0)^2 + (y1-y0)^2)
+        l2 = SQR((x2-x0)^2 + (y2-y0)^2)
+        x1% = x0 + SGN(dy+0.1) * (x2-x0) * dY% / l2
+        y1% = dY% - y0 + SGN(dy+0.1) * (y0-y2) * dY% / l2
+        x2% = x1% + (x1-x0) * dX% / 2 / l1
+        y2% = y1% + (y0-y1) * dX% / 2 / l1
+        x3% = x0 : y3% = dY% - y0
+        angle = DEGFNatan2(y2%-y1%, x2%-x1%)
+        PROC_gfxPlotRotateScale(prev%%, dX%/2, dY%, (x2%+x3%)/2, (y2%+y3%)/2, angle)
+        
+        REM Calculate the polygon clipping region:
+        IF y2 <= dY% AND y2 >= 0 THEN
+          x() = x1, x2, x2
+          y() = y1, y2, y1
+          N% = 3
+        ELSE
+          x3 = x2
+          x2 = x1 + (x2 - x1) * dY% / y2
+          y2 = dY%
+          x() = x1, x2, x3, x3
+          y() = y1, y2, y2, y1
+          N% = 4
+        ENDIF
+        
+        REM Adjust pixel-coordinates to BASIC coordinates:
+        y() *= 2
+        x() *= 2
+        x() -= dX%
+        
+        REM Clip the right image:
+        ok% = TRUE
+        ON ERROR LOCAL IF FALSE THEN
+          PROC_gfxSaveAndSetDispVars(g{}, clip%%)
+          PROC_gfxClrX(&00, &00, &00, &00)
+          PROC_aapolygon(N%, x(), y(), &FF000000)
+          PROC_gfxReversePlotScale(this%%, dX%/2, dY%, 0, 0)
+        ELSE
+          ok% = FALSE
+        ENDIF : RESTORE ERROR
+        PROC_gfxRestoreDispVars(g{})
+        IF NOT ok% ERROR ERR, REPORT$
+        
+        REM Blit the clipped right image:
+        PROC_gfxPlotScale(clip%%, dX%/2, dY%, dX%/2, 0)
+        
+        REM Shade the 'fold':
+        IF flip%<>180 THEN
+          dx = y1 - y2 : dy = x2 - x1
+          l1 = SQR(dx^2 + dy^2) : dx *= 2 / l1 : dy *= 2 / l1
+          FOR B% = 9 TO 1 STEP -2
+            PROC_aaline(2*x1, 2*y1, 2*x2, 2*y2, 2.0, B% << 28, 0)
+            x1 += dx : y1 += dy : x2 += dx : y2 += dy
+          NEXT
+        ENDIF
+        
+        *REFRESH
+      NEXT
+      *REFRESH ON
+      
+      REM Clean up the objects:
+      PROC_gfxDestroyTexture(prev%%)
+      PROC_gfxDestroyTexture(this%%)
+      PROC_gfxDestroyTexture(clip%%)
+      PROC_gfxDestroyTexture(bkgd%%)
+      
+      REPEAT UNTIL TIME >= change% OR INKEY(2) <> TRUE OR INKEY(-10) OR Resized%
+      ENDPROC
+      
+      DEF FNfetch(img$)
+      LOCAL cx%,cy%
+      PROCjpgdims(img$, cx%, cy%)
+      IF cx% = 0 OR cy% = 0 ERROR 100, "Couldn't open " + img$
+      IF cx%/cy% > dX%/2/dY% cy%=dX%/2*cy%/cx% : cx%=dX%/2 ELSE cx%=dY%*cx%/cy% : cy%=dY%
+      CLS
+      OSCLI "DISPLAY """ + img$ + """ " + STR$(dX% DIV 2-cx%) + "," + STR$(dY%-cy%) + \
+      \                             "," + STR$(cx%*2) + "," + STR$(cy%*2)
+      
+      REM Add border:
+      COLOR 1, &C0, &80, &00 : GCOL 1
+      VDU 23,23,4|
+      RECTANGLE 4, 4, dX%-8, dY%*2-8
+      
+      REM Grab the image:
+      OSCLI "GSAVE """ + @tmp$ + "pageturn.bmp"" 0,0," + STR$(dX%) + "," + STR$(2*dY%)
+      = FN_gfxLoadTexture(@tmp$ + "pageturn.bmp", 0)
+      
+      DEF PROCresize
+      VDU 26,12
+      IF POS REM SDL thread sync
+      dX% = @size.x%
+      dY% = @size.y%
+      ENDPROC
+      
+      DEF PROCjpgdims(jpg$, RETURN W%, RETURN H%)
+      LOCAL F%
+      F% = OPENIN(jpg$) : IF F% = 0 ENDPROC
+      PTR#F% = 4
+      REPEAT PTR#F% = PTR#F% + 256 * BGET#F% + BGET#F%
+      UNTIL BGET#F% = &FF AND (BGET#F% AND &F0) = &C0 OR EOF#F%
+      PTR#F% = PTR#F% + 3
+      H% = 256 * BGET#F% + BGET#F%
+      W% = 256 * BGET#F% + BGET#F%
+      CLOSE #F%
+      ENDPROC
+      
+      DEF FNatan2(y,x) : ON ERROR LOCAL = SGN(y)*PI/2
+      IF x>0 THEN = ATN(y/x) ELSE IF y>0 THEN = ATN(y/x)+PI ELSE = ATN(y/x)-PI

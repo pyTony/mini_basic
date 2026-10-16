@@ -1,0 +1,183 @@
+      ON ERROR OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM POLYFIT - fit a polynomial to a set of experimental data
+      REM demonstrating the use of BBC BASIC's matrix operations.
+      REM In this version the maximum order of polynomial is five.
+      REM Richard T. Russell, richard@rtrussell.co.uk, 12-Apr-2011
+      
+      HIMEM = PAGE + 5000000
+      INSTALL @lib$+"arraylib"
+      INSTALL @lib$+"fnusing"
+      INSTALL @lib$+"dlglib"
+      
+      file$ = @dir$+"polyfit.csv"
+      max% = 10000
+      
+      REM Initialise screen:
+      SYS "SDL_SetWindowTitle", @hwnd%, "Least squares polynomial fitting", @memhdc%
+      VDU 23,22,720;480;8,16,16,128+8
+      VDU 5 : OFF
+      
+      REM Set colour palette:
+      PROC_setdialogpalette
+      COLOR 2,0,100,0
+      
+      REM Set font:
+      OSCLI "FONT """ + @lib$ + "DejaVuSans"",12"
+      
+      REM Draw axes:
+      ORIGIN 140,168
+      PROCaxes
+      ORIGIN 0,0
+      
+      REM Declare arrays:
+      DIM vector(5), matrix(5,5)
+      DIM x(max%), x2(max%), x3(max%), x4(max%), x5(max%)
+      DIM x6(max%), x7(max%), x8(max%), x9(max%), x10(max%)
+      DIM y(max%), xy(max%), x2y(max%), x3y(max%), x4y(max%), x5y(max%)
+      
+      REM Create buttons:
+      container% = FN_newdialog("", 0, 0)
+      IDfitbutton% = FN_setproc(PROCfit())
+      PROC_button(container%, "Load & plot file", FN_setproc(PROCload()), 300, 20, 300, 44, 0)
+      PROC_button(container%, "Fit polynomial", IDfitbutton%, 880, 20, 300, 44, 0)
+      PROC_enabledlgitem(container%, IDfitbutton%, FALSE)
+      PROC_refreshdialog(container%)
+      
+      REM Mouse clicks:
+      DIM click%(2)
+      ON MOUSE click%() = @msg%,@wparam%,@lparam% : RETURN
+      
+      REM Idle loop:
+      REPEAT
+        res% = FN_polldialog(container%, INKEY(4), click%())
+      UNTIL FALSE
+      END
+      
+      REM Draw axes and labels:
+      DEF PROCaxes
+      CLS
+      GCOL 0
+      FOR x = 0.0 TO 1.01 STEP 0.1
+        MOVE x*1200, 0 : PLOT 21, x*1200, 700
+        MOVE x*1200-24, -24 : PRINT FNusing("#.#", x);
+      NEXT
+      FOR y = 0 TO 6
+        MOVE 0, 700*y/6 : PLOT 21, 1198, 700*y/6
+        MOVE -80, 700*y/6+16 : PRINT FNusing("#.#", y);
+      NEXT
+      RECTANGLE 0, 0, 1200, 700
+      ENDPROC
+      
+      REM Load and plot file:
+      DEF PROCload(D%,I%)
+      file% = OPENIN(file$)
+      IF file% = 0 ERROR 0, "Could not open file " + file$
+      
+      VDU 5
+      ORIGIN 0,0
+      VDU 24,0;0;1438;958;
+      ORIGIN 140,168
+      *REFRESH ON
+      PROCaxes
+      
+      index% = 0
+      x() = 0.0
+      y() = 0.0
+      GCOL 13
+      WHILE NOT EOF#file% AND index% <= max%
+        record$ = GET$#file%
+        comma% = INSTR(record$, ",")
+        IF comma% THEN
+          x(index%) = VAL(record$)
+          y(index%) = VAL(MID$(record$,comma%+1))
+          PLOT x(index%)*1200, y(index%)*700/6
+          index% += 1
+        ENDIF
+      ENDWHILE
+      CLOSE #file%
+      npts% = index%
+      ORIGIN 0,0
+      PROC_enabledlgitem(container%, IDfitbutton%, TRUE)
+      PROC_refreshdialog(container%)
+      ENDPROC
+      
+      REM Fit and plot polynomial:
+      DEF PROCfit(D%,I%)
+      TIME = 0
+      
+      VDU 5
+      ORIGIN 0,0
+      VDU 24,0;0;1438;958;
+      ORIGIN 140,168
+      *REFRESH ON
+      sum_x = SUM(x())
+      x2()  = x() * x()   : sum_x2  = SUM(x2())
+      x3()  = x() * x2()  : sum_x3  = SUM(x3())
+      x4()  = x2() * x2() : sum_x4  = SUM(x4())
+      x5()  = x2() * x3() : sum_x5  = SUM(x5())
+      x6()  = x3() * x3() : sum_x6  = SUM(x6())
+      x7()  = x3() * x4() : sum_x7  = SUM(x7())
+      x8()  = x4() * x4() : sum_x8  = SUM(x8())
+      x9()  = x4() * x5() : sum_x9  = SUM(x9())
+      x10() = x5() * x5() : sum_x10 = SUM(x10())
+      
+      sum_y = SUM(y())
+      xy()  = x() * y()   : sum_xy  = SUM(xy())
+      x2y() = x2() * y()  : sum_x2y = SUM(x2y())
+      x3y() = x3() * y()  : sum_x3y = SUM(x3y())
+      x4y() = x4() * y()  : sum_x4y = SUM(x4y())
+      x5y() = x5() * y()  : sum_x5y = SUM(x5y())
+      
+      matrix() = \
+      \ npts%,  sum_x,   sum_x2,  sum_x3,  sum_x4,  sum_x5, \
+      \ sum_x,  sum_x2,  sum_x3,  sum_x4,  sum_x5,  sum_x6, \
+      \ sum_x2, sum_x3,  sum_x4,  sum_x5,  sum_x6,  sum_x7, \
+      \ sum_x3, sum_x4,  sum_x5,  sum_x6,  sum_x7,  sum_x8, \
+      \ sum_x4, sum_x5,  sum_x6,  sum_x7,  sum_x8,  sum_x9, \
+      \ sum_x5, sum_x6,  sum_x7,  sum_x8,  sum_x9,  sum_x10
+      
+      vector() = \
+      \ sum_y,  sum_xy,  sum_x2y, sum_x3y, sum_x4y, sum_x5y
+      
+      PROC_invert(matrix())
+      vector() = matrix().vector()
+      
+      took = TIME / 100
+      
+      GCOL 1
+      MOVE 80, -72
+      PRINT "y = " FNusing("##.###", vector(0)) FNminus("+#.###", vector(1)) " x" \
+      \    FNminus("+#.###", vector(2)) " x" FNsup("2") FNminus("+#.###", vector(3)) " x" FNsup("3") \
+      \    FNminus("+#.###", vector(4)) " x" FNsup("4") FNminus("+#.###", vector(5)) " x" FNsup("5")
+      
+      GCOL 2
+      MOVE 80, -120
+      PRINT "Fitting order-five polynomial to " ;npts% " points took " ;
+      PRINT FNusing("#.##", took) " seconds"
+      
+      GCOL 1
+      FOR x = 0.0 TO 1.0 STEP 0.001
+        y = 0
+        FOR power% = 0 TO 5
+          y += vector(power%) * x^power%
+        NEXT
+        PLOT x*1200, y*700/6
+      NEXT x
+      
+      ORIGIN 0,0
+      PROC_enabledlgitem(container%, IDfitbutton%, FALSE)
+      PROC_refreshdialog(container%)
+      ENDPROC
+      
+      DEF FNsup(s$)
+      = CHR$25+CHR$0+CHR$0+CHR$0+CHR$10+CHR$0+s$+CHR$25+CHR$0+CHR$0+CHR$0+CHR$-10+CHR$-1
+      
+      DEF FNminus(f$,n)
+      LOCAL I%,r$
+      r$ = FNusing(f$,n)
+      REPEAT
+        I% = INSTR(r$, "-")
+        IF I% r$ = LEFT$(r$,I%-1) + "−" + MID$(r$,I%+1)
+      UNTIL I% = 0
+      = r$

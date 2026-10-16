@@ -1,0 +1,44 @@
+      REM Demonstration of displaying an Animated GIF, RTR, 20-Jan-2022
+      REM Compatible with BBC BASIC for SDL 2.0 & BBC BASIC for Windows
+      
+      VDU 23,22,640;400;8,20,16,128
+      
+      INSTALL @lib$ + "imglib"
+      PROC_imgInit
+      OFF
+      
+      ON CLOSE PROC_imgExit : QUIT
+      ON ERROR PROC_imgExit : OSCLI "REFRESH ON" : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE CLS : PRINT REPORT$ : END
+      
+      file$ = @dir$ + "animated.gif"
+      
+      gif%% = FN_imgLoadAnimatedGIF(file$)
+      IF gif%% = 0 ERROR 90, "Couldn't open file: " + file$
+      
+      COLOR 1,255,255,204
+      COLOR 128+1
+      
+      *REFRESH OFF
+      REPEAT
+        frame% = 0
+        REPEAT
+          CLS
+          delay% = FN_imgFrame(gif%%, frame%)
+          IF delay% = 0 EXIT REPEAT
+          PROC_imgMult(gif%%, 1.0, 1.0, 1.0, 1.0)
+          PROC_imgPlot(gif%%, @size.x%, @size.y%, 2.0, 2.0, 0.0)
+          PROC_imgMult(gif%%, 1.0, 1.0, 1.0, 0.5)
+          FOR X% = 128 TO 1152 STEP 256
+            PROC_imgPlot(gif%%, X%,  80, -2/3, 2/3, 0.0)
+            PROC_imgPlot(gif%%, X%, 720, 2/3, 2/3, 0.0)
+          NEXT X%
+          FOR Y% = 240 TO 560 STEP 160
+            PROC_imgPlot(gif%%, 128, Y%, 2/3, 2/3, 0.0)
+            PROC_imgPlot(gif%%,1152, Y%, -2/3, 2/3, 0.0)
+          NEXT Y%
+          *REFRESH
+          WAIT delay%
+          frame% += 1
+        UNTIL FALSE
+      UNTIL FALSE
+      END

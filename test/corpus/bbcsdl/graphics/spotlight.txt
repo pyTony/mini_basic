@@ -1,0 +1,154 @@
+      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      
+      REM. Program to demonstrate the use of different light types in BBCSDL or BB4W
+      
+      MODE 3
+      
+      title$ = "Click or tap on a light to cycle Spotlight -> Directional -> Point-source"
+      IF INKEY$(-256)="W" THEN
+        INSTALL @lib$+"d3dliba"
+        SYS "SetWindowText", @hwnd%, title$
+      ELSE
+        INSTALL @lib$+"webgllib"
+        SYS "SDL_SetWindowTitle", @hwnd%, title$, @memhdc%
+      ENDIF
+      
+      DIM pVB%(0)
+      ON CLOSE PROCcleanup : QUIT
+      ON ERROR PROCcleanup : IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+      ON MOVE IF @msg% <> 5 RETURN ELSE PROCcleanup : CLEAR
+      VDU 20,26,12
+      PRINT "Please wait..."
+      *REFRESH
+      
+      DIM l%(2), pVB%(0), n%(0), f%(0), s%(0), m%(0), t%(0), y(0), p(0), r(0), X(0), Y(0), Z(0)
+      DIM e(2), a(2)
+      
+      DIM light{(2) Type%, Diffuse{r%,g%,b%,a%}, Specular{r%,g%,b%,a%}, \
+      \ Ambient{r%,g%,b%,a%}, Position{x%,y%,z%}, Direction{x%,y%,z%}, \
+      \ Range%, Falloff%, Attenuation0%, Attenuation1%, Attenuation2%, \
+      \ Theta%, Phi% }
+      
+      ON MOUSE PROCclick(@lparam%) : RETURN
+      
+      IF INKEY$(-256)="W" d% = FN_initd3d(@hwnd%, 1, 1) ELSE d% = FN_initgl(@hwnd%, 2, 1)
+      IF d% = 0 ERROR 100, "Can't initialise 3D library"
+      
+      REM. Create white plane square consisting of two triangles:
+      F% = OPENOUT(@tmp$+"square.fvf")
+      PROC4(F%, 12288) : REM vertex count
+      PROC4(F%, &00240152) : REM vertex format and size
+      PROCtriangulate(6, F%,   0,  0,  0, -1,  1,  0, -1, -1,  0)
+      PROCtriangulate(6, F%,   0,  0,  0,  1,  1,  0, -1,  1,  0)
+      PROCtriangulate(6, F%,   0,  0,  0,  1, -1,  0,  1,  1,  0)
+      PROCtriangulate(6, F%,   0,  0,  0, -1, -1,  0,  1, -1,  0)
+      CLOSE #F%
+      
+      REM. Load 3D object:
+      pVB%(0) = FN_load3d(d%, @tmp$+"square.fvf", n%(0), f%(0), s%(0))
+      IF pVB%(0) = 0 ERROR 100, "Can't load square.fvf"
+      
+      light{(0)}.Type% = 2 : REM spotlight
+      light{(0)}.Diffuse.r% = FN_f4(1)
+      light{(0)}.Diffuse.g% = FN_f4(0)
+      light{(0)}.Diffuse.b% = FN_f4(0)
+      light{(0)}.Position.x% = FN_f4(0.4*SIN(-PI/3))
+      light{(0)}.Position.y% = FN_f4(0.4*COS(-PI/3)+0.1)
+      light{(0)}.Position.z% = FN_f4(-0.7)
+      light{(0)}.Direction.x% = FN_f4(0)
+      light{(0)}.Direction.y% = FN_f4(0)
+      light{(0)}.Direction.z% = FN_f4(1)
+      light{(0)}.Range% = FN_f4(10)
+      light{(0)}.Attenuation0% = FN_f4(1)
+      light{(0)}.Phi% = FN_f4(1.4)
+      l%(0) = light{(0)} - PAGE + !340
+      
+      light{(1)}.Type% = 2 : REM spotlight
+      light{(1)}.Diffuse.r% = FN_f4(0)
+      light{(1)}.Diffuse.g% = FN_f4(1)
+      light{(1)}.Diffuse.b% = FN_f4(0)
+      light{(1)}.Position.x% = FN_f4(0.4*SIN(PI/3))
+      light{(1)}.Position.y% = FN_f4(0.4*COS(PI/3)+0.1)
+      light{(1)}.Position.z% = FN_f4(-0.7)
+      light{(1)}.Direction.x% = FN_f4(0)
+      light{(1)}.Direction.y% = FN_f4(0)
+      light{(1)}.Direction.z% = FN_f4(1)
+      light{(1)}.Range% = FN_f4(10)
+      light{(1)}.Attenuation0% = FN_f4(1)
+      light{(1)}.Phi% = FN_f4(1.4)
+      l%(1) = light{(1)} - PAGE + !340
+      
+      light{(2)}.Type% = 2 : REM spotlight
+      light{(2)}.Diffuse.r% = FN_f4(0)
+      light{(2)}.Diffuse.g% = FN_f4(0)
+      light{(2)}.Diffuse.b% = FN_f4(1)
+      light{(2)}.Position.x% = FN_f4(0)
+      light{(2)}.Position.y% = FN_f4(-0.3)
+      light{(2)}.Position.z% = FN_f4(-0.7)
+      light{(2)}.Direction.x% = FN_f4(0)
+      light{(2)}.Direction.y% = FN_f4(0)
+      light{(2)}.Direction.z% = FN_f4(1)
+      light{(2)}.Range% = FN_f4(10)
+      light{(2)}.Attenuation0% = FN_f4(1)
+      light{(2)}.Phi% = FN_f4(1.4)
+      l%(2) = light{(2)} - PAGE + !340
+      
+      e() = 0, 0, -4
+      a() = 0, 0, 0
+      REPEAT
+        PROC_render(d%, &7F7F7F, 3, l%(), 1, m%(), t%(), pVB%(), n%(), f%(), s%(), \
+        \ y(), p(), r(), X(), Y(), Z(), e(), a(), PI/6, @vdu%!208/@vdu%!212, 1, 1000, 0)
+      UNTIL INKEY(2)=0
+      END
+      
+      DEF PROCclick(L%)
+      LOCAL X%, Y%
+      X% = (L% << 16) >> 16 : Y% = L% >> 16
+      IF (Y% > @size.y% DIV 2) L% = 2 ELSE L% = -(X% > @size.x% DIV 2)
+      light{(L%)}.Type% = light{(L%)}.Type% MOD 3 + 1
+      ENDPROC
+      
+      DEF PROCtriangulate(L%, F%, x0, y0, z0, x1, y1, z1, x2, y2, z2)
+      L% -= 1
+      IF L% THEN
+        LOCAL x3, y3, z3, x4, y4, z4, x5, y5, z5
+        x3 = (x0 + x1) / 2 : y3 = (y0 + y1) / 2 : z3 = (z0 + z1) / 2
+        x4 = (x0 + x2) / 2 : y4 = (y0 + y2) / 2 : z4 = (z0 + z2) / 2
+        x5 = (x1 + x2) / 2 : y5 = (y1 + y2) / 2 : z5 = (z1 + z2) / 2
+        PROCtriangulate(L%, F%, x0, y0, z0, x3, y3, z3, x4, y4, z4)
+        PROCtriangulate(L%, F%, x3, y3, z3, x1, y1, z1, x5, y5, z5)
+        PROCtriangulate(L%, F%, x4, y4, z4, x5, y5, z5, x2, y2, z2)
+        PROCtriangulate(L%, F%, x5, y5, z5, x4, y4, z4, x3, y3, z3)
+      ELSE
+        LOCAL a, b, c, d, e, f, n() : DIM n(2)
+        a = x1 - x2
+        b = y1 - y2
+        c = z1 - z2
+        d = x0 - x2
+        e = y0 - y2
+        f = z0 - z2
+        n(0) = b*f-c*e
+        n(1) = c*d-a*f
+        n(2) = a*e-b*d
+        n() /= MOD(n())
+        PROC4(F%, FN_f4(x0)) : PROC4(F%, FN_f4(y0)) : PROC4(F%, FN_f4(z0))
+        PROC4(F%, FN_f4(n(0))) : PROC4(F%, FN_f4(n(1))) : PROC4(F%, FN_f4(n(2)))
+        PROC4(F%, &FFFFFFFF) : PROC4(F%, FN_f4(0)) : PROC4(F%, FN_f4(0))
+        PROC4(F%, FN_f4(x1)) : PROC4(F%, FN_f4(y1)) : PROC4(F%, FN_f4(z1))
+        PROC4(F%, FN_f4(n(0))) : PROC4(F%, FN_f4(n(1))) : PROC4(F%, FN_f4(n(2)))
+        PROC4(F%, &FFFFFFFF) : PROC4(F%, FN_f4(0)) : PROC4(F%, FN_f4(0))
+        PROC4(F%, FN_f4(x2)) : PROC4(F%, FN_f4(y2)) : PROC4(F%, FN_f4(z2))
+        PROC4(F%, FN_f4(n(0))) : PROC4(F%, FN_f4(n(1))) : PROC4(F%, FN_f4(n(2)))
+        PROC4(F%, &FFFFFFFF) : PROC4(F%, FN_f4(0)) : PROC4(F%, FN_f4(0))
+      ENDIF
+      ENDPROC
+      
+      DEF PROCcleanup
+      pVB%(0) += 0:IF pVB%(0) PROC_release(pVB%(0)) : pVB%(0) = 0
+      d% += 0   :IF d%    PROC_release(d%)    : d% = 0
+      *REFRESH ON
+      ENDPROC
+      
+      DEF PROC4(F%, A%)
+      BPUT#F%,A% : BPUT#F%,A%>>8 : BPUT#F%,A%>>16 : BPUT#F%,A%>>24
+      ENDPROC

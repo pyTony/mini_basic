@@ -172,6 +172,10 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         # Add others as identified (e.g. some advanced VDU, VOICE etc. if top-level)
     }
     _MINI_ONLY_CMDS = frozenset({'BREAK', 'CONTINUE', 'EXIT'})
+    # Star-commands (OSCLI, e.g. *PLAY "x.wav") that are mini_basic sound
+    # extensions, not real BBC BASIC OS commands. SOUND itself is real BBC
+    # BASIC and must not be listed here.
+    _MINI_ONLY_STAR_CMDS = frozenset({'PLAY', 'MUSIC'})
     _ANSI_COLOUR_FUNCS = frozenset({
         'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
     })
@@ -860,6 +864,18 @@ def _interactive_repl(interp: BASICInterpreter) -> None:
         if use_windows_editor:
             try:
                 from .repl.windows_input import windows_repl_input
+
+                # The custom editor's redraw() does ESC[2K (erase the whole
+                # current row) before repainting "> " + what's typed so far.
+                # If the previous PRINT left the cursor mid-row (no trailing
+                # newline, e.g. ending in ";"), the prompt gets appended to
+                # that same row — and the first keystroke's redraw erases
+                # the leftover program output along with it. Force a fresh
+                # row first, same as real hardware's "> "/"Ok" prompt.
+                if getattr(interp, 'print_column', 0):
+                    sys.stdout.write('\r\n')
+                    sys.stdout.flush()
+                    interp.print_column = 0
 
                 text = windows_repl_input(
                     '> ',
