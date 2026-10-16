@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-16
 
+- [#135](https://github.com/pyTony/mini_basic/pull/135) Add comprehensive documentation and example programs — https://claude.ai/code/session_01XEtY7KXqoNtmrvatUqC19v
 - [#130](https://github.com/pyTony/mini_basic/pull/130) 🧪 Add tests for parse_shebang_line — 🎯 What: Added tests for `parse_shebang_line` in `mini_basic/dialect_hint.py` to fill a testing gap and increase codebase reliability. Addressed minor bugs related to modifier priority and token matching in executable names found during test development.
 - [#134](https://github.com/pyTony/mini_basic/pull/134) 🧪 Add tests for detect_bbc_binary_format — 🎯 What: The testing gap addressed This pull request introduces missing test coverage for the `detect_bbc_binary_format` function in `mini_basic/bbc_detokenize.py`. The lack of tests for this critical function posed a reliability risk when reading varying binary formats (like Wilson or Russell) in BBC BASIC.
 - [#127](https://github.com/pyTony/mini_basic/pull/127) 🧪 [Testing Improvement] Add full test coverage for bbc_os_scales — 🎯 What: Missing tests for `bbc_os_scales` function in `mini_basic/bbc_modes.py`. Unreachable dead code that checked specific dimensions was also discovered and removed. 📊 Coverage: Added coverage for scenario when both x and y dimensions correctly scale into OS Units, when only one axis divides perfectly, when…
