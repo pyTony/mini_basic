@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-16
 
+- [#138](https://github.com/pyTony/mini_basic/pull/138) docs: add agent TODOs to CLAUDE.md — Adds a list of missing tests and duplicate functions from the beta suggestions list to `CLAUDE.md` as an "Agent TODOs" checklist. Checked off two issues that already have tests.
 - [#131](https://github.com/pyTony/mini_basic/pull/131) 🧪 [added tests for discover_machine_epsilon in float_info.py] — 🎯 What: The testing gap addressed The pure mathematical function `discover_machine_epsilon` located in `mini_basic/util/float_info.py` was missing tests, creating a reliability gap for platforms implementing this interpreter.
 - [#128](https://github.com/pyTony/mini_basic/pull/128) 🧪 Add tests for basic_error_wording in basic_errors.py — 🎯 What: The testing gap for `basic_error_wording` in `mini_basic/util/basic_errors.py` has been addressed by introducing a new pytest suite.
 - [#135](https://github.com/pyTony/mini_basic/pull/135) Add comprehensive documentation and example programs — https://claude.ai/code/session_01XEtY7KXqoNtmrvatUqC19v
