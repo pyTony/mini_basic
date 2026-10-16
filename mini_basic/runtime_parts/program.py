@@ -3122,6 +3122,28 @@ class RuntimeProgramMixin:
             return True
         return bool(re.match(r'^REM\b', s, re.IGNORECASE))
 
+    def _make_room_for_preamble(
+        self,
+        numbered: List[Tuple[int, str, int]],
+        needed: int,
+    ) -> List[Tuple[int, str, int]]:
+        """Scale up line numbers so all preamble comments fit before ``first``.
+
+        Without this, comments that don't fit in the free numbers below the
+        first used line number get pushed past the highest used line number,
+        splitting one contiguous header into two chunks (start + end of file).
+        """
+        used = sorted({n for n, _, _ in numbered})
+        first = used[0]
+        factor = 10
+        while first * factor < needed:
+            factor *= 10
+        mapping = {n: n * factor for n in used}
+        return [
+            (mapping[n], self._renumber_statement(stmt, mapping), indent)
+            for n, stmt, indent in numbered
+        ]
+
     def _merge_preamble_with_numbered(
         self,
         preamble: List[Tuple[str, int]],
@@ -3139,6 +3161,14 @@ class RuntimeProgramMixin:
                 comments.append((stmt, indent))
             else:
                 code_parts.append(stmt)
+
+        needed = len(comments) + (1 if code_parts else 0)
+        available = len(free) + (1 if 0 not in used else 0)
+        if needed > available:
+            numbered = self._make_room_for_preamble(numbered, needed)
+            used = {n for n, _, _ in numbered}
+            first = min(used)
+            free = [n for n in range(1, first) if n not in used]
 
         result: List[Tuple[int, str, int]] = []
         free_i = 0
