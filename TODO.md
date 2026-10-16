@@ -12,6 +12,7 @@ merge to main.
 ## Recently merged PRs
 
 - [#134](https://github.com/pyTony/mini_basic/pull/134) 🧪 Add tests for detect_bbc_binary_format (2026-10-16)
+- [#130](https://github.com/pyTony/mini_basic/pull/130) 🧪 Add tests for parse_shebang_line (2026-10-16)
 - [#127](https://github.com/pyTony/mini_basic/pull/127) 🧪 [Testing Improvement] Add full test coverage for bbc_os_scales (2026-10-16)
 - [#126](https://github.com/pyTony/mini_basic/pull/126) 🔒 Fix arbitrary code execution via eval() in safe_eval (2026-10-16)
 - [#125](https://github.com/pyTony/mini_basic/pull/125) 🧪 Add missing tests for bbc_mode_spec (2026-10-16)
@@ -20,4 +21,3 @@ merge to main.
 - [#122](https://github.com/pyTony/mini_basic/pull/122) ⚡ Optimize rectangle fill performance in BBC graphics (2026-10-16)
 - [#121](https://github.com/pyTony/mini_basic/pull/121) 🧹 [code health improvement] Remove unused import bbc_mode_spec (2026-10-16)
 - [#120](https://github.com/pyTony/mini_basic/pull/120) ⚡ Performance Optimization: regex finditer inside replace loop (2026-10-16)
-- [#117](https://github.com/pyTony/mini_basic/pull/117) editor: open .bas via file association, add Open Tokenized BBC (2026-10-14)
