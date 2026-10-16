@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-16
 
+- [#125](https://github.com/pyTony/mini_basic/pull/125) 🧪 Add missing tests for bbc_mode_spec — 🎯 What: The testing gap addressed The `bbc_mode_spec` function was missing comprehensive tests to ensure correct dispatch to the appropriate mode specifications and to handle invalid inputs correctly.
 - [#122](https://github.com/pyTony/mini_basic/pull/122) ⚡ Optimize rectangle fill performance in BBC graphics — 💡 What: Refactored `BBCGraphics._rectangle` to use the more efficient `_fill_hspan_screen` method. 🎯 Why: The previous implementation used nested Python loops to plot rectangles pixel-by-pixel, calculating `_to_screen` and other overhead for every single pixel. This resulted in extremely poor performance when…
 - [#123](https://github.com/pyTony/mini_basic/pull/123) ⚡ Optimize display text grid initialization using list multiplication — 💡 What: Replaced nested list comprehensions `[blank for _ in range(self.text_cols)]` with list multiplication `[blank] * self.text_cols` to initialize and update the display text grids in `mini_basic/display.py`.
 - [#124](https://github.com/pyTony/mini_basic/pull/124) ⚡ Pre-render and cache glyphs to boost pygame display rendering — 💡 What: Added caching logic in `mini_basic/bbc_font.py` for default glyphs and in `mini_basic/display.py` for custom characters so they are rendered pixel-by-pixel once and reused as `pygame.Surface` instances.
