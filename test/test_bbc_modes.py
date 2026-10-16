@@ -75,6 +75,24 @@ class BBCModeSpecTests(unittest.TestCase):
     def test_os_scales_for_mode8_canvas(self):
         self.assertEqual(bbc_os_scales(640, 512), (2, 2))
 
+    def test_bbc_os_scales_x_only(self):
+        self.assertEqual(bbc_os_scales(640, 480), (2, 2))
+
+    def test_bbc_os_scales_y_only(self):
+        self.assertEqual(bbc_os_scales(800, 512), (2, 2))
+
+    def test_bbc_os_scales_neither(self):
+        self.assertEqual(bbc_os_scales(800, 600), (1, 1))
+
+    def test_bbc_os_scales_zero_negative(self):
+        self.assertEqual(bbc_os_scales(0, 0), (1280, 1024))
+        self.assertEqual(bbc_os_scales(-10, -20), (1280, 1024))
+
+    def test_bbc_os_scales_mode0_mode2(self):
+        self.assertEqual(bbc_os_scales(640, 256), (2, 4))
+        self.assertEqual(bbc_os_scales(320, 256), (4, 4))
+        self.assertEqual(bbc_os_scales(160, 256), (8, 4))
+
     def test_bbc_mode_spec_valid_bbc_mode(self):
         spec = bbc_mode_spec(7)
         self.assertIsNotNone(spec)
