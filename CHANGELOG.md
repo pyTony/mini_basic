@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-16
 
+- [#123](https://github.com/pyTony/mini_basic/pull/123) ⚡ Optimize display text grid initialization using list multiplication — 💡 What: Replaced nested list comprehensions `[blank for _ in range(self.text_cols)]` with list multiplication `[blank] * self.text_cols` to initialize and update the display text grids in `mini_basic/display.py`.
 - [#124](https://github.com/pyTony/mini_basic/pull/124) ⚡ Pre-render and cache glyphs to boost pygame display rendering — 💡 What: Added caching logic in `mini_basic/bbc_font.py` for default glyphs and in `mini_basic/display.py` for custom characters so they are rendered pixel-by-pixel once and reused as `pygame.Surface` instances.
 - [#120](https://github.com/pyTony/mini_basic/pull/120) ⚡ Performance Optimization: regex finditer inside replace loop — 💡 What: The optimization implemented is refactoring `_expand_parenthesized_bbc_comparisons` to use `re.sub(replacer, expr)` to perform single-pass string replacement instead of string slicing inside a `finditer` loop. The 32 guard outer loop was preserved to process nested parenthesis expressions. 🎯 Why: The…
 
