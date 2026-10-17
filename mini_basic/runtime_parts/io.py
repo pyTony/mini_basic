@@ -157,6 +157,13 @@ class RuntimeIoMixin:
                         if event.type == pygame_mod.QUIT:
                             display._open = False
                             return ''
+                        if event.type == pygame_mod.KEYDOWN and (
+                            getattr(event, 'mod', 0) & getattr(pygame_mod, 'KMOD_CTRL', 0)
+                        ) and hasattr(display, '_scale_nudge_for_key'):
+                            delta = display._scale_nudge_for_key(event.key)
+                            if delta is not None:
+                                display.nudge_runtime_scale(delta)
+                                continue
                         if event.type == pygame_mod.TEXTINPUT:
                             # Prefer TEXTINPUT for printables (do not also
                             # append from KEYDOWN — that double-fired and a
