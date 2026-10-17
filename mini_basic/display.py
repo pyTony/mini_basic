@@ -2420,6 +2420,13 @@ class PygameDisplay(DisplayBackend):
                     if event.type == pygame.QUIT:
                         self._open = False
                         return ''
+                    if event.type == pygame.KEYDOWN and (
+                        getattr(event, 'mod', 0) & getattr(pygame, 'KMOD_CTRL', 0)
+                    ):
+                        delta = self._scale_nudge_for_key(event.key)
+                        if delta is not None:
+                            self.nudge_runtime_scale(delta)
+                            continue
                     if event.type == pygame.TEXTINPUT:
                         # Printables only via TEXTINPUT (not KEYDOWN too —
                         # duplicate handling used to drop repeated digits).
