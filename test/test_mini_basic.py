@@ -2576,6 +2576,41 @@ class MiniBASICTests(unittest.TestCase):
             target = int(re.search(r'GOTO\s+(\d+)', goto_line).group(1))
             self.assertEqual(interp.program[target], 'PRINT "end"')
 
+    def test_list_pretty_rewrites_rem_to_apostrophe_in_mini(self):
+        """SAVE/LIST PRETTY should use ' comments for the mini dialect.
+
+        Plain LIST (and bbc/mits dialects, which require real REM for
+        portability) must keep REM untouched.
+        """
+        interp = self.make_interp()
+        interp.program[10] = 'REM a basic comment'
+        interp.program[20] = 'PRINT "hi"'
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.list_program('pretty')
+        pretty = buf.getvalue()
+        self.assertIn("' a basic comment", pretty)
+        self.assertNotIn('REM', pretty)
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.list_program('standard')
+        plain = buf.getvalue()
+        self.assertIn('REM a basic comment', plain)
+
+    def test_list_pretty_keeps_rem_for_non_mini_dialects(self):
+        interp = self.make_interp(dialect='bbc')
+        interp.program[10] = 'REM a basic comment'
+        interp.program[20] = 'PRINT "hi"'
+
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            interp.list_program('pretty')
+        pretty = buf.getvalue()
+        self.assertIn('REM a basic comment', pretty)
+        self.assertNotIn("'", pretty)
+
     def test_immediate_assignment_and_print(self):
         interp = self.make_interp()
         buf = io.StringIO()
