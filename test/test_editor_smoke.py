@@ -16,7 +16,14 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from tools.editor import EditorWindow, _DIALECT_HINT_RE, _KEYWORD_RE, _PROC_RE, _STAR_CMD_RE
+from tools.editor import (
+    EditorWindow,
+    _DIALECT_HINT_RE,
+    _KEYWORD_RE,
+    _PROC_RE,
+    _STAR_CMD_RE,
+    _strip_leading_line_number,
+)
 
 
 def _make_root() -> tk.Tk:
@@ -135,6 +142,65 @@ def test_open_tokenized_bbc_reports_error_for_bad_path(tmp_path) -> None:
              mock.patch('tools.editor.messagebox.showerror') as mock_error:
             win.open_tokenized_bbc()
         assert mock_error.called
+    finally:
+        root.destroy()
+
+
+def test_strip_leading_line_number() -> None:
+    assert _strip_leading_line_number('10 PRINT "hi"') == 'PRINT "hi"'
+    assert _strip_leading_line_number('PRINT "hi"') == 'PRINT "hi"'
+    assert _strip_leading_line_number('  20   GOTO 10') == 'GOTO 10'
+
+
+def test_listener_eval_line_at_cursor_runs_immediately_no_line_number() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.text.delete('1.0', tk.END)
+        win.text.insert('1.0', 'PRINT 1 + 2\n')
+        win.text.mark_set('insert', '1.0')
+
+        win.eval_line_at_cursor()
+
+        output = win.listener_output.get('1.0', 'end-1c')
+        assert '> PRINT 1 + 2' in output
+        assert '3' in output
+    finally:
+        root.destroy()
+
+
+def test_listener_eval_selection_defines_and_runs_a_proc_without_auto() -> None:
+    """A whole DEF PROC...ENDPROC block, selected and sent at once, is stored
+    directly (no AUTO, no line numbers typed) and is then callable."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.text.delete('1.0', tk.END)
+        win.text.insert(
+            '1.0', 'DEF PROCgreet(n$)\nPRINT "hi " + n$\nENDPROC\n',
+        )
+        win.text.tag_add('sel', '1.0', '3.end')
+
+        win.eval_selection()
+        output = win.listener_output.get('1.0', 'end-1c')
+        assert 'DEF PROC defined.' in output
+
+        win.listener_entry.insert(0, 'PROCgreet("Tony")')
+        win._listener_submit()
+        output = win.listener_output.get('1.0', 'end-1c')
+        assert 'hi Tony' in output
+    finally:
+        root.destroy()
+
+
+def test_listener_blocks_auto_and_bare_edit() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.listener_entry.insert(0, 'AUTO')
+        win._listener_submit()
+        output = win.listener_output.get('1.0', 'end-1c')
+        assert 'not available here' in output
     finally:
         root.destroy()
 
