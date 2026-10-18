@@ -40,3 +40,15 @@ def test_list_line_glues_proc():
     # Internal storage may already be spaced; list output must be glued.
     assert 'PROCSWOOSH' in out.replace(' ', '') or 'PROCSWOOSH' in out
     assert 'PROC SWOOSH' not in out
+
+
+def test_format_program_line_does_not_glue_rem_comment_text():
+    # "PROC and FN" is plain English inside a comment, not a PROC call —
+    # the PROC/FN name glue must not touch REM/' comment text at all.
+    line = format_program_line(
+        'REM Structured BBC BASIC: loops, IF, CASE, PROC and FN', 'upper',
+    )
+    assert line == 'REM Structured BBC BASIC: loops, IF, CASE, PROC and FN'
+
+    line = format_program_line("' PROC and FN notes", 'upper')
+    assert line == "' PROC and FN notes"
