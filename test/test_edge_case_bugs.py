@@ -223,6 +223,70 @@ class FnAssignIsNotReturnTests(unittest.TestCase):
         self.assertEqual(out.strip(), '6', msg=err)
 
 
+class DefFnInlineIfElseTests(unittest.TestCase):
+    """Classic BBC one-line recursive idiom: DEF FNx(n) IF c THEN =a ELSE =b."""
+
+    def test_recursive_factorial_one_liner_in_program(self):
+        out, err = _run(
+            '10 DEF FNfact(n) IF n<2 THEN =1 ELSE =n*FNfact(n-1)\n'
+            '20 PRINT FNfact(5)\n'
+            '30 END\n'
+        )
+        self.assertEqual(out.strip(), '120', msg=err)
+        self.assertEqual(err, '')
+
+    def test_recursive_factorial_one_liner_in_immediate_mode(self):
+        from mini_basic import _execute_repl_line
+
+        interp = BASICInterpreter(
+            InterpreterConfig(display='none', display_locked=True)
+        )
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            _execute_repl_line(
+                interp,
+                'DEF FNfact(n) IF n<2 THEN =1 ELSE =n*FNfact(n-1)',
+            )
+            _execute_repl_line(interp, 'PRINT FNfact(5)')
+        self.assertEqual(out.getvalue().strip(), '120', msg=err.getvalue())
+        self.assertEqual(err.getvalue(), '')
+
+    def test_recursive_fibonacci_two_branches(self):
+        out, err = _run(
+            '10 DEF FNfib(n) IF n<2 THEN =n ELSE =FNfib(n-1)+FNfib(n-2)\n'
+            '20 PRINT FNfib(10)\n'
+        )
+        self.assertEqual(out.strip(), '55', msg=err)
+
+    def test_else_if_chain_of_returns(self):
+        out, err = _run(
+            '10 DEF FNsign%(n) IF n<0 THEN =-1 ELSE IF n=0 THEN =0 ELSE =1\n'
+            '20 PRINT FNsign%(-5); " "; FNsign%(0); " "; FNsign%(5)\n'
+        )
+        self.assertEqual(out.strip(), '-1 0 1', msg=err)
+
+    def test_string_return_kind_inferred(self):
+        out, err = _run(
+            '10 DEF FNgrade$(n) IF n>=90 THEN ="A" ELSE ="B"\n'
+            '20 PRINT FNgrade$(95); FNgrade$(80)\n'
+        )
+        self.assertEqual(out.strip(), 'AB', msg=err)
+
+    def test_false_condition_without_else_reports_missing_return(self):
+        out, err = _run(
+            '10 DEF FNnoelse(n) IF n>0 THEN =1\n'
+            '20 PRINT FNnoelse(-1)\n'
+        )
+        self.assertIn('DEF FN missing return', err)
+
+    def test_then_branch_without_equals_is_invalid_syntax(self):
+        out, err = _run(
+            '10 DEF FNbad(n) IF n>0 THEN PRINT n ELSE =0\n'
+            '20 PRINT FNbad(1)\n'
+        )
+        self.assertIn('DEF', err)
+
+
 class MiniLowercaseKeywordTests(unittest.TestCase):
     """mini is not strict about keyword case; bbc keeps uppercase-only keywords."""
 

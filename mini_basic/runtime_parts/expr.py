@@ -2007,14 +2007,17 @@ class RuntimeExprMixin:
                 raise ProgramStop()
             if fn.multiline:
                 return self._run_user_function_body(fn)
+            body = fn.body
+            if re.match(r'^IF\b', body.strip(), re.IGNORECASE):
+                body = self._resolve_fn_inline_if_body(body)
             if self._fn_direct_eval:
                 if fn.return_kind == 'str':
                     # String results are treated as final by _expand_fn_calls (json.dumps).
                     # Nested FN calls in the body must therefore be fully evaluated here;
                     # leaving unexpanded FN text (as numeric short-circuit does) yields
                     # empty/wrong string results for DEF FNb(s$)=FNa(s$) style chains.
-                    return self._eval_string_expr(fn.body)
-                prepared = self._prepare_return_expr_no_fn(fn.body)
+                    return self._eval_string_expr(body)
+                prepared = self._prepare_return_expr_no_fn(body)
                 # Always evaluate via numeric (even if prepared has FN calls). This lets the
                 # and/or parser short-circuit and avoid expanding/evaluating unevaluated
                 # recursive branches in tricks like "cond and val or recurse".
@@ -2023,10 +2026,10 @@ class RuntimeExprMixin:
                     return self._coerce_int_storage(self._eval_numeric(prepared))
                 return self._eval_numeric(prepared)
             if fn.return_kind == 'str':
-                return self._eval_string_expr(fn.body)
+                return self._eval_string_expr(body)
             if fn.return_kind == 'int':
-                return self._coerce_int_storage(self._eval_numeric(fn.body))
-            return self._eval_numeric(fn.body)
+                return self._coerce_int_storage(self._eval_numeric(body))
+            return self._eval_numeric(body)
         finally:
             self._restore_fn_param_bindings(saved)
             self._array_aliases = saved_array_aliases

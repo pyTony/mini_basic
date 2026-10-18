@@ -170,21 +170,71 @@ class RuntimeDefsMixin:
             rest.strip(),
             flags=re.IGNORECASE,
         )
+        if match:
+            header = f"FN{match.group(1)}{match.group(2) or ''}({match.group(3) or ''})"
+            fn = self._parse_def_fn_header(header)
+            body = match.group(4).strip()
+            if not body:
+                raise ValueError('empty DEF FN body')
+            fn.body = body
+            self._maybe_infer_fn_return_kind(fn, header, body)
+            return fn
+
+        # Classic one-line recursive idiom (no bare '=' right after the
+        # params): ``DEF FNname(args) IF cond THEN =a ELSE =b``. The whole
+        # IF/THEN/ELSE text becomes the body and is resolved to the chosen
+        # ``=expr`` branch at call time (see ``_resolve_fn_inline_if_body``).
+        match = re.match(
+            rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*(?:\((.*)\))?\s+(IF\b.+)$',
+            rest.strip(),
+            flags=re.IGNORECASE,
+        )
         if not match:
             raise ValueError('invalid DEF FN syntax')
-        fn = self._parse_def_fn_header(
-            f"FN{match.group(1)}{match.group(2) or ''}({match.group(3) or ''})"
-        )
+        header = f"FN{match.group(1)}{match.group(2) or ''}({match.group(3) or ''})"
+        fn = self._parse_def_fn_header(header)
         body = match.group(4).strip()
-        if not body:
-            raise ValueError('empty DEF FN body')
+        # Validate now so a bad one-liner fails at DEF time, not on first call.
+        self._resolve_fn_inline_if_body(body, probe=True)
         fn.body = body
-        self._maybe_infer_fn_return_kind(
-            fn,
-            f"FN{match.group(1)}{match.group(2) or ''}({match.group(3) or ''})",
-            body,
+        self._apply_inferred_fn_return_kind(
+            fn, self._collect_fn_return_expr_candidates(body)
         )
         return fn
+
+    def _resolve_fn_inline_if_body(self, body: str, probe: bool = False) -> str:
+        """Resolve a one-line ``IF cond THEN =a ELSE =b`` DEF FN body.
+
+        Walks an ``ELSE IF ... THEN ...`` chain down to the taken branch and
+        returns its ``=expr`` text (without the leading ``=``). With
+        ``probe=True`` the condition is never evaluated (both branches are
+        just checked for shape), so this can validate a one-liner at DEF
+        time without touching any variables.
+        """
+        text = body.strip()
+        while True:
+            if_match = re.match(r'^IF\b(.*)$', text, flags=re.IGNORECASE | re.DOTALL)
+            if not if_match:
+                break
+            then_part, else_part = self._split_if_else_parts(if_match.group(1))
+            _cond, then_stmt = self._split_bbc_compact_if_then(then_part)
+            then_stmt = then_stmt.strip()
+            if not then_stmt.startswith('='):
+                raise ValueError('invalid DEF FN syntax')
+            if probe:
+                # Only shape-check both branches; don't commit to either.
+                if else_part is not None:
+                    self._resolve_fn_inline_if_body(else_part, probe=True)
+                return then_stmt[1:].strip()
+            if self._eval_condition(_cond):
+                text = then_stmt
+            else:
+                if else_part is None:
+                    raise ValueError('? DEF FN missing return')
+                text = else_part.strip()
+        if not text.startswith('='):
+            raise ValueError('invalid DEF FN syntax')
+        return text[1:].strip()
 
     def _register_def_fn(self, rest: str) -> None:
         fn = self._parse_def_fn_rest(rest)
