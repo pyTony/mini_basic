@@ -370,12 +370,26 @@ def glue_bbc_proc_fn_names(text: str) -> str:
     return text
 
 
+def _is_comment_part(part: str) -> bool:
+    stripped = part.strip()
+    return bool(stripped) and (
+        stripped.startswith("'") or _RE_REM.match(stripped) is not None
+    )
+
+
 def format_program_line(statement: str, fold: Fold) -> str:
     """Canonical LIST/SAVE formatting for one program statement line."""
     parts = _split_colon_statements(statement)
-    formatted = ': '.join(format_statement_part(part, fold) for part in parts)
-    formatted = re.sub(r'=\s*(["\'])', r'= \1', formatted)
-    return glue_bbc_proc_fn_names(formatted)
+    formatted_parts = []
+    for part in parts:
+        formatted_part = format_statement_part(part, fold)
+        # REM / ' comment text is verbatim — don't let the PROC/FN name glue
+        # below mangle plain-English words like "PROC and FN" into "PROCand FN".
+        if not _is_comment_part(part):
+            formatted_part = glue_bbc_proc_fn_names(formatted_part)
+        formatted_parts.append(formatted_part)
+    formatted = ': '.join(formatted_parts)
+    return re.sub(r'=\s*(["\'])', r'= \1', formatted)
 
 
 def fold_from_save_case(save_case: int) -> Fold:
