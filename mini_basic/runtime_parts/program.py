@@ -3420,19 +3420,24 @@ class RuntimeProgramMixin:
         else:
             print('Kept in memory only.')
 
-    def edit_program(self):
+    def edit_program(self, blank: bool = False):
         """Bare EDIT: open the current program in the system text editor, then reload.
 
         Writes a temp ``.bas``, waits for the editor, then replaces memory from
         that file. If the program came from a real LOAD/SAVE name, ask before
         writing that file. If there is no real file, offer Save as.
+
+        ``EDIT NEW`` (``blank=True``) opens the editor directly with an empty
+        buffer instead of the current program, so you can start a fresh
+        program without first clearing memory. The current program is left
+        untouched unless you actually save something back from the editor.
         """
         import tempfile
 
         fd, path = tempfile.mkstemp(prefix='mb_edit_', suffix='.bas')
         os.close(fd)
         try:
-            written = self._write_program_for_edit(path)
+            written = '' if blank else self._write_program_for_edit(path)
             if not self._launch_external_editor(path):
                 return
             if not os.path.isfile(path):
