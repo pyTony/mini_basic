@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-18
+
+- [#141](https://github.com/pyTony/mini_basic/pull/141) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (main backport) — Backport of #140 to `main`. The affected files (`mini_basic/runtime_parts/defs.py`, `expr.py`, `program.py`) are byte-identical between `dev` and `main`, so this is a clean cherry-pick of the same commit — see #140 for the full before/after/how writeup.
+
 ## 2026-10-16
 
 - [#138](https://github.com/pyTony/mini_basic/pull/138) docs: add agent TODOs to CLAUDE.md — Adds a list of missing tests and duplicate functions from the beta suggestions list to `CLAUDE.md` as an "Agent TODOs" checklist. Checked off two issues that already have tests.

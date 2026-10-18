@@ -1017,6 +1017,13 @@ class RuntimeGraphicsMixin:
             for event in pygame_mod.event.get():
                 if event.type != pygame_mod.KEYDOWN:
                     continue
+                if event.mod & pygame_mod.KMOD_CTRL and hasattr(
+                    self._display, '_scale_nudge_for_key'
+                ):
+                    delta = self._display._scale_nudge_for_key(event.key)
+                    if delta is not None:
+                        self._display.nudge_runtime_scale(delta)
+                        continue
                 if event.key == pygame_mod.K_ESCAPE:
                     return '\x1b'
                 try:
