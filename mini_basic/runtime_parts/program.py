@@ -2156,7 +2156,13 @@ class RuntimeProgramMixin:
                     break
                 except ValueError:
                     pass
-                if re.search(r'\)\s*=', rest):
+                # One-line body: ``=expr`` or the recursive-idiom
+                # ``IF cond THEN =a ELSE =b`` (both fully on the header line).
+                if re.search(r'\)\s*=', rest) or re.match(
+                    rf'^FN_?\s*{_PROC_FN_NAME_PATTERN}(%|\$)?\s*(?:\(.*\))?\s+IF\b.*=',
+                    rest_strip,
+                    re.IGNORECASE | re.DOTALL,
+                ):
                     try:
                         fn = self._parse_def_fn_rest(rest)
                         functions[fn.name] = fn
