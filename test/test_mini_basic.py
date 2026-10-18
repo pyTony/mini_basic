@@ -1071,6 +1071,24 @@ class MiniBASICTests(unittest.TestCase):
             interp.execute_immediate('PRINT x%')
         self.assertEqual(buf.getvalue().strip(), value)
 
+    def test_bigint_default_fn_fibonacci_exact_above_2pow53(self):
+        """Untyped (non-%) FN recursion must stay exact past float64's
+        2**53 integer limit when bigint is on (the default): regression
+        for FNfib(80) printing ...684 instead of the correct ...685."""
+        lines = [
+            (10, 'DEF FNfib(n)'),
+            (20, 'IF n<2 THEN =n'),
+            (30, '=FNfib(n-1)+FNfib(n-2)'),
+            (100, 'PRINT FNfib(80)'),
+        ]
+        buf = io.StringIO()
+        interp = self.make_interp()
+        interp._program_stdout = buf
+        for line_num, statement in lines:
+            interp.program[line_num] = statement
+        interp.run()
+        self.assertEqual(buf.getvalue().strip(), '23416728348467685')
+
     def test_bigint_off_factorial_uses_float_precision(self):
         """With _bigint=0, 69! cannot keep full integer digits (IEEE float)."""
         lines = [
