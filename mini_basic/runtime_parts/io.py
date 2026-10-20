@@ -1995,7 +1995,14 @@ class RuntimeIoMixin:
         unnumbered source**, SAVE uses **pretty** automatically so a LOAD → EDIT →
         SAVE round-trip keeps the file unnumbered (memory stays numbered for EDIT).
         Use ``SAVE NUMBERED`` to force classic line numbers.
+
+        ``.bbc`` is refused: SAVE writes text, and ``.bbc`` is reserved for
+        tokenized BBC BASIC files (bare SAVE after LOAD of one would
+        otherwise overwrite the binary with text).
         """
+        if os.path.splitext(str(filename))[1].lower() == '.bbc':
+            self._emit_error('Error: Tokenized saving is not yet implemented')
+            return
         try:
             path = self.resolve_path(filename)
             case_fold = self._detokenize_fold()

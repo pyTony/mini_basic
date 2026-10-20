@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-18
 
+- [#143](https://github.com/pyTony/mini_basic/pull/143) fix(format): don't let PROC/FN name glue mangle REM comment text — the glue step is only applied to actual code parts of the line; REM and `'` comment parts are left untouched.
 - [#141](https://github.com/pyTony/mini_basic/pull/141) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (main backport) — Backport of #140 to `main`. The affected files (`mini_basic/runtime_parts/defs.py`, `expr.py`, `program.py`) are byte-identical between `dev` and `main`, so this is a clean cherry-pick of the same commit — see #140 for the full before/after/how writeup.
 
 ## 2026-10-16

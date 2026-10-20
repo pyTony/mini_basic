@@ -27,6 +27,7 @@ Markdown sources stay in this folder. `python scripts/build_user_docs.py` refres
 | [PROGRAM_VS_TESTS.md](PROGRAM_VS_TESTS.md) | Approved programs vs pytest (user confirm when tests miss the look) |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialect / BBC-family comparison |
 | [../mini_basic/README.md](../mini_basic/README.md) | Package layout (import map, modules) |
+| [python-m-mini-basic-flowchart.mmd](python-m-mini-basic-flowchart.mmd) | Mermaid flowchart of `python -m mini_basic` startup (CLI → program / session / REPL) |
 
 Internal engineering notes (1.00 plan/VDU, BBC tokenize-vs-unglue, statement
 dispatch map) live on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.

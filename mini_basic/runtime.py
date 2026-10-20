@@ -657,6 +657,29 @@ def _execute_repl_line(interp: BASICInterpreter, text: str) -> bool:
         print('Goodbye!')
         return False
 
+    exec_match = re.match(r'^\*\s*EXEC\b(.*)$', stripped, re.IGNORECASE)
+    if exec_match:
+        # BBC *EXEC: feed the file's lines in as if typed at this prompt.
+        # Bare *EXEC (BBC: close the exec file) has nothing to close here.
+        arg = exec_match.group(1).strip()
+        if not arg:
+            return True
+        try:
+            path = interp.resolve_path(_parse_path_arg(arg))
+            with open(path, 'rb') as handle:
+                lines = BASICInterpreter._decode_program_text(handle.read()).splitlines()
+        except ValueError:
+            print('? *EXEC filename')
+            return True
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f'? *EXEC cannot read {arg} ({type(exc).__name__}: {exc})')
+            return True
+        # Each line goes through exactly what a typed line does (no skipping).
+        for line in lines:
+            if not _execute_repl_line(interp, line):
+                return False
+        return True
+
     text = _expand_repl_abbrev(text)
     u = text.upper()
     if u.startswith('LIST'):
@@ -1432,6 +1455,14 @@ def main(argv: Optional[List[str]] = None) -> int:
     interp.program_args = list(program_args)
     if trace:
         interp.trace_enabled = True
+
+    if target is not None and target != '-' and not os.path.splitext(target)[1]:
+        # Same as LOAD/CHAIN: `prog` finds prog.bas or prog.bbc (an existing
+        # extensionless file, e.g. an original BBC disc file, wins).
+        try:
+            target = interp.resolve_load_path(target)
+        except ValueError:
+            pass
 
     if list_mode is not None and target is None:
         # --list / --pretty / --refs with no file: enter REPL (do not require .bas).

@@ -2,6 +2,7 @@ import concurrent.futures
 import io
 import os
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -59,6 +60,7 @@ from mini_basic import (
     _execute_repl_line,
     _script_file_kind,
     main,
+    _execute_repl_line,
     _expand_repl_abbrev,
     _get_readline_module,
     _parse_list_command,
@@ -1069,6 +1071,24 @@ class MiniBASICTests(unittest.TestCase):
             interp.execute_immediate('PRINT x%')
         self.assertEqual(buf.getvalue().strip(), value)
 
+    def test_bigint_default_fn_fibonacci_exact_above_2pow53(self):
+        """Untyped (non-%) FN recursion must stay exact past float64's
+        2**53 integer limit when bigint is on (the default): regression
+        for FNfib(80) printing ...684 instead of the correct ...685."""
+        lines = [
+            (10, 'DEF FNfib(n)'),
+            (20, 'IF n<2 THEN =n'),
+            (30, '=FNfib(n-1)+FNfib(n-2)'),
+            (100, 'PRINT FNfib(80)'),
+        ]
+        buf = io.StringIO()
+        interp = self.make_interp()
+        interp._program_stdout = buf
+        for line_num, statement in lines:
+            interp.program[line_num] = statement
+        interp.run()
+        self.assertEqual(buf.getvalue().strip(), '23416728348467685')
+
     def test_bigint_off_factorial_uses_float_precision(self):
         """With _bigint=0, 69! cannot keep full integer digits (IEEE float)."""
         lines = [
@@ -1872,8 +1892,11 @@ class MiniBASICTests(unittest.TestCase):
             interp.working_dir = tmp
             with open(os.path.join(tmp, 'demo.bas'), 'w', encoding='utf-8') as f:
                 f.write('10 END\n')
-            with open(os.path.join(tmp, 'other.bbc'), 'w', encoding='utf-8') as f:
-                f.write('10 END\n')
+            # .bbc files are tokenized (text programs are .bas).
+            shutil.copyfile(
+                os.path.join(_ROOT, 'showcase', 'wheel.bbc'),
+                os.path.join(tmp, 'other.bbc'),
+            )
             with open(os.path.join(tmp, 'exact.txt'), 'w', encoding='utf-8') as f:
                 f.write('10 END\n')
             bas = interp.resolve_load_path('demo')
@@ -2231,6 +2254,80 @@ class MiniBASICTests(unittest.TestCase):
                 text = f.read()
             self.assertIn('PRINT "changed"', text)
 
+    def test_save_refuses_bbc_extension(self):
+        # SAVE writes text; .bbc is reserved for tokenized BBC BASIC files.
+        for dialect in ('mini', 'bbc'):
+            with self.subTest(dialect=dialect), tempfile.TemporaryDirectory() as tmp:
+                interp = BASICInterpreter(InterpreterConfig(dialect=dialect))
+                interp.working_dir = tmp
+                interp.set_program_line(10, 'PRINT 1')
+                err = io.StringIO()
+                with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                    interp.save('prog.BBC')
+                self.assertFalse(os.path.exists(os.path.join(tmp, 'prog.BBC')))
+                self.assertIn('Tokenized saving is not yet implemented', err.getvalue())
+                self.assertIsNone(interp.loaded_filename)
+
+    def test_bare_save_does_not_overwrite_loaded_tokenized_bbc(self):
+        src = os.path.join(_ROOT, 'showcase', 'wheel.bbc')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'wheel.bbc')
+            shutil.copyfile(src, path)
+            with open(path, 'rb') as f:
+                before = f.read()
+            interp = BASICInterpreter(InterpreterConfig(dialect='bbc'))
+            interp.working_dir = tmp
+            with redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()):
+                interp.load('wheel.bbc', announce=False)
+                interp.save(_resolve_save_filename(interp, None))
+            with open(path, 'rb') as f:
+                self.assertEqual(f.read(), before)
+
+    def test_star_exec_types_in_lines_from_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'typed in.txt'), 'w', encoding='utf-8') as f:
+                f.write('10 FOR I = 1 TO 2\n20 PRINT "row "; I\n30 NEXT I\nRUN\n')
+            for dialect, line in (('mini', '*EXEC "typed in.txt"'), ('bbc', '*exec typed in.txt')):
+                with self.subTest(dialect=dialect):
+                    interp = BASICInterpreter(InterpreterConfig(dialect=dialect))
+                    interp.working_dir = tmp
+                    out = io.StringIO()
+                    with redirect_stdout(out):
+                        self.assertTrue(_execute_repl_line(interp, line))
+                    self.assertEqual(sorted(interp.program), [10, 20, 30])
+                    self.assertIn('row 1', out.getvalue())
+                    self.assertIn('row 2', out.getvalue())
+
+    def test_star_exec_exit_word_ends_session_like_typed(self):
+        from mini_basic.constants import CLI_EXIT_WORDS
+
+        word = sorted(CLI_EXIT_WORDS)[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'quit.txt'), 'w', encoding='utf-8') as f:
+                f.write(f'10 PRINT 1\n{word}\n20 PRINT 2\n')
+            interp = self.make_interp()
+            interp.working_dir = tmp
+            with redirect_stdout(io.StringIO()):
+                self.assertFalse(_execute_repl_line(interp, '*EXEC quit.txt'))
+            self.assertEqual(sorted(interp.program), [10])
+
+    def test_cli_target_without_extension_finds_bas(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with open(os.path.join(tmp, 'hello.bas'), 'w', encoding='utf-8') as f:
+                f.write('10 PRINT "found it"\n')
+            out = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(io.StringIO()):
+                main(['--display', 'terminal', os.path.join(tmp, 'hello')])
+            self.assertIn('found it', out.getvalue())
+
+    def test_star_exec_inside_program_is_an_error(self):
+        interp = BASICInterpreter(InterpreterConfig(dialect='bbc', errors_dual_stdout=True))
+        interp.set_program_line(10, 'OSCLI "EXEC x"')
+        out = io.StringIO()
+        with redirect_stdout(out), redirect_stderr(io.StringIO()):
+            interp.run()
+        self.assertIn('*EXEC works at the command prompt only', out.getvalue())
+
     def test_new_clears_loaded_filename(self):
         interp = self.make_interp()
         interp.loaded_filename = 'keep.bas'
@@ -2583,32 +2680,32 @@ class MiniBASICTests(unittest.TestCase):
         portability) must keep REM untouched.
         """
         interp = self.make_interp()
-        interp.program[10] = 'REM a basic comment'
+        interp.program[10] = 'REM PROC and FN remain verbatim'
         interp.program[20] = 'PRINT "hi"'
 
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.list_program('pretty')
         pretty = buf.getvalue()
-        self.assertIn("' a basic comment", pretty)
+        self.assertIn("' PROC and FN remain verbatim", pretty)
         self.assertNotIn('REM', pretty)
 
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.list_program('standard')
         plain = buf.getvalue()
-        self.assertIn('REM a basic comment', plain)
+        self.assertIn('REM PROC and FN remain verbatim', plain)
 
     def test_list_pretty_keeps_rem_for_non_mini_dialects(self):
         interp = self.make_interp(dialect='bbc')
-        interp.program[10] = 'REM a basic comment'
+        interp.program[10] = 'REM PROC and FN remain verbatim'
         interp.program[20] = 'PRINT "hi"'
 
         buf = io.StringIO()
         with redirect_stdout(buf):
             interp.list_program('pretty')
         pretty = buf.getvalue()
-        self.assertIn('REM a basic comment', pretty)
+        self.assertIn('REM PROC and FN remain verbatim', pretty)
         self.assertNotIn("'", pretty)
 
     def test_immediate_assignment_and_print(self):
