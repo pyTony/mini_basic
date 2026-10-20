@@ -24,6 +24,13 @@ Install instructions live in `README.md` (repo root) and the handbook's
 - **A small source editor** (`tools/editor.py`, `dev` branch) — open/save/run, plus **Pretty (no numbers)** and **Renumber** buttons that delegate to the interpreter's own `LIST PRETTY` and `RENUMBER` logic.
 - **REPL niceties** — numbered or unnumbered programs, `EDIT n` to edit one line in place or `EDIT` to drop into your system editor, tab completion, `HELP` (including `HELP CLI`).
 
+## Updates after the initial 1.0 release
+
+The current `dev` branch adds an immediate-mode Listener (F5 / Shift+F5),
+a wait-for-Esc Run toggle, and mini PRETTY comments written with apostrophes.
+`EDIT NEW` opens a blank external-editor buffer and is also merged on `main`.
+See the [editor guide](EDITOR.md) for usage and branch availability.
+
 ## Known limitations
 
 - `ENVELOPE` is parsed but is a silent no-op — no ADSR shaping.

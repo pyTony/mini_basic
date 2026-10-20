@@ -16,6 +16,7 @@ DOCS = ROOT / 'docs'
 SITE = DOCS / 'site'
 
 PAGES = [
+    ('EDITOR.md', 'Source editor and Listener'),
     ('RELEASE_NOTES_1.0.md', 'Release notes (1.0)'),
     ('LANGUAGE_FEATURES_1.00.md', 'Language features (1.00)'),
     ('PROGRAM_VS_TESTS.md', 'Programs vs tests'),

@@ -75,8 +75,12 @@ open/save, mini_basic-aware syntax highlighting (keywords, `PROC`/`ENDPROC`,
 python tools/editor.py [file.bas]
 ```
 
-Out of scope for now: an in-editor REPL or replacing the pygame/terminal
-output paths — see `test/test_editor_smoke.py` for the current coverage.
+The lower **Listener** pane evaluates statements immediately: F5 evaluates the
+line at the cursor, Shift+F5 evaluates a selection, and Ctrl+L focuses its input.
+Its interpreter persists until Reset; whole-program Run uses a separate process.
+The toolbar also controls whether pygame waits for Esc after Run. See
+[Source editor and Listener](docs/EDITOR.md) for shortcuts, complete definition
+blocks, PRETTY comments, `EDIT NEW`, and current testing limits.
 
 ## Requirements
 

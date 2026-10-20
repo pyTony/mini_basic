@@ -44,6 +44,10 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 
 ## 3. Core language (all ship dialects, with dialect gates)
 
+Current editor and program-formatting updates are documented in
+[Source editor and Listener](EDITOR.md), including `EDIT NEW` and mini PRETTY
+apostrophe comments. The guide states branch availability.
+
 ### 3.1 Program structure
 
 - Numbered and/or unnumbered lines (dialect-dependent).
