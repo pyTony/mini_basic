@@ -1714,6 +1714,47 @@ class MiniBASICTests(unittest.TestCase):
         self.assertNotIn(10, interp.program)
         self.assertEqual(interp.loaded_filename, 'game.bas')
 
+    def test_edit_program_new_starts_with_blank_buffer(self):
+        """EDIT NEW opens the editor empty, leaving the current program alone."""
+        interp = self.make_interp()
+        interp.program[10] = 'PRINT 1'
+
+        def fake_edit(path):
+            with open(path, encoding='utf-8') as handle:
+                self.assertEqual(handle.read(), '')
+            return True
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            with patch.object(interp, '_launch_external_editor', side_effect=fake_edit):
+                interp.edit_program(blank=True)
+        self.assertEqual(interp.program.get(10), 'PRINT 1')
+
+    def test_edit_program_new_applies_text_when_saved(self):
+        """Typing something into the blank EDIT NEW buffer replaces the program."""
+        interp = self.make_interp()
+        interp.program[10] = 'PRINT 1'
+
+        def fake_edit(path):
+            with open(path, 'w', encoding='utf-8') as handle:
+                handle.write('5 PRINT 2\n')
+            return True
+
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            with patch.object(interp, '_launch_external_editor', side_effect=fake_edit):
+                with patch('builtins.input', return_value=''):
+                    interp.edit_program(blank=True)
+        self.assertNotIn(10, interp.program)
+        self.assertEqual(interp.program.get(5), 'PRINT 2')
+
+    def test_parse_edit_command_new_variant(self):
+        from mini_basic.runtime import _parse_edit_command
+
+        self.assertEqual(_parse_edit_command('EDIT NEW'), -2)
+        self.assertEqual(_parse_edit_command('edit new'), -2)
+        self.assertEqual(_parse_edit_command('EDIT'), -1)
+        self.assertEqual(_parse_edit_command('EDIT 10'), 10)
+        self.assertIsNone(_parse_edit_command('EDIT NEWX'))
+
     def test_gosub_return(self):
         lines = [
             (10, "GOSUB 100"),
