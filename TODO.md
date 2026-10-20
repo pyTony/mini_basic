@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#143](https://github.com/pyTony/mini_basic/pull/143) fix(format): don't let PROC/FN name glue mangle REM comment text (2026-10-18)
 - [#141](https://github.com/pyTony/mini_basic/pull/141) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (main backport) (2026-10-18)
 - [#140](https://github.com/pyTony/mini_basic/pull/140) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (2026-10-18)
 - [#139](https://github.com/pyTony/mini_basic/pull/139) Fix Ctrl+Numpad+/- zoom shortcut being swallowed by INKEY/INPUT (2026-10-17)
@@ -20,4 +21,3 @@ merge to main.
 - [#135](https://github.com/pyTony/mini_basic/pull/135) Add comprehensive documentation and example programs (2026-10-16)
 - [#134](https://github.com/pyTony/mini_basic/pull/134) 🧪 Add tests for detect_bbc_binary_format (2026-10-16)
 - [#131](https://github.com/pyTony/mini_basic/pull/131) 🧪 [added tests for discover_machine_epsilon in float_info.py] (2026-10-16)
-- [#130](https://github.com/pyTony/mini_basic/pull/130) 🧪 Add tests for parse_shebang_line (2026-10-16)
