@@ -487,7 +487,10 @@ def _parse_cd_command(text: str) -> Tuple[bool, Optional[str]]:
 
 
 def _parse_edit_command(text: str) -> Optional[int]:
-    match = re.match(r'^EDIT(?:\s+(\d+))?$', text.strip(), re.IGNORECASE)
+    stripped = text.strip()
+    if re.match(r'^EDIT\s+NEW$', stripped, re.IGNORECASE):
+        return -2
+    match = re.match(r'^EDIT(?:\s+(\d+))?$', stripped, re.IGNORECASE)
     if not match:
         return None
     if match.group(1):
@@ -706,10 +709,15 @@ def _execute_repl_line(interp: BASICInterpreter, text: str) -> bool:
     elif u.startswith('EDIT'):
         target = _parse_edit_command(text)
         if target is None:
-            print('? EDIT line   (or bare EDIT for the system editor)')
+            print('? EDIT line   (or bare EDIT for the system editor, EDIT NEW for a blank one)')
         elif target == -1:
             try:
                 interp.edit_program()
+            except KeyboardInterrupt:
+                print('\nCancelled.')
+        elif target == -2:
+            try:
+                interp.edit_program(blank=True)
             except KeyboardInterrupt:
                 print('\nCancelled.')
         else:

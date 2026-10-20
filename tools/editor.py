@@ -142,6 +142,11 @@ class EditorWindow:
             toolbar, text='Use pygame display', variable=self.pygame_var,
         ).pack(side=tk.LEFT, padx=(12, 2))
 
+        self.wait_esc_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            toolbar, text='Wait for Esc at end of run', variable=self.wait_esc_var,
+        ).pack(side=tk.LEFT, padx=(12, 2))
+
         self.status_var = tk.StringVar(value='Ready')
         ttk.Label(self.root, textvariable=self.status_var, anchor='w').pack(
             side=tk.BOTTOM, fill=tk.X,
@@ -413,6 +418,7 @@ class EditorWindow:
             cmd += ['--dialect', dialect]
         if self.pygame_var.get():
             cmd.append('--pygame')
+        cmd.append('--hold' if self.wait_esc_var.get() else '--no-hold')
         return cmd
 
 

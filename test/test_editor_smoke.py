@@ -105,6 +105,22 @@ def test_build_run_command_defaults_and_overrides(tmp_path) -> None:
         root.destroy()
 
 
+def test_build_run_command_wait_for_esc_toggle(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+
+        assert win.wait_esc_var.get() is False
+        assert '--no-hold' in win._build_run_command(str(tmp_path / 'demo.bas'))
+
+        win.wait_esc_var.set(True)
+        cmd = win._build_run_command(str(tmp_path / 'demo.bas'))
+        assert '--hold' in cmd
+        assert '--no-hold' not in cmd
+    finally:
+        root.destroy()
+
+
 def test_open_tokenized_bbc_detokenizes_into_editable_text(tmp_path) -> None:
     """Reuses the interpreter's own LOAD/LIST, same as basics/RACE.BBC et al."""
     from mini_basic.bbc_detokenize import parse_wilson_program
