@@ -2971,7 +2971,12 @@ class RuntimeProgramMixin:
                     resolve_list_fold,
                 )
                 fold = resolve_list_fold(case_fold)
-                formatted = _fmt_line(raw_line, fold) if raw_line.strip() else ''
+                rem_as_apostrophe = mode == 'pretty' and fold == 'none'
+                formatted = (
+                    _fmt_line(raw_line, fold, rem_as_apostrophe)
+                    if raw_line.strip()
+                    else ''
+                )
                 formatted = formatted.lstrip(' \t')
                 indent_width = loop_depths.get(line_num, 0) * 4
             else:
