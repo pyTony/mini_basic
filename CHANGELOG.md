@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-20
+
+- [#144](https://github.com/pyTony/mini_basic/pull/144) Editor: wait-for-Esc toggle and EDIT NEW blank launch — - The editor toolbar has a new "Wait for Esc at end of run" checkbox. It wires the existing `--hold`/`--no-hold` engine flag (which already makes the pygame display window wait for Escape/close at the end of a run) into the Run command, so the window reliably stays open or closes immediately per the toggle.
+
 ## 2026-10-18
 
 - [#143](https://github.com/pyTony/mini_basic/pull/143) fix(format): don't let PROC/FN name glue mangle REM comment text — the glue step is only applied to actual code parts of the line; REM and `'` comment parts are left untouched.
