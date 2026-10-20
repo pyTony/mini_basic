@@ -6,7 +6,7 @@ classic algorithms in one sitting.
 Usage (from the project root):
 
     python showcase/demo_reel.py              # interactive menu (pick one, or run all)
-    python showcase/demo_reel.py --all         # run all 8, in order, no menu
+    python showcase/demo_reel.py --all         # run all 9, in order, no menu
     python showcase/demo_reel.py --list        # print the reel (with blurbs) and exit
     python showcase/demo_reel.py wheel fern    # run just these entries, no menu
 
@@ -40,44 +40,51 @@ class ReelEntry:
     blurb: str
 
 
+# Paths have no extension: mini_basic finds the .bas or .bbc file, so a
+# rename between the two (text vs tokenized) does not break the reel.
 REEL: tuple[ReelEntry, ...] = (
     ReelEntry(
-        'disco', 'showcase/disco.bbc', 'bbc', True,
+        'disco', 'showcase/disco', 'bbc', True,
         'Colour lightshow: grid redraw + palette cycling.',
     ),
     ReelEntry(
-        'illusion', 'showcase/illusion.bbc', 'bbc', True,
+        'illusion', 'showcase/illusion', 'bbc', True,
         'Cafe-wall optical illusion: a dead-straight grid of tan/grey bands '
         "looks bent because of small alternating corner wedges at each "
         'intersection (checkerboard-parity PLOT 113 marks) — same trick as '
         'the real cafe-wall effect, nothing in the grid itself is skewed.',
     ),
     ReelEntry(
-        'wheel', 'showcase/wheel.bbc', 'bbc', True,
+        'wheel', 'showcase/wheel', 'bbc', True,
         'Spinning colour-ring: CASE/WHEN dispatch, CIRCLE discs, *REFRESH.',
     ),
     ReelEntry(
-        'fern', 'showcase/fern.bbc', 'bbc', True,
+        'fern', 'showcase/fern', 'bbc', True,
         'Barnsley fern fractal drawn with chained DRAW/affine steps.',
     ),
     ReelEntry(
-        'mandelbrot', 'showcase/mandelbrot_archimedes_mode9.bas', 'bbc', True,
+        'mandelbrot', 'showcase/mandelbrot_archimedes_mode9', 'bbc', True,
         'Full-screen MODE 9 Mandelbrot, solid-block colouring — the '
         'interpreter perf highlight (renders in a few seconds).',
     ),
     ReelEntry(
-        'bounce', 'showcase/bounce.bbc', 'bbc', True,
+        'bounce', 'showcase/bounce', 'bbc', True,
         'Bouncing balls: nested structs Pos{x,y}, whole-struct array copy, '
         '+= on struct members.',
     ),
     ReelEntry(
-        'hanoi', 'showcase/hanoi.bbc', 'bbc', True,
+        'hanoi', 'showcase/hanoi', 'bbc', True,
         'Towers of Hanoi, solved and animated recursively. Interactive: '
         'enter a disc count (1-13), then press SPACE to start.',
     ),
     ReelEntry(
-        'soccerball', 'showcase/soccerball.bas', 'bbc', True,
+        'soccerball', 'showcase/soccerball', 'bbc', True,
         'Spinning 3D soccer ball: matrix rotation (B() . C()) redrawn every frame.',
+    ),
+    ReelEntry(
+        'breakout', 'showcase/breakout', 'bbc', True,
+        'Breakout: paddle, ball and bricks with sprite art, SOUND, *PLAY '
+        'samples and *MUSIC background track. LEFT/RIGHT move, SPACE serves.',
     ),
 )
 

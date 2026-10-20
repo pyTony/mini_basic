@@ -1,6 +1,6 @@
 """A minimal tkinter source editor for mini_basic ``.bas``/``.bbc`` programs.
 
-Scope (intentionally small, first step towards a fuller tool):
+Scope (intentionally small; grown from a first pass towards a fuller tool):
   * Open/Save/Save As for BASIC source files.
   * mini_basic-aware syntax highlighting (keywords, PROC/ENDPROC/FN,
     ``*``-commands, line numbers, dialect hint comments).
@@ -9,9 +9,20 @@ Scope (intentionally small, first step towards a fuller tool):
     from a shell. This editor does not reimplement any display: pygame
     graphics programs still open their own pygame window, and console
     programs still use the ANSI terminal the interpreter already uses.
+  * A **Listener** pane (bottom, resizable), lispy3-machine-style: a
+    persistent in-process interpreter you can type statements into and
+    get results back immediately, without any line numbers, ``AUTO``, or
+    line-targeted ``EDIT`` -- the natural style for the unnumbered
+    ``mini`` dialect. ``F5`` evaluates the line at the cursor in the
+    editor buffer there; ``Shift+F5`` evaluates the current selection
+    (a full ``DEF PROC``/``DEF FN`` ... ``ENDPROC``/``END DEF`` block
+    included). Every evaluation goes through the same unmodified
+    ``mini_basic.runtime`` REPL dispatch used by the command-line REPL
+    (``_execute_repl_line``) -- this pane only drives it.
 
-No GUI REPL, no in-editor graphics/terminal pane: see tools/editor.py's
-module docstring in future revisions, or docs/, for anything beyond this.
+No in-editor graphics/terminal pane for running whole programs: ``Run``
+still launches a subprocess so pygame/console display behaves exactly as
+it does from a shell. See docs/ for anything beyond this.
 
 Usage::
 
@@ -67,6 +78,51 @@ _TAG_STYLES = {
 
 _DIALECTS = ('auto', 'mini', 'mits', 'bbc', 'commodore', 'tiny')
 
+_LISTENER_TAG_STYLES = {
+    'echo': {'foreground': '#0033cc'},
+    'result': {'foreground': '#000000'},
+    'error': {'foreground': '#cc0000'},
+    'info': {'foreground': '#888888', 'font': ('TkFixedFont', 10, 'italic')},
+}
+
+_LEADING_LINE_NUM_RE = re.compile(r'^\s*\d+\s*')
+
+# Commands that drive an interactive terminal prompt loop (AUTO, bare EDIT)
+# -- not representable in a GUI entry widget, and exactly what Tony asked
+# the immediate pane to do without. Multi-line DEF PROC/DEF FN entry is the
+# same shape (line-numbered prompt-per-line) and is handled separately: a
+# whole selected block is stored directly rather than routed through here.
+_LISTENER_BLOCKED_RE = re.compile(r'^(AUTO\b|EDIT\s*$)', re.IGNORECASE)
+
+
+def _strip_leading_line_number(line: str) -> str:
+    """Drop an optional leading ``N `` so Listener input never needs one."""
+    return _LEADING_LINE_NUM_RE.sub('', line, count=1)
+
+
+class _ListenerWriter(io.TextIOBase):
+    """Routes interpreter ``print`` output into the Listener pane.
+
+    Same approach as lispy3_machine's Listener writer: redirect stdout for
+    the duration of each evaluation rather than patching the interpreter,
+    so every native command that prints (not just one wrapped builtin)
+    lands in the pane.
+    """
+
+    def __init__(self, window: 'EditorWindow') -> None:
+        self.window = window
+
+    def write(self, s: str) -> int:
+        if s:
+            self.window._listener_write(s, 'result')
+        return len(s)
+
+    def writable(self) -> bool:
+        return True
+
+    def flush(self) -> None:
+        pass
+
 
 class EditorWindow:
     def __init__(self, root: tk.Tk, path: Optional[str] = None) -> None:
@@ -74,6 +130,9 @@ class EditorWindow:
         self.path: Optional[str] = None
         self._highlight_job: Optional[str] = None
         self._run_proc: Optional[subprocess.Popen] = None
+        self._listener_interp = None
+        self._listener_history: List[str] = []
+        self._listener_history_index = 0
 
         self._build_menu()
         self._build_widgets()
@@ -99,6 +158,11 @@ class EditorWindow:
             except Exception:
                 pass
             self._highlight_job = None
+        if self._listener_interp is not None:
+            try:
+                self._listener_interp._shutdown_display(hold=False)
+            except Exception:
+                pass
         self.root.destroy()
 
     # -- UI construction -------------------------------------------------
@@ -117,6 +181,9 @@ class EditorWindow:
 
         self.root.bind('<Control-o>', lambda _e: self.open_file())
         self.root.bind('<Control-s>', lambda _e: self.save_file())
+        self.root.bind('<F5>', lambda _e: self.eval_line_at_cursor())
+        self.root.bind('<Shift-F5>', lambda _e: self.eval_selection())
+        self.root.bind('<Control-l>', lambda _e: self._focus_listener_entry())
 
     def _build_widgets(self) -> None:
         toolbar = ttk.Frame(self.root)
@@ -128,6 +195,12 @@ class EditorWindow:
         ).pack(side=tk.LEFT, padx=4, pady=4)
         ttk.Button(
             toolbar, text='Renumber', command=self.renumber,
+        ).pack(side=tk.LEFT, padx=4, pady=4)
+        ttk.Button(
+            toolbar, text='Eval Line (F5)', command=self.eval_line_at_cursor,
+        ).pack(side=tk.LEFT, padx=4, pady=4)
+        ttk.Button(
+            toolbar, text='Eval Selection (Shift+F5)', command=self.eval_selection,
         ).pack(side=tk.LEFT, padx=4, pady=4)
 
         ttk.Label(toolbar, text='Dialect:').pack(side=tk.LEFT, padx=(12, 2))
@@ -152,8 +225,10 @@ class EditorWindow:
             side=tk.BOTTOM, fill=tk.X,
         )
 
-        text_frame = ttk.Frame(self.root)
-        text_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        paned = ttk.PanedWindow(self.root, orient=tk.VERTICAL)
+        paned.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        text_frame = ttk.Frame(paned)
 
         self.text = tk.Text(text_frame, wrap='none', undo=True, font=('TkFixedFont', 11))
         yscroll = ttk.Scrollbar(text_frame, orient='vertical', command=self.text.yview)
@@ -170,6 +245,55 @@ class EditorWindow:
             self.text.tag_configure(name, **style)
 
         self.text.bind('<<Modified>>', self._on_modified)
+        paned.add(text_frame, weight=3)
+
+        self._build_listener(paned)
+        paned.add(self.listener_frame, weight=1)
+
+    def _build_listener(self, parent: tk.Widget) -> None:
+        """A persistent Listener pane: type a statement, press Enter, see the result.
+
+        Backed by the same ``_execute_repl_line`` dispatch as the command-line
+        REPL (imported lazily in ``_get_listener_interp``), so this never
+        reimplements parsing or execution -- it only drives the interpreter
+        and shows what it prints.
+        """
+        self.listener_frame = ttk.Frame(parent)
+
+        listener_toolbar = ttk.Frame(self.listener_frame)
+        listener_toolbar.pack(side=tk.TOP, fill=tk.X)
+        ttk.Label(listener_toolbar, text='Listener (immediate mode)').pack(
+            side=tk.LEFT, padx=4,
+        )
+        ttk.Button(
+            listener_toolbar, text='Reset', command=self._reset_listener,
+        ).pack(side=tk.RIGHT, padx=4, pady=2)
+
+        output_frame = ttk.Frame(self.listener_frame)
+        output_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.listener_output = tk.Text(
+            output_frame, height=8, wrap='word', state='disabled',
+            font=('TkFixedFont', 10),
+        )
+        listener_scroll = ttk.Scrollbar(
+            output_frame, orient='vertical', command=self.listener_output.yview,
+        )
+        self.listener_output.configure(yscrollcommand=listener_scroll.set)
+        self.listener_output.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        listener_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        for tag, style in _LISTENER_TAG_STYLES.items():
+            self.listener_output.tag_configure(tag, **style)
+
+        entry_row = ttk.Frame(self.listener_frame)
+        entry_row.pack(side=tk.BOTTOM, fill=tk.X)
+        ttk.Label(entry_row, text='>').pack(side=tk.LEFT, padx=(4, 2))
+        self.listener_entry = ttk.Entry(entry_row, font=('TkFixedFont', 10))
+        self.listener_entry.pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4), pady=4,
+        )
+        self.listener_entry.bind('<Return>', self._listener_submit)
+        self.listener_entry.bind('<Up>', self._listener_history_prev)
+        self.listener_entry.bind('<Down>', self._listener_history_next)
 
     # -- File handling -----------------------------------------------------
 
@@ -410,6 +534,169 @@ class EditorWindow:
             return
         self._replace_text('\n'.join(lines) + '\n')
         self.status_var.set('Renumbered')
+
+    # -- Listener (immediate mode) ---------------------------------------
+
+    def _get_listener_interp(self):
+        """The Listener's persistent interpreter, created on first use.
+
+        Shares ``_make_interpreter``'s dialect choice with Run/Pretty/
+        Renumber. State (variables, DEF PROC/FN, the program being built)
+        lives here across evaluations until Reset.
+        """
+        if self._listener_interp is None:
+            self._listener_interp = self._make_interpreter()
+            self._listener_write(
+                f'New {self.dialect_var.get()} session.\n', 'info',
+            )
+        return self._listener_interp
+
+    def _reset_listener(self) -> None:
+        if self._listener_interp is not None:
+            try:
+                self._listener_interp._shutdown_display(hold=False)
+            except Exception:
+                pass
+        self._listener_interp = None
+        self.listener_output.configure(state='normal')
+        self.listener_output.delete('1.0', tk.END)
+        self.listener_output.configure(state='disabled')
+        self._get_listener_interp()
+
+    def _listener_write(self, text: str, tag: str = 'result') -> None:
+        self.listener_output.configure(state='normal')
+        self.listener_output.insert(tk.END, text, tag)
+        self.listener_output.see(tk.END)
+        self.listener_output.configure(state='disabled')
+
+    def _focus_listener_entry(self) -> None:
+        self.listener_entry.focus_set()
+
+    def _listener_execute(self, text: str) -> None:
+        """Run one line through the real REPL dispatch, output into the pane."""
+        interp = self._get_listener_interp()
+        stripped = text.strip()
+        if not stripped:
+            return
+        if _LISTENER_BLOCKED_RE.match(stripped):
+            self._listener_write(
+                'AUTO and bare EDIT need a real terminal prompt loop and are '
+                'not available here -- type or paste statements directly, or '
+                'select a DEF PROC/DEF FN block and use Eval Selection.\n',
+                'error',
+            )
+            return
+        if interp._classify_multiline_def_start(stripped) is not None:
+            self._listener_write(
+                'This starts a multi-line DEF PROC/DEF FN -- select the whole '
+                'block (through ENDPROC/END DEF) and use Eval Selection.\n',
+                'error',
+            )
+            return
+        from mini_basic.runtime import _execute_repl_line
+
+        writer = _ListenerWriter(self)
+        try:
+            with contextlib.redirect_stdout(writer):
+                _execute_repl_line(interp, stripped)
+        except Exception as exc:
+            self._listener_write(f'Error: {exc}\n', 'error')
+
+    def _eval_multiline_def_block(self, interp, lines: List[str]) -> bool:
+        """Store a selected DEF PROC/DEF FN ... ENDPROC/END DEF block directly.
+
+        Mirrors what the interpreter's own ``_auto_entry_loop`` does one
+        line at a time from a terminal prompt, except the Listener already
+        has every line of the block at once, so no interactive loop (and no
+        line numbers typed by hand) is needed.
+        """
+        if not lines:
+            return False
+        kind = interp._classify_multiline_def_start(lines[0])
+        if kind is None:
+            return False
+        step = 10
+        line_num = interp._next_auto_line_start(step)
+        for raw in lines:
+            text = raw.strip()
+            if not text:
+                continue
+            stored_num, statement = interp._parse_auto_line(line_num, text)
+            indent, statement = interp._preserve_or_parse_indent(
+                stored_num, statement, fallback_line=line_num,
+            )
+            interp.set_program_line(stored_num, statement, indent)
+            line_num = stored_num + step
+        interp._ensure_definitions_current()
+        kind_label = 'DEF PROC' if kind == 'proc' else 'DEF FN'
+        self._listener_write(f'{kind_label} defined.\n', 'info')
+        return True
+
+    def _run_in_listener(self, text: str) -> None:
+        interp = self._get_listener_interp()
+        raw_lines = [_strip_leading_line_number(ln) for ln in text.splitlines() if ln.strip()]
+        if not raw_lines:
+            return
+        if len(raw_lines) > 1 and interp._classify_multiline_def_start(raw_lines[0]) is not None:
+            preview = '\n'.join(raw_lines)
+            self._listener_write(f'> {preview}\n', 'echo')
+            try:
+                if self._eval_multiline_def_block(interp, raw_lines):
+                    self._focus_listener_entry()
+                    return
+            except Exception as exc:
+                self._listener_write(f'Error: {exc}\n', 'error')
+                self._focus_listener_entry()
+                return
+        for line in raw_lines:
+            self._listener_write(f'> {line}\n', 'echo')
+            self._listener_execute(line)
+        self._focus_listener_entry()
+
+    def _listener_submit(self, _event: object = None) -> str:
+        text = self.listener_entry.get()
+        self.listener_entry.delete(0, tk.END)
+        if text.strip():
+            self._listener_history.append(text)
+            self._listener_history_index = len(self._listener_history)
+            self._listener_write(f'> {text}\n', 'echo')
+            self._listener_execute(text)
+        return 'break'
+
+    def _set_listener_entry(self, text: str) -> None:
+        self.listener_entry.delete(0, tk.END)
+        self.listener_entry.insert(0, text)
+
+    def _listener_history_prev(self, _event: object = None) -> str:
+        if self._listener_history:
+            self._listener_history_index = max(0, self._listener_history_index - 1)
+            self._set_listener_entry(self._listener_history[self._listener_history_index])
+        return 'break'
+
+    def _listener_history_next(self, _event: object = None) -> str:
+        if self._listener_history:
+            self._listener_history_index = min(
+                len(self._listener_history), self._listener_history_index + 1,
+            )
+            if self._listener_history_index == len(self._listener_history):
+                self._set_listener_entry('')
+            else:
+                self._set_listener_entry(self._listener_history[self._listener_history_index])
+        return 'break'
+
+    def eval_line_at_cursor(self) -> None:
+        """F5: evaluate the editor line under the cursor in the Listener."""
+        line = self.text.get('insert linestart', 'insert lineend')
+        self._run_in_listener(line)
+
+    def eval_selection(self) -> None:
+        """Shift+F5: evaluate the current selection (or the cursor's line)."""
+        try:
+            selection = self.text.get('sel.first', 'sel.last')
+        except tk.TclError:
+            self.eval_line_at_cursor()
+            return
+        self._run_in_listener(selection)
 
     def _build_run_command(self, path: str) -> List[str]:
         cmd = [sys.executable, '-m', 'mini_basic', path]

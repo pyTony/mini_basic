@@ -3400,6 +3400,10 @@ class RuntimeExecutionMixin:
         if cmd.startswith('WRAPMINI'):
             self._handle_oscli_wrapmini()
             return
+        if cmd.startswith('EXEC'):
+            # The REPL handles *EXEC (runtime._execute_repl_line); a program
+            # cannot redirect its own keyboard input here.
+            raise ValueError('*EXEC works at the command prompt only')
         if cmd.startswith('FX'):
             return
         if cmd.startswith('TV'):

@@ -3,8 +3,18 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-20
+
+- [#144](https://github.com/pyTony/mini_basic/pull/144) Editor: wait-for-Esc toggle and EDIT NEW blank launch — - The editor toolbar has a new "Wait for Esc at end of run" checkbox. It wires the existing `--hold`/`--no-hold` engine flag (which already makes the pygame display window wait for Escape/close at the end of a run) into the Run command, so the window reliably stays open or closes immediately per the toggle.
+
+## 2026-10-18
+
+- [#143](https://github.com/pyTony/mini_basic/pull/143) fix(format): don't let PROC/FN name glue mangle REM comment text — the glue step is only applied to actual code parts of the line; REM and `'` comment parts are left untouched.
+- [#141](https://github.com/pyTony/mini_basic/pull/141) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (main backport) — Backport of #140 to `main`. The affected files (`mini_basic/runtime_parts/defs.py`, `expr.py`, `program.py`) are byte-identical between `dev` and `main`, so this is a clean cherry-pick of the same commit — see #140 for the full before/after/how writeup.
+
 ## 2026-10-16
 
+- [#138](https://github.com/pyTony/mini_basic/pull/138) docs: add agent TODOs to CLAUDE.md — Adds a list of missing tests and duplicate functions from the beta suggestions list to `CLAUDE.md` as an "Agent TODOs" checklist. Checked off two issues that already have tests.
 - [#131](https://github.com/pyTony/mini_basic/pull/131) 🧪 [added tests for discover_machine_epsilon in float_info.py] — 🎯 What: The testing gap addressed The pure mathematical function `discover_machine_epsilon` located in `mini_basic/util/float_info.py` was missing tests, creating a reliability gap for platforms implementing this interpreter.
 - [#128](https://github.com/pyTony/mini_basic/pull/128) 🧪 Add tests for basic_error_wording in basic_errors.py — 🎯 What: The testing gap for `basic_error_wording` in `mini_basic/util/basic_errors.py` has been addressed by introducing a new pytest suite.
 - [#135](https://github.com/pyTony/mini_basic/pull/135) Add comprehensive documentation and example programs — https://claude.ai/code/session_01XEtY7KXqoNtmrvatUqC19v

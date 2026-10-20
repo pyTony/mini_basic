@@ -185,6 +185,33 @@ class RuntimeExprMixin:
             return int(x + 0.5)
         return int(x - 0.5)
 
+    def _preserve_exact_numeric(self, value: object) -> object:
+        """Keep an untyped ('float'-kind) numeric value as a Python int when
+        it has no fractional part, instead of always widening it to float.
+
+        float64 only has ~15-17 significant digits (exact ints only up to
+        2**53), so once a recursive FN result (e.g. large Fibonacci numbers)
+        crosses that point, forcing it through float() loses digits for
+        good -- every caller that adds the lossy value compounds the error.
+        Python ints are exact at any size, so as long as a whole-number
+        value stays an int end to end it never loses precision; it still
+        promotes to a real float the moment any operation makes it
+        fractional.
+        """
+        if not self._bigint_enabled():
+            return float(value)
+        if isinstance(value, bool):
+            return float(value)
+        if isinstance(value, int):
+            return value
+        try:
+            fval = float(value)
+        except (TypeError, ValueError):
+            return 0.0
+        if fval == fval and fval not in (float('inf'), float('-inf')) and fval == int(fval):
+            return int(fval)
+        return fval
+
     def _warm_compiled_exprs(self) -> None:
         running_types: Dict[str, VarKind] = {}
         saved_types = self.default_var_types
@@ -1694,7 +1721,7 @@ class RuntimeExprMixin:
             else:
                 had = name in self.variables
                 saved.append((name, kind, self.variables.get(name, 0.0), had))
-                self.variables[name] = float(value)
+                self.variables[name] = self._preserve_exact_numeric(value)
         return saved
 
     def _coerce_fn_return(self, fn: UserFunction, value: object) -> object:
@@ -1708,7 +1735,7 @@ class RuntimeExprMixin:
             return str(value)
         if fn.return_kind == 'int':
             return self._coerce_int_storage(value)
-        return float(value)
+        return self._preserve_exact_numeric(value)
 
     def _eval_whole_arith(self, expr: str) -> object:
         # AND/OR/EOR normalize to & / | / ^, which bind tighter than Python's
@@ -1829,7 +1856,11 @@ class RuntimeExprMixin:
                     self._coerce_int_storage(self._eval_numeric(arg_expr)),
                 ))
             else:
-                bindings.append((param_name, param_kind, self._eval_numeric(arg_expr)))
+                bindings.append((
+                    param_name,
+                    param_kind,
+                    self._preserve_exact_numeric(self._eval_numeric(arg_expr)),
+                ))
         memoable = (not array_aliases) and self._fn_is_memoable(fn)
         if memoable:
             key = self._fn_memo_key(fn, bindings)

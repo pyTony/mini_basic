@@ -282,7 +282,7 @@ def _format_expression(expr: str, fold: Fold) -> str:
     return ''.join(parts).strip()
 
 
-def _format_statement_body(body: str, fold: Fold) -> str:
+def _format_statement_body(body: str, fold: Fold, rem_as_apostrophe: bool = False) -> str:
     stripped = body.strip()
     if not stripped:
         return stripped
@@ -294,6 +294,8 @@ def _format_statement_body(body: str, fold: Fold) -> str:
     if rem_m is not None:
         if fold == 'none':
             rest = rem_m.group(1)
+            if rem_as_apostrophe:
+                return "'" + rest
             if rest and not rest[0].isspace():
                 return 'REM ' + rest.lstrip()
             return 'REM' + rest
@@ -316,22 +318,22 @@ def _format_statement_body(body: str, fold: Fold) -> str:
     return _format_expression(stripped, fold)
 
 
-def format_statement_part(part: str, fold: Fold) -> str:
+def format_statement_part(part: str, fold: Fold, rem_as_apostrophe: bool = False) -> str:
     stripped = part.strip()
     if not stripped:
         return stripped
     if stripped.startswith("'") or re.match(r'^REM\b', stripped, re.IGNORECASE):
-        return _format_statement_body(stripped, fold)
+        return _format_statement_body(stripped, fold, rem_as_apostrophe)
     label_match = _RE_LABEL_PREFIX.match(stripped)
     if label_match and label_match.group(1).upper() not in _RESERVED_WORDS:
         raw_label = label_match.group(1)
         label = raw_label.upper() if fold == 'none' else _fold_text(raw_label, fold)
         body = label_match.group(2)
-        formatted = _format_statement_body(body, fold)
+        formatted = _format_statement_body(body, fold, rem_as_apostrophe)
         if formatted:
             return f'{label}: {formatted}'
         return f'{label}:'
-    return _format_statement_body(stripped, fold)
+    return _format_statement_body(stripped, fold, rem_as_apostrophe)
 
 
 def glue_bbc_proc_fn_names(text: str) -> str:
@@ -377,12 +379,12 @@ def _is_comment_part(part: str) -> bool:
     )
 
 
-def format_program_line(statement: str, fold: Fold) -> str:
+def format_program_line(statement: str, fold: Fold, rem_as_apostrophe: bool = False) -> str:
     """Canonical LIST/SAVE formatting for one program statement line."""
     parts = _split_colon_statements(statement)
     formatted_parts = []
     for part in parts:
-        formatted_part = format_statement_part(part, fold)
+        formatted_part = format_statement_part(part, fold, rem_as_apostrophe)
         # REM / ' comment text is verbatim — don't let the PROC/FN name glue
         # below mangle plain-English words like "PROC and FN" into "PROCand FN".
         if not _is_comment_part(part):

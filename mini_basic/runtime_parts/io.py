@@ -157,6 +157,13 @@ class RuntimeIoMixin:
                         if event.type == pygame_mod.QUIT:
                             display._open = False
                             return ''
+                        if event.type == pygame_mod.KEYDOWN and (
+                            getattr(event, 'mod', 0) & getattr(pygame_mod, 'KMOD_CTRL', 0)
+                        ) and hasattr(display, '_scale_nudge_for_key'):
+                            delta = display._scale_nudge_for_key(event.key)
+                            if delta is not None:
+                                display.nudge_runtime_scale(delta)
+                                continue
                         if event.type == pygame_mod.TEXTINPUT:
                             # Prefer TEXTINPUT for printables (do not also
                             # append from KEYDOWN — that double-fired and a
@@ -1988,7 +1995,14 @@ class RuntimeIoMixin:
         unnumbered source**, SAVE uses **pretty** automatically so a LOAD → EDIT →
         SAVE round-trip keeps the file unnumbered (memory stays numbered for EDIT).
         Use ``SAVE NUMBERED`` to force classic line numbers.
+
+        ``.bbc`` is refused: SAVE writes text, and ``.bbc`` is reserved for
+        tokenized BBC BASIC files (bare SAVE after LOAD of one would
+        otherwise overwrite the binary with text).
         """
+        if os.path.splitext(str(filename))[1].lower() == '.bbc':
+            self._emit_error('Error: Tokenized saving is not yet implemented')
+            return
         try:
             path = self.resolve_path(filename)
             case_fold = self._detokenize_fold()
