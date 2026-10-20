@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Source editor and Listener — mini_basic</title>
+  <link rel="stylesheet" href="site.css">
+</head>
+<body>
+  <header>
+    <nav>
+      <a href="index.html">Home</a>
+      <a href="install.html">Install</a>
+      <a href="tree.html">Public tree</a>
+      <a href="LANGUAGE_FEATURES_1.00.html">Language</a>
+      <a href="RELEASE_NOTES_1.0.html">What's new</a>
+      <a href="CHANGELOG.html">Changelog</a>
+      <a href="https://github.com/pyTony/mini_basic">GitHub</a>
+    </nav>
+    <h1>Source editor and Listener</h1>
+    <p class="tag">Generated from the Markdown source in docs/.</p>
+  </header>
+  <main>
+    <article>
+<h2 id="source-editor-and-listener">Source editor and Listener</h2>
+<p>These instructions describe the current <code>dev</code> branch, including merged PRs #142, #144 and #145. The tkinter editor is a checkout tool, not part of the pip wheel. <code>EDIT NEW</code> also exists on <code>main</code>; the Listener and PRETTY changes described here are on <code>dev</code>.</p>
+<h3 id="open-and-run-a-program">Open and run a program</h3>
+<p>From a <code>dev</code> checkout with Python and tkinter available:</p>
+<pre><code>python tools/editor.py
+python tools/editor.py showcase/mandelbrot_archimedes_mode9.bas</code></pre>
+<p>Use <strong>Open</strong> (Ctrl+O), <strong>Save</strong> (Ctrl+S), or <strong>Save As</strong> for source files. <strong>Open Tokenized BBC</strong> loads tokenized BBC source through the interpreter. Choose the dialect in the toolbar; BBC keywords must be uppercase, while mini accepts keywords in either case and keeps identifiers case-sensitive.</p>
+<p><strong>Run</strong> starts the whole program in a separate interpreter process. Console output uses its terminal; pygame graphics use their own window. <strong>Use pygame display</strong> requests that display. <strong>Wait for Esc at end of run</strong> is off by default: checked passes <code>--hold</code>, unchecked passes <code>--no-hold</code>. This controls the final pygame window wait for Escape/close; it does not interrupt a running loop.</p>
+<h3 id="try-statements-in-the-listener">Try statements in the Listener</h3>
+<p>The resizable lower pane holds a persistent immediate-mode interpreter, separate from the whole-program Run process. Type <code>PRINT 6*7</code> in its input field and press Enter to see <code>42</code>. Variables and definitions persist between evaluations.</p>
+<table><tr><th>Action</th><th>Shortcut</th><th>Behavior</th></tr><tr><td>Eval Line</td><td>F5</td><td>Evaluate the source line at the cursor; a leading line number is removed</td></tr><tr><td>Eval Selection</td><td>Shift+F5</td><td>Evaluate selected source lines</td></tr><tr><td>Focus Listener input</td><td>Ctrl+L</td><td>Move focus to the input field</td></tr><tr><td>Previous/next input</td><td>Up/Down in input</td><td>Browse Listener command history</td></tr><tr><td>Reset</td><td>Listener Reset button</td><td>Start a fresh interpreter and clear output</td></tr></table>
+<p>F5 evaluates a line; use <strong>Run</strong> to execute the whole program. Changing the dialect selector does not rebuild an existing Listener session: use <strong>Reset</strong> to apply it.</p>
+<p>To define a procedure, select the complete block and press Shift+F5:</p>
+<pre><code>DEF PROCgreet(name$)
+PRINT &quot;Hello &quot;; name$
+ENDPROC</code></pre>
+<p>Then enter <code>PROCgreet(&quot;Tony&quot;)</code> in the Listener. Select a complete multiline <code>DEF FN</code> block through <code>END DEF</code> in the same way. Ordinary multiline selections execute one line at a time; they do not load the entire buffer as a program. <code>AUTO</code> and bare <code>EDIT</code> require a terminal prompt loop and are blocked here. Type statements directly or select complete definitions instead.</p>
+<h3 id="format-source-and-comments">Format source and comments</h3>
+<p><strong>Pretty (no numbers)</strong> uses the interpreter&#x27;s PRETTY formatter; <strong>Renumber</strong> assigns line numbers and updates jump targets through the interpreter.</p>
+<p>In mini, <code>LIST PRETTY</code> and <code>SAVE PRETTY &quot;out.bas&quot;</code> convert <code>REM</code> comments to apostrophe comments. For example, <code>REM PROC and FN notes</code> becomes <code>&#x27; PROC and FN notes</code>; the comment words remain intact. Plain LIST/SAVE and SAVE NUMBERED retain REM. BBC and MITS PRETTY output retain REM for portability.</p>
+<h3 id="start-a-fresh-program-with-edit-new">Start a fresh program with EDIT NEW</h3>
+<p>At the terminal REPL, <code>EDIT</code> opens the current program in the configured external editor, while <code>EDIT NEW</code> opens an empty buffer without first clearing the current program. Closing an unchanged blank buffer leaves the program intact. Saving changed source back applies it to the interpreter and offers the usual save prompt. This command uses the configured external editor, which may differ from <code>tools/editor.py</code>; it is not the Listener Reset action.</p>
+<h3 id="verification-and-remaining-checks">Verification and remaining checks</h3>
+<p>Feature regressions are in <code>test/test_editor_smoke.py</code> and <code>test/test_mini_basic.py</code>; comment formatting coverage also lives in <code>test/test_save_case.py</code> and <code>test/test_list_glue_proc.py</code>. Tk-dependent tests skip when Tk cannot initialize. Automated checks do not replace checking keyboard focus, window layout and pygame window lifetime on a desktop.</p>
+<pre><code>python -m pytest test/test_editor_smoke.py test/test_save_case.py test/test_list_glue_proc.py test/test_mini_basic.py -q -p no:cacheprovider</code></pre>
+<p>Documentation refresh validation: 456 targeted tests and 19 subtests passed on 2026-10-20, including the editor smoke tests (no Tk skips in that run).</p>
+    </article>
+  </main>
+  <footer>
+    <a href="index.html">Home</a>
+  </footer>
+</body>
+</html>

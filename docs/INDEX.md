@@ -11,6 +11,7 @@ Markdown sources stay in this folder. `python scripts/build_user_docs.py` refres
 | Doc | What it is |
 |-----|------------|
 | [../README.md](../README.md) | Overview, quick start, pip install summary |
+| [EDITOR.md](EDITOR.md) | Source editor, Listener shortcuts, PRETTY comments and EDIT NEW |
 | [../HOWTO.md](../HOWTO.md) | Dev setup, modular runtime, common tasks |
 | [RELEASE_NOTES_1.0.md](RELEASE_NOTES_1.0.md) | What's new in 1.0 (end-user summary) |
 | [RELEASE_1.00.md](RELEASE_1.00.md) | 1.00 release notes + tag checklist (user gate) |
