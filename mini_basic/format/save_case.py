@@ -28,7 +28,7 @@ _STMT_KEYWORDS = (
     'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF',
     'GOTO', 'GOSUB', 'RESUME', 'RETURN',
     'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
-    'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'MOVE', 'DRAW', 'LINE',
+    'MODE', 'VDU', 'ANSI', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'MOVE', 'DRAW', 'LINE',
     'ORIGIN', 'PLOT', 'SPRITEDEF', 'SPRITE', 'STOP', 'OSCLI', 'WAIT',
     'TO', 'STEP', 'THEN', 'MOD', 'AND', 'OR', 'NOT', 'TRUE', 'FALSE',
         'ON', 'ERROR', 'OFF', 'OPEN', 'FIELD', 'GET', 'PUT', 'LSET', 'RSET',

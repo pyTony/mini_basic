@@ -484,7 +484,7 @@ class RuntimeProgramMixin:
             'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN',
             'OTHERWISE', 'ENDCASE', 'SELECT', 'GOTO', 'GOSUB', 'RESUME', 'RETURN',
             'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
-            'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
+            'MODE', 'VDU', 'ANSI', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
             'CIRCLE', 'ELLIPSE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
             'PLOT', 'STOP', 'CHAIN', 'RUN', 'WAIT', 'KILL', 'ERASE', 'LINE',
             'TRACE', 'SWAP', 'LOCAL', 'RANDOMIZE', 'OPEN', 'CLOSE', 'SOUND',
@@ -1777,7 +1777,7 @@ class RuntimeProgramMixin:
                     )
                 # May glue onto idents: MODE5, MOVEI%, FORI%=, GCOL0, PLOT69
                 for kw in (
-                    'MODE', 'GCOL', 'VDU', 'PLOT', 'MOVE', 'DRAW',
+                    'MODE', 'GCOL', 'VDU', 'ANSI', 'PLOT', 'MOVE', 'DRAW',
                     'FOR', 'NEXT', 'PRINT', 'INPUT',
                 ):
                     chunk = re.sub(

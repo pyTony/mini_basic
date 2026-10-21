@@ -884,7 +884,7 @@ _FN_MEMO_IMPURE = frozenset({
     'ERR', 'ERL', 'LOC', 'LOF', 'EOF', 'PTR', 'EXT', 'ARG', 'ARG$',
     'INPUT', 'PRINT', 'READ', 'DATA', 'RESTORE',
     'PLOT', 'DRAW', 'MOVE', 'CIRCLE', 'ELLIPSE', 'RECTANGLE', 'LINE', 'MODE',
-    'COLOUR', 'COLOR', 'GCOL', 'CLS', 'CLG', 'VDU', 'SYS', 'OSCLI',
+    'COLOUR', 'COLOR', 'GCOL', 'CLS', 'CLG', 'VDU', 'ANSI', 'SYS', 'OSCLI',
     'SOUND', 'BEEP', 'WAIT', 'CALL', 'PROC', 'ENDPROC',
     'OPENIN', 'OPENOUT', 'OPENUP', 'OPEN', 'CLOSE', 'BGET', 'BPUT',
     'CHAIN', 'RUN', 'LOAD', 'SAVE',

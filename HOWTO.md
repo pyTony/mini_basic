@@ -21,6 +21,26 @@ The interpreter is no longer a single giant `runtime.py` dump:
 
 Public import is unchanged: `from mini_basic import BASICInterpreter, main`.
 
+## Raw ANSI terminal output
+
+In `mini` and `bbc`, `ANSI` emits comma-separated numeric character values and
+strings directly to program stdout, without a newline or BBC VDU decoding:
+
+```basic
+ANSI 27,"[31m"
+PRINT "Red text"
+ANSI 27,"[0m"
+```
+
+Numeric expressions are truncated to integers and wrapped modulo 256, matching
+lispy3 mini-basic's `ANSI` extension. Strings and string expressions are emitted
+unchanged. Controls do not advance the interpreter's printable column; raw
+cursor moves are opaque to its text-position bookkeeping. Pending PRINT output
+is flushed before controls, and functions that execute ANSI are not memoized.
+This is a terminal extension, not a standard BBC BASIC keyword. It does not
+interpret ANSI in pygame or pass ANSI bytes into the BBC `VDU` decoder; use
+`COLOUR`/`VDU` for the interpreter's display model.
+
 ## Development setup
 
 This `main` branch is the lean release tree. The full dev tree

@@ -120,7 +120,7 @@ _WHILE_ACCEL_BLOCKING_CMDS = frozenset({
     'CASE', 'WHEN', 'OTHERWISE', 'ENDCASE', 'BREAK', 'CONTINUE',
     'ON', 'DEF', 'LOCAL', 'DIM', 'READ', 'RESTORE', 'DATA',
     'RETURN', 'RESUME', 'CHAIN', 'RUN', 'STOP', 'END', 'INSTALL', 'LIBRARY',
-    'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU',
+    'PRINT', 'INPUT', 'CLS', 'CLG', 'MODE', 'VDU', 'ANSI',
     'COLOUR', 'COLOR', 'GCOL', 'PLOT', 'MOVE', 'DRAW', 'LINE',
     'WAIT', 'MOUSE', 'SOUND', 'OSCLI', 'SWAP', 'TINT',
 })
@@ -5700,6 +5700,32 @@ class RuntimeExecutionMixin:
             except Exception as exc:
                 self._runtime_error(
                     self._error_message('? SPRITE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'ANSI':
+            # Raw terminal channel: never pass these characters through VDU.
+            try:
+                chunks = []
+                for operand in self._split_args(rest.strip()):
+                    if not operand.strip():
+                        raise ValueError('missing ANSI operand')
+                    if operand.rstrip().endswith(('+', '-', '*', '/', '^')):
+                        raise ValueError('incomplete ANSI operand')
+                    if self._is_string_print_item(operand):
+                        chunks.append(self._eval_string_expr(operand))
+                    else:
+                        chunks.append(chr(int(self._eval_numeric(operand)) % 256))
+                self._flush_program_output()
+                out = self._get_program_stdout()
+                out.write(''.join(chunks))
+                out.flush()
+                # Leave raw terminal attributes in charge until COLOUR changes.
+                self._last_emitted_fg_colour = self.text_fg_colour
+            except ProgramExit:
+                raise
+            except Exception as exc:
+                self._runtime_error(self._error_message('? ANSI error', exc), line_num,
+                                    stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         if cmd == 'VDU':
