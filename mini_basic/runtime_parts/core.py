@@ -2397,6 +2397,8 @@ class RuntimeCoreMixin:
         self._close_file_channels()
         self._prepare_run()
         self._apply_dialect_hints_from_program(announce=False)
+        if not self._validate_bbc_end_def(self._current_program_lines()):
+            return
         self._maybe_auto_enable_pygame_from_program(announce=True)
         self._apply_program_refresh_off_at_start()
         self._announce_program_graphics()

@@ -1685,6 +1685,7 @@ class RuntimeExecutionMixin:
         body_start = line_nums[start_idx + 1]
         body_end: Optional[int] = None
         last_body_line: Optional[int] = None
+        depth = 0
         for line_num in line_nums[start_idx + 1:]:
             stmt_parts = self._run_stmts.get(line_num)
             if stmt_parts is None:
@@ -1711,7 +1712,13 @@ class RuntimeExecutionMixin:
                 if cmd == 'END' and not rest.strip():
                     body_end = line_num
                     break
-                if self._extract_fn_equals_return_expr(stripped) is not None:
+                if cmd in ('FOR', 'WHILE', 'REPEAT', 'CASE') or (
+                    cmd == 'IF' and self._is_structured_if(rest)
+                ):
+                    depth += 1
+                elif cmd in ('NEXT', 'WEND', 'ENDWHILE', 'UNTIL', 'ENDIF', 'ENDCASE'):
+                    depth = max(0, depth - 1)
+                if depth == 0 and self._extract_fn_equals_return_expr(stripped) is not None:
                     saw_return = True
                 last_body_line = line_num
             if body_end is not None:
@@ -1834,9 +1841,10 @@ class RuntimeExecutionMixin:
                 else:
                     idx += 1
             if full_line_nums and proc.body_end >= full_line_nums[-1]:
-                # Body runs off the end of the program with no explicit
-                # ENDPROC: BBC BASIC treats this as an implicit return.
-                return
+                # Only mini permits implicit return at the end of a multiline
+                # procedure. BBC single-line omission is handled in the header.
+                if self.config.dialect != 'bbc':
+                    return
             raise ValueError('PROC missing ENDPROC')
         finally:
             self._restore_local_bindings()
@@ -5860,6 +5868,9 @@ class RuntimeExecutionMixin:
             if rest_strip:
                 key = rest_strip.upper()
                 if key == 'DEF':
+                    if self.config.dialect == 'bbc':
+                        self._validate_bbc_end_def([(line_num, line, 0)])
+                        return None
                     self._emit_error(
                         f'? Line {line_num}: END DEF closes DEF FN — '
                         'use END alone to stop the program'

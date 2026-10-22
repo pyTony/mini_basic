@@ -144,6 +144,21 @@ class RuntimeDialectMixin:
             return dialect not in self._NUMBERED_GOTO_DIALECTS
         return True
 
+    def _validate_bbc_end_def(self, parsed_lines) -> bool:
+        """END DEF is a mini extension, including in otherwise pure FN bodies."""
+        if self.config.dialect != 'bbc':
+            return True
+        for line_num, statement, _ in parsed_lines:
+            for _, text in self._parse_line_statements(statement):
+                cmd, rest = self._parse_command(text)
+                if cmd == 'END' and rest.strip().upper() == 'DEF':
+                    self._emit_error(
+                        f'? END DEF at line {line_num} is a mini extension, not allowed in bbc dialect; '
+                        'BBC functions return with =expression (procedures use ENDPROC)'
+                    )
+                    return False
+        return True
+
     def _dialect_status_line(self) -> str:
         """Single status line for bare DIALECT and set_dialect announcements."""
         strict_label = 'on' if self.config.strict_dialect else 'off'

@@ -124,6 +124,8 @@ class UserProcedure:
     body_end: int = 0
     # Same-line body after DEF PROCname(...): e.g. "IF A=0 ENDPROC" (Towers of Hanoi).
     header_stmt: str = ''
+    implicit_inline_return: bool = False
+
 
 
 @dataclass

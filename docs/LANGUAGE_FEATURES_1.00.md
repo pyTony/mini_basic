@@ -69,7 +69,7 @@ apostrophe comments. The guide states branch availability.
 | `REPEAT` / `UNTIL` | |
 | `EXIT FOR` / `WHILE` / `REPEAT` | |
 | `CASE` / `WHEN` / `OTHERWISE` / `ENDCASE` | BBC family. |
-| `DEF PROC` / `ENDPROC`, `DEF FN` / `END DEF` | Glued `PROCname` / `FNname` (BBC rule). |
+| `DEF PROC` / `ENDPROC`, `DEF FN` | Glued `PROCname` / `FNname` (BBC rule); BBC functions return with `=expression`. `END DEF` is mini-only and rejected in BBC, even without strict mode. |
 | `BREAK` / `CONTINUE` | **mini** extension. |
 
 ### 3.3 Variables & expressions
@@ -306,3 +306,8 @@ From `mini_basic/features/deferred.py` and project policy:
 ---
 
 *End of 1.00 language features baseline.*
+
+In BBC dialect, multiline procedures require ENDPROC. Only complete single-line
+DEF PROC bodies may omit it. Mini retains its implicit return at EOF. This is
+an intentional stricter diagnostic than BBCSDL's behavior at program EOF
+(which ends the program); it does not make END DEF a BBC keyword.
