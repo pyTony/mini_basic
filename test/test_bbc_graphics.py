@@ -1,6 +1,8 @@
 import os
+from contextlib import nullcontext
 import sys
 import unittest
+from unittest.mock import patch
 
 import pytest
 
@@ -117,6 +119,51 @@ class BBCGraphicsTests(unittest.TestCase):
         self.assertEqual(gfx.point_colour(16, 16), 5)
         self.assertEqual(gfx.point_colour(17, 17), 0)
         self.assertGreaterEqual(gfx.plot_count, 64)
+
+    def test_fill_rectangle_after_circle_does_not_inherit_disc_clip(self):
+        for use_numpy in (True, False):
+            for mode in (0, 3):
+                for rgb in (None, (255, 0, 0)):
+                    with self.subTest(numpy=use_numpy, mode=mode, rgb=rgb):
+                        backend = (nullcontext() if use_numpy else
+                                   patch('mini_basic.bbc_graphics._try_numpy', return_value=None))
+                        with backend:
+                            gfx = BBCGraphics(32, 32)
+                        gfx.gcol(0, 2)
+                        gfx.move_absolute(5, 5)
+                        gfx.plot_code(153, 8, 5)
+                        self.assertIsNotNone(gfx._clip_disc)
+                        gfx.set_truecolour(rgb)
+                        gfx.gcol(mode, 7)
+                        gfx.fill_rectangle(20, 20, 3, 3)
+                        for y in range(20, 24):
+                            for x in range(20, 24):
+                                self.assertEqual(gfx.point_colour(x, y), 7)
+
+    def test_fill_rectangle_logical_modes_match_pixel_rgb_updates(self):
+        for use_numpy in (True, False):
+            for mode in range(1, 8):
+                for rgb in (None, (255, 0, 0)):
+                    with self.subTest(numpy=use_numpy, mode=mode, rgb=rgb):
+                        backend = (nullcontext() if use_numpy else
+                                   patch('mini_basic.bbc_graphics._try_numpy', return_value=None))
+                        with backend:
+                            actual = BBCGraphics(8, 8)
+                            expected = BBCGraphics(8, 8)
+                        for gfx in (actual, expected):
+                            gfx.set_truecolour((10, 20, 30))
+                            gfx.gcol(0, 7)
+                            gfx.fill_rectangle(2, 2, 3, 3)
+                            gfx.set_truecolour(rgb)
+                            gfx.gcol(mode, 7)
+                        actual.fill_rectangle(2, 2, 3, 3)
+                        for y in range(2, 6):
+                            for x in range(2, 6):
+                                sx, sy = expected._to_screen(x, y)
+                                expected._put_screen_pixel(sx, sy, expected.gcol_fg)
+                        self.assertEqual(self._rows(actual), self._rows(expected))
+                        self.assertEqual(actual.rgb_pixels, expected.rgb_pixels)
+                        self.assertEqual(actual.rgb_dirty, expected.rgb_dirty)
 
     def _rows(self, gfx):
         return [''.join(str(int(v)) for v in row) for row in gfx.pixels]
