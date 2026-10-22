@@ -251,18 +251,6 @@ def _windows_arrow_action(getwch, prefix: str) -> Optional[str]:
     return parse_special_key(getwch, prefix)
 
 
-def _windows_apply_arrow(
-    action: str,
-    buffer: List[str],
-    cursor: int,
-    default: str,
-) -> Tuple[List[str], int, bool]:
-    """Apply named line-edit action (shared with REPL)."""
-    from .repl.windows_input import apply_line_edit
-
-    return apply_line_edit(action, buffer, cursor, default=default)
-
-
 def _windows_editing_input(
     prompt: str,
     default: str = '',
