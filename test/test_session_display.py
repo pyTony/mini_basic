@@ -128,7 +128,7 @@ class AutoEnableGuiGateTests(unittest.TestCase):
 
     def test_load_does_not_say_program_cleared(self):
         interp = BASICInterpreter(
-            InterpreterConfig(dialect='bbc', display='none', hold_display_open=False),
+            InterpreterConfig(dialect='mini', display='none', hold_display_open=False),
         )
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         path = os.path.join(root, 'basics', 'fact.bas')
