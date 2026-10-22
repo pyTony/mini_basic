@@ -139,6 +139,7 @@ The optional `TO var` result works, including the glued form (`SYS G$TO T0%`). A
 | `MODE` n | Modes 0–7 + BB4W/SDL extended (e.g. 8+); MODE 7 teletext **partial** (double-height + conceal yes; boxed/full SAA5050 no). |
 | `GCOL` action, colour | Modes 0–7 including XOR/invert. |
 | `COLOUR` / `COLOR` | Text fg/bg; multi-arg RGB palette; `COLOR n+128` bg index kept (piechart sky). |
+| `ANSI` items | Raw numeric/string terminal output; mini/bbc extension, separate from VDU and pygame. See root HOWTO. |
 | `MOVE` / `DRAW` / `PLOT` | PLOT codes subset + BB4W extras; absolute/relative. |
 | `CIRCLE` / `CIRCLE FILL` | Outline and disc; disc clip vs false pie bulge fixed. |
 | `RECTANGLE` / `RECTANGLE FILL` | |
