@@ -24,6 +24,8 @@
     <article>
 <h2 id="changelog-dev-branch-full-history">Changelog (dev branch — full history)</h2>
 <p>Format: one line per merged PR, newest first, auto-generated from PR descriptions by <code>scripts/update_changelog.py</code> (<code>.github/workflows/update-changelog.yml</code> refreshes this branch on every PR merged to <code>main</code>). <code>main</code>&#x27;s own <code>CHANGELOG.md</code> tracks tagged releases only. See <a href="https://github.com/pyTony/mini_basic/issues">GitHub Issues</a> for open work.</p>
+<h3 id="2026-10-22">2026-10-22</h3>
+<ul><li><a href="https://github.com/pyTony/mini_basic/pull/152">#152</a> 🧹 Remove duplicate <code>_windows_apply_arrow</code> definition in runtime.py — 🎯 What: Removed duplicate <code>_windows_apply_arrow</code> function definition from <code>mini_basic/runtime.py</code> and updated <code>mini_basic/__init__.py</code> to import it directly from <code>mini_basic.runtime_parts.helpers</code>. 💡 Why: This duplicate function was exactly the same as the one in <code>helpers.py</code> but wasn&#x27;t even being used within…</li></ul>
 <h3 id="2026-10-20">2026-10-20</h3>
 <ul><li><a href="https://github.com/pyTony/mini_basic/pull/148">#148</a> Dev — Update dev to sync.</li><li><a href="https://github.com/pyTony/mini_basic/pull/144">#144</a> Editor: wait-for-Esc toggle and EDIT NEW blank launch — - The editor toolbar has a new &quot;Wait for Esc at end of run&quot; checkbox. It wires the existing <code>--hold</code>/<code>--no-hold</code> engine flag (which already makes the pygame display window wait for Escape/close at the end of a run) into the Run command, so the window reliably stays open or closes immediately per the toggle.</li></ul>
 <h3 id="2026-10-18">2026-10-18</h3>

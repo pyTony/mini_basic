@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-22
+
+- [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py — 🎯 What: Removed duplicate `_windows_apply_arrow` function definition from `mini_basic/runtime.py` and updated `mini_basic/__init__.py` to import it directly from `mini_basic.runtime_parts.helpers`. 💡 Why: This duplicate function was exactly the same as the one in `helpers.py` but wasn't even being used within…
+
 ## 2026-10-20
 
 - [#148](https://github.com/pyTony/mini_basic/pull/148) Dev — Update dev to sync.
