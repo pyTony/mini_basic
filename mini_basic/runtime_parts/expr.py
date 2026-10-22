@@ -541,6 +541,8 @@ class RuntimeExprMixin:
         *,
         announce: bool = True,
     ) -> bool:
+        if not self._validate_bbc_end_def(parsed_lines):
+            return False
         if source_was_numbered:
             if not self._dialect_allows('numbered_program'):
                 if not self._report_dialect_violation(

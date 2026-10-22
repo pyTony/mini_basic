@@ -102,3 +102,16 @@ blocks, PRETTY comments, `EDIT NEW`, and current testing limits.
 
 For language notes see `docs/LLM.md`.
 For git rules see `GIT_QUICKSTART.md` on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
+
+### Function and procedure endings by dialect
+
+BBC functions return with `=expression`; procedures return with `ENDPROC`.
+`END DEF` belongs to mini, and BBC rejects it during LOAD, RUN, immediate input
+and a dialect switch, regardless of the strict-mode flag. Errors identify the
+source line and suggest the BBC return syntax.
+
+BBC mode requires ENDPROC for multiline procedures and reports a missing
+terminator when execution reaches the end of their body. Only a procedure
+whose entire body is on its DEF line may omit ENDPROC. Mini retains its
+existing implicit return at EOF. This is deliberately stricter than BBCSDL's
+last-procedure EOF behavior, where reaching EOF ends the whole program.
