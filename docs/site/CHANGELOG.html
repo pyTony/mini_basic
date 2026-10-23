@@ -24,6 +24,8 @@
     <article>
 <h2 id="changelog-dev-branch-full-history">Changelog (dev branch — full history)</h2>
 <p>Format: one line per merged PR, newest first, auto-generated from PR descriptions by <code>scripts/update_changelog.py</code> (<code>.github/workflows/update-changelog.yml</code> refreshes this branch on every PR merged to <code>main</code>). <code>main</code>&#x27;s own <code>CHANGELOG.md</code> tracks tagged releases only. See <a href="https://github.com/pyTony/mini_basic/issues">GitHub Issues</a> for open work.</p>
+<h3 id="2026-10-23">2026-10-23</h3>
+<ul><li><a href="https://github.com/pyTony/mini_basic/pull/153">#153</a> Share program_bytes_to_source for text or tokenised .bbc files — LOAD and LIBRARY already read a <code>.bbc</code> file as text when it is not tokenised (for example <code>examples/games/animal.bbc</code>, a UTF-8 listing). That logic lived inline in <code>runtime_parts/io.py</code>, twice. This moves it into <code>bbc_detokenize.py</code> so lispy3&#x27;s <code>.bbc</code> import can use the same code:</li></ul>
 <h3 id="2026-10-22">2026-10-22</h3>
 <ul><li><a href="https://github.com/pyTony/mini_basic/pull/152">#152</a> 🧹 Remove duplicate <code>_windows_apply_arrow</code> definition in runtime.py — 🎯 What: Removed duplicate <code>_windows_apply_arrow</code> function definition from <code>mini_basic/runtime.py</code> and updated <code>mini_basic/__init__.py</code> to import it directly from <code>mini_basic.runtime_parts.helpers</code>. 💡 Why: This duplicate function was exactly the same as the one in <code>helpers.py</code> but wasn&#x27;t even being used within…</li></ul>
 <h3 id="2026-10-20">2026-10-20</h3>
