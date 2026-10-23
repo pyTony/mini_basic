@@ -88,7 +88,7 @@ from ..type_system import (
     UserProcedure,
     VarKind,
 )
-from typing import Callable, Dict, List, Optional, Set, TextIO, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, TextIO, Tuple
 
 _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
@@ -837,6 +837,26 @@ class RuntimeProgramMixin:
         return ''.join(parts)
 
     def set_program_line(self, line_num: int, statement: str, indent: int = 0):
+        self._store_program_line(line_num, statement, indent)
+        self._rebuild_labels()
+        self._invalidate_program_caches()
+        self._definitions_dirty = True
+        self._clear_stop_state()
+
+    def set_program_lines(self, lines: Iterable[Tuple[int, str, int]]) -> None:
+        """Store many (line_num, statement, indent) lines, as LOAD does.
+
+        Labels are rebuilt once at the end; rebuilding per line made LOAD
+        quadratic in program length.
+        """
+        for line_num, statement, indent in lines:
+            self._store_program_line(line_num, statement, indent)
+        self._rebuild_labels()
+        self._invalidate_program_caches()
+        self._definitions_dirty = True
+        self._clear_stop_state()
+
+    def _store_program_line(self, line_num: int, statement: str, indent: int) -> None:
         if self._program_source_numbered is None:
             self._program_source_numbered = True
         statement = self.canonicalize_program_line(statement)
@@ -845,7 +865,6 @@ class RuntimeProgramMixin:
             self.line_indent[line_num] = indent
         elif line_num in self.line_indent:
             del self.line_indent[line_num]
-        self._rebuild_labels()
         self._invalidate_program_caches()
         self._definitions_dirty = True
         self._clear_stop_state()
@@ -3380,8 +3399,7 @@ class RuntimeProgramMixin:
 
         self.new(announce=False, clear_loaded_filename=False)
         self._program_source_numbered = source_was_numbered
-        for line_num, statement, indent in parsed_lines:
-            self.set_program_line(line_num, statement, indent)
+        self.set_program_lines(parsed_lines)
         self.loaded_filename = saved_name
         count = len(self.program)
         noun = 'line' if count == 1 else 'lines'
