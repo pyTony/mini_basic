@@ -2083,19 +2083,10 @@ class RuntimeIoMixin:
 
     @staticmethod
     def _decode_program_text(data: bytes) -> str:
-        """UTF-8, else CP1252 / Latin-1 (older BBC and Windows sources).
+        """UTF-8, else CP1252 / Latin-1; see bbc_detokenize.decode_program_text."""
+        from ..bbc_detokenize import decode_program_text
 
-        NUL bytes mean binary, not text: keep the UnicodeDecodeError then.
-        """
-        try:
-            return data.decode('utf-8')
-        except UnicodeDecodeError:
-            if b'\x00' in data:
-                raise
-        try:
-            return data.decode('cp1252')
-        except UnicodeDecodeError:
-            return data.decode('latin-1')
+        return decode_program_text(data)
 
     def load(self, filename, *, announce: bool = True) -> bool:
         """Load a BASIC program from disk.
@@ -2145,12 +2136,9 @@ class RuntimeIoMixin:
             )
             return False
         try:
-            from ..bbc_detokenize import bbc_binary_to_source, detect_bbc_binary_format
+            from ..bbc_detokenize import program_bytes_to_source
 
-            if detect_bbc_binary_format(data):
-                raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
-            else:
-                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
+            raw_lines = [f'{line}\n' for line in program_bytes_to_source(data)]
         except UnicodeDecodeError as exc:
             self._emit_error(
                 f'Load failed: {path} is not UTF-8 text or a tokenized BBC BASIC program '
@@ -2276,12 +2264,9 @@ class RuntimeIoMixin:
             )
             return
         try:
-            from ..bbc_detokenize import bbc_binary_to_source, detect_bbc_binary_format
+            from ..bbc_detokenize import program_bytes_to_source
 
-            if detect_bbc_binary_format(data):
-                raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
-            else:
-                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
+            raw_lines = [f'{line}\n' for line in program_bytes_to_source(data)]
         except Exception as exc:
             self._runtime_error(
                 f'? LIBRARY error: cannot decode {path} ({type(exc).__name__}: {exc})',
