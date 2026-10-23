@@ -362,6 +362,7 @@ class BBCGraphics:
         if (
             mode == 0
             and self._truecolour_rgb is None
+            and self._clip_disc is None
         ):
             n = (right - left + 1) * (bottom - top + 1)
             colour_b = int(colour) & 0xFF
@@ -371,7 +372,7 @@ class BBCGraphics:
                 fill = [colour_b] * (right - left + 1)
                 for sy in range(top, bottom + 1):
                     self.pixels[sy][left : right + 1] = fill
-            if colour_b == 0 and self.rgb_pixels is not None:
+            if self.rgb_pixels is not None:
                 for sy in range(top, bottom + 1):
                     rgb_row = self.rgb_pixels[sy]
                     for sx in range(left, right + 1):
@@ -383,8 +384,30 @@ class BBCGraphics:
             self.plot_count += n
             return
 
+        disc_clip_active = False
+        if self._clip_disc is not None:
+            scx, scy, srx, sry = self._clip_disc
+            # If the rectangle is completely outside the clip disc's bounding box, draw nothing.
+            if (
+                right < scx - srx
+                or left > scx + srx
+                or bottom < scy - sry
+                or top > scy + sry
+            ):
+                return
+            disc_clip_active = True
+
         for sy in range(top, bottom + 1):
-            self._fill_hspan_screen(left, right, sy, gcol)
+            x_start, x_end = left, right
+            if disc_clip_active:
+                clip_span = self._disc_x_span(sy)
+                if clip_span is None:
+                    continue
+                x_start = max(x_start, clip_span[0])
+                x_end = min(x_end, clip_span[1])
+                if x_start > x_end:
+                    continue
+            self._fill_hspan_screen(x_start, x_end, sy, gcol)
 
     def draw_relative(self, dx: int, dy: int) -> None:
         self.plot_code(1, int(dx), int(dy))
@@ -495,18 +518,11 @@ class BBCGraphics:
                         self.rgb_dirty.discard((sx, sy))
         else:
             rgb_row = self._ensure_rgb_pixels()[sy] if trgb is not None else None
-            if rgb_row is None and self.rgb_pixels is not None:
-                rgb_row = self.rgb_pixels[sy]
             for sx in range(x0, x1 + 1):
                 row[sx] = apply_gcol(int(row[sx]), colour, mode)
-                if trgb is not None and int(row[sx]) != 0:
+                if rgb_row is not None and int(row[sx]) != 0:
                     rgb_row[sx] = trgb
                     self.rgb_dirty.add((sx, sy))
-                elif rgb_row is not None:
-                    # Match _put_screen_pixel: logical results with no RGB
-                    # override, including colour zero, discard the old overlay.
-                    rgb_row[sx] = None
-                    self.rgb_dirty.discard((sx, sy))
         self._mark_pixel_dirty(x0, sy)
         self._mark_pixel_dirty(x1, sy)
         self.plot_count += n
