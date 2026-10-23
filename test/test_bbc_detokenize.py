@@ -420,3 +420,32 @@ class TestParseWilsonProgram(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestProgramBytesToSource(unittest.TestCase):
+    """Shared .bbc/.bas loader: tokenised binary or plain text, as LOAD reads it."""
+
+    def test_tokenised_binary_is_detokenised(self):
+        with open(_WHEEL_BBC, 'rb') as handle:
+            data = handle.read()
+        from mini_basic.bbc_detokenize import program_bytes_to_source
+        self.assertEqual(program_bytes_to_source(data), bbc_binary_to_source(data))
+
+    def test_text_listing_with_bbc_extension(self):
+        # examples/games/animal.bbc is a UTF-8 listing, not tokenised.
+        from mini_basic.bbc_detokenize import program_bytes_to_source
+        path = os.path.join(_ROOT, 'examples', 'games', 'animal.bbc')
+        with open(path, 'rb') as handle:
+            data = handle.read()
+        lines = program_bytes_to_source(data)
+        self.assertEqual(lines, data.decode('utf-8').splitlines())
+
+    def test_cp1252_text_fallback(self):
+        from mini_basic.bbc_detokenize import program_bytes_to_source
+        self.assertEqual(program_bytes_to_source(b'10 PRINT "caf\xe9"\r\n20 END\r\n'),
+                         ['10 PRINT "café"', '20 END'])
+
+    def test_nul_bytes_without_tokenised_format_are_rejected(self):
+        from mini_basic.bbc_detokenize import program_bytes_to_source
+        with self.assertRaises(UnicodeDecodeError):
+            program_bytes_to_source(b'\x00\xff\xfe junk')

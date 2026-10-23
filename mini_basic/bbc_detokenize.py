@@ -340,3 +340,30 @@ def bbc_binary_to_source(data: bytes) -> List[str]:
             if not (1 <= ref <= 65535):
                 raise ValueError(f"Sanity check failed: invalid GOTO/GOSUB target {ref} in '{line}'")
     return out
+
+
+def decode_program_text(data: bytes) -> str:
+    """UTF-8, else CP1252 / Latin-1 (older BBC and Windows sources).
+
+    NUL bytes mean binary, not text: keep the UnicodeDecodeError then.
+    """
+    try:
+        return data.decode('utf-8')
+    except UnicodeDecodeError:
+        if b'\x00' in data:
+            raise
+    try:
+        return data.decode('cp1252')
+    except UnicodeDecodeError:
+        return data.decode('latin-1')
+
+
+def program_bytes_to_source(data: bytes) -> List[str]:
+    """Source lines of a program file: detokenised if BBC binary, else text.
+
+    A .bbc file may hold a plain listing, so the extension alone is not enough.
+    Shared by LOAD/LIBRARY here and by lispy3's .bbc import.
+    """
+    if detect_bbc_binary_format(data):
+        return bbc_binary_to_source(data)
+    return decode_program_text(data).splitlines()
