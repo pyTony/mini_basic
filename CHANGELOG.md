@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-23
 
+- [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL — Rule: `.bbc` files are always tokenised, so BBC BASIC for SDL can load them.
 - [#155](https://github.com/pyTony/mini_basic/pull/155) Rebuild labels once per LOAD, not once per line — LOAD, LIBRARY and the editor reload each stored lines with `set_program_line`, and that rebuilt the whole label table for every line. Loading was therefore quadratic in program length. These three now call a new `set_program_lines`, which stores all the lines and then rebuilds labels once. `set_program_line` keeps…
 - [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files — LOAD and LIBRARY already read a `.bbc` file as text when it is not tokenised (for example `examples/games/animal.bbc`, a UTF-8 listing). That logic lived inline in `runtime_parts/io.py`, twice. This moves it into `bbc_detokenize.py` so lispy3's `.bbc` import can use the same code:
 
