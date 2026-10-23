@@ -432,9 +432,9 @@ class TestProgramBytesToSource(unittest.TestCase):
         self.assertEqual(program_bytes_to_source(data), bbc_binary_to_source(data))
 
     def test_text_listing_with_bbc_extension(self):
-        # examples/games/animal.bbc is a UTF-8 listing, not tokenised.
+        # A text listing saved as .bbc (as animal.bbc once was) still loads.
         from mini_basic.bbc_detokenize import program_bytes_to_source
-        path = os.path.join(_ROOT, 'examples', 'games', 'animal.bbc')
+        path = os.path.join(_ROOT, 'examples', 'games', 'animal.bas')
         with open(path, 'rb') as handle:
             data = handle.read()
         lines = program_bytes_to_source(data)
