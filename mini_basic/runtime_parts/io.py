@@ -2181,8 +2181,7 @@ class RuntimeIoMixin:
         # LOAD replaces memory; "Program cleared." is only for the NEW command.
         self.new(announce=False)
         self._program_source_numbered = source_was_numbered
-        for line_num, statement, indent in parsed_lines:
-            self.set_program_line(line_num, statement, indent)
+        self.set_program_lines(parsed_lines)
         # SAVE without a name reuses this string. Keep a relative LOAD
         # argument (hello.bas) so working_dir still applies; only store the
         # resolved path when the user passed an absolute path.
@@ -2290,9 +2289,9 @@ class RuntimeIoMixin:
         # stay inside the library's own lines self-consistent.
         existing_max = max(self.program.keys()) if self.program else 0
         offset = ((existing_max // 100000) + 1) * 100000
-        for lib_line_num, lib_statement, lib_indent in parsed_lines:
-            new_line_num = offset + lib_line_num
-            if new_line_num in self.program:
-                continue
-            self.set_program_line(new_line_num, lib_statement, lib_indent)
+        self.set_program_lines(
+            (offset + lib_line_num, lib_statement, lib_indent)
+            for lib_line_num, lib_statement, lib_indent in parsed_lines
+            if offset + lib_line_num not in self.program
+        )
 
