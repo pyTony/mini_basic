@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#155](https://github.com/pyTony/mini_basic/pull/155) Rebuild labels once per LOAD, not once per line (2026-10-23)
 - [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files (2026-10-23)
 - [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py (2026-10-22)
 - [#150](https://github.com/pyTony/mini_basic/pull/150) Enforce BBC FN/PROC endings and retain the single-line PROC exception (2026-10-22)
@@ -20,4 +21,3 @@ merge to main.
 - [#146](https://github.com/pyTony/mini_basic/pull/146) Fix precision loss in recursive FN return values above 2**53 (2026-10-19)
 - [#145](https://github.com/pyTony/mini_basic/pull/145) editor: add a Listener (immediate-mode) pane, no AUTO/line-number commands (2026-10-20)
 - [#144](https://github.com/pyTony/mini_basic/pull/144) Editor: wait-for-Esc toggle and EDIT NEW blank launch (2026-10-20)
-- [#143](https://github.com/pyTony/mini_basic/pull/143) fix(format): don't let PROC/FN name glue mangle REM comment text (2026-10-18)
