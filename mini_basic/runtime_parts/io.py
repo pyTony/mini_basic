@@ -1506,6 +1506,11 @@ class RuntimeIoMixin:
                     # Microsoft PRINT reserves a sign position for nonnegative
                     # numbers and terminates every numeric item with a space.
                     # Keep this out of _format_number: STR$/USING are separate.
+                    # MS BASIC also never prints the leading zero (.5, -.5).
+                    if text.startswith('0.'):
+                        text = text[1:]
+                    elif text.startswith('-0.'):
+                        text = '-' + text[2:]
                     text = ('' if text.startswith('-') else ' ') + text + ' '
                 use_number_field = (
                     not microsoft_numbers

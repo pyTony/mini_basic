@@ -119,5 +119,27 @@ class AdjacentItemSeparatorTests(unittest.TestCase):
             )
 
 
+class MsNumberTextTests(unittest.TestCase):
+    """MS BASIC never prints the leading zero: 0.5 is ' .5 ', -0.5 is '-.5 '."""
+
+    def test_no_leading_zero(self):
+        for dialect in MS:
+            out = _run(
+                dialect,
+                '10 PRINT 0.5\n20 PRINT -0.5\n30 PRINT 0.05\n40 PRINT 1.5\n'
+                '50 PRINT 0\n60 PRINT 100\n70 PRINT -2.5\n80 PRINT "X";0.25;"Y"\n',
+            )
+            self.assertEqual(
+                out.splitlines(),
+                [' .5 ', '-.5 ', ' .05 ', ' 1.5 ', ' 0 ', ' 100 ', '-2.5 ', 'X .25 Y'],
+                msg=dialect,
+            )
+
+    def test_other_dialects_keep_the_leading_zero(self):
+        for dialect in ('mini', 'bbc', 'tiny'):
+            out = _run(dialect, '10 PRINT 0.5\n20 PRINT -0.5\n')
+            self.assertEqual(out.split(), ['0.5', '-0.5'], msg=dialect)
+
+
 if __name__ == '__main__':
     unittest.main()
