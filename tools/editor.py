@@ -171,7 +171,6 @@ class EditorWindow:
         menubar = tk.Menu(self.root)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label='Open...', accelerator='Ctrl+O', command=self.open_file)
-        file_menu.add_command(label='Open Tokenized BBC...', command=self.open_tokenized_bbc)
         file_menu.add_command(label='Save', accelerator='Ctrl+S', command=self.save_file)
         file_menu.add_command(label='Save As...', command=self.save_file_as)
         file_menu.add_separator()
@@ -306,6 +305,9 @@ class EditorWindow:
             self._load_file(path)
 
     def _load_file(self, path: str) -> None:
+        if os.path.splitext(path)[1].lower() == '.bbc':
+            self._load_tokenized_bbc(path)
+            return
         try:
             with open(path, 'r', encoding='utf-8', errors='replace') as fh:
                 content = fh.read()
@@ -320,7 +322,7 @@ class EditorWindow:
         self._update_title()
         self.status_var.set(f'Opened {path}')
 
-    def open_tokenized_bbc(self) -> None:
+    def _load_tokenized_bbc(self, path: str) -> None:
         """Open a tokenized BBC BASIC program, detokenized into editable text.
 
         Reuses the interpreter's own ``LOAD`` (which already detects and
@@ -330,12 +332,6 @@ class EditorWindow:
         programs, so the result is left untitled: Save As targets a new
         ``.bas`` (plain-text) file rather than overwriting the binary.
         """
-        path = filedialog.askopenfilename(
-            title='Open tokenized BBC BASIC program',
-            filetypes=[('Tokenized BBC BASIC', '*.bbc'), ('All files', '*.*')],
-        )
-        if not path:
-            return
         interp = self._make_interpreter()
         err_buf = io.StringIO()
         try:
@@ -344,7 +340,7 @@ class EditorWindow:
             if not ok:
                 raise ValueError(err_buf.getvalue().strip() or 'Could not load program')
         except (ValueError, OSError) as exc:
-            messagebox.showerror('Open Tokenized BBC failed', str(exc))
+            messagebox.showerror('Open failed', str(exc))
             return
         lines = interp._program_display_lines(
             'standard', include_line_numbers=True, case_fold=interp._detokenize_fold(),
@@ -364,23 +360,26 @@ class EditorWindow:
         path = filedialog.asksaveasfilename(
             title='Save BASIC program',
             defaultextension='.bas',
-            filetypes=[('BASIC source', '*.bas *.bbc *.txt'), ('All files', '*.*')],
+            filetypes=[('BASIC source', '*.bas *.txt'), ('All files', '*.*')],
         )
-        if path:
+        if path and self._write_to(path):
             self.path = path
-            self._write_to(path)
             self._update_title()
 
-    def _write_to(self, path: str) -> None:
+    def _write_to(self, path: str) -> bool:
+        if os.path.splitext(path)[1].lower() == '.bbc':
+            messagebox.showerror('Save failed', '.bbc is reserved for tokenized programs. Save editable text as .bas.')
+            return False
         content = self.text.get('1.0', 'end-1c')
         try:
             with open(path, 'w', encoding='utf-8') as fh:
                 fh.write(content)
         except OSError as exc:
             messagebox.showerror('Save failed', str(exc))
-            return
+            return False
         self.text.edit_modified(False)
         self.status_var.set(f'Saved {path}')
+        return True
 
     def _update_title(self) -> None:
         name = self.path or '(untitled)'
@@ -439,9 +438,9 @@ class EditorWindow:
         if self.text.edit_modified():
             self.save_file()
 
-        cmd = self._build_run_command(self.path)
         run_dir = os.path.dirname(self.path) or '.'
         try:
+            cmd = self._build_run_command(self.path)
             popen_kwargs = {}
             if sys.platform.startswith('win') and not self.pygame_var.get():
                 popen_kwargs['creationflags'] = subprocess.CREATE_NEW_CONSOLE
@@ -699,7 +698,12 @@ class EditorWindow:
         self._run_in_listener(selection)
 
     def _build_run_command(self, path: str) -> List[str]:
-        cmd = [sys.executable, '-m', 'mini_basic', path]
+        executable = sys.executable
+        if not self.pygame_var.get() and os.path.basename(executable).lower() == 'pythonw.exe':
+            executable = os.path.join(os.path.dirname(executable), 'python.exe')
+            if not os.path.isfile(executable):
+                raise OSError(f'Console runs require python.exe beside pythonw.exe: {executable}')
+        cmd = [executable, '-m', 'mini_basic', path]
         dialect = self.dialect_var.get()
         if dialect and dialect != 'auto':
             cmd += ['--dialect', dialect]

@@ -2295,21 +2295,28 @@ class MiniBASICTests(unittest.TestCase):
                 text = f.read()
             self.assertIn('PRINT "changed"', text)
 
-    def test_save_refuses_bbc_extension(self):
-        # SAVE writes text; .bbc is reserved for tokenized BBC BASIC files.
+    def test_save_to_bbc_name_writes_text_as_bas_with_warning(self):
+        # SAVE writes text; .bbc is reserved for tokenized BBC BASIC files, so
+        # the text goes to <name>.bas instead and the user is told.
         for dialect in ('mini', 'bbc'):
-            with self.subTest(dialect=dialect), tempfile.TemporaryDirectory() as tmp:
-                interp = BASICInterpreter(InterpreterConfig(dialect=dialect))
-                interp.working_dir = tmp
-                interp.set_program_line(10, 'PRINT 1')
-                err = io.StringIO()
-                with redirect_stderr(err), redirect_stdout(io.StringIO()):
-                    interp.save('prog.BBC')
-                self.assertFalse(os.path.exists(os.path.join(tmp, 'prog.BBC')))
-                self.assertIn('Tokenized saving is not yet implemented', err.getvalue())
-                self.assertIsNone(interp.loaded_filename)
+            for requested in ('prog.bbc', 'prog.BBC'):
+                with self.subTest(dialect=dialect, name=requested), tempfile.TemporaryDirectory() as tmp:
+                    interp = BASICInterpreter(InterpreterConfig(dialect=dialect))
+                    interp.working_dir = tmp
+                    interp.set_program_line(10, 'PRINT 1')
+                    err = io.StringIO()
+                    with redirect_stderr(err), redirect_stdout(io.StringIO()):
+                        interp.save(requested)
+                    self.assertEqual(
+                        sorted(name for name in os.listdir(tmp)), ['prog.bas'],
+                    )
+                    with open(os.path.join(tmp, 'prog.bas'), encoding='utf-8') as f:
+                        self.assertIn('PRINT 1', f.read())
+                    self.assertIn('prog.bas', err.getvalue())
+                    self.assertIn('tokenized', err.getvalue().lower())
+                    self.assertEqual(interp.loaded_filename, 'prog.bas')
 
-    def test_bare_save_does_not_overwrite_loaded_tokenized_bbc(self):
+    def test_bare_save_after_loading_tokenized_bbc_writes_bas_not_bbc(self):
         src = os.path.join(_ROOT, 'showcase', 'wheel.bbc')
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, 'wheel.bbc')
@@ -2318,11 +2325,20 @@ class MiniBASICTests(unittest.TestCase):
                 before = f.read()
             interp = BASICInterpreter(InterpreterConfig(dialect='bbc'))
             interp.working_dir = tmp
-            with redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()):
+            err = io.StringIO()
+            with redirect_stderr(err), redirect_stdout(io.StringIO()):
                 interp.load('wheel.bbc', announce=False)
                 interp.save(_resolve_save_filename(interp, None))
             with open(path, 'rb') as f:
-                self.assertEqual(f.read(), before)
+                self.assertEqual(f.read(), before)  # the tokenized file is untouched
+            self.assertTrue(os.path.isfile(os.path.join(tmp, 'wheel.bas')))
+            self.assertIn('wheel.bas', err.getvalue())
+            self.assertEqual(interp.loaded_filename, 'wheel.bas')
+            # A second bare SAVE keeps going to the .bas file, with no new warning.
+            err2 = io.StringIO()
+            with redirect_stderr(err2), redirect_stdout(io.StringIO()):
+                interp.save(_resolve_save_filename(interp, None))
+            self.assertEqual(err2.getvalue(), '')
 
     def test_star_exec_types_in_lines_from_file(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2832,7 +2848,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "5\n")
+        self.assertEqual(buf.getvalue(), " 5 \n")
 
     def test_shebang_dialect_hint_applies_on_load(self):
         with tempfile.NamedTemporaryFile(

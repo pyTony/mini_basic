@@ -4264,6 +4264,9 @@ class RuntimeExecutionMixin:
                     return None
                 self._runtime_error('? INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
+            if prompt_content and self.config.dialect in ('mits', 'commodore'):
+                if self._ms_input_prompt_wants_question(rest):
+                    prompt_content += ';"? "'  # MS: INPUT "P";A$ shows P?
             first_try = True
             while True:
                 if first_try:
@@ -4867,7 +4870,11 @@ class RuntimeExecutionMixin:
                 # Stronger loop stack cleanup, but be careful with legacy "GOTO sub; ... GOTO NEXT" patterns
                 # that jump out to a computation block (higher line #) and return via GOTO to the loop's NEXT.
                 # Only pop if we are not jumping from inside the loop's body range.
-                while self.stack:
+                # Frames open when the current GOSUB was entered belong to its
+                # caller: RETURN comes back to them, so a GOTO inside the
+                # subroutine must never pop them.
+                keep = self.gosub_stack[-1][3] if self.gosub_stack else 0
+                while len(self.stack) > keep:
                     frame = self.stack[-1]
                     exit_line = getattr(frame, 'exit_line', -1)
                     if exit_line != -1 and target >= exit_line:

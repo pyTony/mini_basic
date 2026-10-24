@@ -32,6 +32,7 @@ examples/mits/   Numbered lines, GOTO, ON GOTO, ON ERROR, ? = PRINT
   menu.bas       ON GOTO dispatch menu (try choices 1, 2, 3)
   on_error.bas   ON ERROR GOTO + RESUME NEXT after READ error
   question.bas   ? shorthand for PRINT
+  hamurabi.bas   Hamurabi, the ruler game (Creative Computing, 1978)
 
 examples/bbc/    Unnumbered structured style (BETH.BAS cousin)
   menu.bas       WHILE / IF / ELSEIF — same logic as mits/menu.bas

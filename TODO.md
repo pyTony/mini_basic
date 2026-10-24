@@ -11,13 +11,13 @@ merge to main.
 
 ## Recently merged PRs
 
-- [#146](https://github.com/pyTony/mini_basic/pull/146) Fix precision loss in recursive FN return values above 2**53 (2026-10-19)
-- [#145](https://github.com/pyTony/mini_basic/pull/145) editor: add a Listener (immediate-mode) pane, no AUTO/line-number commands (2026-10-20)
-- [#144](https://github.com/pyTony/mini_basic/pull/144) Editor: wait-for-Esc toggle and EDIT NEW blank launch (2026-10-20)
-- [#143](https://github.com/pyTony/mini_basic/pull/143) fix(format): don't let PROC/FN name glue mangle REM comment text (2026-10-18)
-- [#142](https://github.com/pyTony/mini_basic/pull/142) feat: LIST/SAVE PRETTY uses ' instead of REM in the mini dialect (2026-10-20)
-- [#141](https://github.com/pyTony/mini_basic/pull/141) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (main backport) (2026-10-18)
-- [#140](https://github.com/pyTony/mini_basic/pull/140) Fix DEF FN one-line recursive idiom: IF cond THEN =a ELSE =b (2026-10-18)
-- [#139](https://github.com/pyTony/mini_basic/pull/139) Fix Ctrl+Numpad+/- zoom shortcut being swallowed by INKEY/INPUT (2026-10-17)
-- [#138](https://github.com/pyTony/mini_basic/pull/138) docs: add agent TODOs to CLAUDE.md (2026-10-16)
-- [#137](https://github.com/pyTony/mini_basic/pull/137) Rebase Jules's conflicting PRs #119/#129/#132/#133 onto current dev (2026-10-16)
+- [#167](https://github.com/pyTony/mini_basic/pull/167) fix: basics/fact.bas is valid BBC BASIC (drop END DEF) (2026-10-24)
+- [#166](https://github.com/pyTony/mini_basic/pull/166) Docs/superstartrek readable (2026-10-24)
+- [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels (2026-10-24)
+- [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items (2026-10-24)
+- [#163](https://github.com/pyTony/mini_basic/pull/163) Dev (2026-10-24)
+- [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) (2026-10-24)
+- [#161](https://github.com/pyTony/mini_basic/pull/161) Fix pythonw console runs in the original editor (2026-10-24)
+- [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
+- [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
+- [#158](https://github.com/pyTony/mini_basic/pull/158) Preserve rectangle and RGB behavior in span fills (2026-10-24)

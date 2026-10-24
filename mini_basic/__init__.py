@@ -29,10 +29,12 @@ from .runtime import (
     _script_file_kind,
     _prompt_editing_input,
     _resolve_save_filename,
-    _windows_apply_arrow,
     _windows_arrow_action,
     _windows_editing_input,
     main,
+)
+from .runtime_parts.helpers import (
+    _windows_apply_arrow,
 )
 from .type_system import (
     ArrayStorage,
