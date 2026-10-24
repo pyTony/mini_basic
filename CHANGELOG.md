@@ -3,6 +3,25 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-24
+
+- [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items
+- [#163](https://github.com/pyTony/mini_basic/pull/163) Dev
+- [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) — When the original tkinter editor is launched with pythonw.exe, Run with Use pygame display unchecked now selects the sibling python.exe. The existing new-console flag, selected dialect, hold preference and program working directory are retained. Pygame runs may keep pythonw.exe. If the matching console executable…
+- [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files — Normal Open (Ctrl+O) and editor command-line .bbc input now reuse interpreter LOAD/LIST to decode tokenized BBC BASIC into an untitled editable buffer. This fixes the garbled SIEVE.bbc shown in the user's screenshot. The redundant Open Tokenized BBC menu action is removed.
+- [#151](https://github.com/pyTony/mini_basic/pull/151) Optimize rectangle span fills while preserving clipping and RGB behavior — RECTANGLE FILL now uses horizontal spans for truecolour and logical GCOL operations while preserving the block fast path for plain palette replacement. A preceding CIRCLE FILL no longer clips subsequent rectangles. The retained circle clip remains available to the existing triangle/sector paths.
+- [#157](https://github.com/pyTony/mini_basic/pull/157) Backport Microsoft numeric PRINT spacing to release — MITS and Commodore numeric PRINT now uses Microsoft sign/trailing spaces: `PRINT "[";1;0;-2;"]"` produces `[ 1 0 -2 ]`. Parenthesized string comparisons also receive numeric spacing. Default mini and explicit BBC formatting are unchanged, as are STR$ and PRINT USING; comma output retains the configured zone width.
+
+## 2026-10-23
+
+- [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL — Rule: `.bbc` files are always tokenised, so BBC BASIC for SDL can load them.
+- [#155](https://github.com/pyTony/mini_basic/pull/155) Rebuild labels once per LOAD, not once per line — LOAD, LIBRARY and the editor reload each stored lines with `set_program_line`, and that rebuilt the whole label table for every line. Loading was therefore quadratic in program length. These three now call a new `set_program_lines`, which stores all the lines and then rebuilds labels once. `set_program_line` keeps…
+- [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files — LOAD and LIBRARY already read a `.bbc` file as text when it is not tokenised (for example `examples/games/animal.bbc`, a UTF-8 listing). That logic lived inline in `runtime_parts/io.py`, twice. This moves it into `bbc_detokenize.py` so lispy3's `.bbc` import can use the same code:
+
+## 2026-10-22
+
+- [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py — 🎯 What: Removed duplicate `_windows_apply_arrow` function definition from `mini_basic/runtime.py` and updated `mini_basic/__init__.py` to import it directly from `mini_basic.runtime_parts.helpers`. 💡 Why: This duplicate function was exactly the same as the one in `helpers.py` but wasn't even being used within…
+
 ## 2026-10-20
 
 - [#148](https://github.com/pyTony/mini_basic/pull/148) Dev — Update dev to sync.

@@ -1476,7 +1476,9 @@ class RuntimeIoMixin:
                     text = special
                 else:
                     if self._is_string_print_item(item_strip):
-                        if self._print_item_has_top_level_relop(item_strip):
+                        relation_item = (self._strip_outer_parens(item_strip)
+                            if self.config.dialect in ('mits', 'commodore') else item_strip)
+                        if self._print_item_has_top_level_relop(relation_item):
                             # "A"<"B" / A$="Q": a comparison is numeric (-1 / 0).
                             is_numeric = True
                             try:
@@ -1499,8 +1501,20 @@ class RuntimeIoMixin:
                         is_numeric = True
                         text = self.eval_print_value(item)
 
+                microsoft_numbers = self.config.dialect in ('mits', 'commodore')
+                if microsoft_numbers and is_numeric and not hex_mode and not text.startswith('?'):
+                    # Microsoft PRINT reserves a sign position for nonnegative
+                    # numbers and terminates every numeric item with a space.
+                    # Keep this out of _format_number: STR$/USING are separate.
+                    # MS BASIC also never prints the leading zero (.5, -.5).
+                    if text.startswith('0.'):
+                        text = text[1:]
+                    elif text.startswith('-0.'):
+                        text = '-' + text[2:]
+                    text = ('' if text.startswith('-') else ' ') + text + ' '
                 use_number_field = (
-                    has_comma
+                    not microsoft_numbers
+                    and has_comma
                     and not has_string_item
                     and not self._is_string_print_item(item)
                     and (index == 0 or prev_sep == ',')
@@ -1996,13 +2010,19 @@ class RuntimeIoMixin:
         SAVE round-trip keeps the file unnumbered (memory stays numbered for EDIT).
         Use ``SAVE NUMBERED`` to force classic line numbers.
 
-        ``.bbc`` is refused: SAVE writes text, and ``.bbc`` is reserved for
-        tokenized BBC BASIC files (bare SAVE after LOAD of one would
-        otherwise overwrite the binary with text).
+        ``.bbc`` is reserved for tokenized BBC BASIC files and SAVE writes text,
+        so a ``.bbc`` name (typed, or reused by a bare SAVE after LOAD of one)
+        is saved as ``<name>.bas`` instead, with a warning. The tokenized file
+        is never overwritten.
         """
-        if os.path.splitext(str(filename))[1].lower() == '.bbc':
-            self._emit_error('Error: Tokenized saving is not yet implemented')
-            return
+        stem, ext = os.path.splitext(str(filename))
+        if ext.lower() == '.bbc':
+            filename = stem + '.bas'
+            self._emit_error(
+                f'Warning: .bbc is reserved for tokenized programs and SAVE writes '
+                f'text; saving editable text as {os.path.basename(filename)} instead. '
+                f'Tokenized saving is not yet implemented.'
+            )
         try:
             path = self.resolve_path(filename)
             case_fold = self._detokenize_fold()
@@ -2083,19 +2103,10 @@ class RuntimeIoMixin:
 
     @staticmethod
     def _decode_program_text(data: bytes) -> str:
-        """UTF-8, else CP1252 / Latin-1 (older BBC and Windows sources).
+        """UTF-8, else CP1252 / Latin-1; see bbc_detokenize.decode_program_text."""
+        from ..bbc_detokenize import decode_program_text
 
-        NUL bytes mean binary, not text: keep the UnicodeDecodeError then.
-        """
-        try:
-            return data.decode('utf-8')
-        except UnicodeDecodeError:
-            if b'\x00' in data:
-                raise
-        try:
-            return data.decode('cp1252')
-        except UnicodeDecodeError:
-            return data.decode('latin-1')
+        return decode_program_text(data)
 
     def load(self, filename, *, announce: bool = True) -> bool:
         """Load a BASIC program from disk.
@@ -2145,12 +2156,9 @@ class RuntimeIoMixin:
             )
             return False
         try:
-            from ..bbc_detokenize import bbc_binary_to_source, detect_bbc_binary_format
+            from ..bbc_detokenize import program_bytes_to_source
 
-            if detect_bbc_binary_format(data):
-                raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
-            else:
-                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
+            raw_lines = [f'{line}\n' for line in program_bytes_to_source(data)]
         except UnicodeDecodeError as exc:
             self._emit_error(
                 f'Load failed: {path} is not UTF-8 text or a tokenized BBC BASIC program '
@@ -2171,6 +2179,10 @@ class RuntimeIoMixin:
             return False
 
         raw_lines, hint = split_dialect_hints(raw_lines)
+        if hint is None and os.path.splitext(path)[1].lower() == '.bbc':
+            # BBC BASIC programs (tokenized or text) need no hint line; an
+            # explicit hint in the file or --dialect still wins.
+            hint = DialectHint('bbc', source='.bbc extension')
         if hint is not None:
             self._apply_dialect_hint(hint, announce=announce)
 
@@ -2193,8 +2205,7 @@ class RuntimeIoMixin:
         # LOAD replaces memory; "Program cleared." is only for the NEW command.
         self.new(announce=False)
         self._program_source_numbered = source_was_numbered
-        for line_num, statement, indent in parsed_lines:
-            self.set_program_line(line_num, statement, indent)
+        self.set_program_lines(parsed_lines)
         # SAVE without a name reuses this string. Keep a relative LOAD
         # argument (hello.bas) so working_dir still applies; only store the
         # resolved path when the user passed an absolute path.
@@ -2276,12 +2287,9 @@ class RuntimeIoMixin:
             )
             return
         try:
-            from ..bbc_detokenize import bbc_binary_to_source, detect_bbc_binary_format
+            from ..bbc_detokenize import program_bytes_to_source
 
-            if detect_bbc_binary_format(data):
-                raw_lines = [f'{line}\n' for line in bbc_binary_to_source(data)]
-            else:
-                raw_lines = self._decode_program_text(data).splitlines(keepends=True)
+            raw_lines = [f'{line}\n' for line in program_bytes_to_source(data)]
         except Exception as exc:
             self._runtime_error(
                 f'? LIBRARY error: cannot decode {path} ({type(exc).__name__}: {exc})',
@@ -2305,9 +2313,9 @@ class RuntimeIoMixin:
         # stay inside the library's own lines self-consistent.
         existing_max = max(self.program.keys()) if self.program else 0
         offset = ((existing_max // 100000) + 1) * 100000
-        for lib_line_num, lib_statement, lib_indent in parsed_lines:
-            new_line_num = offset + lib_line_num
-            if new_line_num in self.program:
-                continue
-            self.set_program_line(new_line_num, lib_statement, lib_indent)
+        self.set_program_lines(
+            (offset + lib_line_num, lib_statement, lib_indent)
+            for lib_line_num, lib_statement, lib_indent in parsed_lines
+            if offset + lib_line_num not in self.program
+        )
 

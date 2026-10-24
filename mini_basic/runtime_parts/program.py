@@ -88,7 +88,7 @@ from ..type_system import (
     UserProcedure,
     VarKind,
 )
-from typing import Callable, Dict, List, Optional, Set, TextIO, Tuple
+from typing import Callable, Dict, Iterable, List, Optional, Set, TextIO, Tuple
 
 _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
@@ -502,6 +502,159 @@ class RuntimeProgramMixin:
     })
     _RE_MINI_FOLD_WORD = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\$?')
 
+    _MS_PRINT_OPERATOR_CHARS = '+-*/^=<>'
+
+    def _separate_ms_print_items(self, statement: str) -> str:
+        """MS BASIC: ``PRINT "A"K9"B"`` is ``PRINT "A";K9;"B"``.
+
+        Adjacent PRINT items need no separator in MS BASIC and behave exactly
+        like ``;`` (numbers keep their sign space and trailing space). The
+        ``;`` is inserted once, at entry, so execution needs no extra work.
+        Operators (``"A"+B$``), ``PRINT USING``, file ``PRINT#`` prefixes,
+        strings and anything inside parentheses are left alone.
+        """
+        if 'PRINT' not in statement or '"' not in statement:
+            return statement
+        out: List[str] = []
+        n = len(statement)
+        i = 0
+        stmt_start = True
+        prev_word = ''
+        while i < n:
+            ch = statement[i]
+            if ch == '"':
+                end = statement.find('"', i + 1)
+                end = n if end < 0 else end + 1
+                out.append(statement[i:end])
+                i = end
+                stmt_start = False
+                continue
+            if ch == ':':
+                out.append(ch)
+                i += 1
+                stmt_start = True
+                continue
+            if ch.isalpha() or ch == '_':
+                j = i
+                while j < n and (statement[j].isalnum() or statement[j] in '_$%'):
+                    j += 1
+                word = statement[i:j]
+                is_print = word == 'PRINT' and (stmt_start or prev_word in ('THEN', 'ELSE'))
+                if not is_print:
+                    out.append(word)
+                    i = j
+                    stmt_start = word in ('THEN', 'ELSE')
+                    prev_word = word
+                    continue
+                end = self._ms_print_region_end(statement, j)
+                out.append(word)
+                out.append(self._separate_print_region(statement[j:end]))
+                i = end
+                stmt_start = False
+                prev_word = word
+                continue
+            out.append(ch)
+            i += 1
+            if not ch.isspace():
+                stmt_start = False
+        return ''.join(out)
+
+    @staticmethod
+    def _ms_print_region_end(statement: str, start: int) -> int:
+        """End of a PRINT item list: ``:`` or ELSE outside strings and parentheses."""
+        n = len(statement)
+        depth = 0
+        i = start
+        while i < n:
+            ch = statement[i]
+            if ch == '"':
+                end = statement.find('"', i + 1)
+                i = n if end < 0 else end + 1
+                continue
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth = max(0, depth - 1)
+            elif depth == 0:
+                if ch == ':':
+                    return i
+                if (
+                    statement.startswith('ELSE', i)
+                    and not (i and (statement[i - 1].isalnum() or statement[i - 1] == '_'))
+                    and not (i + 4 < n and (statement[i + 4].isalnum() or statement[i + 4] == '_'))
+                ):
+                    return i
+            i += 1
+        return n
+
+    def _separate_print_region(self, region: str) -> str:
+        stripped = region.lstrip()
+        if stripped.startswith('USING') or stripped.startswith('#'):
+            return region  # PRINT USING / PRINT#n: different item grammar
+        segs: List[Tuple[str, str]] = []
+        cur: List[str] = []
+        depth = 0
+        i = 0
+        n = len(region)
+        while i < n:
+            ch = region[i]
+            if ch == '"':
+                end = region.find('"', i + 1)
+                end = n if end < 0 else end + 1
+                lit = region[i:end]
+                if depth > 0:
+                    cur.append(lit)
+                else:
+                    if cur:
+                        segs.append(('run', ''.join(cur)))
+                        cur = []
+                    segs.append(('lit', lit))
+                i = end
+                continue
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth = max(0, depth - 1)
+            cur.append(ch)
+            i += 1
+        if cur:
+            segs.append(('run', ''.join(cur)))
+        ops = self._MS_PRINT_OPERATOR_CHARS
+        pieces: List[str] = []
+        for k, (kind, text) in enumerate(segs):
+            nxt = segs[k + 1] if k + 1 < len(segs) else None
+            if kind == 'lit':
+                pieces.append(text)
+                if nxt and nxt[0] == 'run':
+                    head = nxt[1].lstrip()
+                    if head and head[0] not in ';,' + ops and not self._starts_with_logic_word(head):
+                        pieces.append(';')
+            else:
+                body = text.rstrip()
+                if (
+                    nxt and nxt[0] == 'lit' and body
+                    and body[-1] not in ';,(' + ops
+                    and not self._ends_with_logic_word(body)
+                ):
+                    pieces.append(body + ';' + text[len(body):])
+                else:
+                    pieces.append(text)
+        return ''.join(pieces)
+
+    @staticmethod
+    def _starts_with_logic_word(text: str) -> bool:
+        for word in ('AND', 'OR', 'XOR', 'MOD', 'EQV', 'IMP'):
+            if text.startswith(word) and not (len(text) > len(word) and text[len(word)].isalnum()):
+                return True
+        return False
+
+    @staticmethod
+    def _ends_with_logic_word(text: str) -> bool:
+        for word in ('AND', 'OR', 'XOR', 'MOD', 'EQV', 'IMP'):
+            if text.endswith(word) and not (len(text) > len(word) and (text[-len(word) - 1].isalnum())):
+                return True
+        return False
+
     def _fold_case_insensitive_line(self, statement: str) -> str:
         """Uppercase a line outside strings, comments and DATA (MS BASIC entry).
 
@@ -690,6 +843,8 @@ class RuntimeProgramMixin:
             statement = self._normalize_two_word_closers(statement)
             if self.config.dialect in ('mits', 'commodore', 'tiny'):
                 statement = self._space_crunched_ms_statements(statement)
+            if self.config.dialect in ('mits', 'commodore'):
+                statement = self._space_ms_logic_operators(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
             statement = self._space_glued_to_step(statement)
@@ -703,6 +858,8 @@ class RuntimeProgramMixin:
             and self._BBC_INDIR_LVALUE_RE.match(statement)
         ):
             statement = self._expand_question_print(statement)
+        if self.config.dialect in ('mits', 'commodore'):  # MS BASIC family
+            statement = self._separate_ms_print_items(statement)
         # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):
             statement = self._map_outside_strings(
@@ -837,6 +994,26 @@ class RuntimeProgramMixin:
         return ''.join(parts)
 
     def set_program_line(self, line_num: int, statement: str, indent: int = 0):
+        self._store_program_line(line_num, statement, indent)
+        self._rebuild_labels()
+        self._invalidate_program_caches()
+        self._definitions_dirty = True
+        self._clear_stop_state()
+
+    def set_program_lines(self, lines: Iterable[Tuple[int, str, int]]) -> None:
+        """Store many (line_num, statement, indent) lines, as LOAD does.
+
+        Labels are rebuilt once at the end; rebuilding per line made LOAD
+        quadratic in program length.
+        """
+        for line_num, statement, indent in lines:
+            self._store_program_line(line_num, statement, indent)
+        self._rebuild_labels()
+        self._invalidate_program_caches()
+        self._definitions_dirty = True
+        self._clear_stop_state()
+
+    def _store_program_line(self, line_num: int, statement: str, indent: int) -> None:
         if self._program_source_numbered is None:
             self._program_source_numbered = True
         statement = self.canonicalize_program_line(statement)
@@ -845,7 +1022,6 @@ class RuntimeProgramMixin:
             self.line_indent[line_num] = indent
         elif line_num in self.line_indent:
             del self.line_indent[line_num]
-        self._rebuild_labels()
         self._invalidate_program_caches()
         self._definitions_dirty = True
         self._clear_stop_state()
@@ -1352,6 +1528,11 @@ class RuntimeProgramMixin:
         return py, right_end, nt, fv, iv, sv
 
     def _extract_label_prefix(self, part: str) -> Tuple[Optional[str], str]:
+        if self.config.dialect == 'bbc':
+            # Modern BBC BASIC (Windows/SDL) label definition: (name) statement; jump is GOTO name
+            paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
+            if paren:
+                return self._normalize_identifier(paren.group(1)), paren.group(2).strip()
         match = re.match(rf'^({self._VAR_BASE_PATTERN}):\s*(.*)$', part.strip())
         if match and not self._is_statement_keyword(match.group(1)):
             return self._normalize_identifier(match.group(1)), match.group(2).strip()
@@ -1579,6 +1760,7 @@ class RuntimeProgramMixin:
         the real tokenizer it never splits mid-expression names (SCORE ≠ SC OR E).
         REM and DATA payloads and strings are copied unchanged.
         """
+        case_sensitive = self._identifiers_case_sensitive()
         out: List[str] = []
         index = 0
         length = len(text)
@@ -1602,7 +1784,11 @@ class RuntimeProgramMixin:
                 out.append(ch)
                 index += 1
                 continue
-            upper = text[index:index + 9].upper()
+            # Case-sensitive names: only an UPPERCASE keyword is crunched
+            # (printDistance is a name, PRINTA is PRINT A).
+            upper = text[index:index + 9]
+            if not case_sensitive:
+                upper = upper.upper()
             if stmt_start:
                 stmt_start = False
                 word = next((w for w in self._MS_CRUNCH_STMT_WORDS if upper.startswith(w)), None)
@@ -1630,6 +1816,108 @@ class RuntimeProgramMixin:
                     continue
             out.append(ch)
             index += 1
+        return ''.join(out)
+
+    _MS_LOGIC_WORDS = ('AND', 'XOR', 'OR')  # longest first
+
+    @staticmethod
+    def _is_ms_short_name(name: str) -> bool:
+        """Classic MS variable: one letter, optionally followed by a digit (Q, Q1)."""
+        return (
+            0 < len(name) <= 2 and name[0].isalpha() and name[0].isupper()
+            and (len(name) == 1 or name[1].isdigit())
+        )
+
+    def _split_ms_logic_run(self, core: str, prev: str) -> str:
+        """Space AND/OR/XOR glued into one alphanumeric run, only where unambiguous."""
+        words = self._MS_LOGIC_WORDS
+        if core[0].isdigit():
+            # 1ORQ1, 9ANDC1: keyword right after a numeric literal.
+            d = 0
+            while d < len(core) and core[d].isdigit():
+                d += 1
+            rest = core[d:]
+            for kw in words:
+                if rest.startswith(kw) and len(rest) > len(kw):
+                    tail = self._split_ms_logic_run(rest[len(kw):], kw)
+                    return f'{core[:d]} {kw} {tail}'
+            return core
+        if prev == ')':
+            for kw in words:
+                if core.startswith(kw) and len(core) > len(kw):
+                    return f' {kw} {self._split_ms_logic_run(core[len(kw):], kw)}'
+        # E+OR+D, Q1+OR+Q2: two classic short names around the keyword.
+        for pos in range(1, len(core)):
+            for kw in words:
+                if not core.startswith(kw, pos):
+                    continue
+                left, right = core[:pos], core[pos + len(kw):]
+                if self._is_ms_short_name(left) and (
+                    self._is_ms_short_name(right) or right.isdigit()
+                ):
+                    return f'{left} {kw} {right}'
+        return core
+
+    def _space_ms_logic_operators(self, text: str) -> str:
+        """MS crunched listings: ``IFQ1<1ORQ1>8THEN9`` → ``... 1 OR Q1 ...``.
+
+        The real tokenizer finds AND/OR/XOR anywhere. We split only after a
+        number or ``)``, or between two classic short names (``N-EORD(7)`` is
+        ``N-E OR D(7)``) so names such as SCORE, ORDER or RESTORE stay whole.
+        Strings, REM and DATA payloads are copied unchanged.
+        """
+        if 'AND' not in text and 'OR' not in text:
+            return text
+        out: List[str] = []
+        n = len(text)
+        i = 0
+        prev = ''
+        stmt_start = True
+        while i < n:
+            ch = text[i]
+            if ch == '"':
+                end = text.find('"', i + 1)
+                end = n if end < 0 else end + 1
+                out.append(text[i:end])
+                prev = '"'
+                i = end
+                stmt_start = False
+                continue
+            if ch == ':':
+                out.append(ch)
+                prev = ch
+                i += 1
+                stmt_start = True
+                continue
+            if stmt_start and not ch.isspace():
+                stmt_start = False
+                if text.startswith('REM', i):
+                    out.append(text[i:])
+                    break
+                if text.startswith('DATA', i):
+                    end = i
+                    while end < n and text[end] != ':':
+                        if text[end] == '"':
+                            close = text.find('"', end + 1)
+                            end = n if close < 0 else close
+                        end += 1
+                    out.append(text[i:end])
+                    prev = 'A'
+                    i = end
+                    continue
+            if ch.isalnum():
+                j = i
+                while j < n and text[j].isalnum():
+                    j += 1
+                piece = self._split_ms_logic_run(text[i:j], prev)
+                out.append(piece)
+                prev = piece[-1]
+                i = j
+                continue
+            out.append(ch)
+            if not ch.isspace():
+                prev = ch
+            i += 1
         return ''.join(out)
 
     @staticmethod
@@ -2801,6 +3089,12 @@ class RuntimeProgramMixin:
         prompt = self._join_print_items(items[:var_start]).rstrip(',').rstrip()
         return prompt, [item.strip() for item, _ in items[var_start:]]
 
+    def _ms_input_prompt_wants_question(self, rest: str) -> bool:
+        """MS BASIC: a ``;`` right after the prompt string means print ``? ``."""
+        items = self._split_print_items(rest.strip())
+        var_start = self._find_input_var_start(items)
+        return 0 < var_start <= len(items) and items[var_start - 1][1] == ';'
+
     def _split_input_prompt_and_vars(self, text: str) -> Optional[Tuple[str, List[str]]]:
         """Split BBC ``\"prompt\"var`` / ``\"prompt\" var,x`` when print-split kept them glued."""
         text = text.strip()
@@ -3400,8 +3694,7 @@ class RuntimeProgramMixin:
 
         self.new(announce=False, clear_loaded_filename=False)
         self._program_source_numbered = source_was_numbered
-        for line_num, statement, indent in parsed_lines:
-            self.set_program_line(line_num, statement, indent)
+        self.set_program_lines(parsed_lines)
         self.loaded_filename = saved_name
         count = len(self.program)
         noun = 'line' if count == 1 else 'lines'

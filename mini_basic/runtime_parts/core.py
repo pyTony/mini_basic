@@ -848,11 +848,14 @@ class RuntimeCoreMixin:
                 float_vars.append(name)
         return tuple(float_vars)
 
+    def _is_label_ref(self, code: str) -> bool:
+        return self._normalize_identifier(code.strip()) in self.labels
+
     def _is_if_line_jump_target(self, then_code: str) -> bool:
         token = then_code.strip()
         if re.fullmatch(r'\d+', token):
             return True
-        return self._normalize_identifier(token) in self.labels
+        return self._is_label_ref(token)
 
     def resolve_jump_target(self, token: str) -> int:
         token = token.strip()
@@ -861,6 +864,8 @@ class RuntimeCoreMixin:
         key = self._normalize_identifier(token)
         if key in self.labels:
             return self.labels[key]
+        if self.config.dialect == 'bbc' and token.startswith('('):
+            return int(self._eval_numeric(token))  # computed GOTO (expr)
         raise ValueError(f'unknown line or label: {token}')
 
     def _branch_code_looks_like_line_jump(self, code: str) -> bool:
@@ -871,7 +876,7 @@ class RuntimeCoreMixin:
             return True
         if self._looks_like_statement(code):
             return False
-        return self._normalize_identifier(code) in self.labels
+        return self._is_label_ref(code)
 
     def _maybe_auto_enable_pygame_now(self, *, announce: bool = False) -> None:
         """Enable pygame when a graphics statement runs (MODE/GCOL/PLOT/...)."""
@@ -1504,7 +1509,7 @@ class RuntimeCoreMixin:
             if not self._dialect_allows('if_then_line'):
                 return 'invalid'
             return 'goto' if int(code) in self.program else 'invalid'
-        if self._normalize_identifier(code) in self.labels:
+        if self._is_label_ref(code):
             if not self._dialect_allows('if_then_line'):
                 return 'invalid'
             return 'goto'

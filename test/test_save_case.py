@@ -19,6 +19,29 @@ pytestmark = [pytest.mark.phase0]
 
 
 class SaveCaseFormatTests(unittest.TestCase):
+    def test_save_command_explains_reserved_bbc_extension(self):
+        from contextlib import redirect_stderr
+        from mini_basic.runtime import _execute_repl_line
+        with tempfile.TemporaryDirectory() as directory:
+            interp = BASICInterpreter(InterpreterConfig(display='none', display_locked=True))
+            interp.program[10] = 'PRINT 42'
+            for name, mode in [('new.bbc', ''), ('original.BBC', 'PRETTY '), ('mixed.bBc', 'REFS ')]:
+                with self.subTest(name=name):
+                    target = os.path.join(directory, name)
+                    if name == 'original.BBC':
+                        with open(target, 'wb') as stream:
+                            stream.write(b'original tokenized bytes')
+                    errors = io.StringIO()
+                    with redirect_stdout(io.StringIO()), redirect_stderr(errors):
+                        _execute_repl_line(interp, 'SAVE '+mode+'"'+target+'"')
+                    self.assertIn('.bbc is reserved for tokenized programs', errors.getvalue())
+                    self.assertIn('.bas', errors.getvalue())
+                    if name == 'original.BBC':
+                        with open(target, 'rb') as stream:
+                            self.assertEqual(stream.read(), b'original tokenized bytes')
+                    else:
+                        self.assertFalse(os.path.exists(target))
+
     def test_upper_folds_keywords_and_identifiers(self):
         line = format_program_line('let n = 1: print "HeLLo"; n', 'upper')
         self.assertEqual(line, 'LET N = 1: PRINT "HeLLo"; N')
