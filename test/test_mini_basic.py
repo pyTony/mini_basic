@@ -2832,7 +2832,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "5\n")
+        self.assertEqual(buf.getvalue(), " 5 \n")
 
     def test_shebang_dialect_hint_applies_on_load(self):
         with tempfile.NamedTemporaryFile(

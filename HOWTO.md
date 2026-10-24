@@ -1,5 +1,15 @@
 # mini_basic HOWTO
 
+## Microsoft numeric PRINT spacing
+
+Use `--dialect mits` for Microsoft/MITS BASIC or `--dialect commodore` for
+Commodore BASIC. Numeric PRINT items reserve a leading sign space for zero and
+positive values, and end with a space: `PRINT "[";1;0;-2;"]"` prints
+`[ 1  0 -2 ]`. Semicolons suppress additional separators, not these numeric
+spaces. Commas retain the configured print zones. `STR$` and `PRINT USING`
+keep their own formatting. The default `mini` and explicit `bbc` modes retain
+their existing output behavior.
+
 Preferred install (interpreter from GitHub):
 
 ```text
