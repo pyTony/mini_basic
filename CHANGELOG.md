@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-24
 
+- [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items
 - [#163](https://github.com/pyTony/mini_basic/pull/163) Dev
 - [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) — When the original tkinter editor is launched with pythonw.exe, Run with Use pygame display unchecked now selects the sibling python.exe. The existing new-console flag, selected dialect, hold preference and program working directory are retained. Pygame runs may keep pythonw.exe. If the matching console executable…
 - [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files — Normal Open (Ctrl+O) and editor command-line .bbc input now reuse interpreter LOAD/LIST to decode tokenized BBC BASIC into an untitled editable buffer. This fixes the garbled SIEVE.bbc shown in the user's screenshot. The redundant Open Tokenized BBC menu action is removed.
