@@ -4166,7 +4166,7 @@ class MiniBASICTests(unittest.TestCase):
     def test_beth_loads_and_greets(self):
         path = os.path.join(_MUSEUM_ROOT, 'BETH.BAS')
         self.assertTrue(os.path.exists(path), msg=path)
-        config = InterpreterConfig(dialect='bbc')
+        config = InterpreterConfig(dialect='mini')
         interp = BASICInterpreter(config)
         buf = io.StringIO()
         with redirect_stdout(buf):

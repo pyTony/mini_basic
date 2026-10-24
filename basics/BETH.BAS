@@ -1,5 +1,6 @@
+REM dialect: mini
 REM BETH - structured cousin of ELIZA.BAS (ELIZA's logic unchanged there)
-REM WHILE/WEND, IF/ENDIF, INSTR; same DATA and therapy behavior (bbc dialect)
+REM WHILE/WEND, IF/ENDIF, INSTR; same DATA and therapy behavior (mini dialect)
 
 DIM C$(72), I$(72), K$(72), F$(72), S$(72), R$(72), P$(72), Z$(72)
 DIM S(36), R(36), N(36)
