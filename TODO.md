@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) (2026-10-24)
 - [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
 - [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
 - [#158](https://github.com/pyTony/mini_basic/pull/158) Preserve rectangle and RGB behavior in span fills (2026-10-24)
@@ -20,4 +21,3 @@ merge to main.
 - [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL (2026-10-23)
 - [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files (2026-10-23)
 - [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py (2026-10-22)
-- [#151](https://github.com/pyTony/mini_basic/pull/151) Optimize rectangle span fills while preserving clipping and RGB behavior (2026-10-24)
