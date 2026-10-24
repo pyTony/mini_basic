@@ -439,9 +439,9 @@ class EditorWindow:
         if self.text.edit_modified():
             self.save_file()
 
-        cmd = self._build_run_command(self.path)
         run_dir = os.path.dirname(self.path) or '.'
         try:
+            cmd = self._build_run_command(self.path)
             popen_kwargs = {}
             if sys.platform.startswith('win') and not self.pygame_var.get():
                 popen_kwargs['creationflags'] = subprocess.CREATE_NEW_CONSOLE
@@ -699,7 +699,12 @@ class EditorWindow:
         self._run_in_listener(selection)
 
     def _build_run_command(self, path: str) -> List[str]:
-        cmd = [sys.executable, '-m', 'mini_basic', path]
+        executable = sys.executable
+        if not self.pygame_var.get() and os.path.basename(executable).lower() == 'pythonw.exe':
+            executable = os.path.join(os.path.dirname(executable), 'python.exe')
+            if not os.path.isfile(executable):
+                raise OSError(f'Console runs require python.exe beside pythonw.exe: {executable}')
+        cmd = [executable, '-m', 'mini_basic', path]
         dialect = self.dialect_var.get()
         if dialect and dialect != 'auto':
             cmd += ['--dialect', dialect]
