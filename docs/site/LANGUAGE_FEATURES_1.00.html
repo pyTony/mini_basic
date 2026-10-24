@@ -23,7 +23,7 @@
   <main>
     <article>
 <h2 id="mini-basic-1-00-language-features-ship-qualification">mini_basic 1.00 — Language features &amp; ship qualification</h2>
-<p><strong>Status:</strong> Ready to ship as <strong>1.00</strong> under the scope locked below <strong>Version line:</strong> <code>1.0.0</code> (PEP 440 / PyPI) <strong>Date:</strong> 2026-08-03 <strong>Related:</strong> <a href="PLAN_1.00_AND_VDU.html">`PLAN_1.00_AND_VDU.md`</a> · <a href="RELEASE_1.00.html">`RELEASE_1.00.md`</a> · <a href="LLM.html">`LLM.md`</a></p>
+<p><strong>Status:</strong> Ready to ship as <strong>1.00</strong> under the scope locked below <strong>Version line:</strong> <code>1.0.0</code> (PEP 440 / PyPI) <strong>Date:</strong> 2026-08-03 <strong>Related:</strong> <a href="RELEASE_NOTES_1.0.html">`RELEASE_NOTES_1.0.md`</a></p>
 <p>This is the <strong>language and graphics baseline</strong> for 1.00. It states what is in, what is out, and <strong>why the product qualifies</strong> without claiming full BBCSDL / RISC OS parity.</p>
 <hr>
 <h3 id="1-why-1-00-is-justified">1. Why 1.00 is justified</h3>
@@ -89,7 +89,7 @@
 <h4 id="5-2-user-visual-approval-graphics-language-exercised">5.2 User visual approval (graphics language exercised)</h4>
 <p>Approved programs (non-exhaustive): <strong>welcome</strong>, <strong>squares</strong>, <strong>saucer</strong>, <strong>flier</strong>, <strong>soccerball</strong>, <strong>wheel</strong>, <strong>jclock</strong>, <strong>filters</strong>, <strong>hanoi</strong>, <strong>animal</strong>.</p>
 <p>Pytest covers <strong>fragments</strong> those programs need (glue, kernels, XOR, file stubs). It does not run the playable program. What only you can confirm — look, play, mouse, timing — stays <strong>user confirmation</strong>. See <a href="PROGRAM_VS_TESTS.html">PROGRAM_VS_TESTS.md</a>.</p>
-<h4 id="5-3-plan-checklist-from-plan-1-00">5.3 Plan checklist (from PLAN_1.00)</h4>
+<h4 id="5-3-plan-checklist">5.3 Plan checklist</h4>
 <table><tr><th>Item</th><th>1.00</th></tr><tr><td>VDU A–C</td><td>Done</td></tr><tr><td>Corpus FAIL empty <strong>or</strong> explicit DEFER</td><td>Done</td></tr><tr><td>Version report</td><td>Done (<code>--version</code>)</td></tr><tr><td>Language + graphics baseline written</td><td><strong>This document</strong></td></tr><tr><td>Full sound / WIMP / SYS</td><td>Out of scope</td></tr></table>
 <hr>
 <h3 id="6-explicit-non-goals-do-not-block-1-00">6. Explicit non-goals (do not block 1.00)</h3>
@@ -103,7 +103,7 @@
 <h3 id="8-ship-decision-statement">8. Ship decision statement</h3>
 <p><strong>mini_basic qualifies for 1.00</strong> because:</p>
 <ol><li>The <strong>language product</strong> is multi-dialect, structured-BASIC complete for teaching and classic programs, and BBC-family complete for control flow + files + expressions needed by the corpus.  </li><li>The <strong>BBC graphics language</strong> (MODE/VDU/PLOT/GCOL/COLOUR/CIRCLE/ORIGIN) is implemented through the VDU A–C plan and validated by user-approved demos.  </li><li><strong>Quality gates</strong> are closed: corpus audit OK-or-DEFER, regression phases green, version/reportability in place.  </li><li><strong>Scope is honest:</strong> deferred rows are listed; 1.00 does not pretend to be BBCSDL-with-sound or RISC OS.</li></ol>
-<p><strong>To tag 1.00:</strong> accept this document, set <code>__version__ = &#x27;1.00&#x27;</code>, add a one-page <code>RELEASE_1.00.md</code> changelog pointer to this file if desired, and keep polly/poem on the post-1.00 backlog.</p>
+<p><strong>To tag 1.00:</strong> accept this document, set <code>__version__ = &#x27;1.00&#x27;</code>, and keep polly/poem on the post-1.00 backlog.</p>
 <hr>
 <h3 id="9-post-1-00-backlog-ordered-lightly">9. Post-1.00 backlog (ordered lightly)</h3>
 <ol><li>~~polly / sounds tree~~ (removed from corpus — not general BASIC+pygame)</li><li>poem — interactive MODE7 audit path  </li><li>Saucer float-loop performance (optional)  </li><li>~~PRINT array subscript expansion~~ (done — <code>test_print_array_subscript</code>)</li><li>Teletext remainder / structures / SYS as demand appears  </li></ol>

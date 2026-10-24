@@ -2,7 +2,7 @@ mini-BASIC example programs
 ============================
 
 Project root: parent of this examples/ folder.
-Tests: ../test/   Main README: ../README.md
+Main README: ../README.md
 
 Git (this tree):
   https://github.com/pyTony/mini_basic

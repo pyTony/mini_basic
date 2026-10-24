@@ -24,7 +24,7 @@ Only the **importable interpreter package** under `mini_basic/`:
 | Path | Why |
 |------|-----|
 | `basics/`, `showcase/` | Demo programs — get from [git](https://github.com/pyTony/mini_basic/tree/main), not the wheel |
-| `test/`, `tools/`, `utils/`, `scripts/`, `examples/`, `documentation/` | Development-only; these live on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch, not on `main`, and are never part of the wheel |
+| `test/`, `scripts/`, `tools/`, `examples/`, `documentation/` | Never part of the wheel; `test/` and `scripts/` live only on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch |
 | `__pycache__` | Build leftover |
 | `mini_basic/diffcheck.py` | Removed — was a broken one-off |
 
@@ -45,7 +45,7 @@ cd mini_basic
 python -m pip install -e ".[repl]"
 ```
 
-For the full dev tree (`examples/`, `test/`, `tools/`, `scripts/`, `documentation/`), clone the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch instead.
+For the development tree (`test/`, `scripts/`), clone the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch instead.
 
 ## Build a wheel (local checkout)
 

@@ -7,7 +7,7 @@ MITS/classic BASIC (`mits`/`commodore`/`tiny`), and its own modern superset
 (`mini`).
 
 For the full engineering scope (what's deliberately out, known
-limitations) see [RELEASE_1.00.md](RELEASE_1.00.md) and
+limitations) see
 [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md). This page is the
 short, end-user version.
 
@@ -21,12 +21,12 @@ Install instructions live in `README.md` (repo root) and the handbook's
 - **Sound** — `SOUND` plays an approximate synthesized tone, `*PLAY "file"` plays a WAV sample, `*MUSIC "file"` streams a looping background track, all through real audio (`pygame.mixer`); see `showcase/breakout.bas` for all three together.
 - **Procedures and structure** — `PROC`/`FN`, structs (`DIM name{a%,b$}`, whole-struct copy), whole-array operations, `ON ERROR`.
 - **Libraries** — `LIBRARY`/`INSTALL` load another program's `DEF PROC`/`DEF FN` definitions into the running program without running its top-level code, matching real BBC BASIC semantics.
-- **A small source editor** (`tools/editor.py`, `dev` branch) — open/save/run, plus **Pretty (no numbers)** and **Renumber** buttons that delegate to the interpreter's own `LIST PRETTY` and `RENUMBER` logic.
+- **A small source editor** (`tools/editor.py`) — open/save/run, plus **Pretty (no numbers)** and **Renumber** buttons that delegate to the interpreter's own `LIST PRETTY` and `RENUMBER` logic.
 - **REPL niceties** — numbered or unnumbered programs, `EDIT n` to edit one line in place or `EDIT` to drop into your system editor, tab completion, `HELP` (including `HELP CLI`).
 
 ## Updates after the initial 1.0 release
 
-The current `dev` branch adds an immediate-mode Listener (F5 / Shift+F5),
+Later releases add an immediate-mode Listener (F5 / Shift+F5),
 a wait-for-Esc Run toggle, and mini PRETTY comments written with apostrophes.
 `EDIT NEW` opens a blank external-editor buffer and is also merged on `main`.
 See the [editor guide](EDITOR.md) for usage and branch availability.
@@ -37,7 +37,7 @@ See the [editor guide](EDITOR.md) for usage and branch availability.
 - Some real-time demos show flicker/jerky motion from frame-pacing, not a logic bug ([#12](https://github.com/pyTony/mini_basic/issues/12)).
 - `CALL &FFF1` / `OSWORD 10` (cursor-position readback) isn't implemented ([#11](https://github.com/pyTony/mini_basic/issues/11)).
 
-See [RELEASE_1.00.md](RELEASE_1.00.md) for the full list and rationale.
+See [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) for the full list and rationale.
 
 ## Where to go next
 
@@ -45,6 +45,5 @@ See [RELEASE_1.00.md](RELEASE_1.00.md) for the full list and rationale.
 |-----|------------|
 | [PACKAGING.md](PACKAGING.md) | pip / wheel install options, extras |
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Full language/graphics baseline |
-| [RELEASE_1.00.md](RELEASE_1.00.md) | Full release notes, tag checklist |
 | `CHANGELOG.md` (repo root) | Per-PR history (`dev` branch) |
 | `README.md` (repo root) | Quick start, dialects, layout |

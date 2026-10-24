@@ -2,7 +2,7 @@
 
 Browsable HTML (no extra tools): open [`../index.html`](../index.html) at the clone root, or [`site/index.html`](site/index.html) in this folder.
 
-Markdown sources stay in this folder. `python scripts/build_user_docs.py` refreshes the generated pages under `site/` — that script, and the PDF/HTML manuals under `documentation/`, live on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
+Markdown sources stay in this folder. The generated pages under `site/` are built on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
 
 ---
 
@@ -14,24 +14,17 @@ Markdown sources stay in this folder. `python scripts/build_user_docs.py` refres
 | [EDITOR.md](EDITOR.md) | Source editor, Listener shortcuts, PRETTY comments and EDIT NEW |
 | [../HOWTO.md](../HOWTO.md) | Dev setup, modular runtime, common tasks |
 | [RELEASE_NOTES_1.0.md](RELEASE_NOTES_1.0.md) | What's new in 1.0 (end-user summary) |
-| [RELEASE_1.00.md](RELEASE_1.00.md) | 1.00 release notes + tag checklist (user gate) |
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md) | Language / graphics baseline for 1.00 ship |
 | [PACKAGING.md](PACKAGING.md) | Wheel contents, extras (`display` / `repl` / `all`), build |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialects and BBC family vs mini_basic |
-| [LLM.md](LLM.md) | Short notes for people and LLMs |
 
 ## Language and implementation
 
 | Doc | What it is |
 |-----|------------|
 | [LANGUAGE_FEATURES_1.00.md](LANGUAGE_FEATURES_1.00.md#oscli-and-sys) | Supported language surface for 1.00 (includes OSCLI / SYS) |
-| [PROGRAM_VS_TESTS.md](PROGRAM_VS_TESTS.md) | Approved programs vs pytest (user confirm when tests miss the look) |
 | [BASIC_VARIANTS.md](BASIC_VARIANTS.md) | Dialect / BBC-family comparison |
 | [../mini_basic/README.md](../mini_basic/README.md) | Package layout (import map, modules) |
-| [python-m-mini-basic-flowchart.mmd](python-m-mini-basic-flowchart.mmd) | Mermaid flowchart of `python -m mini_basic` startup (CLI → program / session / REPL) |
-
-Internal engineering notes (1.00 plan/VDU, BBC tokenize-vs-unglue, statement
-dispatch map) live on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
 
 ## Packaging and install
 

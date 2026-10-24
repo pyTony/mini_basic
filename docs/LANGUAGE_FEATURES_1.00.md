@@ -3,7 +3,7 @@
 **Status:** Ready to ship as **1.00** under the scope locked below  
 **Version line:** `1.0.0` (PEP 440 / PyPI)  
 **Date:** 2026-08-03  
-**Related:** [`PLAN_1.00_AND_VDU.md`](PLAN_1.00_AND_VDU.md) · [`RELEASE_1.00.md`](RELEASE_1.00.md) · [`LLM.md`](LLM.md)
+**Related:** [`RELEASE_NOTES_1.0.md`](RELEASE_NOTES_1.0.md)
 
 This is the **language and graphics baseline** for 1.00. It states what is in, what is out, and **why the product qualifies** without claiming full BBCSDL / RISC OS parity.
 
@@ -240,7 +240,7 @@ Approved programs (non-exhaustive): **welcome**, **squares**, **saucer**, **flie
 
 Pytest covers **fragments** those programs need (glue, kernels, XOR, file stubs). It does not run the playable program. What only you can confirm — look, play, mouse, timing — stays **user confirmation**. See [PROGRAM_VS_TESTS.md](PROGRAM_VS_TESTS.md).
 
-### 5.3 Plan checklist (from PLAN_1.00)
+### 5.3 Plan checklist
 
 | Item | 1.00 |
 |------|------|
@@ -295,7 +295,7 @@ From `mini_basic/features/deferred.py` and project policy:
 3. **Quality gates** are closed: corpus audit OK-or-DEFER, regression phases green, version/reportability in place.  
 4. **Scope is honest:** deferred rows are listed; 1.00 does not pretend to be BBCSDL-with-sound or RISC OS.
 
-**To tag 1.00:** accept this document, set `__version__ = '1.00'`, add a one-page `RELEASE_1.00.md` changelog pointer to this file if desired, and keep polly/poem on the post-1.00 backlog.
+**To tag 1.00:** accept this document, set `__version__ = '1.00'`, and keep polly/poem on the post-1.00 backlog.
 
 ---
 

@@ -116,7 +116,7 @@ These are **external systems**; mini’s column is **`bbc` dialect mode**, not a
 | **Beeb** (BBC Micro / Master, MOS BASIC II/IV) | 1980s 6502 | Tokenized **Wilson** load; smaller language (no CASE/WHILE as on ROS); MODE 0–7 + teletext 7 |
 | **ROS** (RISC OS BASIC **V / VI**) | Archimedes / RPi | Structured BBC; in-memory programs still **line-numbered**; Edit/TEXTLOAD assign numbers to text; SYS/WIMP largely **deferred** in mini |
 | **BB4W** (BBC BASIC for Windows) | Desktop (Russell) | Language + MODE 8+ / CIRCLE-style graphics target for many matrices |
-| **SDL** (BBC BASIC for SDL 2.0) | Cross-platform (Russell) | Primary **corpus** target (`test/corpus`, many `examples/*.bbc`); tokenized **Russell** load |
+| **SDL** (BBC BASIC for SDL 2.0) | Cross-platform (Russell) | Primary **corpus** target (many `examples/*.bbc`); tokenized **Russell** load |
 | **mini (bbc)** | This interpreter | Detokenize Beeb/SDL files → text → run; graphics tier A; sound/SYS/WIMP not full |
 
 ### Family grid (excerpt)
@@ -206,7 +206,7 @@ Deferred rows are intentional non-goals until core language + corpus stay stable
 Real BBC BASIC **tokenizes at line entry**; mini_basic stores **text** and often
 **re-derives** keyword boundaries at run/LIST time. Glue rules (GOTO100, SINa,
 case-sensitive `tana` vs `SINa`) and a possible **entry-time canonicalize**
-roadmap are written up in [`BBC_TOKENIZE_VS_UNGLUE.md`](BBC_TOKENIZE_VS_UNGLUE.md).
+roadmap are described in the engineering notes on the `dev` branch.
 
 ---
 

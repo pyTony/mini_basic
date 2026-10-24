@@ -60,8 +60,7 @@ interpret ANSI in pygame or pass ANSI bytes into the BBC `VDU` decoder; use
 ## Development setup
 
 This `main` branch is the lean release tree. The full dev tree
-(`test/`, `tools/`, `scripts/`, `examples/`, `documentation/`, and the git
-workflow docs) lives on the
+(`test/`, `scripts/`, and the git workflow docs) lives on the
 [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch:
 
 ```powershell
@@ -121,7 +120,7 @@ blocks, PRETTY comments, `EDIT NEW`, and current testing limits.
 ## Requirements
 
 - Python 3.10+
-- PowerShell (Windows helper scripts under `tools/`, `scripts/ps1/` on the `dev` branch) — optional, not required to run or develop the interpreter
+- PowerShell (Windows helper scripts under `tools/`) — optional, not required to run or develop the interpreter
 
 ## Common tasks
 
@@ -129,15 +128,14 @@ blocks, PRETTY comments, `EDIT NEW`, and current testing limits.
 |------|---------|
 | Run a program | `python -m mini_basic basics/MB_COLOR.BAS` |
 | Run the test suite (on `dev`) | `python -m pytest -q -m "phase1 and not slow" --timeout=45` |
-| Split runtime mixins (on `dev`) | `python tools/split_runtime_mixins.py` |
 
 ## Troubleshooting
 
 - Missing graphics → `pip install -r requirements-display.txt` (or `pip install "mini-basic[display]"`).
 - `mini-basic`/`minibasic` not found after `pip install` → open a **new** shell so `PATH` picks up the console scripts, or confirm the Python Scripts/bin directory is on `PATH`.
 
-For language notes see `docs/LLM.md`.
-For git rules see `GIT_QUICKSTART.md` on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
+For language notes see `docs/LANGUAGE_FEATURES_1.00.md`.
+Git rules and contributor notes are on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
 
 ### Function and procedure endings by dialect
 

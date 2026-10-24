@@ -20,9 +20,9 @@ mini-basic --version
 ```
 
 This `main` branch is the lean release tree: the interpreter package,
-`basics/` (small standalone programs), `showcase/` (the demo reel below),
-and this handbook. The full development tree — `examples/`, `test/`,
-`tools/`, `scripts/`, `documentation/`, and the complete per-PR changelog —
+`basics/` and `examples/` (programs to run), `showcase/` (the demo reel below),
+`documentation/` (manuals), and this handbook. The development tree — `test/`,
+`scripts/`, developer tooling and notes —
 lives on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch:
 
 ```bash
@@ -35,7 +35,8 @@ git clone https://github.com/pyTony/mini_basic.git          # release tree (this
 | [basics/](https://github.com/pyTony/mini_basic/tree/main/basics) | Small standalone `.bas` files |
 | [showcase/](https://github.com/pyTony/mini_basic/tree/main/showcase) | The 8-program demo reel (see below) |
 | [docs/](https://github.com/pyTony/mini_basic/tree/main/docs) | Language / release notes |
-| [dev branch](https://github.com/pyTony/mini_basic/tree/dev) | Full dev tree: examples/, test/, tools/, scripts/, documentation/ |
+| [examples/](https://github.com/pyTony/mini_basic/tree/main/examples) | Example programs by dialect and topic |
+| [dev branch](https://github.com/pyTony/mini_basic/tree/dev) | Development tree: test/, scripts/, developer notes |
 
 Upstream (not this repo): [garyexplains/BASIC-M6502-CPORT](https://github.com/garyexplains/BASIC-M6502-CPORT) · [rtrussell/BBCSDL examples](https://github.com/rtrussell/BBCSDL/tree/master/examples)
 
@@ -111,14 +112,13 @@ Product conventions that trip people up:
 | `showcase/` | 8-program demo reel + `demo_reel.py` launcher |
 | `docs/site/` | Browsable HTML handbook |
 
-The full dev tree (`examples/`, `test/`, `tools/`, `scripts/`,
-`documentation/`) lives on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
+The development tree (`test/`, `scripts/`, developer notes) lives on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
 
 ## Tests and development
 
 Tests, dev tooling, and the git workflow docs live on the
 [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch — `test/`,
-`pytest.ini`, `GIT_QUICKSTART.md`, `DEVELOPMENT_GIT_USAGE.md`. Check that
+`pytest.ini`, `scripts/`, contributor notes. Check that
 branch out to run the test suite:
 
 ```bash
@@ -127,7 +127,7 @@ cd mini_basic
 python -m pytest -q -m "phase1 and not slow" --timeout=45
 ```
 
-LLM / contributor notes: [`docs/LLM.md`](docs/LLM.md).
+Contributor notes are on the `dev` branch.
 
 ## Import map
 

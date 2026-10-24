@@ -81,7 +81,7 @@ prompt. This command uses the configured external editor, which may differ from
 
 ## Verification and remaining checks
 
-Feature regressions are in `test/test_editor_smoke.py` and
+Feature regressions (tests live on the `dev` branch) are in `test/test_editor_smoke.py` and
 `test/test_mini_basic.py`; comment formatting coverage also lives in
 `test/test_save_case.py` and `test/test_list_glue_proc.py`.
 Tk-dependent tests skip when Tk cannot initialize. Automated checks do not replace
