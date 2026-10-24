@@ -5,6 +5,7 @@ No Tk mainloop is ever started. If a Tk root cannot even be created
 """
 from __future__ import annotations
 
+import time
 import os
 import sys
 import tkinter as tk
@@ -27,10 +28,17 @@ from tools.editor import (
 
 
 def _make_root() -> tk.Tk:
-    try:
-        root = tk.Tk()
-    except tk.TclError as exc:
-        pytest.skip(f'no display available for Tk: {exc}')
+    # Tcl start-up can fail transiently on Windows (init.tcl briefly locked by a
+    # scanner), so retry a few times before concluding there is no display.
+    root = None
+    for attempt in range(5):
+        try:
+            root = tk.Tk()
+            break
+        except tk.TclError as exc:
+            if attempt == 4:
+                pytest.skip(f'no display available for Tk: {exc}')
+            time.sleep(0.2)
     root.withdraw()
     return root
 
