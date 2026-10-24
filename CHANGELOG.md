@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-24
 
+- [#151](https://github.com/pyTony/mini_basic/pull/151) Optimize rectangle span fills while preserving clipping and RGB behavior — RECTANGLE FILL now uses horizontal spans for truecolour and logical GCOL operations while preserving the block fast path for plain palette replacement. A preceding CIRCLE FILL no longer clips subsequent rectangles. The retained circle clip remains available to the existing triangle/sector paths.
 - [#157](https://github.com/pyTony/mini_basic/pull/157) Backport Microsoft numeric PRINT spacing to release — MITS and Commodore numeric PRINT now uses Microsoft sign/trailing spaces: `PRINT "[";1;0;-2;"]"` produces `[ 1 0 -2 ]`. Parenthesized string comparisons also receive numeric spacing. Default mini and explicit BBC formatting are unchanged, as are STR$ and PRINT USING; comma output retains the configured zone width.
 
 ## 2026-10-23
