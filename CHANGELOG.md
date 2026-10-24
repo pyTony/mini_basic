@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-24
 
+- [#166](https://github.com/pyTony/mini_basic/pull/166) Docs/superstartrek readable
 - [#167](https://github.com/pyTony/mini_basic/pull/167) fix: basics/fact.bas is valid BBC BASIC (drop END DEF) — A BBC function ends at its = return; END DEF is a mini/QBasic extension that the bbc dialect rejects, so loading the file under bbc failed (and with it test_load_does_not_say_program_cleared). The block IF/ELSE/ENDIF with = in both branches is valid BBC; FNfact(5)=120, FNfact(10)=3628800 in bbc and mini.
 - [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels
 - [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items
