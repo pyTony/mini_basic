@@ -381,8 +381,9 @@ class RuntimeDefsMixin:
                         def_line = proc.body_start
                 self._execute_inline_statements(header, def_line, line_nums)
                 # Pure single-line DEF PROC … ENDPROC: no multi-line body.
-                if proc.body_start == proc.body_end and re.search(
-                    r'\bENDPROC\b', header, re.IGNORECASE
+                if proc.implicit_inline_return or (
+                    proc.body_start == proc.body_end
+                    and re.search(r'\bENDPROC\b', header, re.IGNORECASE)
                 ):
                     return
             self._run_procedure_body(proc)
@@ -884,7 +885,7 @@ _FN_MEMO_IMPURE = frozenset({
     'ERR', 'ERL', 'LOC', 'LOF', 'EOF', 'PTR', 'EXT', 'ARG', 'ARG$',
     'INPUT', 'PRINT', 'READ', 'DATA', 'RESTORE',
     'PLOT', 'DRAW', 'MOVE', 'CIRCLE', 'ELLIPSE', 'RECTANGLE', 'LINE', 'MODE',
-    'COLOUR', 'COLOR', 'GCOL', 'CLS', 'CLG', 'VDU', 'SYS', 'OSCLI',
+    'COLOUR', 'COLOR', 'GCOL', 'CLS', 'CLG', 'VDU', 'ANSI', 'SYS', 'OSCLI',
     'SOUND', 'BEEP', 'WAIT', 'CALL', 'PROC', 'ENDPROC',
     'OPENIN', 'OPENOUT', 'OPENUP', 'OPEN', 'CLOSE', 'BGET', 'BPUT',
     'CHAIN', 'RUN', 'LOAD', 'SAVE',

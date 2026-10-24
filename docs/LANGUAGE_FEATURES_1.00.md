@@ -44,6 +44,10 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 
 ## 3. Core language (all ship dialects, with dialect gates)
 
+Current editor and program-formatting updates are documented in
+[Source editor and Listener](EDITOR.md), including `EDIT NEW` and mini PRETTY
+apostrophe comments. The guide states branch availability.
+
 ### 3.1 Program structure
 
 - Numbered and/or unnumbered lines (dialect-dependent).
@@ -65,7 +69,7 @@ Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 | `REPEAT` / `UNTIL` | |
 | `EXIT FOR` / `WHILE` / `REPEAT` | |
 | `CASE` / `WHEN` / `OTHERWISE` / `ENDCASE` | BBC family. |
-| `DEF PROC` / `ENDPROC`, `DEF FN` / `END DEF` | Glued `PROCname` / `FNname` (BBC rule). |
+| `DEF PROC` / `ENDPROC`, `DEF FN` | Glued `PROCname` / `FNname` (BBC rule); BBC functions return with `=expression`. `END DEF` is mini-only and rejected in BBC, even without strict mode. |
 | `BREAK` / `CONTINUE` | **mini** extension. |
 
 ### 3.3 Variables & expressions
@@ -135,6 +139,7 @@ The optional `TO var` result works, including the glued form (`SYS G$TO T0%`). A
 | `MODE` n | Modes 0–7 + BB4W/SDL extended (e.g. 8+); MODE 7 teletext **partial** (double-height + conceal yes; boxed/full SAA5050 no). |
 | `GCOL` action, colour | Modes 0–7 including XOR/invert. |
 | `COLOUR` / `COLOR` | Text fg/bg; multi-arg RGB palette; `COLOR n+128` bg index kept (piechart sky). |
+| `ANSI` items | Raw numeric/string terminal output; mini/bbc extension, separate from VDU and pygame. See root HOWTO. |
 | `MOVE` / `DRAW` / `PLOT` | PLOT codes subset + BB4W extras; absolute/relative. |
 | `CIRCLE` / `CIRCLE FILL` | Outline and disc; disc clip vs false pie bulge fixed. |
 | `RECTANGLE` / `RECTANGLE FILL` | |
@@ -302,3 +307,8 @@ From `mini_basic/features/deferred.py` and project policy:
 ---
 
 *End of 1.00 language features baseline.*
+
+In BBC dialect, multiline procedures require ENDPROC. Only complete single-line
+DEF PROC bodies may omit it. Mini retains its implicit return at EOF. This is
+an intentional stricter diagnostic than BBCSDL's behavior at program EOF
+(which ends the program); it does not make END DEF a BBC keyword.

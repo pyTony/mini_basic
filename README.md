@@ -57,6 +57,13 @@ from mini_basic.config import InterpreterConfig
 interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
 ```
 
+## Source editor (dev checkout)
+
+Run `python tools/editor.py` from a `dev` checkout. The editor has a persistent
+Listener for immediate statements (F5: current line; Shift+F5: selection),
+whole-program Run, and a wait-for-Esc toggle. See the
+[editor guide](docs/EDITOR.md) for formatting and `EDIT NEW` behavior.
+
 ## Showcase
 
 Eight confirmed-working programs picked to span graphics, fractals,

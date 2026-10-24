@@ -159,6 +159,50 @@ class BBCGraphicsTests(unittest.TestCase):
         self.assertEqual(gfx.rgb_pixels[0][7], (10, 20, 30))
         self.assertIn((7, 0), gfx.rgb_dirty)
 
+    def test_fill_rectangle_gcol0_clears_truecolour_for_nonzero_palette(self):
+        """Mode 0 block fill clears stale RGB overlays for *any* palette replacement, not just colour 0."""
+        from unittest import mock
+
+        for use_numpy in (False, True):
+            if use_numpy:
+                try:
+                    import numpy
+                    np_mock = numpy
+                except ImportError:
+                    continue
+            else:
+                np_mock = None
+
+            with mock.patch("mini_basic.bbc_graphics._try_numpy", return_value=np_mock):
+                gfx = BBCGraphics(8, 8, x_scale=1, y_scale=1)
+                self.assertEqual(gfx.pixels_is_numpy, use_numpy)
+
+                # Draw a rectangle with a truecolour overlay.
+                gfx.set_truecolour((10, 20, 30))
+                gfx.gcol(0, 7)
+                gfx.fill_rectangle(2, 2, 3, 3)
+
+                # Verify truecolour was applied.
+                sx, sy = gfx._to_screen(3, 3)
+                self.assertEqual(gfx.rgb_pixels[sy][sx], (10, 20, 30))
+
+                # Draw over it partially with a plain mode 0 replacement (palette index 2, no truecolour).
+                # Adjacent pixel (2, 2) is left alone to verify other pixels remain intact.
+                gfx.clear_truecolour()
+                gfx.gcol(0, 2)
+                gfx.fill_rectangle(3, 2, 2, 3)
+
+                # The overwritten pixel should be palette 2 with no RGB overlay.
+                self.assertEqual(gfx.pixels[sy][sx], 2)
+                self.assertIsNone(gfx.rgb_pixels[sy][sx])
+                self.assertNotIn((sx, sy), gfx.rgb_dirty)
+
+                # The untouched pixel should retain its original truecolour overlay.
+                ax, ay = gfx._to_screen(2, 2)
+                self.assertEqual(gfx.pixels[ay][ax], 7)
+                self.assertEqual(gfx.rgb_pixels[ay][ax], (10, 20, 30))
+                self.assertIn((ax, ay), gfx.rgb_dirty)
+
     def test_filled_circle_carries_truecolour_numpy_fast_path(self):
         # CIRCLE FILL with GCOL 0,n and a COLOUR n,r,g,b truecolour override
         # goes through _fill_disc_numpy (the numpy mask fast path) whenever
@@ -404,6 +448,51 @@ class BBCGraphicsTests(unittest.TestCase):
             and surface.get_at((x, y))[:3] == YELLOW
         ]
         self.assertEqual(leaks, [])
+
+
+@pytest.mark.parametrize('use_numpy', [False, True])
+@pytest.mark.parametrize('mode', range(8))
+@pytest.mark.parametrize('colour', [0, 6])
+@pytest.mark.parametrize('truecolour', [None, (40, 50, 60)])
+def test_rectangle_after_circle_matches_pixel_renderer(use_numpy, mode, colour, truecolour):
+    """A retained circle clip must not crop subsequent rectangles or stale RGB cleanup."""
+    from unittest.mock import patch
+
+    numpy = pytest.importorskip('numpy') if use_numpy else None
+    rectangles = [(8, 8, 3, 2), (0, 0, 3, 2), (3, 7, 8, 4),
+                  (17, 15, -5, -6), (-2, -3, 5, 6), (1, 1, 0, 0)]
+    with patch('mini_basic.bbc_graphics._try_numpy', return_value=numpy):
+        for rectangle in rectangles:
+            actual = BBCGraphics(24, 20, x_scale=1, y_scale=1)
+            expected = BBCGraphics(24, 20, x_scale=1, y_scale=1)
+            assert actual.pixels_is_numpy == use_numpy
+            for gfx in (actual, expected):
+                gfx.gcol(0, 3)
+                gfx.move_absolute(10, 10)
+                gfx.plot_code(0x9D, 14, 10)  # Absolute rim: radius 4.
+                assert gfx._clip_disc == (10, 9, 4, 4)
+                # Seed every pixel with RGB, including outside the previous circle.
+                gfx.set_truecolour((10, 20, 30))
+                for sy in range(gfx.height):
+                    for sx in range(gfx.width):
+                        gfx._put_screen_pixel(sx, sy, (0, 7))
+                gfx.clear_truecolour()
+                if truecolour is not None:
+                    gfx.set_truecolour(truecolour)
+                gfx.gcol(mode, colour)
+
+            clip = actual._clip_disc
+            actual.fill_rectangle(*rectangle)
+            left, top, right, bottom = expected._os_rect_to_screen(*rectangle)
+            for sy in range(max(0, top), min(expected.height - 1, bottom) + 1):
+                for sx in range(max(0, left), min(expected.width - 1, right) + 1):
+                    expected._put_screen_pixel(sx, sy, (mode, colour))
+
+            assert [list(map(int, row)) for row in actual.pixels] == [
+                list(map(int, row)) for row in expected.pixels], rectangle
+            assert actual.rgb_pixels == expected.rgb_pixels, rectangle
+            assert actual.rgb_dirty == expected.rgb_dirty, rectangle
+            assert actual._clip_disc == clip
 
 
 if __name__ == '__main__':

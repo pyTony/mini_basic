@@ -37,6 +37,26 @@ The interpreter is no longer a single giant `runtime.py` dump:
 
 Public import is unchanged: `from mini_basic import BASICInterpreter, main`.
 
+## Raw ANSI terminal output
+
+In `mini` and `bbc`, `ANSI` emits comma-separated numeric character values and
+strings directly to program stdout, without a newline or BBC VDU decoding:
+
+```basic
+ANSI 27,"[31m"
+PRINT "Red text"
+ANSI 27,"[0m"
+```
+
+Numeric expressions are truncated to integers and wrapped modulo 256, matching
+lispy3 mini-basic's `ANSI` extension. Strings and string expressions are emitted
+unchanged. Controls do not advance the interpreter's printable column; raw
+cursor moves are opaque to its text-position bookkeeping. Pending PRINT output
+is flushed before controls, and functions that execute ANSI are not memoized.
+This is a terminal extension, not a standard BBC BASIC keyword. It does not
+interpret ANSI in pygame or pass ANSI bytes into the BBC `VDU` decoder; use
+`COLOUR`/`VDU` for the interpreter's display model.
+
 ## Development setup
 
 This `main` branch is the lean release tree. The full dev tree
@@ -91,8 +111,12 @@ open/save, mini_basic-aware syntax highlighting (keywords, `PROC`/`ENDPROC`,
 python tools/editor.py [file.bas]
 ```
 
-Out of scope for now: an in-editor REPL or replacing the pygame/terminal
-output paths — see `test/test_editor_smoke.py` for the current coverage.
+The lower **Listener** pane evaluates statements immediately: F5 evaluates the
+line at the cursor, Shift+F5 evaluates a selection, and Ctrl+L focuses its input.
+Its interpreter persists until Reset; whole-program Run uses a separate process.
+The toolbar also controls whether pygame waits for Esc after Run. See
+[Source editor and Listener](docs/EDITOR.md) for shortcuts, complete definition
+blocks, PRETTY comments, `EDIT NEW`, and current testing limits.
 
 ## Requirements
 
@@ -114,3 +138,16 @@ output paths — see `test/test_editor_smoke.py` for the current coverage.
 
 For language notes see `docs/LLM.md`.
 For git rules see `GIT_QUICKSTART.md` on the [`dev`](https://github.com/pyTony/mini_basic/tree/dev) branch.
+
+### Function and procedure endings by dialect
+
+BBC functions return with `=expression`; procedures return with `ENDPROC`.
+`END DEF` belongs to mini, and BBC rejects it during LOAD, RUN, immediate input
+and a dialect switch, regardless of the strict-mode flag. Errors identify the
+source line and suggest the BBC return syntax.
+
+BBC mode requires ENDPROC for multiline procedures and reports a missing
+terminator when execution reaches the end of their body. Only a procedure
+whose entire body is on its DEF line may omit ENDPROC. Mini retains its
+existing implicit return at EOF. This is deliberately stricter than BBCSDL's
+last-procedure EOF behavior, where reaching EOF ends the whole program.

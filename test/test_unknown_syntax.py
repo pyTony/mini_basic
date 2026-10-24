@@ -165,9 +165,11 @@ class UnknownSyntaxTests(unittest.TestCase):
             self.assertTrue(interp.set_dialect('mits'))
         self.assertIn('Warning:', buf.getvalue())
 
-    def test_end_def_gives_hint(self) -> None:
+    def test_bbc_end_def_reports_mini_extension(self) -> None:
         out = self._run([(10, 'END DEF')])
-        self.assertIn('END DEF closes DEF FN', out)
+        self.assertIn('END DEF', out)
+        self.assertIn('mini extension', out)
+        self.assertIn('=expression', out)
 
     def test_local_outside_proc_errors(self) -> None:
         out = self._imm('LOCAL A')

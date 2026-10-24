@@ -27,7 +27,7 @@ def dialect_structure_rows() -> List[MatrixRow]:
         ('BREAK / CONTINUE (mini ext)', '-', '-', '-', '-', '+'),
         ('INSTR', '-', '-', '-', '+', '+'),
         ('DEF FN one-line', '+', '+', '+', '+', '+'),
-        ('DEF FN ... END DEF', '-', '-', '-', '~', '+'),
+        ('DEF FN ... END DEF', '-', '-', '-', '-', '+'),
         ('? shorthand (PRINT)', '+', '+', '+', '+', '+'),
         ('TRUE/FALSE (-1/0)', '+', '+', '+', '+', '+'),
         ('ARG / CLI args', '-', '-', '-', '-', '+'),

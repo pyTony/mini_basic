@@ -484,7 +484,7 @@ class RuntimeProgramMixin:
             'LET', 'IF', 'ELSE', 'ELSEIF', 'ELIF', 'ENDIF', 'CASE', 'WHEN',
             'OTHERWISE', 'ENDCASE', 'SELECT', 'GOTO', 'GOSUB', 'RESUME', 'RETURN',
             'DATA', 'DEF', 'FUNCTION', 'DIM', 'READ', 'RESTORE', 'END', 'REM',
-            'MODE', 'VDU', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
+            'MODE', 'VDU', 'ANSI', 'COLOUR', 'COLOR', 'CLS', 'CLG', 'GCOL', 'RECTANGLE',
             'CIRCLE', 'ELLIPSE', 'MOUSE', 'WIDTH', 'OFF', 'ON', 'MOVE', 'DRAW', 'ORIGIN',
             'PLOT', 'STOP', 'CHAIN', 'RUN', 'WAIT', 'KILL', 'ERASE', 'LINE',
             'TRACE', 'SWAP', 'LOCAL', 'RANDOMIZE', 'OPEN', 'CLOSE', 'SOUND',
@@ -1796,7 +1796,7 @@ class RuntimeProgramMixin:
                     )
                 # May glue onto idents: MODE5, MOVEI%, FORI%=, GCOL0, PLOT69
                 for kw in (
-                    'MODE', 'GCOL', 'VDU', 'PLOT', 'MOVE', 'DRAW',
+                    'MODE', 'GCOL', 'VDU', 'ANSI', 'PLOT', 'MOVE', 'DRAW',
                     'FOR', 'NEXT', 'PRINT', 'INPUT',
                 ):
                     chunk = re.sub(
@@ -2319,6 +2319,27 @@ class RuntimeProgramMixin:
                 except Exception:
                     break
                 end_line = self._find_matching_endproc(line_num, line_nums)
+                # BBC mode allows omission only for a complete body on the DEF line.
+                # Do not mistake a multiline header prefix for a complete procedure.
+                inline_body = ':'.join(
+                    ([proc.header_stmt] if proc.header_stmt else [])
+                    + [stmt_parts[p][1] for p in range(stmt_pos + 1, len(stmt_parts))]
+                )
+                explicit_end = end_line is not None and any(
+                    self._parse_command(text)[0] == 'ENDPROC'
+                    for _, text in self._parse_line_statements(self.program[end_line])
+                )
+                if self.config.dialect == 'bbc' and not explicit_end and inline_body:
+                    inline_cmd, inline_rest = self._parse_command(inline_body)
+                    if not (inline_cmd == 'IF' and self._is_structured_if(inline_rest)):
+                        proc.header_stmt = inline_body
+                        proc.implicit_inline_return = True
+                        proc.body_start = proc.body_end = line_num
+                        procedures[proc.name] = proc
+                        skip_lines.add(line_num)
+                        handled = True
+                        idx += 1
+                        break
                 # Single-line DEF PROC … ENDPROC (header_stmt may hold the body).
                 if end_line == line_num or (
                     end_line is None
@@ -2337,9 +2358,8 @@ class RuntimeProgramMixin:
                     idx += 1
                     break
                 if end_line is None and idx + 1 < len(line_nums):
-                    # No ENDPROC and no following DEF header: the body runs
-                    # off the end of the program, which BBC BASIC treats as
-                    # an implicit ENDPROC (e.g. MatrixBrandy's ANSIColour.bbc).
+                    # Include the EOF body for execution. mini permits an implicit
+                    # return; multiline BBC procedures diagnose missing ENDPROC.
                     end_line = line_nums[-1]
                 if end_line is None or idx + 1 >= len(line_nums):
                     break

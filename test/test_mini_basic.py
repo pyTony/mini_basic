@@ -2832,7 +2832,7 @@ class MiniBASICTests(unittest.TestCase):
         for line_num, statement in lines:
             interp.program[line_num] = statement
         interp.run()
-        self.assertEqual(buf.getvalue(), "5\n")
+        self.assertEqual(buf.getvalue(), " 5 \n")
 
     def test_shebang_dialect_hint_applies_on_load(self):
         with tempfile.NamedTemporaryFile(
@@ -3079,15 +3079,14 @@ class MiniBASICTests(unittest.TestCase):
             InterpreterConfig(dialect='bbc', display='none', display_locked=True)
         )
         lines = [
-            (10, "DEF FNfact(n)"),
-            (20, "IF n<1 THEN"),
-            (30, "=1"),
-            (40, "ELSE"),
-            (50, "=FNfact(n-1)*n"),
-            (60, "ENDIF"),
-            (70, "END DEF"),
-            (80, "PRINT FNfact(5)"),
-            (90, "END"),
+            (10, "PRINT FNfact(5)"),
+            (20, "END"),
+            (100, "DEF FNfact(n)"),
+            (110, "IF n<1 THEN"),
+            (120, "=1"),
+            (130, "ELSE"),
+            (140, "=FNfact(n-1)*n"),
+            (150, "ENDIF"),
         ]
         buf = io.StringIO()
         interp._program_stdout = buf
