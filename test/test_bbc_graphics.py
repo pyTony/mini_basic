@@ -469,8 +469,8 @@ def test_rectangle_after_circle_matches_pixel_renderer(use_numpy, mode, colour, 
             for gfx in (actual, expected):
                 gfx.gcol(0, 3)
                 gfx.move_absolute(10, 10)
-                gfx.plot_code(0x99, 14, 10)
-                assert gfx._clip_disc is not None
+                gfx.plot_code(0x9D, 14, 10)  # Absolute rim: radius 4.
+                assert gfx._clip_disc == (10, 9, 4, 4)
                 # Seed every pixel with RGB, including outside the previous circle.
                 gfx.set_truecolour((10, 20, 30))
                 for sy in range(gfx.height):
