@@ -632,7 +632,7 @@ class CrunchedMsCodeTests(unittest.TestCase):
                 '200 PRINT"SUB":RETURN\n',
                 dialect,
             )
-            self.assertEqual(out.split(), ['2', 'X2', '123SUB'], msg=(dialect, err))
+            self.assertEqual(out.split(), ['2', 'X', '2', '1', '2', '3', 'SUB'], msg=(dialect, err))
 
     def test_crunched_on_goto_and_rem_payload(self):
         out, err = _run(

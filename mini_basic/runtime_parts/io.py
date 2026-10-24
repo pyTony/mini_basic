@@ -1476,7 +1476,9 @@ class RuntimeIoMixin:
                     text = special
                 else:
                     if self._is_string_print_item(item_strip):
-                        if self._print_item_has_top_level_relop(item_strip):
+                        relation_item = (self._strip_outer_parens(item_strip)
+                            if self.config.dialect in ('mits', 'commodore') else item_strip)
+                        if self._print_item_has_top_level_relop(relation_item):
                             # "A"<"B" / A$="Q": a comparison is numeric (-1 / 0).
                             is_numeric = True
                             try:
@@ -1499,8 +1501,15 @@ class RuntimeIoMixin:
                         is_numeric = True
                         text = self.eval_print_value(item)
 
+                microsoft_numbers = self.config.dialect in ('mits', 'commodore')
+                if microsoft_numbers and is_numeric and not hex_mode and not text.startswith('?'):
+                    # Microsoft PRINT reserves a sign position for nonnegative
+                    # numbers and terminates every numeric item with a space.
+                    # Keep this out of _format_number: STR$/USING are separate.
+                    text = ('' if text.startswith('-') else ' ') + text + ' '
                 use_number_field = (
-                    has_comma
+                    not microsoft_numbers
+                    and has_comma
                     and not has_string_item
                     and not self._is_string_print_item(item)
                     and (index == 0 or prev_sep == ',')
