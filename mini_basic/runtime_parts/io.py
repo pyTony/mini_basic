@@ -2010,7 +2010,7 @@ class RuntimeIoMixin:
         otherwise overwrite the binary with text).
         """
         if os.path.splitext(str(filename))[1].lower() == '.bbc':
-            self._emit_error('Error: Tokenized saving is not yet implemented')
+            self._emit_error('Error: .bbc is reserved for tokenized programs. Save editable text as .bas. Tokenized saving is not yet implemented.')
             return
         try:
             path = self.resolve_path(filename)
