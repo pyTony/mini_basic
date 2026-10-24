@@ -1,3 +1,4 @@
+     1       REM dialect: bbc
     10       ON ERROR IF ERR = 17 CHAIN @lib$+"../examples/tools/touchide"ELSE MODE 3: PRINT REPORT$: END
     20       REM . "THE TOWERS OF HANOI"
     30       REM . R.T.RUSSELL, 08-08-1982: BBC BASIC

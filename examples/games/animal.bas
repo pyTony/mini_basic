@@ -1,17 +1,19 @@
 REM mini_basic: UTF-8 listing (was Russell tokenized .bbc; binary corrupted by
 REM length-breaking @% patch 2026-07-26). Source of truth also in
 REM test/corpus/bbcsdl/games/animal.txt. @%=0 avoids STR$ pad / N? tree bug.
-:
-      ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
+
+      REM ON ERROR IF ERR=17 CHAIN @lib$+"../examples/tools/touchide" ELSE MODE 3 : PRINT REPORT$ : END
       
       REM @% width 0: STR$ must not pad tree indices (was &90A → corrupt \"N?\" nodes)
-      CLS:@%=0:WIDTH 0:PRINT TAB(15)"ANIMAL"
+      CLS
+      REM @%=0
+      WIDTH 0:PRINT TAB(15)"ANIMAL"
       PRINT "Creative Computing Morristown New Jersey"''
       REM by Nathan Teichholtz & Steve North
       REM from an original idea by Arthur Luehrmann.
       REM Modified by Chris Atkinson and Richard Russell.
       :
-      REMM ON ERROR IF ERR=17 THEN PROCexit ELSE PRINT:REPORT:PRINT" at line ";ERL:END
+      REM ON ERROR IF ERR=17 THEN PROCexit ELSE PRINT:REPORT:PRINT" at line ";ERL:END
       MAX=(HIMEM-LOMEM)/40
       DIM A$(MAX)
       PRINT "Play 'Guess the Animal'"
@@ -33,7 +35,7 @@ REM test/corpus/bbcsdl/games/animal.txt. @%=0 avoids STR$ pad / N? tree bug.
         A$=FNquery("Is it "+FNart(MID$(A$(K),3)))
         IF A$="Y" THEN PRINT "Why not try another one?"'' ELSE PROCnew
       UNTIL FALSE
-      ;
+      :
       REM ***
       REM NEW ANIMAL
       REM ***
