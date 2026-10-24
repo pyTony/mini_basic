@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#167](https://github.com/pyTony/mini_basic/pull/167) fix: basics/fact.bas is valid BBC BASIC (drop END DEF) (2026-10-24)
 - [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels (2026-10-24)
 - [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items (2026-10-24)
 - [#163](https://github.com/pyTony/mini_basic/pull/163) Dev (2026-10-24)
@@ -20,4 +21,3 @@ merge to main.
 - [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
 - [#158](https://github.com/pyTony/mini_basic/pull/158) Preserve rectangle and RGB behavior in span fills (2026-10-24)
 - [#157](https://github.com/pyTony/mini_basic/pull/157) Backport Microsoft numeric PRINT spacing to release (2026-10-24)
-- [#156](https://github.com/pyTony/mini_basic/pull/156) Fix Microsoft dialect numeric PRINT spacing (2026-10-24)
