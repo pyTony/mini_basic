@@ -33,6 +33,7 @@ examples/mits/   Numbered lines, GOTO, ON GOTO, ON ERROR, ? = PRINT
   on_error.bas   ON ERROR GOTO + RESUME NEXT after READ error
   question.bas   ? shorthand for PRINT
   superstartrek.bas  Super Star Trek (MITS 8K listing, 1978)
+  hamurabi.bas   Hamurabi, the ruler game (Creative Computing, 1978)
 
 examples/bbc/    Unnumbered structured style (BETH.BAS cousin)
   menu.bas       WHILE / IF / ELSEIF — same logic as mits/menu.bas
