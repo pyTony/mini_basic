@@ -141,7 +141,7 @@ def test_open_tokenized_bbc_detokenizes_into_editable_text(tmp_path) -> None:
     try:
         win = EditorWindow(root)
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
-            win.open_tokenized_bbc()
+            win.open_file()
         content = win.text.get('1.0', 'end-1c')
         assert '   100 A = 0: B = 0' in content
         assert win.path is None  # untitled: Save As targets a new .bas file
@@ -156,7 +156,7 @@ def test_open_tokenized_bbc_reports_error_for_bad_path(tmp_path) -> None:
         missing = str(tmp_path / 'missing.bbc')
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=missing), \
              mock.patch('tools.editor.messagebox.showerror') as mock_error:
-            win.open_tokenized_bbc()
+            win.open_file()
         assert mock_error.called
     finally:
         root.destroy()
@@ -267,7 +267,9 @@ def test_regular_open_decodes_sieve_bbc(file_editor, tmp_path, entry):
 
 def test_file_menu_has_no_separate_tokenized_open(file_editor):
     menu = file_editor.root.nametowidget(file_editor.root['menu'])
-    file_menu = file_editor.root.nametowidget(menu.entrycget(0, 'menu'))
+    index = next(i for i in range(menu.index('end')+1)
+                 if menu.type(i) == 'cascade' and menu.entrycget(i, 'label') == 'File')
+    file_menu = file_editor.root.nametowidget(menu.entrycget(index, 'menu'))
     labels = [file_menu.entrycget(i, 'label') for i in range(file_menu.index('end')+1)
               if file_menu.type(i) != 'separator']
     assert not any('Tokenized' in label for label in labels)
