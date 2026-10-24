@@ -11,13 +11,13 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels (2026-10-24)
 - [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items (2026-10-24)
 - [#163](https://github.com/pyTony/mini_basic/pull/163) Dev (2026-10-24)
 - [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) (2026-10-24)
+- [#161](https://github.com/pyTony/mini_basic/pull/161) Fix pythonw console runs in the original editor (2026-10-24)
 - [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
 - [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
 - [#158](https://github.com/pyTony/mini_basic/pull/158) Preserve rectangle and RGB behavior in span fills (2026-10-24)
 - [#157](https://github.com/pyTony/mini_basic/pull/157) Backport Microsoft numeric PRINT spacing to release (2026-10-24)
 - [#156](https://github.com/pyTony/mini_basic/pull/156) Fix Microsoft dialect numeric PRINT spacing (2026-10-24)
-- [#155](https://github.com/pyTony/mini_basic/pull/155) Rebuild labels once per LOAD, not once per line (2026-10-23)
-- [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL (2026-10-23)
