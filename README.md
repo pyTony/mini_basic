@@ -38,7 +38,7 @@ git clone https://github.com/pyTony/mini_basic.git          # release tree (this
 | [examples/](https://github.com/pyTony/mini_basic/tree/main/examples) | Example programs by dialect and topic |
 | [dev branch](https://github.com/pyTony/mini_basic/tree/dev) | Development tree: test/, scripts/, developer notes |
 
-Upstream (not this repo): [garyexplains/BASIC-M6502-CPORT](https://github.com/garyexplains/BASIC-M6502-CPORT) · [rtrussell/BBCSDL examples](https://github.com/rtrussell/BBCSDL/tree/master/examples)
+Upstream (not this repo): [rtrussell/BBCSDL examples](https://github.com/rtrussell/BBCSDL/tree/master/examples)
 
 ## Quick start
 

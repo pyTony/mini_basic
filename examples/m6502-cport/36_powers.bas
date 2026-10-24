@@ -1,5 +1,0 @@
-10 FOR I=0 TO 8
-20 PRINT "2 ^";I;"=";2^I
-30 NEXT I
-40 PRINT "-2^2 =";-2^2
-50 END
