@@ -2010,13 +2010,19 @@ class RuntimeIoMixin:
         SAVE round-trip keeps the file unnumbered (memory stays numbered for EDIT).
         Use ``SAVE NUMBERED`` to force classic line numbers.
 
-        ``.bbc`` is refused: SAVE writes text, and ``.bbc`` is reserved for
-        tokenized BBC BASIC files (bare SAVE after LOAD of one would
-        otherwise overwrite the binary with text).
+        ``.bbc`` is reserved for tokenized BBC BASIC files and SAVE writes text,
+        so a ``.bbc`` name (typed, or reused by a bare SAVE after LOAD of one)
+        is saved as ``<name>.bas`` instead, with a warning. The tokenized file
+        is never overwritten.
         """
-        if os.path.splitext(str(filename))[1].lower() == '.bbc':
-            self._emit_error('Error: .bbc is reserved for tokenized programs. Save editable text as .bas. Tokenized saving is not yet implemented.')
-            return
+        stem, ext = os.path.splitext(str(filename))
+        if ext.lower() == '.bbc':
+            filename = stem + '.bas'
+            self._emit_error(
+                f'Warning: .bbc is reserved for tokenized programs and SAVE writes '
+                f'text; saving editable text as {os.path.basename(filename)} instead. '
+                f'Tokenized saving is not yet implemented.'
+            )
         try:
             path = self.resolve_path(filename)
             case_fold = self._detokenize_fold()
@@ -2173,6 +2179,10 @@ class RuntimeIoMixin:
             return False
 
         raw_lines, hint = split_dialect_hints(raw_lines)
+        if hint is None and os.path.splitext(path)[1].lower() == '.bbc':
+            # BBC BASIC programs (tokenized or text) need no hint line; an
+            # explicit hint in the file or --dialect still wins.
+            hint = DialectHint('bbc', source='.bbc extension')
         if hint is not None:
             self._apply_dialect_hint(hint, announce=announce)
 

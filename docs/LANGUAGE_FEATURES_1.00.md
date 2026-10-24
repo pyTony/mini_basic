@@ -40,6 +40,8 @@ This is the **language and graphics baseline** for 1.00. It states what is in, w
 
 Dialect selection: CLI / config / `MINI_BASIC_DIALECT` · `MINIBASIC_DIALECT`.
 
+A `.bbc` file (tokenized or text) selects **bbc** without a hint line; an explicit `REM dialect:` hint in the file or `--dialect` wins. `SAVE` writes text, so a `.bbc` name (including a bare `SAVE` after loading one) is saved as `<name>.bas` with a warning; the tokenized file is never overwritten.
+
 ---
 
 ## 3. Core language (all ship dialects, with dialect gates)
@@ -63,6 +65,7 @@ apostrophe comments. The guide states branch availability.
 | `IF` … `THEN` / bare `IF` colon body | BBC bare `IF cond: stmt` supported. |
 | `IF` / `ELSE` / `ELSEIF` / `ENDIF` | Structured. |
 | `ON` … `GOTO` / `GOSUB` | |
+| `CLEAR [n[,m]]` | MS BASIC and BBC BASIC: forget all variables and arrays (sizes are ignored); the program, `DEF FN` and DATA pointer stay; bbc keeps `A%`–`Z%`. |
 | `ON ERROR` / `RESUME` | ERR/ERL available in handlers. |
 | `FOR` / `NEXT` (int and float) | Nested; pure-delay and nested-int fast paths where safe. |
 | `WHILE` / `WEND` (or `ENDWHILE`) | |

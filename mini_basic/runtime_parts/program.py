@@ -843,6 +843,8 @@ class RuntimeProgramMixin:
             statement = self._normalize_two_word_closers(statement)
             if self.config.dialect in ('mits', 'commodore', 'tiny'):
                 statement = self._space_crunched_ms_statements(statement)
+            if self.config.dialect in ('mits', 'commodore'):
+                statement = self._space_ms_logic_operators(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
             statement = self._space_glued_to_step(statement)
@@ -1758,6 +1760,7 @@ class RuntimeProgramMixin:
         the real tokenizer it never splits mid-expression names (SCORE ≠ SC OR E).
         REM and DATA payloads and strings are copied unchanged.
         """
+        case_sensitive = self._identifiers_case_sensitive()
         out: List[str] = []
         index = 0
         length = len(text)
@@ -1781,7 +1784,11 @@ class RuntimeProgramMixin:
                 out.append(ch)
                 index += 1
                 continue
-            upper = text[index:index + 9].upper()
+            # Case-sensitive names: only an UPPERCASE keyword is crunched
+            # (printDistance is a name, PRINTA is PRINT A).
+            upper = text[index:index + 9]
+            if not case_sensitive:
+                upper = upper.upper()
             if stmt_start:
                 stmt_start = False
                 word = next((w for w in self._MS_CRUNCH_STMT_WORDS if upper.startswith(w)), None)
@@ -1809,6 +1816,108 @@ class RuntimeProgramMixin:
                     continue
             out.append(ch)
             index += 1
+        return ''.join(out)
+
+    _MS_LOGIC_WORDS = ('AND', 'XOR', 'OR')  # longest first
+
+    @staticmethod
+    def _is_ms_short_name(name: str) -> bool:
+        """Classic MS variable: one letter, optionally followed by a digit (Q, Q1)."""
+        return (
+            0 < len(name) <= 2 and name[0].isalpha() and name[0].isupper()
+            and (len(name) == 1 or name[1].isdigit())
+        )
+
+    def _split_ms_logic_run(self, core: str, prev: str) -> str:
+        """Space AND/OR/XOR glued into one alphanumeric run, only where unambiguous."""
+        words = self._MS_LOGIC_WORDS
+        if core[0].isdigit():
+            # 1ORQ1, 9ANDC1: keyword right after a numeric literal.
+            d = 0
+            while d < len(core) and core[d].isdigit():
+                d += 1
+            rest = core[d:]
+            for kw in words:
+                if rest.startswith(kw) and len(rest) > len(kw):
+                    tail = self._split_ms_logic_run(rest[len(kw):], kw)
+                    return f'{core[:d]} {kw} {tail}'
+            return core
+        if prev == ')':
+            for kw in words:
+                if core.startswith(kw) and len(core) > len(kw):
+                    return f' {kw} {self._split_ms_logic_run(core[len(kw):], kw)}'
+        # E+OR+D, Q1+OR+Q2: two classic short names around the keyword.
+        for pos in range(1, len(core)):
+            for kw in words:
+                if not core.startswith(kw, pos):
+                    continue
+                left, right = core[:pos], core[pos + len(kw):]
+                if self._is_ms_short_name(left) and (
+                    self._is_ms_short_name(right) or right.isdigit()
+                ):
+                    return f'{left} {kw} {right}'
+        return core
+
+    def _space_ms_logic_operators(self, text: str) -> str:
+        """MS crunched listings: ``IFQ1<1ORQ1>8THEN9`` → ``... 1 OR Q1 ...``.
+
+        The real tokenizer finds AND/OR/XOR anywhere. We split only after a
+        number or ``)``, or between two classic short names (``N-EORD(7)`` is
+        ``N-E OR D(7)``) so names such as SCORE, ORDER or RESTORE stay whole.
+        Strings, REM and DATA payloads are copied unchanged.
+        """
+        if 'AND' not in text and 'OR' not in text:
+            return text
+        out: List[str] = []
+        n = len(text)
+        i = 0
+        prev = ''
+        stmt_start = True
+        while i < n:
+            ch = text[i]
+            if ch == '"':
+                end = text.find('"', i + 1)
+                end = n if end < 0 else end + 1
+                out.append(text[i:end])
+                prev = '"'
+                i = end
+                stmt_start = False
+                continue
+            if ch == ':':
+                out.append(ch)
+                prev = ch
+                i += 1
+                stmt_start = True
+                continue
+            if stmt_start and not ch.isspace():
+                stmt_start = False
+                if text.startswith('REM', i):
+                    out.append(text[i:])
+                    break
+                if text.startswith('DATA', i):
+                    end = i
+                    while end < n and text[end] != ':':
+                        if text[end] == '"':
+                            close = text.find('"', end + 1)
+                            end = n if close < 0 else close
+                        end += 1
+                    out.append(text[i:end])
+                    prev = 'A'
+                    i = end
+                    continue
+            if ch.isalnum():
+                j = i
+                while j < n and text[j].isalnum():
+                    j += 1
+                piece = self._split_ms_logic_run(text[i:j], prev)
+                out.append(piece)
+                prev = piece[-1]
+                i = j
+                continue
+            out.append(ch)
+            if not ch.isspace():
+                prev = ch
+            i += 1
         return ''.join(out)
 
     @staticmethod
@@ -2979,6 +3088,12 @@ class RuntimeProgramMixin:
         # Keep separators so string vars in the prompt (PROMPT$; ": ") evaluate.
         prompt = self._join_print_items(items[:var_start]).rstrip(',').rstrip()
         return prompt, [item.strip() for item, _ in items[var_start:]]
+
+    def _ms_input_prompt_wants_question(self, rest: str) -> bool:
+        """MS BASIC: a ``;`` right after the prompt string means print ``? ``."""
+        items = self._split_print_items(rest.strip())
+        var_start = self._find_input_var_start(items)
+        return 0 < var_start <= len(items) and items[var_start - 1][1] == ';'
 
     def _split_input_prompt_and_vars(self, text: str) -> Optional[Tuple[str, List[str]]]:
         """Split BBC ``\"prompt\"var`` / ``\"prompt\" var,x`` when print-split kept them glued."""
