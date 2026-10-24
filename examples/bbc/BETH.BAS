@@ -1,5 +1,5 @@
 REM BETH - structured cousin of ELIZA.BAS (ELIZA's logic unchanged there)
-REM WHILE/WEND, IF/ENDIF, INSTR; same DATA and therapy behavior (bbc dialect)
+REM WHILE/ENDWHILE, IF/ENDIF, INSTR; same DATA and therapy behavior (bbc dialect)
 
 DIM C$(72), I$(72), K$(72), F$(72), S$(72), R$(72), P$(72), Z$(72)
 DIM S(36), R(36), N(36)
@@ -14,8 +14,8 @@ FOR X=1 TO N1
 NEXT X
 PRINT "HI!  I'M BETH.  WHAT'S YOUR PROBLEM?"
 
-SESSION: WHILE 1
-LOOP_TOP:
+(SESSION): WHILE 1
+  (LOOP_TOP):
   INPUT I$
   I$=" "+I$+"  "
   I$=UCASE$(I$)
@@ -24,7 +24,7 @@ LOOP_TOP:
   WHILE L>0
     I$=LEFT$(I$, L-1)+RIGHT$(I$, LEN(I$)-L)
     L=INSTR(I$, "'")
-  WEND
+  ENDWHILE
 
   IF INSTR(I$, "SHUT")>0 THEN
     PRINT "SHUT UP..."
@@ -69,12 +69,12 @@ LOOP_TOP:
       WHILE L>0
         C$=LEFT$(C$, L-1)+R$+RIGHT$(C$, LEN(C$)-L-LEN(S$)+1)
         L=INSTR(C$, S$, L+LEN(R$))
-      WEND
+      ENDWHILE
       L=INSTR(C$, R$)
       WHILE L>0
         C$=LEFT$(C$, L-1)+S$+RIGHT$(C$, LEN(C$)-L-LEN(R$)+1)
         L=INSTR(C$, R$, L+LEN(S$))
-      WEND
+      ENDWHILE
     NEXT X
     IF MID$(C$, 2, 1)=" " THEN
       C$=RIGHT$(C$, LEN(C$)-1)
@@ -99,7 +99,7 @@ LOOP_TOP:
     PRINT LEFT$(F$, LEN(F$)-1); C$
     P$=I$
   ENDIF
-WEND
+ENDWHILE
 
 REM -----PROGRAM DATA FOLLOWS (same as ELIZA.BAS)-----
 

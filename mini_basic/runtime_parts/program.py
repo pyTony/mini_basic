@@ -1540,6 +1540,8 @@ class RuntimeProgramMixin:
             paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
             if paren:
                 return self._normalize_identifier(paren.group(1)), paren.group(2).strip()
+        if self.config.dialect != 'mini':
+            return None, part.strip()  # name: labels are a mini extension
         match = re.match(rf'^({self._VAR_BASE_PATTERN}):\s*(.*)$', part.strip())
         if match and not self._is_statement_keyword(match.group(1)):
             return self._normalize_identifier(match.group(1)), match.group(2).strip()

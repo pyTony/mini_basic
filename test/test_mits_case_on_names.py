@@ -56,7 +56,10 @@ class CaseOnNamesTests(unittest.TestCase):
         self.assertEqual(_stored(False, 'ifa=0then50'), 'IF A=0 THEN 50')
 
     def test_labels_with_keyword_prefixes_work(self):
-        interp = _interp(True)
+        # name: labels are a mini extension (mits uses line numbers).
+        interp = BASICInterpreter(
+            InterpreterConfig(dialect='mini', display='none', display_locked=True)
+        )
         for num, text in (
             (10, 'GOTO printHeader'),
             (20, 'PRINT "SKIPPED"'),
