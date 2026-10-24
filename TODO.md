@@ -11,6 +11,9 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
+- [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
+- [#158](https://github.com/pyTony/mini_basic/pull/158) Preserve rectangle and RGB behavior in span fills (2026-10-24)
 - [#157](https://github.com/pyTony/mini_basic/pull/157) Backport Microsoft numeric PRINT spacing to release (2026-10-24)
 - [#156](https://github.com/pyTony/mini_basic/pull/156) Fix Microsoft dialect numeric PRINT spacing (2026-10-24)
 - [#155](https://github.com/pyTony/mini_basic/pull/155) Rebuild labels once per LOAD, not once per line (2026-10-23)
@@ -18,6 +21,3 @@ merge to main.
 - [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files (2026-10-23)
 - [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py (2026-10-22)
 - [#151](https://github.com/pyTony/mini_basic/pull/151) Optimize rectangle span fills while preserving clipping and RGB behavior (2026-10-24)
-- [#150](https://github.com/pyTony/mini_basic/pull/150) Enforce BBC FN/PROC endings and retain the single-line PROC exception (2026-10-22)
-- [#149](https://github.com/pyTony/mini_basic/pull/149) Add raw ANSI byte/string output compatible with lispy3 (2026-10-22)
-- [#148](https://github.com/pyTony/mini_basic/pull/148) Dev (2026-10-20)
