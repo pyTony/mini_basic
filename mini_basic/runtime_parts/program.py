@@ -1755,6 +1755,7 @@ class RuntimeProgramMixin:
         the real tokenizer it never splits mid-expression names (SCORE ≠ SC OR E).
         REM and DATA payloads and strings are copied unchanged.
         """
+        case_sensitive = self._identifiers_case_sensitive()
         out: List[str] = []
         index = 0
         length = len(text)
@@ -1778,7 +1779,11 @@ class RuntimeProgramMixin:
                 out.append(ch)
                 index += 1
                 continue
-            upper = text[index:index + 9].upper()
+            # Case-sensitive names: only an UPPERCASE keyword is crunched
+            # (printDistance is a name, PRINTA is PRINT A).
+            upper = text[index:index + 9]
+            if not case_sensitive:
+                upper = upper.upper()
             if stmt_start:
                 stmt_start = False
                 word = next((w for w in self._MS_CRUNCH_STMT_WORDS if upper.startswith(w)), None)
