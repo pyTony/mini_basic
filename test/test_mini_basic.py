@@ -3013,7 +3013,7 @@ class MiniBASICTests(unittest.TestCase):
         interp._program_stdout = buf
         interp.run()
         # Reverse of "Good morning !" (space before !)
-        self.assertEqual(buf.getvalue(), '!gninrom dooG')
+        self.assertEqual(buf.getvalue(), '! gninrom dooG')
 
     def test_proc_reverseprint_len_bare_in_for(self):
         """BBC allows LEN A$ without parentheses in FOR bounds."""
