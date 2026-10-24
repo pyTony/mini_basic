@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#168](https://github.com/pyTony/mini_basic/pull/168) Add MITS BASIC examples and fix string literal spacing (2026-10-24)
 - [#167](https://github.com/pyTony/mini_basic/pull/167) fix: basics/fact.bas is valid BBC BASIC (drop END DEF) (2026-10-24)
 - [#166](https://github.com/pyTony/mini_basic/pull/166) Docs/superstartrek readable (2026-10-24)
 - [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels (2026-10-24)
@@ -20,4 +21,3 @@ merge to main.
 - [#161](https://github.com/pyTony/mini_basic/pull/161) Fix pythonw console runs in the original editor (2026-10-24)
 - [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
 - [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
-- [#158](https://github.com/pyTony/mini_basic/pull/158) Preserve rectangle and RGB behavior in span fills (2026-10-24)
