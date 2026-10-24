@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-24
+
+- [#157](https://github.com/pyTony/mini_basic/pull/157) Backport Microsoft numeric PRINT spacing to release — MITS and Commodore numeric PRINT now uses Microsoft sign/trailing spaces: `PRINT "[";1;0;-2;"]"` produces `[ 1 0 -2 ]`. Parenthesized string comparisons also receive numeric spacing. Default mini and explicit BBC formatting are unchanged, as are STR$ and PRINT USING; comma output retains the configured zone width.
+
 ## 2026-10-23
 
 - [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL — Rule: `.bbc` files are always tokenised, so BBC BASIC for SDL can load them.
