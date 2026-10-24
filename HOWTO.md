@@ -1,5 +1,11 @@
 # mini_basic HOWTO
 
+## Editor console runs on Windows
+
+With **Use pygame display** unchecked, Run needs a console Python process for
+PRINT and INPUT. An editor started with `pythonw.exe` uses the sibling
+`python.exe` for that child, retaining the selected dialect and program folder.
+
 ## Microsoft numeric PRINT spacing
 
 Use `--dialect mits` for Microsoft/MITS BASIC or `--dialect commodore` for
