@@ -11,6 +11,8 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items (2026-10-24)
+- [#163](https://github.com/pyTony/mini_basic/pull/163) Dev (2026-10-24)
 - [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) (2026-10-24)
 - [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
 - [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
@@ -19,5 +21,3 @@ merge to main.
 - [#156](https://github.com/pyTony/mini_basic/pull/156) Fix Microsoft dialect numeric PRINT spacing (2026-10-24)
 - [#155](https://github.com/pyTony/mini_basic/pull/155) Rebuild labels once per LOAD, not once per line (2026-10-23)
 - [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL (2026-10-23)
-- [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files (2026-10-23)
-- [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py (2026-10-22)
