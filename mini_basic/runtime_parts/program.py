@@ -828,8 +828,15 @@ class RuntimeProgramMixin:
         # Rewrites below apply to code only: REM / ' comment text is kept verbatim.
         statement, comment = self._split_comment_tail(statement)
         # Type suffixes glued (A $ → A$); leave % (modulo / integer suffix).
-        statement = re.sub(r'(\w)\s+([!$#]+)', r'\1\2', statement)
-        statement = re.sub(r'([!$#]+)\s+(\w)', r'\1\2', statement)
+        # Only outside "string literals": PRINT "HI!  I'M" keeps its spaces.
+        statement = re.sub(
+            r'"[^"]*"?|[^"]+',
+            lambda m: m.group(0) if m.group(0)[0] == '"' else re.sub(
+                r'([!$#]+)\s+(\w)', r'\1\2',
+                re.sub(r'(\w)\s+([!$#]+)', r'\1\2', m.group(0)),
+            ),
+            statement,
+        )
 
         statement = self._normalize_hash_file_commands(statement)
         statement = re.sub(r'^CHAIN(?=["\w])', 'CHAIN ', statement, flags=re.IGNORECASE)
