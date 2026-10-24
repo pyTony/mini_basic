@@ -2855,6 +2855,31 @@ class RuntimeExprMixin:
                 raise ValueError(f'unknown array {name}')
             del self.array_storage[key]
 
+    def _clear_variables(self, rest: str) -> None:
+        """``CLEAR [stringspace[,stack]]``: forget every variable and array.
+
+        MS BASIC and BBC BASIC. The sizes only describe a real machine's memory
+        map, so they are evaluated (errors still show) and then ignored.
+        The program, DEF FN definitions and DATA pointer survive; BBC BASIC
+        also keeps the resident integers ``A%``..``Z%``.
+        """
+        for part in self._split_args(rest):
+            if part.strip():
+                self._eval_numeric(part)
+        resident = {}
+        if self.config.dialect == 'bbc':
+            resident = {
+                name: value for name, value in self.int_variables.items()
+                if len(name) == 1 and name.isalpha() and name.isupper()
+            }
+        self.variables.clear()
+        self.int_variables.clear()
+        self.int_variables.update(resident)
+        self.str_variables.clear()
+        self.array_storage.clear()
+        self._fn_memo.clear()
+        self._close_file_channels()
+
     def _dim_array(self, rest: str) -> None:
         decls = self._split_dim_decls(rest.strip())
         if not decls:
