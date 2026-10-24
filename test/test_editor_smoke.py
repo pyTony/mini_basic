@@ -141,7 +141,7 @@ def test_open_tokenized_bbc_detokenizes_into_editable_text(tmp_path) -> None:
     try:
         win = EditorWindow(root)
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
-            win.open_tokenized_bbc()
+            win.open_file()
         content = win.text.get('1.0', 'end-1c')
         assert '   100 A = 0: B = 0' in content
         assert win.path is None  # untitled: Save As targets a new .bas file
@@ -156,7 +156,7 @@ def test_open_tokenized_bbc_reports_error_for_bad_path(tmp_path) -> None:
         missing = str(tmp_path / 'missing.bbc')
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=missing), \
              mock.patch('tools.editor.messagebox.showerror') as mock_error:
-            win.open_tokenized_bbc()
+            win.open_file()
         assert mock_error.called
     finally:
         root.destroy()
@@ -235,3 +235,72 @@ def test_closing_with_a_pending_highlight_job_does_not_raise() -> None:
     win._on_close()  # must not raise, and must leave no job to fire later
 
     assert win._highlight_job is None
+
+
+@pytest.fixture
+def file_editor():
+    root = _make_root()
+    win = EditorWindow(root)
+    yield win
+    win._on_close()
+
+
+@pytest.mark.parametrize('entry', ['open', 'startup'])
+def test_regular_open_decodes_sieve_bbc(file_editor, tmp_path, entry):
+    from pathlib import Path
+    source = Path(_ROOT)/'examples'/'SIEVE.bbc'
+    target = tmp_path/'sieve.BBC'
+    target.write_bytes(source.read_bytes())
+    original = target.read_bytes()
+    if entry == 'open':
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value=str(target)):
+            file_editor.open_file()
+    else:
+        file_editor._load_file(str(target))
+    content = file_editor.text.get('1.0', 'end-1c')
+    assert 'DIM FLAGS(8191)' in content
+    assert 'FOR I = 0 TO SIZE' in content
+    assert '\ufffd' not in content
+    assert file_editor.path is None
+    assert target.read_bytes() == original
+
+
+def test_file_menu_has_no_separate_tokenized_open(file_editor):
+    menu = file_editor.root.nametowidget(file_editor.root['menu'])
+    index = next(i for i in range(menu.index('end')+1)
+                 if menu.type(i) == 'cascade' and menu.entrycget(i, 'label') == 'File')
+    file_menu = file_editor.root.nametowidget(menu.entrycget(index, 'menu'))
+    labels = [file_menu.entrycget(i, 'label') for i in range(file_menu.index('end')+1)
+              if file_menu.type(i) != 'separator']
+    assert not any('Tokenized' in label for label in labels)
+
+
+@pytest.mark.parametrize('existing', [False, True])
+def test_editor_rejects_bbc_save_without_changing_state(file_editor, tmp_path, existing):
+    target = tmp_path/'target.bBc'
+    if existing:
+        target.write_bytes(b'original tokenized bytes')
+    old_path = str(tmp_path/'working.bas')
+    file_editor.path = old_path
+    file_editor.text.insert('1.0', 'PRINT 42')
+    file_editor.text.edit_modified(True)
+    with mock.patch('tools.editor.filedialog.asksaveasfilename', return_value=str(target)), \
+            mock.patch('tools.editor.messagebox.showerror') as error:
+        file_editor.save_file_as()
+    assert error.called
+    assert '.bbc is reserved for tokenized programs' in error.call_args.args[1]
+    assert '.bas' in error.call_args.args[1]
+    assert file_editor.path == old_path
+    assert file_editor.text.edit_modified()
+    assert target.read_bytes() == b'original tokenized bytes' if existing else not target.exists()
+
+
+def test_editor_plain_save_also_rejects_bbc(file_editor, tmp_path):
+    target = tmp_path/'existing.BBC'
+    target.write_bytes(b'original tokenized bytes')
+    file_editor.path = str(target)
+    file_editor.text.insert('1.0', 'PRINT 42')
+    with mock.patch('tools.editor.messagebox.showerror') as error:
+        file_editor.save_file()
+    assert error.called
+    assert target.read_bytes() == b'original tokenized bytes'

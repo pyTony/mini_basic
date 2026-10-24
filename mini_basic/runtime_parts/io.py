@@ -2019,9 +2019,9 @@ class RuntimeIoMixin:
         if ext.lower() == '.bbc':
             filename = stem + '.bas'
             self._emit_error(
-                f'Warning: .bbc files are tokenized BBC BASIC and SAVE writes text; '
-                f'saving as {os.path.basename(filename)} instead (tokenized saving '
-                f'is not implemented)'
+                f'Warning: .bbc is reserved for tokenized programs and SAVE writes '
+                f'text; saving editable text as {os.path.basename(filename)} instead. '
+                f'Tokenized saving is not yet implemented.'
             )
         try:
             path = self.resolve_path(filename)

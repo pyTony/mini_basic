@@ -15,7 +15,11 @@ python tools/editor.py showcase/mandelbrot_archimedes_mode9.bas
 ```
 
 Use **Open** (Ctrl+O), **Save** (Ctrl+S), or **Save As** for source files.
-**Open Tokenized BBC** loads tokenized BBC source through the interpreter.
+Opening a `.bbc` file automatically decodes tokenized BBC source through the
+interpreter, including files named on the editor command line. The decoded
+buffer is untitled: use **Save As** with `.bas` to keep editable text. `.bbc` is
+reserved for tokenized programs; editor saves and the BASIC `SAVE` command
+refuse text output to that extension.
 Choose the dialect in the toolbar; BBC keywords must be uppercase, while mini
 accepts keywords in either case and keeps identifiers case-sensitive.
 
