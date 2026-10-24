@@ -32,6 +32,7 @@ examples/mits/   Numbered lines, GOTO, ON GOTO, ON ERROR, ? = PRINT
   menu.bas       ON GOTO dispatch menu (try choices 1, 2, 3)
   on_error.bas   ON ERROR GOTO + RESUME NEXT after READ error
   question.bas   ? shorthand for PRINT
+  superstartrek.bas  Super Star Trek (MITS 8K listing, 1978)
 
 examples/bbc/    Unnumbered structured style (BETH.BAS cousin)
   menu.bas       WHILE / IF / ELSEIF — same logic as mits/menu.bas
@@ -46,6 +47,7 @@ examples/mini/   Full superset (default dialect)
   break_continue.bas BREAK/CONTINUE with loop labels (mini only)
   bbc_graphics_demo.bas  BBC MODE/PLOT/DRAW shapes (needs --pygame)
   sprites_demo.bas       SPRITEDEF/SPRITE demo (needs --pygame)
+  superstartrek_readable.bas  Super Star Trek with descriptive names and labels
 
 examples/m6502-cport/  Microsoft BASIC M6502 C-port tutorials (01–48 automated)
 
