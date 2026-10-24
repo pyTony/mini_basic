@@ -4,4 +4,3 @@
     40     ELSE
     50          = FNfact(n%-1) * n%
     60     ENDIF
-    70  END DEF
