@@ -31,14 +31,14 @@ def _make_root() -> tk.Tk:
     # Tcl start-up can fail transiently on Windows (init.tcl briefly locked by a
     # scanner), so retry a few times before concluding there is no display.
     root = None
-    for attempt in range(5):
+    for attempt in range(20):
         try:
             root = tk.Tk()
             break
         except tk.TclError as exc:
-            if attempt == 4:
+            if attempt == 19:
                 pytest.skip(f'no display available for Tk: {exc}')
-            time.sleep(0.2)
+            time.sleep(0.5)
     root.withdraw()
     return root
 
