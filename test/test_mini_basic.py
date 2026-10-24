@@ -83,8 +83,9 @@ from mini_basic.repl.completion import (
 from mini_basic.repl.windows_input import windows_repl_input
 
 _CORPUS_ROOT = _ROOT
-# Classic museum programs (ELIZA, BETH, animal, …) live under examples/museum.
+# Classic museum programs (ELIZA, …) live under examples/museum; BETH is modern: examples/bbc.
 _MUSEUM_ROOT = os.path.join(_ROOT, 'examples', 'museum')
+_BBC_EXAMPLES = os.path.join(_ROOT, 'examples', 'bbc')
 
 
 class MiniBASICTests(unittest.TestCase):
@@ -4180,7 +4181,7 @@ class MiniBASICTests(unittest.TestCase):
         self.assertIn('IN WHAT WAY?', out)
 
     def test_beth_loads_and_greets(self):
-        path = os.path.join(_MUSEUM_ROOT, 'BETH.BAS')
+        path = os.path.join(_BBC_EXAMPLES, 'BETH.BAS')
         self.assertTrue(os.path.exists(path), msg=path)
         config = InterpreterConfig(dialect='bbc')
         interp = BASICInterpreter(config)

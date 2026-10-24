@@ -72,7 +72,7 @@ Layout
   test/corpus/              BBCSDL corpus files
   test/corpus_audit_probe.py  Writes CORPUS_AUDIT.txt from CORPUS_RUNNABLE.txt
 
-Corpus paths (ELIZA.BAS, BETH.BAS) resolve to examples/museum/ automatically.
+Corpus paths: ELIZA.BAS resolves to examples/museum/, BETH.BAS to examples/bbc/.
 
 BBCSDL example corpus:
 

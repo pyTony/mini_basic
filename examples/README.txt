@@ -61,15 +61,17 @@ Graphics demos (optional pygame extra; --pygame keeps the window open after END)
   stay upstream. Inspect a tokenized file with:
     python -m mini_basic --list --dialect bbc --display none file.bbc
 
-Museum anchors (examples/museum/; copies in basics/ for archive installs)
---------------------------------------------
+Museum anchor (examples/museum/; copy in basics/ for archive installs)
+----------------------------------------------------------------------
 
   ELIZA.BAS   mits — Weizenbaum/Shrager/North numbered DOCTOR
-  BETH.BAS    bbc  — same therapy DATA, structured WHILE/IF (produced from ELIZA)
 
   python -m mini_basic --dialect mits examples/museum/ELIZA.BAS
-  python -m mini_basic --dialect bbc  examples/museum/BETH.BAS
   python -m mini_basic --dialect mits basics/ELIZA.BAS
-  python -m mini_basic --dialect bbc  basics/BETH.BAS
+
+BETH is modern, not a museum piece: examples/bbc/BETH.BAS (copy: basics/BETH.BAS)
+  — the ELIZA therapy DATA with WHILE/ENDWHILE, IF/ENDIF and (label)s.
+
+  python -m mini_basic --dialect bbc examples/bbc/BETH.BAS
 
 REPL quick reference: H.=HELP  L.=LIST  LO.=LOAD  MA.=MATRIX
