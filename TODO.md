@@ -17,7 +17,7 @@ merge to main.
 - [#154](https://github.com/pyTony/mini_basic/pull/154) Keep .bbc files tokenised: re-save animal, roadrace, flood from BBCSDL (2026-10-23)
 - [#153](https://github.com/pyTony/mini_basic/pull/153) Share program_bytes_to_source for text or tokenised .bbc files (2026-10-23)
 - [#152](https://github.com/pyTony/mini_basic/pull/152) 🧹 Remove duplicate `_windows_apply_arrow` definition in runtime.py (2026-10-22)
+- [#151](https://github.com/pyTony/mini_basic/pull/151) Optimize rectangle span fills while preserving clipping and RGB behavior (2026-10-24)
 - [#150](https://github.com/pyTony/mini_basic/pull/150) Enforce BBC FN/PROC endings and retain the single-line PROC exception (2026-10-22)
 - [#149](https://github.com/pyTony/mini_basic/pull/149) Add raw ANSI byte/string output compatible with lispy3 (2026-10-22)
 - [#148](https://github.com/pyTony/mini_basic/pull/148) Dev (2026-10-20)
-- [#147](https://github.com/pyTony/mini_basic/pull/147) Update user documentation for merged editor and PRETTY features (2026-10-20)
