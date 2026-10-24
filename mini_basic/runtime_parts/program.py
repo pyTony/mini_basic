@@ -502,6 +502,159 @@ class RuntimeProgramMixin:
     })
     _RE_MINI_FOLD_WORD = re.compile(r'[A-Za-z_][A-Za-z0-9_]*\$?')
 
+    _MS_PRINT_OPERATOR_CHARS = '+-*/^=<>'
+
+    def _separate_ms_print_items(self, statement: str) -> str:
+        """MS BASIC: ``PRINT "A"K9"B"`` is ``PRINT "A";K9;"B"``.
+
+        Adjacent PRINT items need no separator in MS BASIC and behave exactly
+        like ``;`` (numbers keep their sign space and trailing space). The
+        ``;`` is inserted once, at entry, so execution needs no extra work.
+        Operators (``"A"+B$``), ``PRINT USING``, file ``PRINT#`` prefixes,
+        strings and anything inside parentheses are left alone.
+        """
+        if 'PRINT' not in statement or '"' not in statement:
+            return statement
+        out: List[str] = []
+        n = len(statement)
+        i = 0
+        stmt_start = True
+        prev_word = ''
+        while i < n:
+            ch = statement[i]
+            if ch == '"':
+                end = statement.find('"', i + 1)
+                end = n if end < 0 else end + 1
+                out.append(statement[i:end])
+                i = end
+                stmt_start = False
+                continue
+            if ch == ':':
+                out.append(ch)
+                i += 1
+                stmt_start = True
+                continue
+            if ch.isalpha() or ch == '_':
+                j = i
+                while j < n and (statement[j].isalnum() or statement[j] in '_$%'):
+                    j += 1
+                word = statement[i:j]
+                is_print = word == 'PRINT' and (stmt_start or prev_word in ('THEN', 'ELSE'))
+                if not is_print:
+                    out.append(word)
+                    i = j
+                    stmt_start = word in ('THEN', 'ELSE')
+                    prev_word = word
+                    continue
+                end = self._ms_print_region_end(statement, j)
+                out.append(word)
+                out.append(self._separate_print_region(statement[j:end]))
+                i = end
+                stmt_start = False
+                prev_word = word
+                continue
+            out.append(ch)
+            i += 1
+            if not ch.isspace():
+                stmt_start = False
+        return ''.join(out)
+
+    @staticmethod
+    def _ms_print_region_end(statement: str, start: int) -> int:
+        """End of a PRINT item list: ``:`` or ELSE outside strings and parentheses."""
+        n = len(statement)
+        depth = 0
+        i = start
+        while i < n:
+            ch = statement[i]
+            if ch == '"':
+                end = statement.find('"', i + 1)
+                i = n if end < 0 else end + 1
+                continue
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth = max(0, depth - 1)
+            elif depth == 0:
+                if ch == ':':
+                    return i
+                if (
+                    statement.startswith('ELSE', i)
+                    and not (i and (statement[i - 1].isalnum() or statement[i - 1] == '_'))
+                    and not (i + 4 < n and (statement[i + 4].isalnum() or statement[i + 4] == '_'))
+                ):
+                    return i
+            i += 1
+        return n
+
+    def _separate_print_region(self, region: str) -> str:
+        stripped = region.lstrip()
+        if stripped.startswith('USING') or stripped.startswith('#'):
+            return region  # PRINT USING / PRINT#n: different item grammar
+        segs: List[Tuple[str, str]] = []
+        cur: List[str] = []
+        depth = 0
+        i = 0
+        n = len(region)
+        while i < n:
+            ch = region[i]
+            if ch == '"':
+                end = region.find('"', i + 1)
+                end = n if end < 0 else end + 1
+                lit = region[i:end]
+                if depth > 0:
+                    cur.append(lit)
+                else:
+                    if cur:
+                        segs.append(('run', ''.join(cur)))
+                        cur = []
+                    segs.append(('lit', lit))
+                i = end
+                continue
+            if ch == '(':
+                depth += 1
+            elif ch == ')':
+                depth = max(0, depth - 1)
+            cur.append(ch)
+            i += 1
+        if cur:
+            segs.append(('run', ''.join(cur)))
+        ops = self._MS_PRINT_OPERATOR_CHARS
+        pieces: List[str] = []
+        for k, (kind, text) in enumerate(segs):
+            nxt = segs[k + 1] if k + 1 < len(segs) else None
+            if kind == 'lit':
+                pieces.append(text)
+                if nxt and nxt[0] == 'run':
+                    head = nxt[1].lstrip()
+                    if head and head[0] not in ';,' + ops and not self._starts_with_logic_word(head):
+                        pieces.append(';')
+            else:
+                body = text.rstrip()
+                if (
+                    nxt and nxt[0] == 'lit' and body
+                    and body[-1] not in ';,(' + ops
+                    and not self._ends_with_logic_word(body)
+                ):
+                    pieces.append(body + ';' + text[len(body):])
+                else:
+                    pieces.append(text)
+        return ''.join(pieces)
+
+    @staticmethod
+    def _starts_with_logic_word(text: str) -> bool:
+        for word in ('AND', 'OR', 'XOR', 'MOD', 'EQV', 'IMP'):
+            if text.startswith(word) and not (len(text) > len(word) and text[len(word)].isalnum()):
+                return True
+        return False
+
+    @staticmethod
+    def _ends_with_logic_word(text: str) -> bool:
+        for word in ('AND', 'OR', 'XOR', 'MOD', 'EQV', 'IMP'):
+            if text.endswith(word) and not (len(text) > len(word) and (text[-len(word) - 1].isalnum())):
+                return True
+        return False
+
     def _fold_case_insensitive_line(self, statement: str) -> str:
         """Uppercase a line outside strings, comments and DATA (MS BASIC entry).
 
@@ -703,6 +856,8 @@ class RuntimeProgramMixin:
             and self._BBC_INDIR_LVALUE_RE.match(statement)
         ):
             statement = self._expand_question_print(statement)
+        if self.config.dialect in ('mits', 'commodore'):  # MS BASIC family
+            statement = self._separate_ms_print_items(statement)
         # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):
             statement = self._map_outside_strings(
