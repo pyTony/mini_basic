@@ -849,10 +849,7 @@ class RuntimeCoreMixin:
         return tuple(float_vars)
 
     def _is_label_ref(self, code: str) -> bool:
-        code = code.strip()
-        if self.config.dialect == 'bbc' and code.startswith('(') and code.endswith(')'):
-            code = code[1:-1].strip()
-        return self._normalize_identifier(code) in self.labels
+        return self._normalize_identifier(code.strip()) in self.labels
 
     def _is_if_line_jump_target(self, then_code: str) -> bool:
         token = then_code.strip()
@@ -864,11 +861,11 @@ class RuntimeCoreMixin:
         token = token.strip()
         if re.fullmatch(r'\d+', token):
             return int(token)
-        if self.config.dialect == 'bbc' and token.startswith('(') and token.endswith(')'):
-            token = token[1:-1].strip()
         key = self._normalize_identifier(token)
         if key in self.labels:
             return self.labels[key]
+        if self.config.dialect == 'bbc' and token.startswith('('):
+            return int(self._eval_numeric(token))  # computed GOTO (expr)
         raise ValueError(f'unknown line or label: {token}')
 
     def _branch_code_looks_like_line_jump(self, code: str) -> bool:

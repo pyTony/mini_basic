@@ -1527,7 +1527,7 @@ class RuntimeProgramMixin:
 
     def _extract_label_prefix(self, part: str) -> Tuple[Optional[str], str]:
         if self.config.dialect == 'bbc':
-            # BBC BASIC for SDL style label definition: (name) statement
+            # Modern BBC BASIC (Windows/SDL) label definition: (name) statement; jump is GOTO name
             paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
             if paren:
                 return self._normalize_identifier(paren.group(1)), paren.group(2).strip()

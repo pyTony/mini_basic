@@ -1,4 +1,4 @@
-"""BBC BASIC for SDL style labels: (name) defines, GOTO/GOSUB/THEN (name) jumps."""
+"""Modern BBC BASIC labels: (name) defines, GOTO/GOSUB/THEN name jumps."""
 from __future__ import annotations
 
 import io
@@ -15,9 +15,9 @@ from mini_basic.config import InterpreterConfig
 pytestmark = [pytest.mark.phase0, pytest.mark.non_gfx]
 
 SOURCE = (
-    '10 GOSUB (sub)\n20 GOTO (done)\n30 PRINT "skipped"\n'
+    '10 GOSUB sub\n20 GOTO done\n30 PRINT "skipped"\n'
     '40 (sub) PRINT "in sub" : RETURN\n50 (done) PRINT "done"\n'
-    '60 IF 1 THEN (last)\n70 PRINT "no"\n80 (last) END\n'
+    '55 n%=50 : GOTO (n%+10)\n57 PRINT "bad"\n60 IF 1 THEN last\n70 PRINT "no"\n80 (last) END\n'
 )
 
 
