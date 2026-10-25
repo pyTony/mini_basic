@@ -89,8 +89,18 @@ Type statements directly or select complete definitions instead.
 
 ## Format source and comments
 
-**Pretty (no numbers)** uses the interpreter's PRETTY formatter; **Renumber**
-assigns line numbers and updates jump targets through the interpreter.
+**Reindent** reformats indentation through the interpreter's PRETTY formatter
+while keeping line numbers; it's safe for any program, including one with a
+calculated GOTO/GOSUB. **Strip Line Numbers** does the same but also drops
+the numbers, turning any literal-number GOTO/GOSUB/`ON ... GOTO`/`ON ERROR
+GOTO` target into a generated label (`(L100)` in bbc, `L100:` in mini) so the
+jump still has somewhere to land. It refuses outright, with an explanation
+and the buffer untouched, when the program uses a form it can't safely
+rewrite this way: a calculated GOTO/GOSUB with a computed target (`GOTO
+(expr)`), `RESTORE` to a specific line, or the compact `IF ... THEN <line
+number>` shorthand -- use Reindent for those instead. **Renumber** assigns
+line numbers 10, 20, 30, ... and updates jump targets through the
+interpreter.
 
 In mini, `LIST PRETTY` and `SAVE PRETTY "out.bas"` convert `REM` comments to
 apostrophe comments. For example, `REM PROC and FN notes` becomes
