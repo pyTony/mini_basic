@@ -4,11 +4,15 @@ Scope (intentionally small; grown from a first pass towards a fuller tool):
   * Open/Save/Save As for BASIC source files.
   * mini_basic-aware syntax highlighting (keywords, PROC/ENDPROC/FN,
     ``*``-commands, line numbers, dialect hint comments).
-  * A "Run" action that launches the *real* interpreter as a subprocess
-    (``python -m mini_basic <file>``), the same way it is normally run
-    from a shell. This editor does not reimplement any display: pygame
-    graphics programs still open their own pygame window, and console
-    programs still use the ANSI terminal the interpreter already uses.
+  * A "▶ Run…" launcher, lispy_machine-style: a dialog with icon buttons
+    for the two ways to run the buffer, instead of flat toolbar/menu
+    commands -- Python mini_basic (``python -m mini_basic <file>``, the
+    same way it is normally run from a shell) or the real BBC BASIC for
+    SDL (``tools/bbcsdl-basrun.bas``, see docs/BBCSDL.md). This editor
+    does not reimplement any display: pygame graphics programs still
+    open their own pygame window, console programs still use the ANSI
+    terminal the interpreter already uses, and BBCSDL opens its own
+    window entirely.
   * A **Listener** pane (bottom, resizable), lispy3-machine-style: a
     persistent in-process interpreter you can type statements into and
     get results back immediately, without any line numbers, ``AUTO``, or
@@ -32,6 +36,7 @@ from __future__ import annotations
 
 import contextlib
 import io
+import json
 import os
 import re
 import subprocess
@@ -94,6 +99,37 @@ _LEADING_LINE_NUM_RE = re.compile(r'^\s*\d+\s*')
 # whole selected block is stored directly rather than routed through here.
 _LISTENER_BLOCKED_RE = re.compile(r'^(AUTO\b|EDIT\s*$)', re.IGNORECASE)
 
+# Persists the real-BBCSDL executable/helper paths across editor runs, same
+# shape as lispy_machine's own ~/.lispy3_machine.json.
+_SETTINGS_PATH = os.path.join(os.path.expanduser('~'), '.mini_basic_editor.json')
+
+
+def _load_editor_settings(path: str = _SETTINGS_PATH) -> dict:
+    try:
+        with open(path, 'r', encoding='utf-8') as fh:
+            settings = json.load(fh)
+    except (OSError, ValueError):
+        return {}
+    return settings if isinstance(settings, dict) else {}
+
+
+def _save_editor_settings_to_disk(settings: dict, path: str = _SETTINGS_PATH) -> None:
+    try:
+        with open(path, 'w', encoding='utf-8') as fh:
+            json.dump(settings, fh, indent=2)
+    except OSError:
+        pass
+
+
+def _default_bbcsdl() -> str:
+    """The known Windows install path, or whatever ``bbcsdl`` resolves to on PATH."""
+    import shutil
+
+    installed = r'C:\Program Files (x86)\BBC BASIC for SDL 2.0\bbcsdl.exe'
+    if os.path.isfile(installed):
+        return installed
+    return shutil.which('bbcsdl') or ''
+
 
 def _strip_leading_line_number(line: str) -> str:
     """Drop an optional leading ``N `` so Listener input never needs one."""
@@ -133,6 +169,8 @@ class EditorWindow:
         self._listener_interp = None
         self._listener_history: List[str] = []
         self._listener_history_index = 0
+        self.run_dialog: Optional[tk.Toplevel] = None
+        self._editor_settings = _load_editor_settings()
 
         self._build_menu()
         self._build_widgets()
@@ -188,7 +226,7 @@ class EditorWindow:
         toolbar = ttk.Frame(self.root)
         toolbar.pack(side=tk.TOP, fill=tk.X)
 
-        ttk.Button(toolbar, text='Run', command=self.run_program).pack(side=tk.LEFT, padx=4, pady=4)
+        ttk.Button(toolbar, text='▶ Run…', command=self._open_run_dialog).pack(side=tk.LEFT, padx=4, pady=4)
         ttk.Button(
             toolbar, text='Pretty (no numbers)', command=self.pretty_no_numbers,
         ).pack(side=tk.LEFT, padx=4, pady=4)
@@ -209,15 +247,17 @@ class EditorWindow:
             width=10, state='readonly',
         ).pack(side=tk.LEFT)
 
+        # Run settings live in the Run dialog now (see _open_run_dialog), not
+        # the toolbar -- the vars themselves stay here since Listener/Pretty/
+        # Renumber share self.dialect_var and _build_run_command reads these.
         self.pygame_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            toolbar, text='Use pygame display', variable=self.pygame_var,
-        ).pack(side=tk.LEFT, padx=(12, 2))
-
         self.wait_esc_var = tk.BooleanVar(value=False)
-        ttk.Checkbutton(
-            toolbar, text='Wait for Esc at end of run', variable=self.wait_esc_var,
-        ).pack(side=tk.LEFT, padx=(12, 2))
+        self.bbcsdl_executable_var = tk.StringVar(
+            value=self._editor_settings.get('bbcsdl_executable') or _default_bbcsdl(),
+        )
+        self.bbcsdl_helper_var = tk.StringVar(
+            value=self._editor_settings.get('bbcsdl_helper', ''),
+        )
 
         self.status_var = tk.StringVar(value='Ready')
         ttk.Label(self.root, textvariable=self.status_var, anchor='w').pack(
@@ -449,6 +489,132 @@ class EditorWindow:
             messagebox.showerror('Run failed', str(exc))
             return
         self.status_var.set('Running: ' + ' '.join(cmd))
+
+    def run_program_bbcsdl(self) -> None:
+        """Run the saved buffer with the real BBC BASIC for SDL, in its own window.
+
+        Mirrors lispy_machine's ``Eval -> Real BBC BASIC for SDL buffer``: the
+        configured executable loads the native helper (tools/bbcsdl-basrun.bas,
+        saved once from BBCSDL as tokenised ``basrun.bbc``), which reads this
+        plain-text ``.bas`` file and runs it -- BBCSDL tokenises it itself, so
+        no tokenizer is reimplemented here.
+        """
+        if not self.path:
+            messagebox.showinfo('Save required', 'Save the program before running it.')
+            self.save_file_as()
+            if not self.path:
+                return
+        if self.text.edit_modified():
+            self.save_file()
+
+        executable = self.bbcsdl_executable_var.get().strip()
+        helper = self.bbcsdl_helper_var.get().strip()
+        if not executable or not os.path.isfile(executable):
+            messagebox.showerror(
+                'Real BBC BASIC for SDL',
+                'Select the real BBC BASIC for SDL executable in the Run dialog first.',
+            )
+            return
+        if not helper or not os.path.isfile(helper):
+            messagebox.showerror(
+                'Real BBC BASIC for SDL',
+                'Select a native basrun.bbc helper in the Run dialog first; '
+                'see tools/bbcsdl-basrun.bas.',
+            )
+            return
+
+        run_dir = os.path.dirname(self.path) or '.'
+        try:
+            self._run_proc = subprocess.Popen([executable, helper, self.path], cwd=run_dir)
+        except OSError as exc:
+            messagebox.showerror('Run failed', str(exc))
+            return
+        self.status_var.set('Running (real BBC BASIC for SDL): ' + self.path)
+
+    def _save_bbcsdl_settings(self) -> None:
+        self._editor_settings['bbcsdl_executable'] = self.bbcsdl_executable_var.get()
+        self._editor_settings['bbcsdl_helper'] = self.bbcsdl_helper_var.get()
+        _save_editor_settings_to_disk(self._editor_settings)
+
+    # -- Run dialog --------------------------------------------------------
+
+    def _open_run_dialog(self) -> None:
+        """A visual launcher, lispy_machine-style: icon buttons, not a menu.
+
+        Replaces the flat toolbar Run button with a dialog that groups the
+        two ways to run a buffer -- Python mini_basic (this interpreter) and
+        the real BBC BASIC for SDL (same launchers lispy_machine's Eval menu
+        offers) -- next to the settings each one needs.
+        """
+        if self.run_dialog is not None and self.run_dialog.winfo_exists():
+            self.run_dialog.lift()
+            return
+
+        dialog = self.run_dialog = tk.Toplevel(self.root)
+        dialog.title('Run BASIC program')
+        dialog.transient(self.root)
+        frame = ttk.Frame(dialog, padding=16)
+        frame.pack(fill='both', expand=True)
+
+        ttk.Label(
+            frame, text='Choose how to run this program.',
+            font=('TkDefaultFont', 10, 'bold'),
+        ).pack(anchor='w', pady=(0, 12))
+
+        launchers = ttk.Frame(frame)
+        launchers.pack(fill='x', pady=(0, 16))
+
+        def launch(run_fn):
+            dialog.destroy()
+            run_fn()
+
+        ttk.Button(
+            launchers, text='▶\nPython\nmini_basic', width=16,
+            command=lambda: launch(self.run_program),
+        ).pack(side=tk.LEFT, padx=8, pady=4)
+        ttk.Button(
+            launchers, text='▶\nReal BBC BASIC\nfor SDL', width=16,
+            command=lambda: launch(self.run_program_bbcsdl),
+        ).pack(side=tk.LEFT, padx=8, pady=4)
+
+        python_opts = ttk.LabelFrame(frame, text='Python mini_basic options', padding=8)
+        python_opts.pack(fill='x', pady=(0, 12))
+        ttk.Checkbutton(
+            python_opts, text='Use pygame display', variable=self.pygame_var,
+        ).pack(anchor='w')
+        ttk.Checkbutton(
+            python_opts, text='Wait for Esc at end of run', variable=self.wait_esc_var,
+        ).pack(anchor='w')
+
+        native = ttk.LabelFrame(frame, text='Real BBC BASIC for SDL', padding=8)
+        native.pack(fill='x')
+        for label, var in (
+            ('Executable', self.bbcsdl_executable_var),
+            ('Native basrun.bbc helper', self.bbcsdl_helper_var),
+        ):
+            row = ttk.Frame(native)
+            row.pack(fill='x', pady=4)
+            ttk.Label(row, text=label, width=20).pack(side=tk.LEFT)
+            ttk.Entry(row, textvariable=var, state='readonly', width=38).pack(
+                side=tk.LEFT, fill=tk.X, expand=True,
+            )
+
+            def choose(var=var, label=label):
+                path = filedialog.askopenfilename(
+                    parent=dialog, title='Select ' + label, filetypes=[('All files', '*')],
+                )
+                if path:
+                    var.set(path)
+                    self._save_bbcsdl_settings()
+
+            ttk.Button(row, text='Browse…', command=choose).pack(side=tk.LEFT, padx=(4, 0))
+        ttk.Label(
+            native,
+            text='One-time setup: save tools/bbcsdl-basrun.bas from BBCSDL as '
+                 'native basrun.bbc, then select it above.',
+        ).pack(anchor='w', pady=(4, 0))
+
+        ttk.Button(frame, text='Close', command=dialog.destroy).pack(anchor='e', pady=(12, 0))
 
     # -- Pretty / Renumber -------------------------------------------------
 
