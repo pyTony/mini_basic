@@ -231,8 +231,9 @@ class RuntimeCoreMixin:
         init_string_plan_state(self)
         self._stmt_fast_runners: Dict[str, object] = {}
         self._while_assign_accel: Dict[int, object] = {}
-        # Single-line IF text -> (then_part, else_part, condition, then_code).
-        self._if_parse_cache: Dict[Tuple[str, str], Tuple[str, Optional[str], str, str]] = {}
+        # Single-line IF text -> ('structured',) or
+        # ('compact', then_part, else_part, condition, then_code, then_kind, else_kind).
+        self._if_parse_cache: Dict[Tuple[str, str], Tuple] = {}
         self._ansi_fg_cache: Dict[int, str] = {}
         self._inkey_scan_held: Optional[Tuple[str, float]] = None
         self._ansi_bg_cache: Dict[int, str] = {}
