@@ -3793,7 +3793,26 @@ class RuntimeExecutionMixin:
             return None
 
         if re.match(r'^REPORT\s*$', line, re.IGNORECASE):
-            self._print_emit(self.error_message)
+            # _print_emit only transforms text for a PRINT line being built
+            # (ESC/column handling) and returns it for the caller to collect
+            # -- it never writes anything itself. Calling it alone and
+            # discarding the result (as this used to) made REPORT a silent
+            # no-op. Go through the same render + write pair PRINT uses.
+            # _render_print_content parses its `content` as BASIC source (a
+            # PRINT item list), not a literal value, so the error message
+            # must be quoted as a string literal first -- passed raw, a
+            # message starting with "?" (BBC's indirection operator, as in
+            # most "? ..." error text) was parsed as `?expr` and raised its
+            # own "bad pointer" error instead of printing anything.
+            quoted = '"' + self.error_message.replace('"', '""') + '"'
+            text, newline, self.print_column = self._render_print_content(
+                quoted, '', self.print_column,
+            )
+            self._print_program_text(text, newline=newline)
+            if newline:
+                self.print_column = 0
+            elif self._program_stdout is None:
+                self._flush_program_output()
             return None
 
         swap_match = re.match(r'^SWAP\s+(.+)$', line, re.IGNORECASE)
@@ -6274,8 +6293,32 @@ class RuntimeExecutionMixin:
                                     # execute_immediate) pick that up instead
                                     # of treating this as a bad jump target.
                                     return
-                                self._emit_error('? Line not found')
-                                return
+                                # A GOTO/GOSUB/ON ... GOTO target that is not
+                                # a real line is a trappable runtime error
+                                # (BBC BASIC error 8, "Line does not exist"),
+                                # not a silent crash: resolve_jump_target
+                                # accepts any numeric token without checking
+                                # it exists, so this is the first point that
+                                # can tell. Route it through the same
+                                # _runtime_error/ON ERROR machinery as every
+                                # other runtime error instead of _emit_error,
+                                # which bypasses ON ERROR entirely.
+                                try:
+                                    self._runtime_error('? Line not found', current)
+                                except BasicRuntimeError:
+                                    pass
+                                if self._error_trap_enabled() and not self._in_error_handler:
+                                    # Same handoff execute_line's own BasicRuntimeError
+                                    # catch uses: run_error_handler_for_line tells the
+                                    # next execute_line call to run the trap line's
+                                    # _inline_error_handlers body (the statements after
+                                    # ON ERROR), not reparse/rerun the whole line from
+                                    # its start (which would re-register the trap and
+                                    # fall through the program instead of handling it).
+                                    self._run_error_handler_for_line = self.error_trap_line
+                                    next_index = self._run_line_index.get(self.error_trap_line)
+                                if next_index is None:
+                                    return
                             i = next_index
                         else:
                             same_line_target = None
