@@ -57,11 +57,20 @@ python -m pytest -q test/test_mbasic521_golden.py --timeout=45</code></pre>
 <p>Without the fetch, those tests skip. Owned snippets in <code>test/test_mits_ms_rules.py</code> always run.</p>
 <p>Judge: a <strong>clean run</strong> (no <code>?</code>, no self-check FAIL) is a pass. We do <strong>not</strong> require 5.21 PRINT column match.</p>
 <p>Covered on the ladder: <code>OCT$</code>, <code>FIX</code>, <code>CINT</code>/<code>CSNG</code>/<code>CDBL</code>, <code>KILL</code>, <code>ERASE</code>, <code>CHAIN … ALL</code>, <code>CHR$(34)</code> quote-build, <code>10 \ -3</code>, and long names such as <code>EXPECTED</code> (not <code>EXP(ECTED)</code>).</p>
-<p><code>WHILE</code> cases run under dialect <code>mini</code>.</p>
+<p><code>WHILE</code> cases run under dialect <code>mbasic</code>.</p>
 <h3 id="gaps-left-not-regular-1-00">Gaps left (not regular 1.00)</h3>
 <ol><li><code>POKE</code> / <code>PEEK</code> / memory <code>WAIT</code> — host-memory stubs only if demanded  </li><li>C-port <code>OPEN ch,path,mode</code> alias for file examples 51–60 (out of regular 1.00)</li></ol>
 <h3 id="related-code">Related code</h3>
 <ul><li>Dialect gates: <code>mini_basic/runtime_parts/dialect.py</code>, <code>constants.MITS_FORBIDDEN_CMDS</code>  </li><li>Compatibility matrix: REPL <code>MATRIX</code> / <code>HELP DIALECTS</code>  </li><li>Examples + notes: <code>examples/m6502-cport/README.md</code>  </li></ul>
+<h3 id="dialect-mbasic">Dialect mbasic</h3>
+<p><code>--dialect mbasic</code> is MBASIC 5.21 (BASIC-80 for CP/M): everything in <code>mits</code> plus the Release 5 additions <code>WHILE</code> / <code>WEND</code> and <code>INSTR</code>. Real Altair MITS 4.1 has no <code>WHILE</code>, so <code>mits</code> keeps rejecting it.</p>
+<h3 id="single-precision-single">Single precision (<code>_single</code>)</h3>
+<p>MBASIC numbers without a suffix, and <code>A!</code>, are 4-byte singles that PRINT with 6 significant digits. With the system variable <code>_single</code> = 1 (default):</p>
+<ul><li>a store to <code>A!</code> rounds the value to IEEE single (<code>A! = 0.1</code> keeps</li></ul>
+<p><code>0.100000001490116</code>), in every dialect that has the <code>!</code> suffix;</p>
+<ul><li><code>mits</code> and <code>mbasic</code> PRINT non-integers with 6 digits and no leading 0:</li></ul>
+<p><code>PRINT 1/3</code> gives <code>.333333</code>, <code>PRINT 1E20</code> gives <code>1E+20</code>. A PRINT item with a double operand (<code>A#</code>, <code>CDBL(</code>, <code>1D2</code>) keeps all digits.</p>
+<p><code>_single = 0</code> turns both off and gives full doubles again. Arithmetic is still double, so a few results can differ from MBASIC in the 6th digit (<code>3.14159*5*5</code> prints <code>78.5397</code>, MBASIC <code>78.5398</code>).</p>
     </article>
   </main>
   <footer>

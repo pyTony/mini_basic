@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-25
+
+- [#171](https://github.com/pyTony/mini_basic/pull/171) Cache single-line IF branch classification, not just the split — - Tony noticed Lispy renders its soccerball FPS benchmark much faster than mini_basic. Investigating turned up that Lispy's own docs attribute most of its speed to compiling a loop body once instead of re-interpreting it every iteration — an architectural difference, not a portable graphics trick (mini_basic's…
+
 ## 2026-10-24
 
 - [#168](https://github.com/pyTony/mini_basic/pull/168) Add MITS BASIC examples and fix string literal spacing — - Added MITS BASIC examples: - `examples/mits/superstartrek.bas` – Full implementation of the classic Star Trek simulation game (426 lines) - `examples/mits/hamurabi.bas` – The Hamurabi city management game (120 lines) - Updated `examples/README.txt` to document the new examples
