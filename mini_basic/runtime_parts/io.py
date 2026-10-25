@@ -1051,10 +1051,37 @@ class RuntimeIoMixin:
             return text
         if not math.isfinite(fval):
             return str(fval).upper()
+        if (
+            self._single_print()
+            and not getattr(self, '_print_double', False)
+        ):
+            return self._format_single_display(fval)
         # Exact small integers only — never int() a huge float64 (false digits).
         if abs(fval) < 1e15 and fval == int(fval):
             return str(int(fval))
         return self._format_float_display(fval)
+
+    def _format_single_display(self, value: float) -> str:
+        """MBASIC single-precision PRINT: 6 significant digits, no leading 0.
+
+        ``1/3`` → ``.333333``, ``PI*25`` → ``78.5398``; whole numbers below
+        1E7 print in full (``1234567``), larger ones as ``1.23457E+07``.
+        """
+        if abs(value) < 1e7 and value == int(value):
+            return str(int(value))
+        text = f'{value:.6G}'
+        if 'E' in text:
+            mant, exp = text.split('E')
+            if '.' in mant:
+                mant = mant.rstrip('0').rstrip('.')
+            sign = exp[0]
+            digits = exp[1:].lstrip('0').rjust(2, '0')
+            text = f'{mant}E{sign}{digits}'
+        if text.startswith('0.'):
+            text = text[1:]
+        elif text.startswith('-0.'):
+            text = '-' + text[2:]
+        return text
 
     def _format_float_display(self, value: float) -> str:
         """BBC-style float text: scientific for large/small magnitudes."""
@@ -1477,7 +1504,7 @@ class RuntimeIoMixin:
                 else:
                     if self._is_string_print_item(item_strip):
                         relation_item = (self._strip_outer_parens(item_strip)
-                            if self.config.dialect in ('mits', 'commodore') else item_strip)
+                            if self.config.dialect in ('mits', 'mbasic', 'commodore') else item_strip)
                         if self._print_item_has_top_level_relop(relation_item):
                             # "A"<"B" / A$="Q": a comparison is numeric (-1 / 0).
                             is_numeric = True
@@ -1501,7 +1528,7 @@ class RuntimeIoMixin:
                         is_numeric = True
                         text = self.eval_print_value(item)
 
-                microsoft_numbers = self.config.dialect in ('mits', 'commodore')
+                microsoft_numbers = self.config.dialect in ('mits', 'mbasic', 'commodore')
                 if microsoft_numbers and is_numeric and not hex_mode and not text.startswith('?'):
                     # Microsoft PRINT reserves a sign position for nonnegative
                     # numbers and terminates every numeric item with a space.

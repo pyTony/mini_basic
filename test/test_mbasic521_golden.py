@@ -37,7 +37,7 @@ _CORPUS = Path(_ROOT) / 'test' / 'corpus' / 'mbasic521'
 
 # Dialect override. Default is mits.
 _DIALECT = {
-    'test_while_wend': 'mini',
+    'test_while_wend': 'mbasic',
 }
 
 # Only listings that *crash* or fail their own PASS/FAIL summary.

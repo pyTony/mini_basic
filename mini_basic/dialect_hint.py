@@ -16,7 +16,7 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 
 from .type_system import Dialect
 
-_DIALECT_TOKEN = r'(mini|mits|bbc|commodore|tiny)'
+_DIALECT_TOKEN = r'(mini|mits|mbasic|bbc|commodore|tiny)'
 
 # Classic BBC-ish upper bound; stay well below for free-line search.
 _MAX_HINT_LINE = 65279
@@ -33,7 +33,7 @@ class DialectHint:
 
 def _normalize_dialect_token(value: str) -> Optional[Dialect]:
     key = value.strip().lower()
-    if key in ('mini', 'mits', 'bbc', 'commodore', 'tiny'):
+    if key in ('mini', 'mits', 'mbasic', 'bbc', 'commodore', 'tiny'):
         return key  # type: ignore[return-value]
     return None
 

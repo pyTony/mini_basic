@@ -53,6 +53,9 @@ class InterpreterConfig:
     """If True, INPUT treats bye/quit/exit/q as ProgramExit (mini dialect extension)."""
     bigint_enabled: bool = True
     """If True, % integer variables use arbitrary-precision ints; else IEEE float."""
+    single_precision: bool = True
+    """If True, ``A!`` stores round to IEEE single and mits/mbasic PRINT numbers
+    with 6 significant digits like MBASIC; 0 keeps full doubles (``_single``)."""
     DEBUG: bool = False
     DEBUG_FILTER: str = ""
     errors_dual_stdout: bool = False
@@ -68,7 +71,7 @@ class InterpreterConfig:
             self.optimization_level = 0
         elif self.optimization_level > 2:
             self.optimization_level = 2
-        if self.dialect not in ('mini', 'mits', 'bbc', 'commodore', 'tiny'):
+        if self.dialect not in ('mini', 'mits', 'mbasic', 'bbc', 'commodore', 'tiny'):
             self.dialect = 'mini'
 
     @property
@@ -211,6 +214,13 @@ SYSTEM_VAR_SPEC: Dict[str, Dict[str, object]] = {
     '_bigint': {
         'target': 'config',
         'attr': 'bigint_enabled',
+        'kind': 'bool',
+        'min': 0,
+        'max': 1,
+    },
+    '_single': {
+        'target': 'config',
+        'attr': 'single_precision',
         'kind': 'bool',
         'min': 0,
         'max': 1,

@@ -37,7 +37,9 @@ SCRIPTS = {
 
 def _play(path: str, seed: int, script: str, dialect: str = 'mits') -> tuple[bool, str, str]:
     interp = BASICInterpreter(
-        InterpreterConfig(dialect=dialect, display='none', display_locked=True)
+        # single_precision off: compare program logic, not MITS 6-digit PRINT.
+        InterpreterConfig(dialect=dialect, display='none', display_locked=True,
+                          single_precision=False)
     )
     interp._rng = random.Random(seed)
     # Acorn RND(1) draws 32-bit values; use the MITS stream so seeds line up.

@@ -91,7 +91,7 @@ Judge: a **clean run** (no `?`, no self-check FAIL) is a pass. We do **not** req
 
 Covered on the ladder: `OCT$`, `FIX`, `CINT`/`CSNG`/`CDBL`, `KILL`, `ERASE`, `CHAIN … ALL`, `CHR$(34)` quote-build, `10 \ -3`, and long names such as `EXPECTED` (not `EXP(ECTED)`).
 
-`WHILE` cases run under dialect `mini`.
+`WHILE` cases run under dialect `mbasic`.
 
 ## Gaps left (not regular 1.00)
 
@@ -103,3 +103,24 @@ Covered on the ladder: `OCT$`, `FIX`, `CINT`/`CSNG`/`CDBL`, `KILL`, `ERASE`, `CH
 - Dialect gates: `mini_basic/runtime_parts/dialect.py`, `constants.MITS_FORBIDDEN_CMDS`  
 - Compatibility matrix: REPL `MATRIX` / `HELP DIALECTS`  
 - Examples + notes: `examples/m6502-cport/README.md`  
+
+## Dialect mbasic
+
+`--dialect mbasic` is MBASIC 5.21 (BASIC-80 for CP/M): everything in `mits`
+plus the Release 5 additions `WHILE` / `WEND` and `INSTR`. Real Altair MITS
+4.1 has no `WHILE`, so `mits` keeps rejecting it.
+
+## Single precision (`_single`)
+
+MBASIC numbers without a suffix, and `A!`, are 4-byte singles that PRINT with
+6 significant digits. With the system variable `_single` = 1 (default):
+
+- a store to `A!` rounds the value to IEEE single (`A! = 0.1` keeps
+  `0.100000001490116`), in every dialect that has the `!` suffix;
+- `mits` and `mbasic` PRINT non-integers with 6 digits and no leading 0:
+  `PRINT 1/3` gives `.333333`, `PRINT 1E20` gives `1E+20`. A PRINT item with
+  a double operand (`A#`, `CDBL(`, `1D2`) keeps all digits.
+
+`_single = 0` turns both off and gives full doubles again. Arithmetic is still
+double, so a few results can differ from MBASIC in the 6th digit
+(`3.14159*5*5` prints `78.5397`, MBASIC `78.5398`).

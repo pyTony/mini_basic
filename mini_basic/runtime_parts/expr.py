@@ -124,6 +124,12 @@ _OPERATOR_WORDS = frozenset(
     ('AND', 'OR', 'EOR', 'XOR', 'NOT', 'MOD', 'DIV', 'EQV', 'IMP')
 )
 
+# MBASIC double operands in a PRINT item: A#, CDBL(, 1D2 / 1.5D-3.
+_DOUBLE_ITEM_RE = re.compile(
+    r'[A-Za-z][A-Za-z0-9_]*#|\bCDBL\s*\(|\d\.?\d*D[-+]?\d',
+    re.IGNORECASE,
+)
+
 
 class RuntimeExprMixin:
     """Mixin providing expr-related BASICInterpreter methods."""
@@ -4000,7 +4006,15 @@ class RuntimeExprMixin:
             if upper == 'ERL':
                 return str(self.error_line_num)
             expanded = self._expand_dynamic_calls(raw)
-            return self._print_atom(expanded)
+            # MBASIC: one double operand (A#, CDBL, 1D2, 1.5#) makes the item
+            # double, so the _single 6-digit filter leaves it whole.
+            self._print_double = self._single_print() and bool(
+                _DOUBLE_ITEM_RE.search(re.sub(r'"[^"]*"?', '""', raw)),
+            )
+            try:
+                return self._print_atom(expanded)
+            finally:
+                self._print_double = False
         except Exception as exc:
             if self._RE_FN_CALL.search(raw):
                 emsg = str(exc) if exc is not None else ''
@@ -4552,7 +4566,10 @@ class RuntimeExprMixin:
             )
             return
         self._register_numeric_var(base, 'float')
-        self.variables[base] = float(self._eval_assignment_expr(expr, kind='float'))
+        value = float(self._eval_assignment_expr(expr, kind='float'))
+        if var.strip().endswith('!'):
+            value = self._to_single(value)
+        self.variables[base] = value
 
     def _space_expr_segment(self, segment: str) -> str:
         """Delegate to format/save_case (single spacing authority)."""
