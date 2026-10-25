@@ -189,6 +189,7 @@ class EditorWindow:
     def __init__(self, root: tk.Tk, path: Optional[str] = None) -> None:
         self.root = root
         self.path: Optional[str] = None
+        self._original_source_path: Optional[str] = None
         self._highlight_job: Optional[str] = None
         self._run_proc: Optional[subprocess.Popen] = None
         self._listener_interp = None
@@ -381,6 +382,7 @@ class EditorWindow:
             messagebox.showerror('Open failed', str(exc))
             return
         self.path = path
+        self._original_source_path = path
         self.text.delete('1.0', tk.END)
         self.text.insert('1.0', content)
         self.text.edit_modified(False)
@@ -412,9 +414,13 @@ class EditorWindow:
             'standard', include_line_numbers=True, case_fold=interp._detokenize_fold(),
         )
         self.path = None
+        self._original_source_path = path
         self._replace_text('\n'.join(lines) + '\n')
+        self.text.edit_modified(False)
         self._update_title()
-        self.status_var.set(f'Detokenized {path} - use Save As to save as .bas text')
+        self.status_var.set(
+            f'Detokenized {path} - Run plays it as-is; Save As .bas to keep edits',
+        )
 
     def save_file(self) -> None:
         if not self.path:
@@ -495,18 +501,36 @@ class EditorWindow:
 
     # -- Running ---------------------------------------------------------
 
-    def run_program(self) -> None:
-        if not self.path:
-            messagebox.showinfo('Save required', 'Save the program before running it.')
-            self.save_file_as()
-            if not self.path:
-                return
-        if self.text.edit_modified():
-            self.save_file()
+    def _run_target_path(self) -> Optional[str]:
+        """The file to run, saving first only when that's actually needed.
 
-        run_dir = os.path.dirname(self.path) or '.'
+        An opened tokenized ``.bbc`` is untitled (``self.path`` is None --
+        see ``_load_tokenized_bbc``) purely because ``.bbc`` is reserved for
+        tokenized output, not because there is nothing to run: the real
+        interpreter's own LOAD already auto-detects tokenized/text programs
+        by content, not extension. So running it unmodified replays the
+        original file directly instead of demanding a Save As first. Any
+        edit (``edit_modified()``) falls back to the normal save-as-.bas
+        prompt, since the edited text no longer matches that original file.
+        """
+        if self.path:
+            if self.text.edit_modified():
+                self.save_file()
+            return self.path
+        if self._original_source_path and not self.text.edit_modified():
+            return self._original_source_path
+        messagebox.showinfo('Save required', 'Save the program before running it.')
+        self.save_file_as()
+        return self.path
+
+    def run_program(self) -> None:
+        path = self._run_target_path()
+        if not path:
+            return
+
+        run_dir = os.path.dirname(path) or '.'
         try:
-            cmd = self._build_run_command(self.path)
+            cmd = self._build_run_command(path)
             popen_kwargs = {}
             if sys.platform.startswith('win') and not self.pygame_var.get():
                 popen_kwargs['creationflags'] = subprocess.CREATE_NEW_CONSOLE

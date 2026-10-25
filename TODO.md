@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#173](https://github.com/pyTony/mini_basic/pull/173) Give the BASIC editor its own icon and desktop shortcut (2026-10-25)
 - [#172](https://github.com/pyTony/mini_basic/pull/172) Add Run dialog with icon launchers (Python mini_basic / real BBC BASIC for SDL) (2026-10-25)
 - [#171](https://github.com/pyTony/mini_basic/pull/171) Cache single-line IF branch classification, not just the split (2026-10-25)
 - [#170](https://github.com/pyTony/mini_basic/pull/170) Fix redundant statement re-parse in _scan_user_procedures' ENDPROC check (2026-10-25)
@@ -20,4 +21,3 @@ merge to main.
 - [#166](https://github.com/pyTony/mini_basic/pull/166) Docs/superstartrek readable (2026-10-24)
 - [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels (2026-10-24)
 - [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items (2026-10-24)
-- [#163](https://github.com/pyTony/mini_basic/pull/163) Dev (2026-10-24)
