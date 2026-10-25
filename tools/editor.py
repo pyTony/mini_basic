@@ -13,6 +13,8 @@ Scope (intentionally small; grown from a first pass towards a fuller tool):
     open their own pygame window, console programs still use the ANSI
     terminal the interpreter already uses, and BBCSDL opens its own
     window entirely.
+  * A window/taskbar icon (``tools/icons/``), lispy_machine-style, instead
+    of the platform's default Tk icon.
   * A **Listener** pane (bottom, resizable), lispy3-machine-style: a
     persistent in-process interpreter you can type statements into and
     get results back immediately, without any line numbers, ``AUTO``, or
@@ -131,6 +133,29 @@ def _default_bbcsdl() -> str:
     return shutil.which('bbcsdl') or ''
 
 
+_ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icons')
+
+
+def _set_window_icon(root: tk.Tk) -> Optional[tk.PhotoImage]:
+    """Give the editor window/taskbar its own icon, lispy_machine-style.
+
+    ``.ico`` on Windows (``iconbitmap`` needs that format there); a plain
+    ``.png`` via ``iconphoto`` everywhere else. Returns the ``PhotoImage`` so
+    the caller can keep a reference alive -- Tk drops the icon if it is
+    garbage collected. A missing or unreadable icon file just leaves the
+    platform default, same as lispy_machine.
+    """
+    try:
+        if sys.platform == 'win32':
+            root.iconbitmap(default=os.path.join(_ICONS_DIR, 'mini_basic_editor.ico'))
+            return None
+        icon_image = tk.PhotoImage(file=os.path.join(_ICONS_DIR, 'mini_basic_editor.png'))
+        root.iconphoto(True, icon_image)
+        return icon_image
+    except tk.TclError:
+        return None
+
+
 def _strip_leading_line_number(line: str) -> str:
     """Drop an optional leading ``N `` so Listener input never needs one."""
     return _LEADING_LINE_NUM_RE.sub('', line, count=1)
@@ -171,6 +196,7 @@ class EditorWindow:
         self._listener_history_index = 0
         self.run_dialog: Optional[tk.Toplevel] = None
         self._editor_settings = _load_editor_settings()
+        self._icon_image = _set_window_icon(self.root)
 
         self._build_menu()
         self._build_widgets()

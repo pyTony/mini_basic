@@ -14,6 +14,17 @@ python tools/editor.py
 python tools/editor.py showcase/mandelbrot_archimedes_mode9.bas
 ```
 
+To put an "mini_basic Editor" launcher with its own icon on the desktop
+(Windows or Linux; same approach as lispy3's own shortcut tool), run:
+
+```powershell
+python tools/make_shortcut.py
+```
+
+Windows gets a desktop `.lnk` that starts the editor with `pythonw.exe` (no
+console window); Linux gets a `.desktop` launcher in both the applications
+menu and the desktop folder. There is no automated path for macOS.
+
 Use **Open** (Ctrl+O), **Save** (Ctrl+S), or **Save As** for source files.
 Opening a `.bbc` file automatically decodes tokenized BBC source through the
 interpreter, including files named on the editor command line. The decoded
