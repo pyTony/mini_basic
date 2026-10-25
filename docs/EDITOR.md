@@ -30,7 +30,11 @@ Opening a `.bbc` file automatically decodes tokenized BBC source through the
 interpreter, including files named on the editor command line. The decoded
 buffer is untitled: use **Save As** with `.bas` to keep editable text. `.bbc` is
 reserved for tokenized programs; editor saves and the BASIC `SAVE` command
-refuse text output to that extension.
+refuse text output to that extension. The untitled state is only about
+saving, though: **▶ Run…**'s Python mini_basic launcher plays the original
+`.bbc` file as-is, with no save required, as long as you haven't edited the
+buffer since opening it. Editing it first falls back to the normal
+save-as-`.bas` prompt, since the edited text no longer matches that file.
 Choose the dialect in the toolbar; BBC keywords must be uppercase, while mini
 accepts keywords in either case and keeps identifiers case-sensitive.
 

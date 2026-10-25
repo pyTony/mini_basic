@@ -295,6 +295,67 @@ def test_open_tokenized_bbc_detokenizes_into_editable_text(tmp_path) -> None:
         content = win.text.get('1.0', 'end-1c')
         assert '   100 A = 0: B = 0' in content
         assert win.path is None  # untitled: Save As targets a new .bas file
+        assert win._original_source_path == race_bbc
+    finally:
+        root.destroy()
+
+
+def test_run_program_opened_tokenized_bbc_runs_original_file_without_save(tmp_path) -> None:
+    """Opening a .bbc to run it, unmodified, must not force a Save As first.
+
+    LOAD already auto-detects tokenized/text programs by content, so Run can
+    replay the original file directly -- the untitled buffer is only an
+    artifact of ``.bbc`` being reserved for tokenized Save/Save As output.
+    """
+    race_bbc = os.path.join(_ROOT, 'basics', 'RACE.BBC')
+    if not os.path.exists(race_bbc):
+        pytest.skip('basics/RACE.BBC fixture not present')
+
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
+            win.open_file()
+        assert win.path is None
+        assert win.text.edit_modified() is False
+
+        with mock.patch('tools.editor.messagebox.showinfo') as info, \
+             mock.patch.object(win, 'save_file_as') as save_as, \
+             mock.patch('tools.editor.subprocess.Popen') as popen:
+            win.run_program()
+
+        info.assert_not_called()
+        save_as.assert_not_called()
+        popen.assert_called_once()
+        args, kwargs = popen.call_args
+        assert race_bbc in args[0]  # the original tokenized file, run as-is
+        assert kwargs['cwd'] == os.path.dirname(race_bbc)
+    finally:
+        root.destroy()
+
+
+def test_run_program_edited_tokenized_bbc_still_asks_to_save(tmp_path) -> None:
+    """Once the detokenized buffer is actually edited, it no longer matches
+    the original file, so Run must fall back to the normal save-as-.bas
+    prompt instead of silently running the stale original."""
+    race_bbc = os.path.join(_ROOT, 'basics', 'RACE.BBC')
+    if not os.path.exists(race_bbc):
+        pytest.skip('basics/RACE.BBC fixture not present')
+
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
+            win.open_file()
+        win.text.insert(tk.END, "\n' edited\n")
+        assert win.text.edit_modified() is True
+
+        with mock.patch('tools.editor.messagebox.showinfo') as info, \
+             mock.patch.object(win, 'save_file_as') as save_as:
+            win.run_program()
+
+        info.assert_called_once()
+        save_as.assert_called_once()
     finally:
         root.destroy()
 
