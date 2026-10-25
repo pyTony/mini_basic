@@ -11,6 +11,9 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#171](https://github.com/pyTony/mini_basic/pull/171) Cache single-line IF branch classification, not just the split (2026-10-25)
+- [#170](https://github.com/pyTony/mini_basic/pull/170) Fix redundant statement re-parse in _scan_user_procedures' ENDPROC check (2026-10-25)
+- [#169](https://github.com/pyTony/mini_basic/pull/169) Add mbasic dialect and _single single precision (2026-10-25)
 - [#168](https://github.com/pyTony/mini_basic/pull/168) Add MITS BASIC examples and fix string literal spacing (2026-10-24)
 - [#167](https://github.com/pyTony/mini_basic/pull/167) fix: basics/fact.bas is valid BBC BASIC (drop END DEF) (2026-10-24)
 - [#166](https://github.com/pyTony/mini_basic/pull/166) Docs/superstartrek readable (2026-10-24)
@@ -18,6 +21,3 @@ merge to main.
 - [#164](https://github.com/pyTony/mini_basic/pull/164) Fix/ms print adjacent items (2026-10-24)
 - [#163](https://github.com/pyTony/mini_basic/pull/163) Dev (2026-10-24)
 - [#162](https://github.com/pyTony/mini_basic/pull/162) Fix pythonw console runs in the original editor (release) (2026-10-24)
-- [#161](https://github.com/pyTony/mini_basic/pull/161) Fix pythonw console runs in the original editor (2026-10-24)
-- [#160](https://github.com/pyTony/mini_basic/pull/160) Fix original editor BBC imports and protect tokenized files (2026-10-24)
-- [#159](https://github.com/pyTony/mini_basic/pull/159) Automatically decode BBC files in the original editor and protect saves (2026-10-24)
