@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-25
 
+- [#172](https://github.com/pyTony/mini_basic/pull/172) Add Run dialog with icon launchers (Python mini_basic / real BBC BASIC for SDL) — - Ports lispy3's Lispy Machine Eval-menu BASIC launchers into the mini_basic tkinter editor (`tools/editor.py`), but as a visual icon dialog instead of flat menu/toolbar commands. - The toolbar's Run button is now ▶ Run…, which opens a "Run BASIC program" dialog with two icon buttons: Python mini_basic (the…
 - [#171](https://github.com/pyTony/mini_basic/pull/171) Cache single-line IF branch classification, not just the split — - Tony noticed Lispy renders its soccerball FPS benchmark much faster than mini_basic. Investigating turned up that Lispy's own docs attribute most of its speed to compiling a loop body once instead of re-interpreting it every iteration — an architectural difference, not a portable graphics trick (mini_basic's…
 
 ## 2026-10-24
