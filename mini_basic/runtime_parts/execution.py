@@ -5045,7 +5045,42 @@ class RuntimeExecutionMixin:
                         return None
                 return None
 
-            if self._is_structured_if(rest_strip):
+            # Whether this is a block IF (bare THEN, needs ENDIF) or a
+            # compact single-line IF, and the compact split/classification,
+            # all depend only on the text and dialect: parse and classify
+            # each single-line IF once per run, not on every pass through a
+            # loop (hot inner loops re-execute the same IF text every time).
+            if_key = (self.config.dialect, rest_strip)
+            parsed_if = self._if_parse_cache.get(if_key)
+            if parsed_if is None:
+                if self._is_structured_if(rest_strip):
+                    parsed_if = ('structured',)
+                else:
+                    try:
+                        then_part, else_part = self._split_if_else_parts(rest_strip)
+                        condition, then_code = self._split_bbc_compact_if_then(then_part)
+                    except ValueError:
+                        detail = self._if_error_detail(rest_strip)
+                        self._runtime_error(
+                            f'? {detail}',
+                            line_num,
+                            stmt_index,
+                            stmt_count=stmt_count,
+                            statement=line,
+                        )
+                        return None
+                    then_kind = self._classify_compact_if_branch(then_code, line_num)
+                    else_kind = (
+                        self._classify_compact_if_branch(else_part, line_num)
+                        if else_part is not None else None
+                    )
+                    parsed_if = (
+                        'compact', then_part, else_part, condition, then_code,
+                        then_kind, else_kind,
+                    )
+                self._if_parse_cache[if_key] = parsed_if
+
+            if parsed_if[0] == 'structured':
                 try:
                     layout = self._get_if_block_layout(line_num, line_nums)
                     if layout is None:
@@ -5057,27 +5092,9 @@ class RuntimeExecutionMixin:
                         self._error_message('? IF error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
                     return None
 
-            # The split depends only on the text and dialect: parse each
-            # single-line IF once per run, not on every pass through a loop.
-            if_key = (self.config.dialect, rest_strip)
-            parsed_if = self._if_parse_cache.get(if_key)
-            if parsed_if is None:
-                try:
-                    then_part, else_part = self._split_if_else_parts(rest_strip)
-                    condition, then_code = self._split_bbc_compact_if_then(then_part)
-                except ValueError:
-                    detail = self._if_error_detail(rest_strip)
-                    self._runtime_error(
-                        f'? {detail}',
-                        line_num,
-                        stmt_index,
-                        stmt_count=stmt_count,
-                        statement=line,
-                    )
-                    return None
-                parsed_if = (then_part, else_part, condition, then_code)
-                self._if_parse_cache[if_key] = parsed_if
-            then_part, else_part, condition, then_code = parsed_if
+            (
+                _, then_part, else_part, condition, then_code, then_kind, else_kind,
+            ) = parsed_if
             self.dprint('[IF]', 'cond', repr(condition))
             self.dprint('[IF]', 'then', repr(then_code))
             break_match = _RE_IF_BREAK.match(then_code)
@@ -5103,7 +5120,6 @@ class RuntimeExecutionMixin:
                         self._runtime_error('? IF error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                         return None
                 return self._handle_continue(label)
-            then_kind = self._classify_compact_if_branch(then_code, line_num)
             if then_kind == 'empty':
                 # IF cond THEN (no body) — museum BETH: condition only.
                 # IF(I%AND1)=0:PLOT… — body is on following colon-stmts; if true
@@ -5164,7 +5180,6 @@ class RuntimeExecutionMixin:
                     result,
                 )
             if else_part is not None:
-                else_kind = self._classify_compact_if_branch(else_part, line_num)
                 if else_kind == 'invalid':
                     self._runtime_error('? IF error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                     return None
