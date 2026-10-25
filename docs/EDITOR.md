@@ -23,11 +23,23 @@ refuse text output to that extension.
 Choose the dialect in the toolbar; BBC keywords must be uppercase, while mini
 accepts keywords in either case and keeps identifiers case-sensitive.
 
-**Run** starts the whole program in a separate interpreter process. Console
-output uses its terminal; pygame graphics use their own window. **Use pygame
-display** requests that display. **Wait for Esc at end of run** is off by default:
-checked passes `--hold`, unchecked passes `--no-hold`. This controls the final
-pygame window wait for Escape/close; it does not interrupt a running loop.
+**▶ Run…** opens a launcher dialog, lispy_machine-style: two icon buttons choose
+how to run the saved buffer.
+
+- **Python mini_basic** starts the whole program in a separate interpreter
+  process, the same as running it from a shell. Console output uses its
+  terminal; pygame graphics use their own window. The dialog's **Use pygame
+  display** checkbox requests that display, and **Wait for Esc at end of run**
+  (off by default) passes `--hold`/`--no-hold`, controlling the final pygame
+  window wait for Escape/close; it does not interrupt a running loop.
+- **Real BBC BASIC for SDL** runs the saved buffer with the real BBCSDL
+  executable in its own window, instead of this project's Python interpreter.
+  One-time setup: open `tools/bbcsdl-basrun.bas` in BBCSDL and save it in
+  native, tokenised format as `basrun.bbc` (Richard Russell's text loader,
+  CC BY-SA 4.0; renaming the extension alone is not enough). Then, in the Run
+  dialog, Browse to the BBCSDL executable and that saved helper; both paths
+  are remembered across editor runs (`~/.mini_basic_editor.json`). BBCSDL
+  tokenises the buffer itself; this editor never reimplements that.
 
 ## Try statements in the Listener
 
@@ -43,7 +55,7 @@ Enter to see `42`. Variables and definitions persist between evaluations.
 | Previous/next input | Up/Down in input | Browse Listener command history |
 | Reset | Listener Reset button | Start a fresh interpreter and clear output |
 
-F5 evaluates a line; use **Run** to execute the whole program. Changing the dialect
+F5 evaluates a line; use **▶ Run…** to execute the whole program. Changing the dialect
 selector does not rebuild an existing Listener session: use **Reset** to apply it.
 
 To define a procedure, select the complete block and press Shift+F5:
