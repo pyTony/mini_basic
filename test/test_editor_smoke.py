@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 import sys
 import tkinter as tk
+from tkinter import ttk
+from typing import List
 from unittest import mock
 
 import pytest
@@ -124,6 +126,124 @@ def test_build_run_command_wait_for_esc_toggle(tmp_path) -> None:
         cmd = win._build_run_command(str(tmp_path / 'demo.bas'))
         assert '--hold' in cmd
         assert '--no-hold' not in cmd
+    finally:
+        root.destroy()
+
+
+def test_run_dialog_offers_python_and_bbcsdl_launchers() -> None:
+    """The toolbar's Run button opens a dialog with icon buttons, not a menu."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        assert win.run_dialog is None
+
+        win._open_run_dialog()
+
+        assert win.run_dialog is not None and win.run_dialog.winfo_exists()
+        labels = _collect_button_texts(win.run_dialog)
+        assert any('Python' in label for label in labels)
+        assert any('Real BBC BASIC' in label for label in labels)
+    finally:
+        root.destroy()
+
+
+def test_run_dialog_reopen_reuses_existing_window() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win._open_run_dialog()
+        first = win.run_dialog
+        win._open_run_dialog()
+        assert win.run_dialog is first
+    finally:
+        root.destroy()
+
+
+def _collect_button_texts(widget) -> List[str]:
+    texts = []
+    for child in widget.winfo_children():
+        if isinstance(child, ttk.Button):
+            texts.append(child.cget('text'))
+        texts.extend(_collect_button_texts(child))
+    return texts
+
+
+def test_run_program_bbcsdl_requires_executable_configured() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.bbcsdl_executable_var.set('')
+        with mock.patch('tools.editor.messagebox.showinfo'), \
+             mock.patch('tools.editor.messagebox.showerror') as error, \
+             mock.patch.object(win, 'save_file_as') as save_as:
+            win.path = __file__  # already "saved"; skip the save-required path
+            win.text.edit_modified(False)
+            win.run_program_bbcsdl()
+        save_as.assert_not_called()
+        assert error.called
+        assert 'executable' in error.call_args.args[1]
+    finally:
+        root.destroy()
+
+
+def test_run_program_bbcsdl_requires_helper_configured(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        fake_exe = tmp_path / 'bbcsdl.exe'
+        fake_exe.write_text('x')
+        win.bbcsdl_executable_var.set(str(fake_exe))
+        win.bbcsdl_helper_var.set('')
+        win.path = __file__
+        win.text.edit_modified(False)
+        with mock.patch('tools.editor.messagebox.showerror') as error:
+            win.run_program_bbcsdl()
+        assert error.called
+        assert 'basrun.bbc' in error.call_args.args[1]
+    finally:
+        root.destroy()
+
+
+def test_run_program_bbcsdl_launches_configured_executable_and_helper(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        fake_exe = tmp_path / 'bbcsdl.exe'
+        fake_exe.write_text('x')
+        fake_helper = tmp_path / 'basrun.bbc'
+        fake_helper.write_text('x')
+        win.bbcsdl_executable_var.set(str(fake_exe))
+        win.bbcsdl_helper_var.set(str(fake_helper))
+
+        sample = tmp_path / 'demo.bas'
+        sample.write_text('10 PRINT 1\n')
+        win.path = str(sample)
+        win.text.delete('1.0', tk.END)
+        win.text.insert('1.0', '10 PRINT 1\n')
+        win.text.edit_modified(False)
+
+        with mock.patch('tools.editor.subprocess.Popen') as popen:
+            win.run_program_bbcsdl()
+
+        popen.assert_called_once()
+        args, kwargs = popen.call_args
+        assert args[0] == [str(fake_exe), str(fake_helper), str(sample)]
+        assert kwargs['cwd'] == str(tmp_path)
+    finally:
+        root.destroy()
+
+
+def test_browsing_bbcsdl_paths_persists_to_settings(tmp_path) -> None:
+    """Chosen executable/helper paths are saved so they survive the next run."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        chosen = str(tmp_path / 'bbcsdl.exe')
+        with mock.patch('tools.editor._save_editor_settings_to_disk') as save_to_disk:
+            win.bbcsdl_executable_var.set(chosen)
+            win._save_bbcsdl_settings()
+        assert win._editor_settings['bbcsdl_executable'] == chosen
+        save_to_disk.assert_called_once_with(win._editor_settings)
     finally:
         root.destroy()
 
