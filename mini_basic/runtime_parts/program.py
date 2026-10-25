@@ -848,14 +848,14 @@ class RuntimeProgramMixin:
             )
         else:
             statement = self._normalize_two_word_closers(statement)
-            if self.config.dialect in ('mits', 'commodore', 'tiny'):
+            if self.config.dialect in ('mits', 'mbasic', 'commodore', 'tiny'):
                 statement = self._space_crunched_ms_statements(statement)
-            if self.config.dialect in ('mits', 'commodore'):
+            if self.config.dialect in ('mits', 'mbasic', 'commodore'):
                 statement = self._space_ms_logic_operators(statement)
             # Digit/TO/STEP glue (FOR I=1TO10) — same boundary as BBC; mini keeps
             # case-fold keywords, but still spaces compact TO/STEP at entry.
             statement = self._space_glued_to_step(statement)
-            if self.config.dialect == 'mini':
+            if self.config.dialect in ('mini', 'mbasic'):
                 statement = re.sub(
                     r'\bWEND\b', 'ENDWHILE', statement, flags=re.IGNORECASE,
                 )
@@ -865,7 +865,7 @@ class RuntimeProgramMixin:
             and self._BBC_INDIR_LVALUE_RE.match(statement)
         ):
             statement = self._expand_question_print(statement)
-        if self.config.dialect in ('mits', 'commodore'):  # MS BASIC family
+        if self.config.dialect in ('mits', 'mbasic', 'commodore'):  # MS BASIC family
             statement = self._separate_ms_print_items(statement)
         # Older LIST/SAVE split ``+=`` into ``+ =`` and ``*REFRESH`` into ``* REFRESH``.
         if not self._line_skips_expr_canonicalize(statement):

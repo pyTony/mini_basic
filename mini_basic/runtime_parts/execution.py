@@ -1005,7 +1005,8 @@ class RuntimeExecutionMixin:
                 if lhs_key == '@%' or vname.upper() in _ACCEL_FORBIDDEN_LHS:
                     return None
                 # _bigint / _save_case / _epsilon etc. must go through _assign.
-                if self._canonical_system_var_name(var_tok.strip()):
+                # A! rounds to single precision in _assign.
+                if var_tok.strip().endswith('!') or self._canonical_system_var_name(var_tok.strip()):
                     return None
                 ce = self._get_compiled_expr(expr_src, is_condition=False)
                 if ce.use_fallback and self._expr_is_pure_bitwise(expr_src):
@@ -4264,7 +4265,7 @@ class RuntimeExecutionMixin:
                     return None
                 self._runtime_error('? INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
-            if prompt_content and self.config.dialect in ('mits', 'commodore'):
+            if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore'):
                 if self._ms_input_prompt_wants_question(rest):
                     prompt_content += ';"? "'  # MS: INPUT "P";A$ shows P?
             first_try = True

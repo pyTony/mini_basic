@@ -131,7 +131,7 @@ class RuntimeDialectMixin:
         ):
             return dialect == 'mini'
         if feature == 'INSTR':
-            return dialect not in self._NUMBERED_GOTO_DIALECTS
+            return dialect == 'mbasic' or dialect not in self._NUMBERED_GOTO_DIALECTS
         if feature in self._MINI_ONLY_FUNCS or feature == 'mini_only_func':
             return dialect == 'mini'
         if feature.upper() in self._MINI_ONLY_CMDS:
@@ -141,6 +141,9 @@ class RuntimeDialectMixin:
             # commands (unlike SOUND, which is real BBC BASIC).
             return dialect == 'mini'
         if feature in self._MITS_FORBIDDEN_CMDS:
+            # MBASIC 5.x (BASIC-80 Release 5) added WHILE/WEND to the MITS set
+            if dialect == 'mbasic' and feature in ('WHILE', 'WEND'):
+                return True
             return dialect not in self._NUMBERED_GOTO_DIALECTS
         return True
 

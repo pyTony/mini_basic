@@ -180,9 +180,9 @@ class BASICInterpreter(RuntimeCoreMixin, RuntimeProgramMixin, RuntimeExprMixin, 
         'FG$', 'BG$', 'RGB$', 'BGRGB$', 'ANSI$', 'RESET$',
     })
     _MINI_ONLY_FUNCS = frozenset({'ARG'}) | _ANSI_COLOUR_FUNCS
-    _NUMBERED_GOTO_DIALECTS = frozenset({'mits', 'commodore', 'tiny'})
-    _IF_GOTO_DIALECTS = frozenset({'mini', 'mits', 'commodore'})
-    _IF_THEN_LINE_DIALECTS = frozenset({'mini', 'mits', 'bbc', 'commodore'})
+    _NUMBERED_GOTO_DIALECTS = frozenset({'mits', 'mbasic', 'commodore', 'tiny'})
+    _IF_GOTO_DIALECTS = frozenset({'mini', 'mits', 'mbasic', 'commodore'})
+    _IF_THEN_LINE_DIALECTS = frozenset({'mini', 'mits', 'mbasic', 'bbc', 'commodore'})
     _GRAPHICS_CMDS = frozenset({
         'MODE', 'CLG', 'GCOL', 'MOVE', 'DRAW', 'ORIGIN', 'PLOT',
         'SPRITEDEF', 'SPRITE', 'RECTANGLE', 'CIRCLE', 'ELLIPSE',
@@ -577,6 +577,7 @@ def _print_dialect_compatibility_matrix() -> None:
     ]
     print('=== Dialect compatibility ===')
     print('  mits      = MITS 8K / MS era numbered GOTO (ELIZA.BAS)')
+    print('  mbasic    = MBASIC 5.21 (BASIC-80 for CP/M): mits + WHILE/WEND, INSTR')
     print('  commodore = Commodore MS BASIC V2 (C64/VIC-20): numbered GOTO, IF GOTO')
     print('  tiny      = Tiny BASIC (1975): numbered, IF THEN stmt only (no line jumps)')
     print('  bbc       = traditional BBC (Beeb + BASIC V: PROC/WHILE/CASE); numbered OK')
@@ -589,9 +590,9 @@ def _print_dialect_compatibility_matrix() -> None:
     print()
     print('  + = yes   - = rejected in strict dialect   ~ = extension (bbc warns on load)')
     print('  tiny: use GOTO for branches; IF 1 THEN PRINT X ok, IF 1 THEN 100 not ok')
-    print('  REPL: --dialect mits|commodore|tiny|bbc|mini   strict: --strict-dialect')
+    print('  REPL: --dialect mits|mbasic|commodore|tiny|bbc|mini   strict: --strict-dialect')
     print('  File: #!bbc  or  1 REM dialect: bbc  at top of .bas (overrides env)')
-    print('  REPL: DIALECT [mini|mits|commodore|tiny|bbc]   CASE [on|off|auto]   MATRIX')
+    print('  REPL: DIALECT [mini|mits|mbasic|commodore|tiny|bbc]   CASE [on|off|auto]   MATRIX')
 
 
 def _print_startup_banner() -> None:
@@ -1114,7 +1115,7 @@ def _normalize_dialect(value: Optional[str]) -> Optional[Dialect]:
     if value is None:
         return None
     key = value.strip().lower()
-    if key in ('mini', 'mits', 'bbc', 'commodore', 'tiny'):
+    if key in ('mini', 'mits', 'mbasic', 'bbc', 'commodore', 'tiny'):
         return key  # type: ignore[return-value]
     return None
 
@@ -1250,11 +1251,11 @@ def _parse_main_args(
             continue
         if token in ('-d', '--dialect'):
             if index + 1 >= len(args):
-                print('? --dialect requires mini, mits, commodore, tiny, or bbc')
+                print('? --dialect requires mini, mits, mbasic, commodore, tiny, or bbc')
                 raise SystemExit(2)
             dialect = _normalize_dialect(args[index + 1])
             if dialect is None:
-                print('? dialect must be mini, mits, commodore, tiny, or bbc')
+                print('? dialect must be mini, mits, mbasic, commodore, tiny, or bbc')
                 raise SystemExit(2)
             config.dialect = dialect
             config.dialect_locked = True

@@ -20,7 +20,7 @@ HELP_MENU_ITEMS: List[Tuple[str, str]] = [
     ('PROGRAM', 'LOAD / SAVE / LIST / AUTO / EDIT — program file commands'),
     ('SYSTEM', '_argc, _optimization_level, TIME, ERR, ERL'),
     ('DEBUG', '--debug / --debug-filter tags (IF, DIM, VDU, …)'),
-    ('DIALECTS', 'mits / commodore / tiny / bbc / mini (same as MATRIX)'),
+    ('DIALECTS', 'mits / mbasic / commodore / tiny / bbc / mini (same as MATRIX)'),
 ]
 
 _HELP_ALIASES = {
@@ -104,7 +104,7 @@ def _print_help_index() -> None:
 def _print_help_overview() -> None:
     sections = [
         ('=== mini-BASIC overview ===', [
-            'Five dialects: mits  commodore  tiny  bbc (BBC SDL 2.0)  mini (default)',
+            'Six dialects: mits  mbasic  commodore  tiny  bbc (BBC SDL 2.0)  mini (default)',
             'HELP INDEX lists topics; HELP FUNCTIONS lists every builtin.',
         ]),
         ('Quick start', [
@@ -113,7 +113,7 @@ def _print_help_overview() -> None:
             'mini_basic file.bas -i        RUN then stay at >',
             'mini_basic INPUT.TXT          session script (numbered lines + RUN/Q)',
             'mini_basic --pretty file.bas  LIST structured, exit',
-            '--dialect mits|commodore|tiny|bbc|mini   --strict-dialect   --pygame',
+            '--dialect mits|mbasic|commodore|tiny|bbc|mini   --strict-dialect   --pygame',
             'Program file: #!bbc  or  1 REM dialect: bbc  (prefer numbered REM; not line 0)',
             'Full shell flags: HELP CLI  (same text as mini_basic --help)',
         ]),
@@ -472,7 +472,7 @@ def _print_help_repl() -> None:
         'EDIT NEW    open the editor with a blank buffer (program unchanged',
         '  until you save something back)',
         'HELP [topic]   MATRIX (= HELP DIALECTS)',
-        'DIALECT [mini|mits|commodore|tiny|bbc] [strict|loose]   CASE [on|off|auto]',
+        'DIALECT [mini|mits|mbasic|commodore|tiny|bbc] [strict|loose]   CASE [on|off|auto]',
         '  bare DIALECT reports dialect, strict on/off, and case mode',
         'bye | quit | exit | goodbye | q',
         '',
@@ -600,6 +600,7 @@ def _print_help_system() -> None:
         '_save_case              0=UPPER 1=lower LIST/SAVE (mits/bbc only)',
         '_case_sensitive         0=fold  1=on  2=auto (dialect default)',
         '_bigint                 1=arbitrary % ints (default)  0=IEEE float',
+        '_single                 1=A! rounds to single, mits/mbasic PRINT 6 digits (default)  0=doubles',
         '  PRINT _epsilon, _float_digits, _ieee754',
         '  examples/mini/find_epsilon.bas   discover epsilon in BASIC',
         '  examples/mini/near_float.bas     NEAR / NEARSIG comparisons',

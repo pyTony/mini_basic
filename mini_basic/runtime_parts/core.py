@@ -103,6 +103,7 @@ from .helpers import (
     _apply_pygame_display_defaults,
 )
 
+
 class RuntimeCoreMixin:
     """Mixin providing core-related BASICInterpreter methods."""
 
@@ -696,6 +697,19 @@ class RuntimeCoreMixin:
 
     def _bigint_enabled(self) -> bool:
         return bool(self.config.bigint_enabled)
+
+    def _single_print(self) -> bool:
+        """MBASIC-style 6-digit PRINT of non-integers (mits/mbasic, ``_single``)."""
+        return bool(self.config.single_precision) and self.config.dialect in ('mits', 'mbasic')
+
+    def _to_single(self, value: float) -> float:
+        """Round to IEEE single precision for ``A!`` stores (``_single`` = 0: unchanged)."""
+        if not self.config.single_precision or not math.isfinite(value):
+            return value
+        try:
+            return struct.unpack('f', struct.pack('f', value))[0]
+        except OverflowError:
+            return math.copysign(math.inf, value)
 
     def _register_numeric_var(self, base: str, kind: VarKind) -> None:
         # BBCSDL byte vars (key 'a&') are read by _substitute_variables,
@@ -1912,7 +1926,7 @@ class RuntimeCoreMixin:
 
     def _rnd_ms_dialect(self) -> bool:
         """Microsoft-style RND (always 0..1). BBC/mini use Acorn RND."""
-        return self.config.dialect in ('mits', 'commodore', 'tiny')
+        return self.config.dialect in ('mits', 'mbasic', 'commodore', 'tiny')
 
     def _rnd_seed(self, n: float) -> None:
         """Seed the PRNG from n (BBC: typically negative; same stream as RANDOMIZE -n)."""

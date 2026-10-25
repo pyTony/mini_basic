@@ -19,7 +19,7 @@ from typing import Dict, List, Literal, Optional, Tuple
 VarKind = Literal['float', 'int', 'str']
 """Variable kind for scalars, arrays, and DEF FN parameters."""
 
-Dialect = Literal['mini', 'mits', 'bbc', 'commodore', 'tiny']
+Dialect = Literal['mini', 'mits', 'mbasic', 'bbc', 'commodore', 'tiny']
 """Language dialect: mini, MITS, BBC, Commodore MS BASIC V2, or Tiny BASIC (1975)."""
 
 ArrayStorage = Tuple[Tuple[int, ...], int, list]
