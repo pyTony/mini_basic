@@ -21,9 +21,11 @@ if _ROOT not in sys.path:
 from tools.editor import (
     EditorWindow,
     _DIALECT_HINT_RE,
+    _ICONS_DIR,
     _KEYWORD_RE,
     _PROC_RE,
     _STAR_CMD_RE,
+    _set_window_icon,
     _strip_leading_line_number,
 )
 
@@ -126,6 +128,34 @@ def test_build_run_command_wait_for_esc_toggle(tmp_path) -> None:
         cmd = win._build_run_command(str(tmp_path / 'demo.bas'))
         assert '--hold' in cmd
         assert '--no-hold' not in cmd
+    finally:
+        root.destroy()
+
+
+def test_icon_files_exist_for_both_platforms() -> None:
+    assert os.path.isfile(os.path.join(_ICONS_DIR, 'mini_basic_editor.png'))
+    assert os.path.isfile(os.path.join(_ICONS_DIR, 'mini_basic_editor.ico'))
+
+
+def test_editor_window_sets_its_own_icon() -> None:
+    """Replaces the platform-default Tk feather/icon with the editor's own."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        if sys.platform == 'win32':
+            assert win._icon_image is None  # iconbitmap path; nothing to keep alive
+        else:
+            assert isinstance(win._icon_image, tk.PhotoImage)
+    finally:
+        root.destroy()
+
+
+def test_set_window_icon_survives_a_bad_icon_path(monkeypatch, tmp_path) -> None:
+    """A missing/unreadable icon file must not crash window setup."""
+    monkeypatch.setattr('tools.editor._ICONS_DIR', str(tmp_path))  # no icon files here
+    root = _make_root()
+    try:
+        assert _set_window_icon(root) is None
     finally:
         root.destroy()
 
