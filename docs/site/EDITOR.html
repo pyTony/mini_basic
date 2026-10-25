@@ -28,6 +28,9 @@
 <p>From a <code>dev</code> checkout with Python and tkinter available:</p>
 <pre><code>python tools/editor.py
 python tools/editor.py showcase/mandelbrot_archimedes_mode9.bas</code></pre>
+<p>To put an &quot;mini_basic Editor&quot; launcher with its own icon on the desktop (Windows or Linux; same approach as lispy3&#x27;s own shortcut tool), run:</p>
+<pre><code>python tools/make_shortcut.py</code></pre>
+<p>Windows gets a desktop <code>.lnk</code> that starts the editor with <code>pythonw.exe</code> (no console window); Linux gets a <code>.desktop</code> launcher in both the applications menu and the desktop folder. There is no automated path for macOS.</p>
 <p>Use <strong>Open</strong> (Ctrl+O), <strong>Save</strong> (Ctrl+S), or <strong>Save As</strong> for source files. Opening a <code>.bbc</code> file automatically decodes tokenized BBC source through the interpreter, including files named on the editor command line. The decoded buffer is untitled: use <strong>Save As</strong> with <code>.bas</code> to keep editable text. <code>.bbc</code> is reserved for tokenized programs; editor saves and the BASIC <code>SAVE</code> command refuse text output to that extension. Choose the dialect in the toolbar; BBC keywords must be uppercase, while mini accepts keywords in either case and keeps identifiers case-sensitive.</p>
 <p><strong>▶ Run…</strong> opens a launcher dialog, lispy_machine-style: two icon buttons choose how to run the saved buffer.</p>
 <ul><li><strong>Python mini_basic</strong> starts the whole program in a separate interpreter</li></ul>
