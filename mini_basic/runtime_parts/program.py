@@ -2601,9 +2601,14 @@ class RuntimeProgramMixin:
                     ([proc.header_stmt] if proc.header_stmt else [])
                     + [stmt_parts[p][1] for p in range(stmt_pos + 1, len(stmt_parts))]
                 )
+                end_stmt_parts = (
+                    self._run_stmts.get(end_line) if end_line is not None else None
+                )
+                if end_stmt_parts is None and end_line is not None:
+                    end_stmt_parts = self._parse_line_statements(self.program[end_line])
                 explicit_end = end_line is not None and any(
                     self._parse_command(text)[0] == 'ENDPROC'
-                    for _, text in self._parse_line_statements(self.program[end_line])
+                    for _, text in end_stmt_parts
                 )
                 if self.config.dialect == 'bbc' and not explicit_end and inline_body:
                     inline_cmd, inline_rest = self._parse_command(inline_body)
