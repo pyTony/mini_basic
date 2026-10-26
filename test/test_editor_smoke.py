@@ -473,7 +473,7 @@ def test_listener_eval_selection_defines_and_runs_a_proc_without_auto() -> None:
         output = win.listener_output.get('1.0', 'end-1c')
         assert 'DEF PROC defined.' in output
 
-        win.listener_entry.insert(0, 'PROCgreet("Tony")')
+        win.listener_entry.insert('1.0', 'PROCgreet("Tony")')
         win._listener_submit()
         output = win.listener_output.get('1.0', 'end-1c')
         assert 'hi Tony' in output
@@ -485,7 +485,7 @@ def test_listener_blocks_auto_and_bare_edit() -> None:
     root = _make_root()
     try:
         win = EditorWindow(root)
-        win.listener_entry.insert(0, 'AUTO')
+        win.listener_entry.insert('1.0', 'AUTO')
         win._listener_submit()
         output = win.listener_output.get('1.0', 'end-1c')
         assert 'not available here' in output
@@ -576,3 +576,177 @@ def test_editor_plain_save_also_rejects_bbc(file_editor, tmp_path):
         file_editor.save_file()
     assert error.called
     assert target.read_bytes() == b'original tokenized bytes'
+
+
+def test_run_program_wraps_for_hold_console_and_timing(tmp_path) -> None:
+    """Neither option set: command is unwrapped (unchanged default run)."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        sample = tmp_path / 'demo.bas'
+        sample.write_text('10 PRINT 1\n')
+        win.path = str(sample)
+        win.text.edit_modified(False)
+
+        with mock.patch('tools.editor.subprocess.Popen') as popen:
+            win.run_program()
+        plain_cmd = popen.call_args.args[0]
+        assert plain_cmd[0] == sys.executable
+        assert plain_cmd[1:3] == ['-m', 'mini_basic']
+
+        win.hold_console_var.set(True)
+        win.show_timing_var.set(True)
+        with mock.patch('tools.editor.subprocess.Popen') as popen:
+            win.run_program()
+        wrapped_cmd = popen.call_args.args[0]
+        assert wrapped_cmd[0] == sys.executable
+        assert wrapped_cmd[1] == '-c'
+        assert 'input(' in wrapped_cmd[2]
+        assert 'Run finished in' in wrapped_cmd[2]
+        import json as _json
+        assert _json.loads(wrapped_cmd[3]) == plain_cmd
+    finally:
+        root.destroy()
+
+
+def test_run_program_pygame_mode_never_wraps_for_hold_console(tmp_path) -> None:
+    """Pygame already holds its own display window; don't double-wrap it."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        sample = tmp_path / 'demo.bas'
+        sample.write_text('10 PRINT 1\n')
+        win.path = str(sample)
+        win.text.edit_modified(False)
+        win.pygame_var.set(True)
+        win.hold_console_var.set(True)
+        win.show_timing_var.set(True)
+
+        with mock.patch('tools.editor.subprocess.Popen') as popen:
+            win.run_program()
+        cmd = popen.call_args.args[0]
+        assert cmd[0] == sys.executable
+        assert cmd[1:3] == ['-m', 'mini_basic']
+    finally:
+        root.destroy()
+
+
+def test_run_backend_dropdown_default_and_label() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        assert win.run_backend_var.get() == '<basic>'
+        assert win.run_label_var.get() == '▶ RUN <basic>'
+
+        win.run_backend_var.set('Real BBC BASIC for SDL')
+        win._update_run_button_label()
+        assert win.run_label_var.get() == '▶ RUN Real BBC BASIC for SDL'
+    finally:
+        root.destroy()
+
+
+def test_run_selected_backend_dispatches_by_dropdown_value(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        sample = tmp_path / 'demo.bas'
+        sample.write_text('10 PRINT 1\n')
+        win.path = str(sample)
+        win.text.edit_modified(False)
+
+        with mock.patch.object(win, 'run_program') as basic, \
+                mock.patch.object(win, 'run_program_bbcsdl') as bbcsdl, \
+                mock.patch.object(win, 'run_lispy_mini_basic') as lispy:
+            win._run_selected_backend()
+            basic.assert_called_once()
+
+            win.run_backend_var.set('Real BBC BASIC for SDL')
+            win._run_selected_backend()
+            bbcsdl.assert_called_once()
+
+            win.run_backend_var.set('Lispy mini-basic')
+            win._run_selected_backend()
+            lispy.assert_called_once()
+    finally:
+        root.destroy()
+
+
+def test_open_run_backend_picker_does_not_raise() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win._open_run_backend_picker()  # must not raise even if Post isn't backed by a real display
+    finally:
+        root.destroy()
+
+
+def test_run_dialog_offers_lispy_mini_basic_launcher() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win._open_run_dialog()
+        labels = _collect_button_texts(win.run_dialog)
+        assert any('Lispy' in label for label in labels)
+    finally:
+        root.destroy()
+
+
+def test_run_lispy_mini_basic_streams_subprocess_output_into_embedded_pane(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        sample = tmp_path / 'demo.bas'
+        sample.write_text('10 PRINT 1\n')
+        win.path = str(sample)
+        win.text.edit_modified(False)
+
+        fake_proc = mock.Mock()
+        fake_proc.stdout = iter(['1\n'])
+        with mock.patch('tools.editor.subprocess.Popen', return_value=fake_proc) as popen:
+            win.run_lispy_mini_basic()
+            cmd = popen.call_args.args[0]
+            assert '--display' in cmd and 'terminal' in cmd
+            assert sample.name in cmd[-1]
+
+            root.update()
+            for _ in range(20):
+                root.after(10)
+                root.update()
+    finally:
+        root.destroy()
+
+
+def test_listener_multiline_repl_input_runs_whole_def_proc_block() -> None:
+    """Enter submits everything typed, so a multi-line DEF PROC/ENDPROC
+    block composed directly in the Listener (Shift+Enter between lines)
+    works the same way a selected editor block does."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.listener_entry.insert(
+            '1.0', 'DEF PROCgreet(n$)\nPRINT "hi " + n$\nENDPROC',
+        )
+        win._listener_submit()
+        output = win.listener_output.get('1.0', 'end-1c')
+        assert 'DEF PROC defined.' in output
+
+        win.listener_entry.insert('1.0', 'PROCgreet("Tony")')
+        win._listener_submit()
+        output = win.listener_output.get('1.0', 'end-1c')
+        assert 'hi Tony' in output
+    finally:
+        root.destroy()
+
+
+def test_listener_shift_return_inserts_newline_without_submitting() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.listener_entry.insert('1.0', 'PRINT 1')
+        win._listener_insert_newline()
+        win.listener_entry.insert('insert', 'PRINT 2')
+
+        assert win.listener_entry.get('1.0', 'end-1c') == 'PRINT 1\nPRINT 2'
+        assert win.listener_output.get('1.0', 'end-1c') == ''
+    finally:
+        root.destroy()
