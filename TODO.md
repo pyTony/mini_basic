@@ -11,6 +11,7 @@ merge to main.
 
 ## Recently merged PRs
 
+- [#175](https://github.com/pyTony/mini_basic/pull/175) Fix ON ERROR/REPORT bugs; add Reindent/Strip Line Numbers to editor (2026-10-26)
 - [#174](https://github.com/pyTony/mini_basic/pull/174) Run an opened tokenized .bbc without forcing a save first (2026-10-25)
 - [#173](https://github.com/pyTony/mini_basic/pull/173) Give the BASIC editor its own icon and desktop shortcut (2026-10-25)
 - [#172](https://github.com/pyTony/mini_basic/pull/172) Add Run dialog with icon launchers (Python mini_basic / real BBC BASIC for SDL) (2026-10-25)
@@ -20,4 +21,3 @@ merge to main.
 - [#168](https://github.com/pyTony/mini_basic/pull/168) Add MITS BASIC examples and fix string literal spacing (2026-10-24)
 - [#167](https://github.com/pyTony/mini_basic/pull/167) fix: basics/fact.bas is valid BBC BASIC (drop END DEF) (2026-10-24)
 - [#166](https://github.com/pyTony/mini_basic/pull/166) Docs/superstartrek readable (2026-10-24)
-- [#165](https://github.com/pyTony/mini_basic/pull/165) Feat/bbc paren labels (2026-10-24)
