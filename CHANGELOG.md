@@ -5,6 +5,7 @@ Format: one line per merged PR, newest first, auto-generated from PR description
 
 ## 2026-10-26
 
+- [#178](https://github.com/pyTony/mini_basic/pull/178) Self-describe bbcsdl_jump_checks.bas as bbc dialect — Tony reported that running the editor's new Strip Line Numbers action (from #175) on `test/manual/bbcsdl_jump_checks.bas` produced a `L900:` label instead of the expected bbc-style `(L900)`.
 - [#175](https://github.com/pyTony/mini_basic/pull/175) Fix ON ERROR/REPORT bugs; add Reindent/Strip Line Numbers to editor — Interpreter bug fixes (found via a manual BBCSDL jump-semantics reference script): - A `GOTO`/`GOSUB`/`ON ... GOTO` to a line number that doesn't exist used to crash with an unformatted message, bypassing `ON ERROR` entirely. It's now routed through the normal runtime-error/trap machinery (BBC error 8, "Line does…
 
 ## 2026-10-25
