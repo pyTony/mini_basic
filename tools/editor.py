@@ -255,7 +255,10 @@ class EditorWindow:
 
         ttk.Button(toolbar, text='▶ Run…', command=self._open_run_dialog).pack(side=tk.LEFT, padx=4, pady=4)
         ttk.Button(
-            toolbar, text='Pretty (no numbers)', command=self.pretty_no_numbers,
+            toolbar, text='Reindent', command=self.reindent,
+        ).pack(side=tk.LEFT, padx=4, pady=4)
+        ttk.Button(
+            toolbar, text='Strip Line Numbers', command=self.strip_line_numbers,
         ).pack(side=tk.LEFT, padx=4, pady=4)
         ttk.Button(
             toolbar, text='Renumber', command=self.renumber,
@@ -712,22 +715,56 @@ class EditorWindow:
         self.text.edit_modified(True)
         self._highlight()
 
-    def pretty_no_numbers(self) -> None:
-        """Reformat the buffer as structural-indent source with no line numbers.
+    def reindent(self) -> None:
+        """Reformat the buffer's indentation in place, keeping line numbers.
 
-        Same presentation as ``SAVE PRETTY`` / ``LIST PRETTY`` in the REPL.
+        Safe for any program, including one with a calculated GOTO/GOSUB:
+        unlike ``strip_line_numbers``, nothing here depends on resolving a
+        jump target to a fixed line.
         """
         try:
             interp = self._parse_source()
             interp._apply_structural_indents()
             lines = interp._program_display_lines(
+                'pretty', include_line_numbers=True, case_fold=interp._detokenize_fold(),
+            )
+        except ValueError as exc:
+            messagebox.showerror('Reindent failed', str(exc))
+            return
+        self._replace_text('\n'.join(lines) + '\n')
+        self.status_var.set('Reindented')
+
+    def strip_line_numbers(self) -> None:
+        """Reformat the buffer as structural-indent source with no line numbers.
+
+        Same presentation as ``SAVE PRETTY`` / ``LIST PRETTY`` in the REPL,
+        except a literal-number GOTO/GOSUB/ON...GOTO/ON ERROR GOTO target is
+        first turned into a label, so the jump still has somewhere to land
+        once its line number is gone. Refuses outright (use **Reindent**
+        instead) when the program uses a form that can't be rewritten this
+        way -- a calculated GOTO/GOSUB with a computed target, RESTORE to a
+        specific line, or the compact IF ... THEN <line number> shorthand.
+        """
+        try:
+            interp = self._parse_source()
+            blocker = interp._program_blocks_number_stripping()
+            if blocker:
+                raise ValueError(
+                    f'Cannot strip line numbers: {blocker}. Use Reindent instead.'
+                )
+            interp._labelize_numeric_jump_targets()
+            interp._apply_structural_indents()
+            lines = interp._program_display_lines(
                 'pretty', include_line_numbers=False, case_fold=interp._detokenize_fold(),
             )
         except ValueError as exc:
-            messagebox.showerror('Pretty failed', str(exc))
+            messagebox.showerror('Strip line numbers failed', str(exc))
             return
         self._replace_text('\n'.join(lines) + '\n')
         self.status_var.set('Prettified (line numbers removed)')
+
+    # Old name kept for anyone calling it directly (tests, muscle memory).
+    pretty_no_numbers = strip_line_numbers
 
     def renumber(self) -> None:
         """Renumber the program 10, 20, 30, ... fixing up GOTO/GOSUB/etc targets.

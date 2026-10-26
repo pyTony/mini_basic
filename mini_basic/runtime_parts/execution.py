@@ -6353,11 +6353,110 @@ class RuntimeExecutionMixin:
                 if not text:
                     continue
                 for match in re.finditer(r'\b(?:GOTO|GOSUB)\s+(\S+)', text, re.IGNORECASE):
-                    try:
-                        target_lines.add(self.resolve_jump_target(match.group(1)))
-                    except ValueError:
-                        pass
+                    # ON expr GOTO/GOSUB a,b,c: the whole comma list is one
+                    # \S+ token; each item is its own target.
+                    for token in match.group(1).split(','):
+                        token = token.strip()
+                        if not token:
+                            continue
+                        try:
+                            target_lines.add(self.resolve_jump_target(token))
+                        except Exception:
+                            pass
         return target_lines
+
+    def _program_blocks_number_stripping(self) -> Optional[str]:
+        """Reason text if dropping line numbers would orphan a jump target.
+
+        A literal numeric GOTO/GOSUB/ON...GOTO/ON ERROR GOTO target can be
+        rewritten to a label (see ``_labelize_numeric_jump_targets``), but
+        these forms reference a line number with no label fallback:
+        a computed GOTO/GOSUB whose target is a runtime expression
+        (``GOTO (expr)``), ``RESTORE <line>`` (the DATA pointer, which
+        this interpreter only resolves numerically), and the compact
+        ``IF ... THEN <line>`` shorthand.
+        """
+        then_line_ok = self._dialect_allows('if_then_line')
+        for line_num in sorted(self.program):
+            statement = self.program[line_num]
+            for part in self._split_colon_statements(statement):
+                _, text = self._extract_label_prefix(part)
+                if not text:
+                    continue
+                if re.search(r'\b(?:GOTO|GOSUB)\s*\(', text, re.IGNORECASE):
+                    return (
+                        f'line {line_num} uses a calculated GOTO/GOSUB with a '
+                        'computed target -- there is no fixed line number to '
+                        'turn into a label'
+                    )
+                if re.search(r'\bRESTORE\s+\d+\b', text, re.IGNORECASE):
+                    return (
+                        f'line {line_num} uses RESTORE to a specific line '
+                        "number, which this interpreter doesn't resolve "
+                        'through labels'
+                    )
+                if then_line_ok and re.search(r'\bTHEN\s*\d+\b', text, re.IGNORECASE):
+                    return (
+                        f'line {line_num} uses the IF ... THEN <line number> '
+                        'shorthand, which is not rewritten automatically'
+                    )
+        return None
+
+    def _labelize_numeric_jump_targets(self) -> None:
+        """Replace literal-number GOTO/GOSUB/ON...GOTO targets with labels.
+
+        Lets SAVE PRETTY / the editor's strip-numbers action drop line
+        numbers without leaving a jump pointed at a number that no longer
+        appears anywhere in the listing. Call
+        ``_program_blocks_number_stripping`` first; this does not handle
+        the forms it flags (computed GOTO, RESTORE <line>, THEN <line>).
+        """
+        targets = sorted(self._collect_goto_targets() & set(self.program))
+        if not targets:
+            return
+        line_to_label = {line: name for name, line in self.labels.items()}
+        new_labels: Dict[int, str] = {}
+        for line_num in targets:
+            if line_num in line_to_label:
+                continue
+            name = f'L{line_num}'
+            suffix = 0
+            existing = set(self.labels) | set(new_labels.values())
+            while name in existing:
+                suffix += 1
+                name = f'L{line_num}_{suffix}'
+            new_labels[line_num] = name
+        label_of: Dict[int, str] = dict(line_to_label)
+        label_of.update(new_labels)
+
+        def _replace_targets(match: 're.Match[str]') -> str:
+            keyword = match.group(1)
+            rest = match.group(2)
+            out = []
+            for token in rest.split(','):
+                token = token.strip()
+                try:
+                    resolved = self.resolve_jump_target(token)
+                except ValueError:
+                    out.append(token)
+                    continue
+                out.append(label_of.get(resolved, token))
+            return f'{keyword} {",".join(out)}'
+
+        # Exclude ':' from the target-token charclass so this never reaches
+        # across a colon into a following statement on the same line.
+        pattern = re.compile(
+            r'\b(GOTO|GOSUB)\s+([^\s:,]+(?:\s*,\s*[^\s:,]+)*)', re.IGNORECASE,
+        )
+        for line_num, statement in list(self.program.items()):
+            if pattern.search(statement):
+                self.program[line_num] = pattern.sub(_replace_targets, statement)
+
+        for line_num, name in new_labels.items():
+            prefix = f'({name})' if self.config.dialect == 'bbc' else f'{name}:'
+            self.program[line_num] = f'{prefix} {self.program[line_num]}'
+
+        self._rebuild_labels()
 
     def _line_has_goto_gosub(self, statement: str) -> bool:
         for part in self._split_colon_statements(statement):
