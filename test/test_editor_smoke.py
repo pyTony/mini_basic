@@ -339,6 +339,96 @@ def test_browsing_bbcsdl_paths_persists_to_settings(tmp_path) -> None:
         root.destroy()
 
 
+def test_run_program_bbcsdl_opened_tokenized_bbc_runs_without_save_prompt(tmp_path) -> None:
+    """Running an unmodified, already-loaded .bbc via BBCSDL must not demand
+    "Save required" -- that previously happened unconditionally whenever
+    ``self.path`` was None, even though nothing had actually changed and
+    ``run_program`` (the Python launcher) already handles this case fine.
+    A sibling .bas is derived silently from the detokenized buffer instead.
+    """
+    race_bbc = os.path.join(_ROOT, 'basics', 'RACE.BBC')
+    if not os.path.exists(race_bbc):
+        pytest.skip('basics/RACE.BBC fixture not present')
+
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
+            win.open_file()
+        assert win.path is None
+        assert win.text.edit_modified() is False
+
+        fake_exe = tmp_path / 'bbcsdl.exe'
+        fake_exe.write_text('x')
+        fake_helper = tmp_path / 'basrun.bbc'
+        fake_helper.write_text('x')
+        win.bbcsdl_executable_var.set(str(fake_exe))
+        win.bbcsdl_helper_var.set(str(fake_helper))
+
+        with mock.patch('tools.editor.messagebox.showinfo') as info, \
+             mock.patch.object(win, 'save_file_as') as save_as, \
+             mock.patch('tools.editor.subprocess.Popen') as popen:
+            win.run_program_bbcsdl()
+
+        info.assert_not_called()
+        save_as.assert_not_called()
+        popen.assert_called_once()
+        args, _kwargs = popen.call_args
+        expected_bas = os.path.splitext(race_bbc)[0] + '.bas'
+        assert args[0] == [str(fake_exe), str(fake_helper), expected_bas]
+        assert win.path == expected_bas
+        os.remove(expected_bas)
+    finally:
+        root.destroy()
+
+
+def test_dialog_dir_defaults_to_current_file_directory(tmp_path) -> None:
+    """Open/Save dialogs must not rely on the OS's globally-remembered
+    last-used folder (shared with other apps, e.g. lispy3's own editor) --
+    once a file is open, dialogs should default to its directory."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win._last_dialog_dir = None
+        sample = tmp_path / 'demo.bas'
+        sample.write_text('10 PRINT 1\n')
+        win.path = str(sample)
+        win._original_source_path = str(sample)
+        assert win._dialog_dir() == str(tmp_path)
+    finally:
+        root.destroy()
+
+
+def test_dialog_dir_remembers_last_used_directory_across_calls(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        with mock.patch('tools.editor._save_editor_settings_to_disk') as save_to_disk:
+            win._remember_dialog_dir(str(tmp_path / 'demo.bas'))
+        assert win._editor_settings['last_dialog_dir'] == str(tmp_path)
+        save_to_disk.assert_called_once_with(win._editor_settings)
+
+        win.path = None
+        win._original_source_path = None
+        win._last_dialog_dir = None
+        win._editor_settings['last_dialog_dir'] = str(tmp_path)
+        assert win._dialog_dir() == str(tmp_path)
+    finally:
+        root.destroy()
+
+
+def test_open_file_passes_initialdir_to_dialog(tmp_path) -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win._last_dialog_dir = str(tmp_path)
+        with mock.patch('tools.editor.filedialog.askopenfilename', return_value='') as ask:
+            win.open_file()
+        assert ask.call_args.kwargs['initialdir'] == str(tmp_path)
+    finally:
+        root.destroy()
+
+
 def test_open_tokenized_bbc_detokenizes_into_editable_text(tmp_path) -> None:
     """Reuses the interpreter's own LOAD/LIST, same as basics/RACE.BBC et al."""
     from mini_basic.bbc_detokenize import parse_wilson_program

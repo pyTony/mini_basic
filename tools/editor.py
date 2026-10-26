@@ -198,6 +198,7 @@ class EditorWindow:
         self.run_dialog: Optional[tk.Toplevel] = None
         self._editor_settings = _load_editor_settings()
         self._icon_image = _set_window_icon(self.root)
+        self._last_dialog_dir: Optional[str] = self._editor_settings.get('last_dialog_dir')
 
         self._build_menu()
         self._build_widgets()
@@ -366,9 +367,40 @@ class EditorWindow:
 
     # -- File handling -----------------------------------------------------
 
+    def _dialog_dir(self) -> str:
+        """Where Open/Save dialogs should start.
+
+        Tk passes no ``initialdir`` of its own choosing to the native file
+        picker, so without one the OS/desktop's file-chooser falls back to
+        whatever directory it last remembered -- shared across every app
+        that uses the same native dialog (on Linux, the desktop portal
+        remembers one location globally). That let this editor's dialogs
+        open wherever another program (e.g. lispy3's own editor) last
+        browsed to. Prefer the current file's directory, then the last
+        directory *this* editor used (persisted in
+        ``~/.mini_basic_editor.json`` across runs), then the repo's own
+        ``basics/`` directory of sample programs.
+        """
+        current = self.path or self._original_source_path
+        if current:
+            return os.path.dirname(current) or _ROOT
+        if self._last_dialog_dir and os.path.isdir(self._last_dialog_dir):
+            return self._last_dialog_dir
+        basics_dir = os.path.join(_ROOT, 'basics')
+        return basics_dir if os.path.isdir(basics_dir) else _ROOT
+
+    def _remember_dialog_dir(self, path: str) -> None:
+        directory = os.path.dirname(os.path.abspath(path))
+        if directory == self._last_dialog_dir:
+            return
+        self._last_dialog_dir = directory
+        self._editor_settings['last_dialog_dir'] = directory
+        _save_editor_settings_to_disk(self._editor_settings)
+
     def open_file(self) -> None:
         path = filedialog.askopenfilename(
             title='Open BASIC program',
+            initialdir=self._dialog_dir(),
             filetypes=[('BASIC source', '*.bas *.bbc *.txt'), ('All files', '*.*')],
         )
         if path:
@@ -386,6 +418,7 @@ class EditorWindow:
             return
         self.path = path
         self._original_source_path = path
+        self._remember_dialog_dir(path)
         self.text.delete('1.0', tk.END)
         self.text.insert('1.0', content)
         self.text.edit_modified(False)
@@ -418,6 +451,7 @@ class EditorWindow:
         )
         self.path = None
         self._original_source_path = path
+        self._remember_dialog_dir(path)
         self._replace_text('\n'.join(lines) + '\n')
         self.text.edit_modified(False)
         self._update_title()
@@ -434,6 +468,7 @@ class EditorWindow:
     def save_file_as(self) -> None:
         path = filedialog.asksaveasfilename(
             title='Save BASIC program',
+            initialdir=self._dialog_dir(),
             defaultextension='.bas',
             filetypes=[('BASIC source', '*.bas *.txt'), ('All files', '*.*')],
         )
@@ -452,6 +487,7 @@ class EditorWindow:
         except OSError as exc:
             messagebox.showerror('Save failed', str(exc))
             return False
+        self._remember_dialog_dir(path)
         self.text.edit_modified(False)
         self.status_var.set(f'Saved {path}')
         return True
@@ -552,13 +588,22 @@ class EditorWindow:
         plain-text ``.bas`` file and runs it -- BBCSDL tokenises it itself, so
         no tokenizer is reimplemented here.
         """
-        if not self.path:
-            messagebox.showinfo('Save required', 'Save the program before running it.')
-            self.save_file_as()
-            if not self.path:
+        path = self._run_target_path()
+        if not path:
+            return
+        if os.path.splitext(path)[1].lower() == '.bbc':
+            # Mirrors run_program(): an opened tokenized .bbc that hasn't
+            # been touched is only path-less because .bbc is reserved for
+            # tokenized Save/Save As output (see _load_tokenized_bbc). The
+            # native helper reads plain text and tokenises it itself, so
+            # derive a sibling .bas from the already-detokenized buffer
+            # instead of demanding "Save required" when nothing changed.
+            bas_path = os.path.splitext(path)[0] + '.bas'
+            if not self._write_to(bas_path):
                 return
-        if self.text.edit_modified():
-            self.save_file()
+            self.path = bas_path
+            self._update_title()
+            path = bas_path
 
         executable = self.bbcsdl_executable_var.get().strip()
         helper = self.bbcsdl_helper_var.get().strip()
@@ -576,13 +621,13 @@ class EditorWindow:
             )
             return
 
-        run_dir = os.path.dirname(self.path) or '.'
+        run_dir = os.path.dirname(path) or '.'
         try:
-            self._run_proc = subprocess.Popen([executable, helper, self.path], cwd=run_dir)
+            self._run_proc = subprocess.Popen([executable, helper, path], cwd=run_dir)
         except OSError as exc:
             messagebox.showerror('Run failed', str(exc))
             return
-        self.status_var.set('Running (real BBC BASIC for SDL): ' + self.path)
+        self.status_var.set('Running (real BBC BASIC for SDL): ' + path)
 
     def _save_bbcsdl_settings(self) -> None:
         self._editor_settings['bbcsdl_executable'] = self.bbcsdl_executable_var.get()
