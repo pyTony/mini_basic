@@ -19,18 +19,15 @@ Scope (intentionally small; grown from a first pass towards a fuller tool):
   * A window/taskbar icon (``tools/icons/``), lispy_machine-style, instead
     of the platform's default Tk icon.
   * A **Listener** pane (bottom, resizable), lispy3-machine-style: a
-    persistent in-process interpreter, REPL-style rather than a single-line
-    entry -- its input box is multi-line (``Shift+Enter`` adds a line,
-    ``Enter`` submits everything typed so far, ``Ctrl+Up``/``Ctrl+Down``
-    recall history), without any line numbers, ``AUTO``, or line-targeted
-    ``EDIT`` -- the natural style for the unnumbered ``mini`` dialect.
-    ``F5`` evaluates the line at the cursor in the editor buffer there;
-    ``Shift+F5`` evaluates the current selection (a full ``DEF PROC``/
-    ``DEF FN`` ... ``ENDPROC``/``END DEF`` block included, and the same is
-    true of a block typed directly into the Listener). Every evaluation
-    goes through the same unmodified ``mini_basic.runtime`` REPL dispatch
-    used by the command-line REPL (``_execute_repl_line``) -- this pane
-    only drives it.
+    persistent in-process interpreter you can type statements into and
+    get results back immediately, without any line numbers, ``AUTO``, or
+    line-targeted ``EDIT`` -- the natural style for the unnumbered
+    ``mini`` dialect. ``F5`` evaluates the line at the cursor in the
+    editor buffer there; ``Shift+F5`` evaluates the current selection
+    (a full ``DEF PROC``/``DEF FN`` ... ``ENDPROC``/``END DEF`` block
+    included). Every evaluation goes through the same unmodified
+    ``mini_basic.runtime`` REPL dispatch used by the command-line REPL
+    (``_execute_repl_line``) -- this pane only drives it.
 
 Running a whole program still launches a subprocess (or, for Lispy
 mini-basic, streams one into an embedded pane) so pygame/console display
@@ -434,25 +431,18 @@ class EditorWindow:
         for tag, style in _LISTENER_TAG_STYLES.items():
             self.listener_output.tag_configure(tag, **style)
 
-        # A real REPL, not a single-line entry: Enter submits everything
-        # typed so far (one statement or several, including a whole
-        # multi-line DEF PROC/DEF FN block -- _run_in_listener already
-        # handles that for Eval Selection); Shift+Enter inserts a newline
-        # to keep composing. History (Ctrl+Up/Down) replaces plain Up/Down,
-        # which now just move the cursor within multi-line input.
+        # A normal single-line REPL entry -- Enter submits the line
+        # immediately, same as before this editor had a Listener pane at all.
         entry_row = ttk.Frame(self.listener_frame)
         entry_row.pack(side=tk.BOTTOM, fill=tk.X)
-        ttk.Label(entry_row, text='>').pack(side=tk.LEFT, padx=(4, 2), anchor='n')
-        self.listener_entry = tk.Text(
-            entry_row, font=('TkFixedFont', 10), height=3, wrap='word', undo=True,
-        )
+        ttk.Label(entry_row, text='>').pack(side=tk.LEFT, padx=(4, 2))
+        self.listener_entry = ttk.Entry(entry_row, font=('TkFixedFont', 10))
         self.listener_entry.pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4), pady=4,
         )
         self.listener_entry.bind('<Return>', self._listener_submit)
-        self.listener_entry.bind('<Shift-Return>', self._listener_insert_newline)
-        self.listener_entry.bind('<Control-Up>', self._listener_history_prev)
-        self.listener_entry.bind('<Control-Down>', self._listener_history_next)
+        self.listener_entry.bind('<Up>', self._listener_history_prev)
+        self.listener_entry.bind('<Down>', self._listener_history_next)
 
     # -- File handling -----------------------------------------------------
 
@@ -1153,29 +1143,18 @@ class EditorWindow:
         self._focus_listener_entry()
 
     def _listener_submit(self, _event: object = None) -> str:
-        """Enter: submit everything typed so far -- one line or several.
-
-        Routes through ``_run_in_listener`` (the same dispatch Eval
-        Selection uses) instead of executing only a single stripped line,
-        so a multi-line DEF PROC/DEF FN block typed directly into the
-        Listener (Shift+Enter between lines) works the same way a selected
-        block does, without needing the editor buffer at all.
-        """
-        text = self.listener_entry.get('1.0', 'end-1c')
-        self.listener_entry.delete('1.0', 'end')
+        text = self.listener_entry.get()
+        self.listener_entry.delete(0, tk.END)
         if text.strip():
             self._listener_history.append(text)
             self._listener_history_index = len(self._listener_history)
-            self._run_in_listener(text)
-        return 'break'
-
-    def _listener_insert_newline(self, _event: object = None) -> str:
-        self.listener_entry.insert('insert', '\n')
+            self._listener_write(f'> {text}\n', 'echo')
+            self._listener_execute(text)
         return 'break'
 
     def _set_listener_entry(self, text: str) -> None:
-        self.listener_entry.delete('1.0', 'end')
-        self.listener_entry.insert('1.0', text)
+        self.listener_entry.delete(0, tk.END)
+        self.listener_entry.insert(0, text)
 
     def _listener_history_prev(self, _event: object = None) -> str:
         if self._listener_history:

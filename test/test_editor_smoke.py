@@ -563,7 +563,7 @@ def test_listener_eval_selection_defines_and_runs_a_proc_without_auto() -> None:
         output = win.listener_output.get('1.0', 'end-1c')
         assert 'DEF PROC defined.' in output
 
-        win.listener_entry.insert('1.0', 'PROCgreet("Tony")')
+        win.listener_entry.insert(0, 'PROCgreet("Tony")')
         win._listener_submit()
         output = win.listener_output.get('1.0', 'end-1c')
         assert 'hi Tony' in output
@@ -575,7 +575,7 @@ def test_listener_blocks_auto_and_bare_edit() -> None:
     root = _make_root()
     try:
         win = EditorWindow(root)
-        win.listener_entry.insert('1.0', 'AUTO')
+        win.listener_entry.insert(0, 'AUTO')
         win._listener_submit()
         output = win.listener_output.get('1.0', 'end-1c')
         assert 'not available here' in output
@@ -806,37 +806,3 @@ def test_run_lispy_mini_basic_streams_subprocess_output_into_embedded_pane(tmp_p
         root.destroy()
 
 
-def test_listener_multiline_repl_input_runs_whole_def_proc_block() -> None:
-    """Enter submits everything typed, so a multi-line DEF PROC/ENDPROC
-    block composed directly in the Listener (Shift+Enter between lines)
-    works the same way a selected editor block does."""
-    root = _make_root()
-    try:
-        win = EditorWindow(root)
-        win.listener_entry.insert(
-            '1.0', 'DEF PROCgreet(n$)\nPRINT "hi " + n$\nENDPROC',
-        )
-        win._listener_submit()
-        output = win.listener_output.get('1.0', 'end-1c')
-        assert 'DEF PROC defined.' in output
-
-        win.listener_entry.insert('1.0', 'PROCgreet("Tony")')
-        win._listener_submit()
-        output = win.listener_output.get('1.0', 'end-1c')
-        assert 'hi Tony' in output
-    finally:
-        root.destroy()
-
-
-def test_listener_shift_return_inserts_newline_without_submitting() -> None:
-    root = _make_root()
-    try:
-        win = EditorWindow(root)
-        win.listener_entry.insert('1.0', 'PRINT 1')
-        win._listener_insert_newline()
-        win.listener_entry.insert('insert', 'PRINT 2')
-
-        assert win.listener_entry.get('1.0', 'end-1c') == 'PRINT 1\nPRINT 2'
-        assert win.listener_output.get('1.0', 'end-1c') == ''
-    finally:
-        root.destroy()
