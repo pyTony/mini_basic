@@ -82,6 +82,67 @@ def test_pretty_no_numbers_strips_line_numbers_and_indents() -> None:
         root.destroy()
 
 
+def test_strip_line_numbers_turns_goto_target_into_label() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.dialect_var.set('bbc')
+        win.text.delete('1.0', tk.END)
+        win.text.insert(
+            '1.0',
+            '10 PRINT "a"\n20 GOTO 40\n30 PRINT "skip"\n40 PRINT "b"\n',
+        )
+
+        win.strip_line_numbers()
+        content = win.text.get('1.0', 'end-1c')
+
+        assert '10' not in content
+        assert '40' not in content
+        assert 'GOTO L40' in content
+        assert '(L40) PRINT' in content
+    finally:
+        root.destroy()
+
+
+def test_strip_line_numbers_refuses_computed_goto() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.dialect_var.set('bbc')
+        win.text.delete('1.0', tk.END)
+        win.text.insert(
+            '1.0',
+            '10 DIM T%(1)\n20 T%(0)=40\n30 GOTO (T%(0))\n40 PRINT "b"\n',
+        )
+        original = win.text.get('1.0', 'end-1c')
+
+        with mock.patch('tools.editor.messagebox.showerror') as mock_error:
+            win.strip_line_numbers()
+        mock_error.assert_called_once()
+        assert 'calculated GOTO' in mock_error.call_args[0][1]
+        # Refused: buffer must be untouched.
+        assert win.text.get('1.0', 'end-1c') == original
+    finally:
+        root.destroy()
+
+
+def test_reindent_keeps_line_numbers() -> None:
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.text.delete('1.0', tk.END)
+        win.text.insert('1.0', '10 FOR I=1 TO 3\n20 PRINT I\n30 NEXT I\n40 END\n')
+
+        win.reindent()
+        content = win.text.get('1.0', 'end-1c')
+
+        assert '10' in content
+        assert '20' in content
+        assert '    PRINT I' in content
+    finally:
+        root.destroy()
+
+
 def test_renumber_fixes_up_goto_targets() -> None:
     root = _make_root()
     try:

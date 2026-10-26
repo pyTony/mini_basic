@@ -1,25 +1,32 @@
-10 REM bbcsdl_jump_checks.bas -- manual BBCSDL reference checks: run ONE test per RUN
-15 REM python -m mini_basic --dialect bbc test/manual/bbcsdl_jump_checks.bas
-20 ON ERROR PRINT"ERROR ";ERR;" AT LINE ";ERL: REPORT: PRINT: END
-30 PRINT "BBCSDL jump checks - record your BBCSDL version"
-40 PRINT "1 FOR local jump     2 WHILE local jump"
-50 PRINT "3 IF local jump      4 Jump to enclosing FOR"
-60 PRINT "5 Jump out of loops  6 Backward WHILE jump"
-70 PRINT "7 ELSE local jump    8 ON GOTO in REPEAT"
-80 PRINT "9 CASE local jump   10 Missing target"
-90 PRINT "11 GOSUB same line  12 Nested GOSUB"
-100 PRINT "13 GOSUB in FOR     14 ON GOSUB"
-110 INPUT "Test number (1-14): "CHOICE%
-120 IF CHOICE% < 1 OR CHOICE% > 14 THEN PRINT "Invalid test number": END
-130 REM Calculated (computed) GOTO replaces a 14-way IF/THEN/GOTO chain.
-140 ON CHOICE% GOTO 1010,2010,3010,4010,5010,6010,7010,8010,9010,10010,11010,12010,13010,14010
+10 REM bbcsdl_jump_checks.bas -- manual BBCSDL reference checks: menu loops
+11 REM so you can run several tests per session without restarting from the CLI.
+12 REM 0 quits; an out-of-range choice just redisplays the menu.
+15 REM Terminal launch (like Lispy Machine's documented quickstart commands):
+16 REM python -m mini_basic --dialect bbc test/manual/bbcsdl_jump_checks.bas
+20 ON ERROR PRINT"ERROR ";ERR;" AT LINE ";ERL: REPORT: PRINT: GOTO 30
+30 REPEAT
+40 PRINT "BBCSDL jump checks - record your BBCSDL version"
+50 PRINT "1 FOR local jump     2 WHILE local jump"
+60 PRINT "3 IF local jump      4 Jump to enclosing FOR"
+70 PRINT "5 Jump out of loops  6 Backward WHILE jump"
+80 PRINT "7 ELSE local jump    8 ON GOTO in REPEAT"
+90 PRINT "9 CASE local jump   10 Missing target"
+100 PRINT "11 GOSUB same line  12 Nested GOSUB"
+110 PRINT "13 GOSUB in FOR     14 ON GOSUB"
+115 PRINT "0 Quit"
+120 INPUT "Test number (0-14): "CHOICE%
+125 IF CHOICE% = 0 THEN END
+130 IF CHOICE% < 1 OR CHOICE% > 14 THEN PRINT "Invalid test number": GOTO 30
+140 REM Calculated (computed) GOTO replaces a 14-way IF/THEN/GOTO chain.
+150 ON CHOICE% GOTO 1010,2010,3010,4010,5010,6010,7010,8010,9010,10010,11010,12010,13010,14010
+170 UNTIL FALSE
 1010 FOR I = 1 TO 3
 1020 GOTO 1040
 1030 PRINT "wrong"
 1040 PRINT ;I
 1050 NEXT
 1060 PRINT "done"
-1070 END
+1070 GOTO 30
 2010 N = 0
 2020 WHILE N<2
 2030 N += 1
@@ -28,14 +35,14 @@
 2060 PRINT ;N
 2070 ENDWHILE
 2080 PRINT "done"
-2090 END
+2090 GOTO 30
 3010 IF TRUE THEN
 3020 GOTO 3040
 3030 PRINT "wrong"
 3040 PRINT "inside"
 3050 ENDIF
 3060 PRINT "after"
-3070 END
+3070 GOTO 30
 4010 FOR I = 1 TO 2
 4020 IF TRUE THEN
 4030 GOTO 4060
@@ -44,7 +51,7 @@
 4060 PRINT ;I
 4070 NEXT
 4080 PRINT "done"
-4090 END
+4090 GOTO 30
 5010 FOR I = 1 TO 2
 5020 IF TRUE THEN
 5030 GOTO 5080
@@ -52,14 +59,14 @@
 5050 PRINT "wrong"
 5060 NEXT
 5080 PRINT "out"
-5090 END
+5090 GOTO 30
 6010 N = 0
 6020 WHILE N<3
 6030 N += 1
 6040 IF N<3 THEN GOTO 6030
 6050 PRINT ;N
 6060 ENDWHILE
-6070 END
+6070 GOTO 30
 7010 IF FALSE THEN
 7020 PRINT "wrong"
 7030 ELSE
@@ -68,7 +75,7 @@
 7060 PRINT "else"
 7070 ENDIF
 7080 PRINT "after"
-7090 END
+7090 GOTO 30
 8010 N = 0
 8020 REPEAT
 8030 N += 1
@@ -76,7 +83,7 @@
 8050 PRINT "wrong"
 8060 PRINT ;N
 8070 UNTIL N = 2
-8080 END
+8080 GOTO 30
 9010 CASE 1 OF
 9020 WHEN 1
 9030 GOTO 9050
@@ -86,22 +93,22 @@
 9070 PRINT "wrong"
 9080 ENDCASE
 9090 PRINT "after"
-9100 END
+9100 GOTO 30
 10010 WHILE TRUE
 10020 GOTO 999
 10030 ENDWHILE
-10040 END
+10040 GOTO 30
 11010 GOSUB 11100: PRINT "back"
-11020 END
+11020 GOTO 30
 11100 PRINT "sub": RETURN
-12010 GOSUB 12100: PRINT "main": END
+12010 GOSUB 12100: PRINT "main": GOTO 30
 12100 PRINT "outer": GOSUB 12200: PRINT "outer back": RETURN
 12200 PRINT "inner": RETURN
 13010 FOR I = 1 TO 2
 13020 GOSUB 13100
 13030 NEXT
-13040 PRINT "done": END
+13040 PRINT "done": GOTO 30
 13100 PRINT ;I: RETURN
-14010 ON 2 GOSUB 14100,14200: PRINT "back": END
+14010 ON 2 GOSUB 14100,14200: PRINT "back": GOTO 30
 14100 PRINT "wrong": RETURN
 14200 PRINT "second": RETURN
