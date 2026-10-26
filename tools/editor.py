@@ -4,31 +4,39 @@ Scope (intentionally small; grown from a first pass towards a fuller tool):
   * Open/Save/Save As for BASIC source files.
   * mini_basic-aware syntax highlighting (keywords, PROC/ENDPROC/FN,
     ``*``-commands, line numbers, dialect hint comments).
-  * A "▶ Run…" launcher, lispy_machine-style: a dialog with icon buttons
-    for the two ways to run the buffer, instead of flat toolbar/menu
-    commands -- Python mini_basic (``python -m mini_basic <file>``, the
-    same way it is normally run from a shell) or the real BBC BASIC for
-    SDL (``tools/bbcsdl-basrun.bas``, see docs/BBCSDL.md). This editor
-    does not reimplement any display: pygame graphics programs still
-    open their own pygame window, console programs still use the ANSI
-    terminal the interpreter already uses, and BBCSDL opens its own
-    window entirely.
+  * Choosing how to run and actually running are separate: a toolbar
+    dropdown picks the backend (``<basic>`` -- Python mini_basic, "Real
+    BBC BASIC for SDL", or "Lispy mini-basic" -- streamed into an
+    embedded pane the way lispy3's own adapter runs it), and a ``▶ RUN``
+    button next to it runs the buffer with whichever one is selected.
+    ``F6`` runs the buffer with the current backend; ``Shift+F6`` opens
+    the dropdown to pick a different one. The "⚙" button opens a dialog
+    with icon launchers plus the settings each backend needs (pygame
+    display, hold/timing, BBCSDL paths). This editor does not reimplement
+    any display itself: pygame graphics programs still open their own
+    pygame window, console programs still use the ANSI terminal the
+    interpreter already uses, and BBCSDL opens its own window entirely.
   * A window/taskbar icon (``tools/icons/``), lispy_machine-style, instead
     of the platform's default Tk icon.
   * A **Listener** pane (bottom, resizable), lispy3-machine-style: a
-    persistent in-process interpreter you can type statements into and
-    get results back immediately, without any line numbers, ``AUTO``, or
-    line-targeted ``EDIT`` -- the natural style for the unnumbered
-    ``mini`` dialect. ``F5`` evaluates the line at the cursor in the
-    editor buffer there; ``Shift+F5`` evaluates the current selection
-    (a full ``DEF PROC``/``DEF FN`` ... ``ENDPROC``/``END DEF`` block
-    included). Every evaluation goes through the same unmodified
-    ``mini_basic.runtime`` REPL dispatch used by the command-line REPL
-    (``_execute_repl_line``) -- this pane only drives it.
+    persistent in-process interpreter, REPL-style rather than a single-line
+    entry -- its input box is multi-line (``Shift+Enter`` adds a line,
+    ``Enter`` submits everything typed so far, ``Ctrl+Up``/``Ctrl+Down``
+    recall history), without any line numbers, ``AUTO``, or line-targeted
+    ``EDIT`` -- the natural style for the unnumbered ``mini`` dialect.
+    ``F5`` evaluates the line at the cursor in the editor buffer there;
+    ``Shift+F5`` evaluates the current selection (a full ``DEF PROC``/
+    ``DEF FN`` ... ``ENDPROC``/``END DEF`` block included, and the same is
+    true of a block typed directly into the Listener). Every evaluation
+    goes through the same unmodified ``mini_basic.runtime`` REPL dispatch
+    used by the command-line REPL (``_execute_repl_line``) -- this pane
+    only drives it.
 
-No in-editor graphics/terminal pane for running whole programs: ``Run``
-still launches a subprocess so pygame/console display behaves exactly as
-it does from a shell. See docs/ for anything beyond this.
+Running a whole program still launches a subprocess (or, for Lispy
+mini-basic, streams one into an embedded pane) so pygame/console display
+behaves exactly as it does from a shell -- the Listener above is for
+immediate-mode statements, not whole-program display. See docs/ for
+anything beyond this.
 
 Usage::
 
@@ -40,10 +48,12 @@ import contextlib
 import io
 import json
 import os
+import queue
 import re
 import subprocess
 import sys
 import tempfile
+import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import List, Optional, Tuple
@@ -84,6 +94,21 @@ _TAG_STYLES = {
 }
 
 _DIALECTS = ('auto', 'mini', 'mits', 'bbc', 'commodore', 'tiny')
+
+# Run backends offered by the toolbar dropdown, in display order. '<basic>'
+# is Python mini_basic itself (run_program); the others dispatch to
+# run_program_bbcsdl / run_lispy_mini_basic. Labels are the dropdown values
+# and the dict keys _run_selected_backend() switches on.
+_RUN_BACKEND_BASIC = '<basic>'
+_RUN_BACKEND_BBCSDL = 'Real BBC BASIC for SDL'
+_RUN_BACKEND_LISPY = 'Lispy mini-basic'
+_RUN_BACKENDS = (_RUN_BACKEND_BASIC, _RUN_BACKEND_BBCSDL, _RUN_BACKEND_LISPY)
+
+# Strips ANSI escape sequences (cursor moves, colour) from a terminal-mode
+# run's output before it lands in the embedded Lispy mini-basic pane, which
+# has no terminal emulation -- same tradeoff lispy3's own adapter note
+# documents ("INPUT has no console here").
+_ANSI_RE = re.compile(r'\x1b\[[0-9;]*[A-Za-z]')
 
 _LISTENER_TAG_STYLES = {
     'echo': {'foreground': '#0033cc'},
@@ -131,6 +156,32 @@ def _default_bbcsdl() -> str:
     if os.path.isfile(installed):
         return installed
     return shutil.which('bbcsdl') or ''
+
+
+def _wrap_with_hold_and_timing(cmd: List[str], *, hold: bool, timing: bool) -> List[str]:
+    """Wrap a terminal-mode run command so the console/output survives it.
+
+    mini_basic's own ``--hold`` only holds a pygame *display* window open
+    (``_shutdown_display``); a plain terminal run has no window, so on
+    Windows the ``CREATE_NEW_CONSOLE`` console just closes -- taking the
+    output with it -- the instant the child process exits. Running the real
+    command inside this tiny wrapper process keeps that console alive (the
+    wrapper is still running) until the user presses Enter, and/or reports
+    how long the run took either way.
+    """
+    body = (
+        'import json, subprocess, sys, time\n'
+        'cmd = json.loads(sys.argv[1])\n'
+        't0 = time.perf_counter()\n'
+        'rc = subprocess.call(cmd)\n'
+        'elapsed = time.perf_counter() - t0\n'
+    )
+    if timing:
+        body += 'print(f"\\n[Run finished in {elapsed:.3f}s]")\n'
+    if hold:
+        body += 'input("\\nPress Enter to close...")\n'
+    body += 'sys.exit(rc)\n'
+    return [sys.executable, '-c', body, json.dumps(cmd)]
 
 
 _ICONS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'icons')
@@ -248,13 +299,35 @@ class EditorWindow:
         self.root.bind('<Control-s>', lambda _e: self.save_file())
         self.root.bind('<F5>', lambda _e: self.eval_line_at_cursor())
         self.root.bind('<Shift-F5>', lambda _e: self.eval_selection())
+        self.root.bind('<F6>', lambda _e: self._run_selected_backend())
+        self.root.bind('<Shift-F6>', lambda _e: self._open_run_backend_picker())
         self.root.bind('<Control-l>', lambda _e: self._focus_listener_entry())
 
     def _build_widgets(self) -> None:
         toolbar = ttk.Frame(self.root)
         toolbar.pack(side=tk.TOP, fill=tk.X)
 
-        ttk.Button(toolbar, text='▶ Run…', command=self._open_run_dialog).pack(side=tk.LEFT, padx=4, pady=4)
+        # Choosing how to run and running are separate controls: the dropdown
+        # picks the backend, RUN runs the buffer with it (F6); the gear opens
+        # the fuller dialog for backend-specific settings and icon launchers.
+        self.run_backend_var = tk.StringVar(value=_RUN_BACKEND_BASIC)
+        self.run_backend_combo = ttk.Combobox(
+            toolbar, textvariable=self.run_backend_var, values=_RUN_BACKENDS,
+            width=20, state='readonly',
+        )
+        self.run_backend_combo.pack(side=tk.LEFT, padx=(4, 2), pady=4)
+        self.run_backend_combo.bind('<<ComboboxSelected>>', self._update_run_button_label)
+
+        self.run_label_var = tk.StringVar()
+        ttk.Button(
+            toolbar, textvariable=self.run_label_var, command=self._run_selected_backend,
+        ).pack(side=tk.LEFT, padx=(0, 2), pady=4)
+        self._update_run_button_label()
+
+        ttk.Button(
+            toolbar, text='⚙', width=3, command=self._open_run_dialog,
+        ).pack(side=tk.LEFT, padx=(0, 4), pady=4)
+
         ttk.Button(
             toolbar, text='Reindent', command=self.reindent,
         ).pack(side=tk.LEFT, padx=4, pady=4)
@@ -283,6 +356,13 @@ class EditorWindow:
         # Renumber share self.dialect_var and _build_run_command reads these.
         self.pygame_var = tk.BooleanVar(value=False)
         self.wait_esc_var = tk.BooleanVar(value=False)
+        # wait_esc_var only holds a pygame *display* window open (--hold is
+        # read by the display shutdown path). A terminal run has no window,
+        # so these two are separate: hold the console process itself open
+        # (Windows' CREATE_NEW_CONSOLE closes it instantly otherwise), and/or
+        # report how long the run took.
+        self.hold_console_var = tk.BooleanVar(value=False)
+        self.show_timing_var = tk.BooleanVar(value=False)
         self.bbcsdl_executable_var = tk.StringVar(
             value=self._editor_settings.get('bbcsdl_executable') or _default_bbcsdl(),
         )
@@ -354,16 +434,25 @@ class EditorWindow:
         for tag, style in _LISTENER_TAG_STYLES.items():
             self.listener_output.tag_configure(tag, **style)
 
+        # A real REPL, not a single-line entry: Enter submits everything
+        # typed so far (one statement or several, including a whole
+        # multi-line DEF PROC/DEF FN block -- _run_in_listener already
+        # handles that for Eval Selection); Shift+Enter inserts a newline
+        # to keep composing. History (Ctrl+Up/Down) replaces plain Up/Down,
+        # which now just move the cursor within multi-line input.
         entry_row = ttk.Frame(self.listener_frame)
         entry_row.pack(side=tk.BOTTOM, fill=tk.X)
-        ttk.Label(entry_row, text='>').pack(side=tk.LEFT, padx=(4, 2))
-        self.listener_entry = ttk.Entry(entry_row, font=('TkFixedFont', 10))
+        ttk.Label(entry_row, text='>').pack(side=tk.LEFT, padx=(4, 2), anchor='n')
+        self.listener_entry = tk.Text(
+            entry_row, font=('TkFixedFont', 10), height=3, wrap='word', undo=True,
+        )
         self.listener_entry.pack(
             side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4), pady=4,
         )
         self.listener_entry.bind('<Return>', self._listener_submit)
-        self.listener_entry.bind('<Up>', self._listener_history_prev)
-        self.listener_entry.bind('<Down>', self._listener_history_next)
+        self.listener_entry.bind('<Shift-Return>', self._listener_insert_newline)
+        self.listener_entry.bind('<Control-Up>', self._listener_history_prev)
+        self.listener_entry.bind('<Control-Down>', self._listener_history_next)
 
     # -- File handling -----------------------------------------------------
 
@@ -570,6 +659,14 @@ class EditorWindow:
         run_dir = os.path.dirname(path) or '.'
         try:
             cmd = self._build_run_command(path)
+            # Only a pygame display window can be held open (--hold above);
+            # a terminal run has no window, so hold/timing wrap the process.
+            if not self.pygame_var.get() and (
+                self.hold_console_var.get() or self.show_timing_var.get()
+            ):
+                cmd = _wrap_with_hold_and_timing(
+                    cmd, hold=self.hold_console_var.get(), timing=self.show_timing_var.get(),
+                )
             popen_kwargs = {}
             if sys.platform.startswith('win') and not self.pygame_var.get():
                 popen_kwargs['creationflags'] = subprocess.CREATE_NEW_CONSOLE
@@ -634,6 +731,99 @@ class EditorWindow:
         self._editor_settings['bbcsdl_helper'] = self.bbcsdl_helper_var.get()
         _save_editor_settings_to_disk(self._editor_settings)
 
+    def run_lispy_mini_basic(self) -> None:
+        """Run the buffer the way lispy3's own BASIC adapter runs it.
+
+        Ported from ``lispy_support/basic_runner.run_python_basic`` in
+        lispy3: the same Python mini_basic CLI invocation
+        (``--display terminal``, streamed stdout/stderr), but captured into
+        an embedded pane in this window instead of lispy_machine's own
+        Listener-style console. Same limitation as lispy3's adapter: INPUT
+        has no console here, and there is no terminal emulation, so ANSI
+        escape codes are stripped rather than rendered.
+        """
+        path = self._run_target_path()
+        if not path:
+            return
+        run_dir = os.path.dirname(path) or '.'
+
+        cmd = [sys.executable, '-u', '-m', 'mini_basic', '-q', '--display', 'terminal']
+        dialect = self.dialect_var.get()
+        if dialect and dialect != 'auto':
+            cmd += ['--dialect', dialect]
+        cmd.append(path)
+        env = dict(os.environ, PYTHONUTF8='1', PYTHONUNBUFFERED='1')
+
+        try:
+            proc = subprocess.Popen(
+                cmd, cwd=run_dir, env=env, stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                text=True, encoding='utf-8', errors='replace',
+            )
+        except OSError as exc:
+            messagebox.showerror('Run failed', str(exc))
+            return
+        self._run_proc = proc
+
+        win = tk.Toplevel(self.root)
+        win.title('Lispy mini-basic — ' + os.path.basename(path))
+        output = tk.Text(win, width=90, height=28, font=('TkFixedFont', 10))
+        output.pack(fill='both', expand=True)
+        ttk.Button(win, text='Close', command=win.destroy).pack(anchor='e', padx=4, pady=4)
+
+        def write(text: str) -> None:
+            if not win.winfo_exists():
+                return
+            output.insert('end', _ANSI_RE.sub('', text))
+            output.see('end')
+
+        messages: 'queue.Queue' = queue.Queue()
+
+        def read_output() -> None:
+            try:
+                for line in proc.stdout:
+                    messages.put(line)
+            finally:
+                messages.put(None)
+
+        threading.Thread(target=read_output, daemon=True).start()
+
+        def poll() -> None:
+            try:
+                while True:
+                    line = messages.get_nowait()
+                    if line is None:
+                        write('\n[Run finished]\n')
+                        return
+                    write(line)
+            except queue.Empty:
+                pass
+            if win.winfo_exists():
+                win.after(50, poll)
+
+        win.after(50, poll)
+        self.status_var.set('Running (lispy mini-basic): ' + path)
+
+    def _update_run_button_label(self, _event: object = None) -> None:
+        self.run_label_var.set('▶ RUN ' + self.run_backend_var.get())
+
+    def _run_selected_backend(self) -> None:
+        backend = self.run_backend_var.get()
+        if backend == _RUN_BACKEND_BBCSDL:
+            self.run_program_bbcsdl()
+        elif backend == _RUN_BACKEND_LISPY:
+            self.run_lispy_mini_basic()
+        else:
+            self.run_program()
+
+    def _open_run_backend_picker(self) -> None:
+        """Shift+F6: open the backend dropdown without running anything."""
+        self.run_backend_combo.focus_set()
+        try:
+            self.run_backend_combo.tk.call('ttk::combobox::Post', self.run_backend_combo)
+        except tk.TclError:
+            pass
+
     # -- Run dialog --------------------------------------------------------
 
     def _open_run_dialog(self) -> None:
@@ -674,6 +864,10 @@ class EditorWindow:
             launchers, text='▶\nReal BBC BASIC\nfor SDL', width=16,
             command=lambda: launch(self.run_program_bbcsdl),
         ).pack(side=tk.LEFT, padx=8, pady=4)
+        ttk.Button(
+            launchers, text='▶\nLispy\nmini-basic', width=16,
+            command=lambda: launch(self.run_lispy_mini_basic),
+        ).pack(side=tk.LEFT, padx=8, pady=4)
 
         python_opts = ttk.LabelFrame(frame, text='Python mini_basic options', padding=8)
         python_opts.pack(fill='x', pady=(0, 12))
@@ -681,7 +875,15 @@ class EditorWindow:
             python_opts, text='Use pygame display', variable=self.pygame_var,
         ).pack(anchor='w')
         ttk.Checkbutton(
-            python_opts, text='Wait for Esc at end of run', variable=self.wait_esc_var,
+            python_opts, text='Wait for Esc at end of run (pygame display)',
+            variable=self.wait_esc_var,
+        ).pack(anchor='w')
+        ttk.Checkbutton(
+            python_opts, text='Hold console after run (terminal programs)',
+            variable=self.hold_console_var,
+        ).pack(anchor='w')
+        ttk.Checkbutton(
+            python_opts, text='Show run timing', variable=self.show_timing_var,
         ).pack(anchor='w')
 
         native = ttk.LabelFrame(frame, text='Real BBC BASIC for SDL', padding=8)
@@ -951,18 +1153,29 @@ class EditorWindow:
         self._focus_listener_entry()
 
     def _listener_submit(self, _event: object = None) -> str:
-        text = self.listener_entry.get()
-        self.listener_entry.delete(0, tk.END)
+        """Enter: submit everything typed so far -- one line or several.
+
+        Routes through ``_run_in_listener`` (the same dispatch Eval
+        Selection uses) instead of executing only a single stripped line,
+        so a multi-line DEF PROC/DEF FN block typed directly into the
+        Listener (Shift+Enter between lines) works the same way a selected
+        block does, without needing the editor buffer at all.
+        """
+        text = self.listener_entry.get('1.0', 'end-1c')
+        self.listener_entry.delete('1.0', 'end')
         if text.strip():
             self._listener_history.append(text)
             self._listener_history_index = len(self._listener_history)
-            self._listener_write(f'> {text}\n', 'echo')
-            self._listener_execute(text)
+            self._run_in_listener(text)
+        return 'break'
+
+    def _listener_insert_newline(self, _event: object = None) -> str:
+        self.listener_entry.insert('insert', '\n')
         return 'break'
 
     def _set_listener_entry(self, text: str) -> None:
-        self.listener_entry.delete(0, tk.END)
-        self.listener_entry.insert(0, text)
+        self.listener_entry.delete('1.0', 'end')
+        self.listener_entry.insert('1.0', text)
 
     def _listener_history_prev(self, _event: object = None) -> str:
         if self._listener_history:
