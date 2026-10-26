@@ -6454,8 +6454,12 @@ class RuntimeExecutionMixin:
                 self.program[line_num] = pattern.sub(_replace_targets, statement)
 
         for line_num, name in new_labels.items():
-            prefix = f'({name})' if self.config.dialect == 'bbc' else f'{name}:'
-            self.program[line_num] = f'{prefix} {self.program[line_num]}'
+            # (name), not "name:", in every dialect: ":" is already the
+            # statement separator, so a generated label can collide with
+            # it (e.g. a label that also happens to parse as a command);
+            # (name) has no such ambiguity and _extract_label_prefix
+            # accepts it everywhere.
+            self.program[line_num] = f'({name}) {self.program[line_num]}'
 
         self._rebuild_labels()
 

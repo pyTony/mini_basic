@@ -1535,11 +1535,19 @@ class RuntimeProgramMixin:
         return py, right_end, nt, fv, iv, sv
 
     def _extract_label_prefix(self, part: str) -> Tuple[Optional[str], str]:
-        if self.config.dialect == 'bbc':
-            # Modern BBC BASIC (Windows/SDL) label definition: (name) statement; jump is GOTO name
-            paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
-            if paren:
-                return self._normalize_identifier(paren.group(1)), paren.group(2).strip()
+        # (name) statement; jump is GOTO/GOSUB name. Originally modern BBC
+        # BASIC (Windows/SDL) only, now accepted in every dialect: unlike
+        # "name:", it can never collide with ":" as the statement
+        # separator, so it's the preferred spelling everywhere -- see
+        # _labelize_numeric_jump_targets, which only ever emits this form.
+        paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
+        if paren:
+            return self._normalize_identifier(paren.group(1)), paren.group(2).strip()
+        # "name:" is still accepted for backward compatibility with
+        # existing programs; _split_colon_statements has a heuristic to
+        # keep such a colon from being treated as a statement separator,
+        # but it's a heuristic (e.g. a label that also parses as a
+        # command defeats it) -- (name) has no such ambiguity.
         match = re.match(rf'^({self._VAR_BASE_PATTERN}):\s*(.*)$', part.strip())
         if match and not self._is_statement_keyword(match.group(1)):
             return self._normalize_identifier(match.group(1)), match.group(2).strip()
