@@ -3,6 +3,10 @@
 Format: one line per merged PR, newest first, auto-generated from PR descriptions by `scripts/update_changelog.py` (`.github/workflows/update-changelog.yml` refreshes this branch on every PR merged to `main`). `main`'s own `CHANGELOG.md` tracks tagged releases only. See [GitHub Issues](https://github.com/pyTony/mini_basic/issues) for open work.
 
 
+## 2026-10-26
+
+- [#175](https://github.com/pyTony/mini_basic/pull/175) Fix ON ERROR/REPORT bugs; add Reindent/Strip Line Numbers to editor — Interpreter bug fixes (found via a manual BBCSDL jump-semantics reference script): - A `GOTO`/`GOSUB`/`ON ... GOTO` to a line number that doesn't exist used to crash with an unformatted message, bypassing `ON ERROR` entirely. It's now routed through the normal runtime-error/trap machinery (BBC error 8, "Line does…
+
 ## 2026-10-25
 
 - [#174](https://github.com/pyTony/mini_basic/pull/174) Run an opened tokenized .bbc without forcing a save first — Bug: opening a `.bbc` file in the editor (e.g. to run a showcase program) and immediately hitting ▶ Run… popped up "Save the program before running it." even though nothing had been changed — just opened and ready to run.
