@@ -1,8 +1,9 @@
+1 REM dialect: bbc
 10 REM bbcsdl_jump_checks.bas -- manual BBCSDL reference checks: menu loops
 11 REM so you can run several tests per session without restarting from the CLI.
 12 REM 0 quits; an out-of-range choice just redisplays the menu.
 15 REM Terminal launch (like Lispy Machine's documented quickstart commands):
-16 REM python -m mini_basic --dialect bbc test/manual/bbcsdl_jump_checks.bas
+16 REM python -m mini_basic test/manual/bbcsdl_jump_checks.bas
 20 ON ERROR PRINT"ERROR ";ERR;" AT LINE ";ERL: REPORT: PRINT: GOTO 30
 30 REPEAT
 40 PRINT "BBCSDL jump checks - record your BBCSDL version"
