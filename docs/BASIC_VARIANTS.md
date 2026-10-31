@@ -218,3 +218,39 @@ roadmap are written up in [`BBC_TOKENIZE_VS_UNGLUE.md`](BBC_TOKENIZE_VS_UNGLUE.m
 
 Ship-facing language promises: [`LANGUAGE_FEATURES_1.00.md`](LANGUAGE_FEATURES_1.00.md).  
 User-facing matrix notes: `documentation/FEATURE_TESTS_FOR_USER.txt`.
+
+---
+
+## 9. PRINT `,`/`;` and INPUT `?` — confirmed against real BBC BASIC
+
+Verified against real Acorn/SDL BBC BASIC (screenshots, 2026-10-31) because
+these details are easy to get backwards from memory:
+
+**PRINT, dialect `bbc`:** a trailing `,` still tabs/right-justifies the
+value into its 10-column `@%` field, but the statement still ends the
+line. Only a trailing `;` keeps the next PRINT packed on the same line.
+
+```
+10 FOR I%=1 TO 3: PRINT I%,: NEXT   ' one number per line
+10 FOR I%=1 TO 3: PRINT I%;: NEXT   ' packed on one line, wraps at screen width
+```
+
+Other dialects (`mini`, `mits`, `commodore`) keep the more common BASIC
+convention where a trailing `,` *also* suppresses the newline and tabs —
+only `bbc` differs here.
+
+**INPUT, dialect `bbc`:** a prompt string attached with `,` or `;` gets BBC's
+own `? ` appended after it — even if the prompt is empty or already ends in
+a literal `?`. Only gluing the prompt directly onto the variable with no
+separator (`INPUT "P"V$`) suppresses the `?`:
+
+```
+INPUT "Name:"NAME$    ' -> "Name:"      (no ?)
+INPUT "Name:";NAME$   ' -> "Name:? "
+INPUT "Name:", NAME$  ' -> "Name:? "
+```
+
+`mits`/`commodore` have their own, older rule (`;` adds `? `, `,`
+suppresses it — see `test_ms_input_prompt.py`). `LINE INPUT` never adds a
+`?` in any dialect, and reads the whole line including commas — use it
+when a typed comma shouldn't split the input.

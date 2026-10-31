@@ -911,6 +911,56 @@ class BbcNumericPrintFieldTests(unittest.TestCase):
         out, err = _run('10 PRINT 3\n20 PRINT 1/3\n')
         self.assertEqual(out.splitlines(), ['3', '0.333333333333333'], msg=err)
 
+    def test_trailing_comma_still_newlines_each_statement(self):
+        """Real BBC BASIC (Tony, 2026-10-31 screenshots, SDLBBC prinT.bbc):
+
+        a trailing ',' tabs/right-justifies the value but the PRINT
+        statement still ends the line -- only a trailing ';' keeps
+        multiple PRINT statements packed on one line. So
+        ``FOR I%=1 TO 12: PRINT I%,: NEXT`` prints one number per line,
+        while the same loop ending in ';' (or ',;') wraps at the screen
+        width like any other packed PRINT.
+        """
+        self.assertEqual(
+            self._lines('10 FOR I% = 1 TO 3: PRINT I%,: NEXT\n'),
+            ['         1', '         2', '         3'],
+        )
+        self.assertEqual(
+            self._lines('10 FOR I% = 1 TO 3: PRINT I%,;: NEXT\n'),
+            ['         1         2         3'],
+        )
+        self.assertEqual(
+            self._lines('10 FOR I% = 1 TO 3: PRINT I%;: NEXT\n'),
+            ['         1         2         3'],
+        )
+
+    def test_input_question_mark_depends_on_prompt_separator(self):
+        """Real BBC BASIC (Tony, 2026-10-31 screenshots, SDLBBC):
+
+        INPUT "P";V$ and INPUT "P",V$ both show "? " after the prompt,
+        even when the prompt is empty or already ends in '?'. Only the
+        glued form INPUT "P"V$ (no separator) suppresses it.
+        """
+        import io as _io
+        from contextlib import redirect_stdout as _redirect_stdout
+        from unittest.mock import patch as _patch
+
+        from mini_basic import BASICInterpreter as _Interp
+        from mini_basic.config import InterpreterConfig as _Cfg
+
+        def run(stmt):
+            interp = _Interp(_Cfg(dialect='bbc', display='none'))
+            interp.program[10] = stmt
+            out = _io.StringIO()
+            with _redirect_stdout(out), _patch('builtins.input', return_value='Tony'):
+                interp.run()
+            return out.getvalue()
+
+        self.assertEqual(run('INPUT "Name:"NAME$'), 'Name:')
+        self.assertEqual(run('INPUT "Name:";NAME$'), 'Name:? ')
+        self.assertEqual(run('INPUT "Name:", NAME$'), 'Name:? ')
+        self.assertEqual(run('INPUT ":"X$'), ':')
+
 
 class KeywordIsNotLabelTests(unittest.TestCase):
     """CLOSE : / CONT : / REPORT : are statements, not labels named CLOSE."""

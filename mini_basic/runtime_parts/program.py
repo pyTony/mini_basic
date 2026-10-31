@@ -3115,6 +3115,23 @@ class RuntimeProgramMixin:
         var_start = self._find_input_var_start(items)
         return 0 < var_start <= len(items) and items[var_start - 1][1] == ';'
 
+    def _bbc_input_prompt_wants_question(self, rest: str) -> bool:
+        """BBC: ``INPUT "P",V$`` / ``INPUT "P";V$`` show ``? `` before reading;
+        ``INPUT "P"V$`` (glued, no separator between prompt and variable)
+        does not (Tony, 2026-10-31 screenshots, SDLBBC)."""
+        rest_stripped = rest.strip()
+        if not rest_stripped:
+            return False
+        items = self._split_print_items(rest_stripped)
+        if not items:
+            return False
+        if len(items) == 1 and self._split_input_prompt_and_vars(items[0][0]) is not None:
+            return False
+        var_start = self._find_input_var_start(items)
+        if not (0 < var_start < len(items)):
+            return False
+        return items[var_start - 1][1] in (',', ';')
+
     def _split_input_prompt_and_vars(self, text: str) -> Optional[Tuple[str, List[str]]]:
         """Split BBC ``\"prompt\"var`` / ``\"prompt\" var,x`` when print-split kept them glued."""
         text = text.strip()

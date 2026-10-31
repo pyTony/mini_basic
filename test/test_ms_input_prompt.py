@@ -2,7 +2,11 @@
 
 MS BASIC: ``INPUT "COMMAND";A$`` shows ``COMMAND? ``; a comma after the
 prompt suppresses the question mark; with no prompt it is just ``? ``.
-(BBC BASIC is the reverse and stays unchanged: ';' prints the prompt only.)
+
+BBC BASIC (real Acorn/SDL BBC BASIC, Tony, 2026-10-31 screenshots) shows
+``? `` after *both* ``;`` and ``,``-attached prompts -- ``INPUT "P"V$``
+(no separator, glued) is the only form that doesn't. mini keeps the
+original "prompt text only" behaviour unchanged.
 """
 from __future__ import annotations
 
@@ -57,10 +61,16 @@ class MsInputPromptTests(unittest.TestCase):
             out = _prompt_text(dialect, 'INPUT "X,Y";A,B', '1,2\n')
             self.assertTrue(out.startswith('X,Y? '), msg=(dialect, out))
 
-    def test_mini_and_bbc_keep_prompt_only(self):
-        for dialect in ('mini', 'bbc'):
-            out = _prompt_text(dialect, 'INPUT "COMMAND";A$')
-            self.assertEqual(out.replace('\n', '').strip(), 'COMMAND', msg=dialect)
+    def test_mini_keeps_prompt_only(self):
+        out = _prompt_text('mini', 'INPUT "COMMAND";A$')
+        self.assertEqual(out.replace('\n', '').strip(), 'COMMAND')
+
+    def test_bbc_semicolon_and_comma_both_add_question_mark(self):
+        # Real Acorn/SDL BBC BASIC: both forms show "? "; only the glued
+        # "COMMAND"A$ (no separator) form doesn't -- see test_edge_case_bugs.py.
+        for stmt in ('INPUT "COMMAND";A$', 'INPUT "COMMAND",A$'):
+            out = _prompt_text('bbc', stmt)
+            self.assertEqual(out.replace('\n', '').strip(), 'COMMAND?', msg=stmt)
 
 
 if __name__ == '__main__':

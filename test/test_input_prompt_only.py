@@ -68,23 +68,30 @@ class InputPromptOnlyTests(unittest.TestCase):
         self.assertIn('missing variable', out.getvalue())
 
     def test_normal_input_with_variable_still_reads(self) -> None:
-        """Ensure the prompt-only relaxation doesn't break INPUT "prompt", var."""
+        """Ensure the prompt-only relaxation doesn't break INPUT "prompt", var.
+
+        BBC also appends its own auto '? ' after a ','-attached prompt
+        (Tony, 2026-10-31 screenshots) -- even when the prompt text already
+        ends in a literal '?', so this becomes "Name? ? [Alice]".
+        """
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'INPUT "Name? ", N$'
         interp.program[20] = 'PRINT "["; N$; "]"'
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', side_effect=['Alice']):
             interp.run()
-        self.assertEqual(out.getvalue().strip(), 'Name? [Alice]')
+        self.assertEqual(out.getvalue().strip(), 'Name? ? [Alice]')
 
-    def test_empty_prompt_after_trailing_comma_stays_on_same_line(self) -> None:
-        """INPUT "", X$ right after PRINT "label",: no forced newline before reading.
+    def test_empty_prompt_after_trailing_comma_breaks_to_new_line(self) -> None:
+        """PRINT "label",: INPUT "", X$ -- trailing comma still ends the line.
 
-        Real bug (Tony, 2026-10-13): PRINT "Name:",: INPUT "", NAME$ printed
-        "Name:" and the typed answer on two separate lines instead of
-        "Name:? Tony" on one — _emit_input_prompt forced a line break
-        whenever the cursor wasn't already at column 0, even though the
-        prompt itself ("") has no visible text to show.
+        Real Acorn/SDL BBC BASIC (Tony, 2026-10-31 screenshot, prinT.bbc):
+        PRINT "Name:",: INPUT "", NAME$ prints "Name:" on its own line, then
+        the INPUT read happens on the next line, same as any other BBC
+        PRINT statement without a trailing ';'. This supersedes an earlier
+        (2026-10-13) fix that special-cased trailing ',' before INPUT to
+        stay on the same line -- that turned out not to match real BBC
+        BASIC; only a trailing ';' keeps the line going.
         """
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'PRINT "Name:",: INPUT "", NAME$'
@@ -93,25 +100,32 @@ class InputPromptOnlyTests(unittest.TestCase):
         with redirect_stdout(out), patch('builtins.input', return_value='Tony') as mocked:
             interp.run()
         self.assertEqual(mocked.call_args.args[0], '')
-        self.assertEqual(out.getvalue(), 'Name:Hi Tony\n')
+        self.assertEqual(out.getvalue(), 'Name:\n? Hi Tony\n')
 
-    def test_empty_semicolon_prompt_after_trailing_semicolon_stays_on_same_line(self) -> None:
-        """Same bug via the semicolon form: PRINT "hi, ";: INPUT ""; X$."""
+    def test_empty_semicolon_prompt_after_trailing_semicolon_still_shows_question_mark(self) -> None:
+        """PRINT "hi, ";: INPUT ""; X$ -- a ';'-attached prompt still gets '? '.
+
+        Real SDL BBC BASIC (Tony, 2026-10-31 screenshot): INPUT "", X$ shows
+        "? " even with an empty prompt string, matching the ','-attached
+        case above. This supersedes an earlier (2026-10-13) fix that
+        assumed an empty prompt suppressed '? ' entirely.
+        """
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'PRINT "hi, ";: INPUT ""; NAME$: PRINT "HERE"'
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Tony'):
             interp.run()
-        self.assertEqual(out.getvalue(), 'hi, HERE\n')
+        self.assertEqual(out.getvalue(), 'hi, \n? HERE\n')
 
     def test_prompt_with_real_text_still_breaks_to_new_line(self) -> None:
-        """A non-empty prompt after other text still gets its own line (unchanged)."""
+        """A non-empty prompt after other text still gets its own line, plus
+        BBC's auto '? ' for the ','-attached variable."""
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'PRINT "x";: INPUT "Name? ", N$'
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Alice'):
             interp.run()
-        self.assertEqual(out.getvalue(), 'x\nName? ')
+        self.assertEqual(out.getvalue(), 'x\nName? ? ')
 
 
 if __name__ == '__main__':
