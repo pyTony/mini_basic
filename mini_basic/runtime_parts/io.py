@@ -1564,7 +1564,15 @@ class RuntimeIoMixin:
                     output.append('\n')
                     self.print_column = 0
 
-            suppress_newline = bool(trailing_sep) and trailing_sep != "'"
+            if self.config.dialect == 'bbc':
+                # Real BBC BASIC: only a trailing ';' suppresses the newline.
+                # A trailing ',' still tabs to the next field (handled above
+                # via has_comma/_print_emit_number_field) but the statement
+                # still ends the line -- PRINT I%, in a loop goes one value
+                # per line; PRINT I%,; (or PRINT I%;) keeps packing the line.
+                suppress_newline = trailing_sep == ';'
+            else:
+                suppress_newline = bool(trailing_sep) and trailing_sep != "'"
             return ''.join(output), not suppress_newline, self.print_column
         finally:
             self.print_column = saved_column

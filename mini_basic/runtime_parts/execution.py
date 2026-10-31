@@ -4287,6 +4287,9 @@ class RuntimeExecutionMixin:
             if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore'):
                 if self._ms_input_prompt_wants_question(rest):
                     prompt_content += ';"? "'  # MS: INPUT "P";A$ shows P?
+            elif prompt_content and self.config.dialect == 'bbc':
+                if self._bbc_input_prompt_wants_question(rest):
+                    prompt_content += ';"? "'  # BBC: INPUT "P",A$ / "P";A$ shows P?
             first_try = True
             while True:
                 if first_try:
