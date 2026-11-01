@@ -3107,6 +3107,12 @@ class RuntimeProgramMixin:
         var_start = self._find_input_var_start(items)
         return 0 < var_start <= len(items) and items[var_start - 1][1] == ';'
 
+    def _bbc_input_prompt_wants_question(self, rest: str) -> bool:
+        """BBC INPUT: a comma or semicolon after the prompt requests '? '."""
+        items = self._split_print_items(rest.strip())
+        var_start = self._find_input_var_start(items)
+        return 0 < var_start < len(items) and items[var_start - 1][1] in (',', ';')
+
     def _split_input_prompt_and_vars(self, text: str) -> Optional[Tuple[str, List[str]]]:
         """Split BBC ``\"prompt\"var`` / ``\"prompt\" var,x`` when print-split kept them glued."""
         text = text.strip()

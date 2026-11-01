@@ -360,7 +360,7 @@ class MiniBASICTests(unittest.TestCase):
             (30, "NEXT I"),
             (40, "END"),
         ]
-        self.assertEqual(self.run_program(lines), "         1         2         3")
+        self.assertEqual(self.run_program(lines), "         1\n         2\n         3")
 
     def test_multiplication_table_row(self):
         lines = [
@@ -369,7 +369,7 @@ class MiniBASICTests(unittest.TestCase):
             (30, "NEXT col"),
             (40, "END"),
         ]
-        self.assertEqual(self.run_program(lines), "         2         4         6         8        10")
+        self.assertEqual(self.run_program(lines), "         2\n         4\n         6\n         8\n        10")
 
     def test_print_comma_string_tabs(self):
         interp = self.make_interp()
@@ -487,11 +487,12 @@ class MiniBASICTests(unittest.TestCase):
                 if parsed:
                     interp.program[parsed[0]] = parsed[1]
         buf = io.StringIO()
-        with redirect_stdout(buf):
-            interp.run()
+        with patch('builtins.input', return_value=''):
+            with redirect_stdout(buf):
+                interp.run()
         out = buf.getvalue()
         self.assertIn("Finished", out)
-        rows = [r for r in out.splitlines() if r and not r.startswith(("Mandelbrot", "Start", "Finished", "Time:"))]
+        rows = [r for r in out.splitlines() if r and not r.startswith(("Mandelbrot", "Start", "Finished", "Time:", "Done"))]
         self.assertEqual(len(rows), 25)
         self.assertIn("O", "".join(rows))
 

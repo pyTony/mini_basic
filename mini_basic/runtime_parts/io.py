@@ -1564,7 +1564,11 @@ class RuntimeIoMixin:
                     output.append('\n')
                     self.print_column = 0
 
-            suppress_newline = bool(trailing_sep) and trailing_sep != "'"
+            if self.config.dialect in ('mini', 'bbc'):
+                # BBCSDL: PRINT I%, ends the line; PRINT I%,; keeps it open.
+                suppress_newline = trailing_sep == ';'
+            else:
+                suppress_newline = bool(trailing_sep) and trailing_sep != "'"
             return ''.join(output), not suppress_newline, self.print_column
         finally:
             self.print_column = saved_column
@@ -1836,7 +1840,7 @@ class RuntimeIoMixin:
     def _emit_input_prompt(self, content: str) -> None:
         self._print_flush_buffer()
         text, _, new_column = self._render_print_content(content, '', self.print_column)
-        if text and self.print_column > 0:
+        if text and self.print_column > 0 and self.config.dialect not in ('mini', 'bbc'):
             # Only break to a fresh line when there's a visible prompt to
             # show. An empty/suppressed prompt (e.g. INPUT ""; X$ right
             # after PRINT "label";) must keep reading on the same line —

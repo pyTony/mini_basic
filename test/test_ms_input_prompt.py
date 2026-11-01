@@ -57,10 +57,10 @@ class MsInputPromptTests(unittest.TestCase):
             out = _prompt_text(dialect, 'INPUT "X,Y";A,B', '1,2\n')
             self.assertTrue(out.startswith('X,Y? '), msg=(dialect, out))
 
-    def test_mini_and_bbc_keep_prompt_only(self):
+    def test_mini_and_bbc_semicolon_also_adds_question_mark(self):
         for dialect in ('mini', 'bbc'):
             out = _prompt_text(dialect, 'INPUT "COMMAND";A$')
-            self.assertEqual(out.replace('\n', '').strip(), 'COMMAND', msg=dialect)
+            self.assertEqual(out.replace('\n', '').strip(), 'COMMAND?', msg=dialect)
 
 
 if __name__ == '__main__':
