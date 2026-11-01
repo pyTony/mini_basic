@@ -226,7 +226,7 @@ User-facing matrix notes: `documentation/FEATURE_TESTS_FOR_USER.txt`.
 Verified against real Acorn/SDL BBC BASIC (screenshots, 2026-10-31) because
 these details are easy to get backwards from memory:
 
-**PRINT, dialect `bbc`:** a trailing `,` still tabs/right-justifies the
+**PRINT, dialects `bbc` and `mini`:** a trailing `,` still tabs/right-justifies the
 value into its 10-column `@%` field, but the statement still ends the
 line. Only a trailing `;` keeps the next PRINT packed on the same line.
 
@@ -235,11 +235,10 @@ line. Only a trailing `;` keeps the next PRINT packed on the same line.
 10 FOR I%=1 TO 3: PRINT I%;: NEXT   ' packed on one line, wraps at screen width
 ```
 
-Other dialects (`mini`, `mits`, `commodore`) keep the more common BASIC
-convention where a trailing `,` *also* suppresses the newline and tabs —
-only `bbc` differs here.
+Microsoft dialects (`mits`, `commodore`) use a trailing `,` to suppress
+the newline and advance to the next field.
 
-**INPUT, dialect `bbc`:** a prompt string attached with `,` or `;` gets BBC's
+**INPUT, dialects `bbc` and `mini`:** a prompt string attached with `,` or `;` gets BBC's
 own `? ` appended after it — even if the prompt is empty or already ends in
 a literal `?`. Only gluing the prompt directly onto the variable with no
 separator (`INPUT "P"V$`) suppresses the `?`:
@@ -251,6 +250,8 @@ INPUT "Name:", NAME$  ' -> "Name:? "
 ```
 
 `mits`/`commodore` have their own, older rule (`;` adds `? `, `,`
-suppresses it — see `test_ms_input_prompt.py`). `LINE INPUT` never adds a
-`?` in any dialect, and reads the whole line including commas — use it
-when a typed comma shouldn't split the input.
+suppresses it — see `test_ms_input_prompt.py`). In Microsoft dialects,
+`LINE INPUT` reads the whole line without adding `?`. BBC's `INPUT LINE`
+preserves the whole reply too, but follows the same prompt-separator rules
+as ordinary `INPUT`. `mini` also supports this BBC spelling. INPUT prompts
+continue at the current cursor position, including after `PRINT ...;`.
