@@ -475,6 +475,9 @@ class EditorWindow:
             return os.path.dirname(current) or _ROOT
         if self._last_dialog_dir and os.path.isdir(self._last_dialog_dir):
             return self._last_dialog_dir
+        saved_dir = self._editor_settings.get('last_dialog_dir')
+        if saved_dir and os.path.isdir(saved_dir):
+            return saved_dir
         basics_dir = os.path.join(_ROOT, 'basics')
         return basics_dir if os.path.isdir(basics_dir) else _ROOT
 
