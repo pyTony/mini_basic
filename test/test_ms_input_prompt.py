@@ -5,7 +5,9 @@ prompt suppresses the question mark; with no prompt it is just ``? ``.
 
 BBC BASIC (real Acorn/SDL BBC BASIC, Tony, 2026-10-31 screenshots) shows
 ``? `` after *both* ``;`` and ``,``-attached prompts -- ``INPUT "P"V$``
-(no separator, glued) is the only form that doesn't. mini follows BBC here.
+(no separator, glued) is the only form that doesn't. mini keeps its own
+MBASIC-style rule (see test_mini_input_print_mbasic_style.py) -- it only
+happens to agree with BBC on the ';' case.
 """
 from __future__ import annotations
 
@@ -65,7 +67,10 @@ class MsInputPromptTests(unittest.TestCase):
             out = _prompt_text(dialect, 'INPUT "X,Y";A,B', '1,2\n')
             self.assertTrue(out.startswith('X,Y? '), msg=(dialect, out))
 
-    def test_mini_and_bbc_semicolon_also_adds_question_mark(self):
+    def test_mini_and_bbc_agree_semicolon_adds_question_mark(self):
+        # mini (MBASIC rule) and bbc (BBC rule) both add '? ' for ';' --
+        # for different reasons; see test_mini_input_print_mbasic_style.py
+        # for the comma case where they diverge.
         for dialect in ('mini', 'bbc'):
             out = _prompt_text(dialect, 'INPUT "COMMAND";A$')
             self.assertEqual(out.replace('\n', '').strip(), 'COMMAND?', msg=dialect)
