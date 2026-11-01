@@ -1535,11 +1535,19 @@ class RuntimeProgramMixin:
         return py, right_end, nt, fv, iv, sv
 
     def _extract_label_prefix(self, part: str) -> Tuple[Optional[str], str]:
-        if self.config.dialect == 'bbc':
-            # Modern BBC BASIC (Windows/SDL) label definition: (name) statement; jump is GOTO name
-            paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
-            if paren:
-                return self._normalize_identifier(paren.group(1)), paren.group(2).strip()
+        # (name) statement; jump is GOTO/GOSUB name. Originally modern BBC
+        # BASIC (Windows/SDL) only, now accepted in every dialect: unlike
+        # "name:", it can never collide with ":" as the statement
+        # separator, so it's the preferred spelling everywhere -- see
+        # _labelize_numeric_jump_targets, which only ever emits this form.
+        paren = re.match(rf'^\(({self._VAR_BASE_PATTERN})\)\s*(.*)$', part.strip())
+        if paren:
+            return self._normalize_identifier(paren.group(1)), paren.group(2).strip()
+        # "name:" is still accepted for backward compatibility with
+        # existing programs; _split_colon_statements has a heuristic to
+        # keep such a colon from being treated as a statement separator,
+        # but it's a heuristic (e.g. a label that also parses as a
+        # command defeats it) -- (name) has no such ambiguity.
         match = re.match(rf'^({self._VAR_BASE_PATTERN}):\s*(.*)$', part.strip())
         if match and not self._is_statement_keyword(match.group(1)):
             return self._normalize_identifier(match.group(1)), match.group(2).strip()
@@ -3108,10 +3116,21 @@ class RuntimeProgramMixin:
         return 0 < var_start <= len(items) and items[var_start - 1][1] == ';'
 
     def _bbc_input_prompt_wants_question(self, rest: str) -> bool:
-        """BBC INPUT: a comma or semicolon after the prompt requests '? '."""
-        items = self._split_print_items(rest.strip())
+        """BBC: ``INPUT "P",V$`` / ``INPUT "P";V$`` show ``? `` before reading;
+        ``INPUT "P"V$`` (glued, no separator between prompt and variable)
+        does not (Tony, 2026-10-31 screenshots, SDLBBC)."""
+        rest_stripped = rest.strip()
+        if not rest_stripped:
+            return False
+        items = self._split_print_items(rest_stripped)
+        if not items:
+            return False
+        if len(items) == 1 and self._split_input_prompt_and_vars(items[0][0]) is not None:
+            return False
         var_start = self._find_input_var_start(items)
-        return 0 < var_start < len(items) and items[var_start - 1][1] in (',', ';')
+        if not (0 < var_start < len(items)):
+            return False
+        return items[var_start - 1][1] in (',', ';')
 
     def _split_input_prompt_and_vars(self, text: str) -> Optional[Tuple[str, List[str]]]:
         """Split BBC ``\"prompt\"var`` / ``\"prompt\" var,x`` when print-split kept them glued."""

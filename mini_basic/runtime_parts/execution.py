@@ -3929,13 +3929,15 @@ class RuntimeExecutionMixin:
             if len(var_tokens) != 1:
                 self._runtime_error('? LINE INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
+            if prompt_content and self.config.dialect in ('mini', 'bbc'):
+                if self._bbc_input_prompt_wants_question(input_rest):
+                    prompt_content += ';"? "'
             first_try = True
             while True:
                 if first_try:
                     if prompt_content:
                         self._emit_input_prompt(prompt_content)
-                        read_prompt = ('? ' if self.config.dialect in ('mini', 'bbc')
-                            and self._bbc_input_prompt_wants_question(input_rest) else '')
+                        read_prompt = ''
                     else:
                         self._print_flush_buffer()
                         read_prompt = '? ' if self.config.dialect in ('mini', 'bbc') else ''
@@ -4295,13 +4297,15 @@ class RuntimeExecutionMixin:
             if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore'):
                 if self._ms_input_prompt_wants_question(rest):
                     prompt_content += ';"? "'  # MS: INPUT "P";A$ shows P?
+            elif prompt_content and self.config.dialect in ('mini', 'bbc'):
+                if self._bbc_input_prompt_wants_question(rest):
+                    prompt_content += ';"? "'  # BBC separators request a question mark.
             first_try = True
             while True:
                 if first_try:
                     if prompt_content:
                         self._emit_input_prompt(prompt_content)
-                        read_prompt = ('? ' if self.config.dialect in ('mini', 'bbc')
-                            and self._bbc_input_prompt_wants_question(rest) else '')
+                        read_prompt = ''
                     else:
                         self._print_flush_buffer()
                         read_prompt = '? '
@@ -6463,8 +6467,12 @@ class RuntimeExecutionMixin:
                 self.program[line_num] = pattern.sub(_replace_targets, statement)
 
         for line_num, name in new_labels.items():
-            prefix = f'({name})' if self.config.dialect == 'bbc' else f'{name}:'
-            self.program[line_num] = f'{prefix} {self.program[line_num]}'
+            # (name), not "name:", in every dialect: ":" is already the
+            # statement separator, so a generated label can collide with
+            # it (e.g. a label that also happens to parse as a command);
+            # (name) has no such ambiguity and _extract_label_prefix
+            # accepts it everywhere.
+            self.program[line_num] = f'({name}) {self.program[line_num]}'
 
         self._rebuild_labels()
 

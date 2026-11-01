@@ -193,12 +193,15 @@ class ParsingProgramTests(ParsingHarness):
         self.assertEqual(out, 'After REM')
 
     def test_input_prompt_with_comma_and_multi_values(self) -> None:
+        # BBC shows '? ' after a ';'-attached prompt (Tony, 2026-10-31
+        # screenshots) -- see test_edge_case_bugs.py's
+        # test_input_question_mark_depends_on_prompt_separator.
         out = self.run_program([
             (10, 'INPUT "Enter name, age: "; N$, A%'),
             (20, 'PRINT N$; ","; STR$(A%)'),
             (30, 'END'),
         ], inputs=['John, 30'])
-        self.assertEqual(out, 'Enter name, age: John,30')
+        self.assertEqual(out, 'Enter name, age: ? John,30')
 
     def test_data_strings_with_embedded_commas(self) -> None:
         out = self.run_program([

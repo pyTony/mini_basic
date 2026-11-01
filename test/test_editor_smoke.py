@@ -104,6 +104,30 @@ def test_strip_line_numbers_turns_goto_target_into_label() -> None:
         root.destroy()
 
 
+def test_strip_line_numbers_uses_paren_labels_outside_bbc_dialect_too() -> None:
+    """(name), not "name:" -- : is also the statement separator (Tony,
+    2026-10-26), so _labelize_numeric_jump_targets emits (name) in every
+    dialect, not just bbc."""
+    root = _make_root()
+    try:
+        win = EditorWindow(root)
+        win.dialect_var.set('mini')
+        win.text.delete('1.0', tk.END)
+        win.text.insert(
+            '1.0',
+            '10 PRINT "a"\n20 GOTO 40\n30 PRINT "skip"\n40 PRINT "b"\n',
+        )
+
+        win.strip_line_numbers()
+        content = win.text.get('1.0', 'end-1c')
+
+        assert 'GOTO L40' in content
+        assert '(L40) PRINT' in content
+        assert 'L40:' not in content
+    finally:
+        root.destroy()
+
+
 def test_strip_line_numbers_refuses_computed_goto() -> None:
     root = _make_root()
     try:

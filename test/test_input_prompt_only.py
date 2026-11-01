@@ -68,14 +68,19 @@ class InputPromptOnlyTests(unittest.TestCase):
         self.assertIn('missing variable', out.getvalue())
 
     def test_normal_input_with_variable_still_reads(self) -> None:
-        """Ensure the prompt-only relaxation doesn't break INPUT "prompt", var."""
+        """Ensure the prompt-only relaxation doesn't break INPUT "prompt", var.
+
+        BBC also appends its own auto '? ' after a ','-attached prompt
+        (Tony, 2026-10-31 screenshots) -- even when the prompt text already
+        ends in a literal '?', so this becomes "Name? ? [Alice]".
+        """
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'INPUT "Name? ", N$'
         interp.program[20] = 'PRINT "["; N$; "]"'
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', side_effect=['Alice']):
             interp.run()
-        self.assertEqual(out.getvalue().strip(), 'Name? [Alice]')
+        self.assertEqual(out.getvalue().strip(), 'Name? ? [Alice]')
 
     def test_empty_prompt_after_print_comma_starts_next_line(self) -> None:
         """BBCSDL: a trailing PRINT comma ends the line; only ; suppresses it."""
@@ -85,17 +90,23 @@ class InputPromptOnlyTests(unittest.TestCase):
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Tony') as mocked:
             interp.run()
-        self.assertEqual(mocked.call_args.args[0], '? ')
-        self.assertEqual(out.getvalue(), 'Name:\nHi Tony\n')
+        self.assertEqual(mocked.call_args.args[0], '')
+        self.assertEqual(out.getvalue(), 'Name:\n? Hi Tony\n')
 
-    def test_empty_semicolon_prompt_after_trailing_semicolon_stays_on_same_line(self) -> None:
-        """Same bug via the semicolon form: PRINT "hi, ";: INPUT ""; X$."""
+    def test_empty_semicolon_prompt_after_trailing_semicolon_still_shows_question_mark(self) -> None:
+        """PRINT "hi, ";: INPUT ""; X$ -- a ';'-attached prompt still gets '? '.
+
+        Real SDL BBC BASIC (Tony, 2026-10-31 screenshot): INPUT "", X$ shows
+        "? " even with an empty prompt string, matching the ','-attached
+        case above. This supersedes an earlier (2026-10-13) fix that
+        assumed an empty prompt suppressed '? ' entirely.
+        """
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'PRINT "hi, ";: INPUT ""; NAME$: PRINT "HERE"'
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Tony'):
             interp.run()
-        self.assertEqual(out.getvalue(), 'hi, HERE\n')
+        self.assertEqual(out.getvalue(), 'hi, ? HERE\n')
 
     def test_prompt_with_real_text_continues_current_line(self) -> None:
         """BBC INPUT prints its prompt at the current cursor position."""
@@ -104,7 +115,7 @@ class InputPromptOnlyTests(unittest.TestCase):
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Alice'):
             interp.run()
-        self.assertEqual(out.getvalue(), 'xName? ')
+        self.assertEqual(out.getvalue(), 'xName? ? ')
 
 
 if __name__ == '__main__':

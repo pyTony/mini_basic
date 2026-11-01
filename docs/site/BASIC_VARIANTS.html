@@ -90,6 +90,18 @@
 <h3 id="8-maintaining-the-grids">8. Maintaining the grids</h3>
 <ol><li>Edit rows in <code>mini_basic/features/*.py</code> (e.g. <code>dialect_structure.py</code>, <code>bbc_family.py</code>).  </li><li>Run <code>python -m mini_basic.features</code> to refresh <code>documentation/feature_matrices/</code>.  </li><li>Keep this overview in sync only when <strong>dialect roles</strong> or <strong>axis definitions</strong> change—not for every <code>+</code>/<code>-</code> flip (those belong in the generated files).</li></ol>
 <p>Ship-facing language promises: <a href="LANGUAGE_FEATURES_1.00.html">`LANGUAGE_FEATURES_1.00.md`</a>. User-facing matrix notes: <code>documentation/FEATURE_TESTS_FOR_USER.txt</code>.</p>
+<hr>
+<h3 id="9-print-and-input-confirmed-against-real-bbc-basic">9. PRINT <code>,</code>/<code>;</code> and INPUT <code>?</code> — confirmed against real BBC BASIC</h3>
+<p>Verified against real Acorn/SDL BBC BASIC (screenshots, 2026-10-31) because these details are easy to get backwards from memory:</p>
+<p><strong>PRINT, dialect `bbc`:</strong> a trailing <code>,</code> still tabs/right-justifies the value into its 10-column <code>@%</code> field, but the statement still ends the line. Only a trailing <code>;</code> keeps the next PRINT packed on the same line.</p>
+<pre><code>10 FOR I%=1 TO 3: PRINT I%,: NEXT   &#x27; one number per line
+10 FOR I%=1 TO 3: PRINT I%;: NEXT   &#x27; packed on one line, wraps at screen width</code></pre>
+<p>Other dialects (<code>mini</code>, <code>mits</code>, <code>commodore</code>) keep the more common BASIC convention where a trailing <code>,</code> <em>also</em> suppresses the newline and tabs — only <code>bbc</code> differs here.</p>
+<p><strong>INPUT, dialect `bbc`:</strong> a prompt string attached with <code>,</code> or <code>;</code> gets BBC&#x27;s own <code>? </code> appended after it — even if the prompt is empty or already ends in a literal <code>?</code>. Only gluing the prompt directly onto the variable with no separator (<code>INPUT &quot;P&quot;V$</code>) suppresses the <code>?</code>:</p>
+<pre><code>INPUT &quot;Name:&quot;NAME$    &#x27; -&gt; &quot;Name:&quot;      (no ?)
+INPUT &quot;Name:&quot;;NAME$   &#x27; -&gt; &quot;Name:? &quot;
+INPUT &quot;Name:&quot;, NAME$  &#x27; -&gt; &quot;Name:? &quot;</code></pre>
+<p><code>mits</code>/<code>commodore</code> have their own, older rule (<code>;</code> adds <code>? </code>, <code>,</code> suppresses it — see <code>test_ms_input_prompt.py</code>). <code>LINE INPUT</code> never adds a <code>?</code> in any dialect, and reads the whole line including commas — use it when a typed comma shouldn&#x27;t split the input.</p>
     </article>
   </main>
   <footer>

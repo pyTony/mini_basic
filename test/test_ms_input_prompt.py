@@ -2,7 +2,11 @@
 
 MS BASIC: ``INPUT "COMMAND";A$`` shows ``COMMAND? ``; a comma after the
 prompt suppresses the question mark; with no prompt it is just ``? ``.
-(BBC BASIC is the reverse and stays unchanged: ';' prints the prompt only.)
+
+BBC BASIC (real Acorn/SDL BBC BASIC, Tony, 2026-10-31 screenshots) shows
+``? `` after *both* ``;`` and ``,``-attached prompts -- ``INPUT "P"V$``
+(no separator, glued) is the only form that doesn't. mini keeps the
+original "prompt text only" behaviour unchanged.
 """
 from __future__ import annotations
 
