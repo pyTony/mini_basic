@@ -132,7 +132,6 @@ class MiniBASICTests(unittest.TestCase):
         for line10 in (
             'INPUT "Number: "n',
             'INPUT "Number: " n',
-            'INPUT "Number: ";n',
         ):
             lines = [
                 (10, line10),
@@ -144,6 +143,20 @@ class MiniBASICTests(unittest.TestCase):
                 'Number: 423412',
                 msg=line10,
             )
+
+    def test_input_prompt_with_semicolon_adds_question_mark(self):
+        """mini follows the MBASIC convention (by choice, see test_ms_input_prompt.py):
+        a ';'-attached prompt gets '? ', unlike the glued/space forms above.
+        """
+        lines = [
+            (10, 'INPUT "Number: ";n'),
+            (20, 'PRINT n'),
+            (30, 'END'),
+        ]
+        self.assertEqual(
+            self.run_program(lines, inputs=['423412']),
+            'Number: ? 423412',
+        )
 
     def test_input_multi_numeric_vars(self):
         lines = [
@@ -360,7 +373,7 @@ class MiniBASICTests(unittest.TestCase):
             (30, "NEXT I"),
             (40, "END"),
         ]
-        self.assertEqual(self.run_program(lines), "         1\n         2\n         3")
+        self.assertEqual(self.run_program(lines), "         1         2         3")
 
     def test_multiplication_table_row(self):
         lines = [
@@ -369,7 +382,7 @@ class MiniBASICTests(unittest.TestCase):
             (30, "NEXT col"),
             (40, "END"),
         ]
-        self.assertEqual(self.run_program(lines), "         2\n         4\n         6\n         8\n        10")
+        self.assertEqual(self.run_program(lines), "         2         4         6         8        10")
 
     def test_print_comma_string_tabs(self):
         interp = self.make_interp()

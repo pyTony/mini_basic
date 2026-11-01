@@ -3929,9 +3929,6 @@ class RuntimeExecutionMixin:
             if len(var_tokens) != 1:
                 self._runtime_error('? LINE INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
-            if prompt_content and self.config.dialect in ('mini', 'bbc'):
-                if self._bbc_input_prompt_wants_question(input_rest):
-                    prompt_content += ';"? "'
             first_try = True
             while True:
                 if first_try:
@@ -3940,7 +3937,7 @@ class RuntimeExecutionMixin:
                         read_prompt = ''
                     else:
                         self._print_flush_buffer()
-                        read_prompt = '? ' if self.config.dialect in ('mini', 'bbc') else ''
+                        read_prompt = '? '
                     first_try = False
                 else:
                     read_prompt = '? '
@@ -4294,12 +4291,12 @@ class RuntimeExecutionMixin:
                     return None
                 self._runtime_error('? INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
-            if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore'):
+            if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore', 'mini'):
                 if self._ms_input_prompt_wants_question(rest):
-                    prompt_content += ';"? "'  # MS: INPUT "P";A$ shows P?
-            elif prompt_content and self.config.dialect in ('mini', 'bbc'):
+                    prompt_content += ';"? "'  # MS/mini: INPUT "P";A$ shows P? ("," suppresses it)
+            elif prompt_content and self.config.dialect == 'bbc':
                 if self._bbc_input_prompt_wants_question(rest):
-                    prompt_content += ';"? "'  # BBC separators request a question mark.
+                    prompt_content += ';"? "'  # BBC: INPUT "P",A$ / "P";A$ shows P?
             first_try = True
             while True:
                 if first_try:

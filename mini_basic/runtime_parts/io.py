@@ -1564,8 +1564,13 @@ class RuntimeIoMixin:
                     output.append('\n')
                     self.print_column = 0
 
-            if self.config.dialect in ('mini', 'bbc'):
-                # BBCSDL: PRINT I%, ends the line; PRINT I%,; keeps it open.
+            if self.config.dialect == 'bbc':
+                # Real BBC BASIC: only a trailing ';' suppresses the newline.
+                # A trailing ',' still tabs to the next field but the
+                # statement still ends the line -- PRINT I%, in a loop goes
+                # one value per line; PRINT I%,; (or PRINT I%;) keeps
+                # packing the line. mini deliberately keeps the more common
+                # BASIC convention below instead of this BBC quirk.
                 suppress_newline = trailing_sep == ';'
             else:
                 suppress_newline = bool(trailing_sep) and trailing_sep != "'"

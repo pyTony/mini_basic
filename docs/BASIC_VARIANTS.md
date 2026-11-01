@@ -221,12 +221,12 @@ User-facing matrix notes: `documentation/FEATURE_TESTS_FOR_USER.txt`.
 
 ---
 
-## 9. PRINT `,`/`;` and INPUT `?` — confirmed against real BBC BASIC
+## 9. PRINT `,`/`;` and INPUT `?` -- confirmed against real BBC BASIC, mini by choice
 
 Verified against real Acorn/SDL BBC BASIC (screenshots, 2026-10-31) because
 these details are easy to get backwards from memory:
 
-**PRINT, dialects `bbc` and `mini`:** a trailing `,` still tabs/right-justifies the
+**PRINT, dialect `bbc`:** a trailing `,` still tabs/right-justifies the
 value into its 10-column `@%` field, but the statement still ends the
 line. Only a trailing `;` keeps the next PRINT packed on the same line.
 
@@ -235,11 +235,8 @@ line. Only a trailing `;` keeps the next PRINT packed on the same line.
 10 FOR I%=1 TO 3: PRINT I%;: NEXT   ' packed on one line, wraps at screen width
 ```
 
-Microsoft dialects (`mits`, `commodore`) use a trailing `,` to suppress
-the newline and advance to the next field.
-
-**INPUT, dialects `bbc` and `mini`:** a prompt string attached with `,` or `;` gets BBC's
-own `? ` appended after it — even if the prompt is empty or already ends in
+**INPUT, dialect `bbc`:** a prompt string attached with `,` or `;` gets BBC's
+own `? ` appended after it -- even if the prompt is empty or already ends in
 a literal `?`. Only gluing the prompt directly onto the variable with no
 separator (`INPUT "P"V$`) suppresses the `?`:
 
@@ -249,9 +246,21 @@ INPUT "Name:";NAME$   ' -> "Name:? "
 INPUT "Name:", NAME$  ' -> "Name:? "
 ```
 
-`mits`/`commodore` have their own, older rule (`;` adds `? `, `,`
-suppresses it — see `test_ms_input_prompt.py`). In Microsoft dialects,
-`LINE INPUT` reads the whole line without adding `?`. BBC's `INPUT LINE`
-preserves the whole reply too, but follows the same prompt-separator rules
-as ordinary `INPUT`. `mini` also supports this BBC spelling. INPUT prompts
-continue at the current cursor position, including after `PRINT ...;`.
+**`mini` deliberately does not follow BBC here** (Tony, 2026-11-01): BBC's
+own rules above are considered unintuitive, so `mini` instead follows the
+more common MBASIC/Microsoft convention (same as `mits`/`commodore`,
+below) for both of these -- a trailing PRINT `,` suppresses the newline
+and advances to the next field, and an INPUT prompt only gets `? ` from a
+`;` separator (`,` suppresses it). This is an intentional dialect-design
+choice, not an oversight; see `test_mini_input_print_mbasic_style.py` for
+the tests that pin it down and `test_bbc_input_print_reference.py` for
+the BBC-only reference cases it deliberately diverges from.
+
+`mits`/`commodore` (and now `mini`) share this rule: `;` adds `? `, `,`
+suppresses it -- see `test_ms_input_prompt.py`. `LINE INPUT` never adds a
+`?` in any dialect, and reads the whole line including commas -- use it
+when a typed comma shouldn't split the input. `mini` and `bbc` also
+accept BBC's own `INPUT LINE` spelling as an alias for `LINE INPUT`.
+
+INPUT prompts continue at the current cursor position in every dialect,
+including right after `PRINT ...;` on the same line.
