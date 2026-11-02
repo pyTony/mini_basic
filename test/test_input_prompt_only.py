@@ -82,17 +82,8 @@ class InputPromptOnlyTests(unittest.TestCase):
             interp.run()
         self.assertEqual(out.getvalue().strip(), 'Name? ? [Alice]')
 
-    def test_empty_prompt_after_trailing_comma_breaks_to_new_line(self) -> None:
-        """PRINT "label",: INPUT "", X$ -- trailing comma still ends the line.
-
-        Real Acorn/SDL BBC BASIC (Tony, 2026-10-31 screenshot, prinT.bbc):
-        PRINT "Name:",: INPUT "", NAME$ prints "Name:" on its own line, then
-        the INPUT read happens on the next line, same as any other BBC
-        PRINT statement without a trailing ';'. This supersedes an earlier
-        (2026-10-13) fix that special-cased trailing ',' before INPUT to
-        stay on the same line -- that turned out not to match real BBC
-        BASIC; only a trailing ';' keeps the line going.
-        """
+    def test_empty_prompt_after_print_comma_starts_next_line(self) -> None:
+        """BBCSDL: a trailing PRINT comma ends the line; only ; suppresses it."""
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'PRINT "Name:",: INPUT "", NAME$'
         interp.program[20] = 'PRINT "Hi "; NAME$'
@@ -115,17 +106,16 @@ class InputPromptOnlyTests(unittest.TestCase):
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Tony'):
             interp.run()
-        self.assertEqual(out.getvalue(), 'hi, \n? HERE\n')
+        self.assertEqual(out.getvalue(), 'hi, ? HERE\n')
 
-    def test_prompt_with_real_text_still_breaks_to_new_line(self) -> None:
-        """A non-empty prompt after other text still gets its own line, plus
-        BBC's auto '? ' for the ','-attached variable."""
+    def test_prompt_with_real_text_continues_current_line(self) -> None:
+        """BBC INPUT prints its prompt at the current cursor position."""
         interp = BASICInterpreter(InterpreterConfig(dialect='bbc', display='none'))
         interp.program[10] = 'PRINT "x";: INPUT "Name? ", N$'
         out = io.StringIO()
         with redirect_stdout(out), patch('builtins.input', return_value='Alice'):
             interp.run()
-        self.assertEqual(out.getvalue(), 'x\nName? ? ')
+        self.assertEqual(out.getvalue(), 'xName? ? ')
 
 
 if __name__ == '__main__':

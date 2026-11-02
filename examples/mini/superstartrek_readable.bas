@@ -1,7 +1,7 @@
 1 REM dialect: mini
 2 REM READABLE VERSION of superstartrek.bas (MITS 8K): same line numbers, descriptive
 3 REM names, labels instead of numeric jumps. Runs as mini, not MITS: the MITS number
-4 REM spacing and "?" after INPUT prompts are written out. Glossary: lines 271-329.
+4 REM spacing is written out; INPUT appends its own "?" prompt. Glossary: lines 271-329.
 5 CLEAR 1000
 10 restartGame: REM SUPER STARTREK - MAY 16,1978 - REQUIRES 24K MEMORY
 30 REM
@@ -131,7 +131,7 @@
 2030 PRINT"SPACE":PRINT"YOU HAVE INSUFFICIENT MANEUVERING ENERGY,";
 2040 PRINT" AND SHIELD CONTROL":PRINT"IS PRESENTLY INCAPABLE OF CROSS";
 2050 PRINT"-CIRCUITING TO ENGINE ROOM!!":GOTO endOfGameStardate
-2060 readCommand: INPUT"COMMAND? ";commandText$
+2060 readCommand: INPUT"COMMAND";commandText$
 2080 FOR commandIndex=1 TO 9:IF LEFT$(commandText$,3)<>MID$(commandNames$,3*commandIndex-2,3) THEN tryNextCommand
 2140 ON commandIndex GOTO courseControl,shortRangeScanCommand,longRangeScan,phaserControl,photonTorpedoControl,shieldControl,damageControl,libraryComputer,endOfMission
 2160 tryNextCommand: NEXT commandIndex:PRINT"ENTER ONE OF THE FOLLOWING:"
@@ -145,7 +145,7 @@
 2250 PRINT"  COM  (TO CALL ON LIBRARY-COMPUTER)"
 2260 PRINT"  XXX  (TO RESIGN YOUR COMMAND)":PRINT:GOTO commandLoop
 2290 REM COURSE CONTROL BEGINS HERE
-2300 courseControl: INPUT"COURSE (0-9)? ";course:IF course=9 THEN course=1
+2300 courseControl: INPUT"COURSE (0-9)";course:IF course=9 THEN course=1
 2310 IF course>=1 AND course<9 THEN askWarpFactor
 2330 PRINT"   LT. SULU REPORTS, 'INCORRECT COURSE DATA, SIR!'":GOTO commandLoop
 2350 askWarpFactor: maxWarp$="8":IF deviceDamage(1)<0 THEN maxWarp$="0.2"
@@ -231,7 +231,7 @@
 4330 checkComputerForPhasers: IF deviceDamage(8)<0 THEN PRINT"COMPUTER FAILURE HAMPERS ACCURACY"
 4350 PRINT"PHASERS LOCKED ON TARGET;  ";
 4360 showPhaserEnergy: PRINT"ENERGY AVAILABLE =";" ";energy;" ";"UNITS"
-4370 INPUT"NUMBER OF UNITS TO FIRE? ";phaserUnits:IF phaserUnits<=0 THEN commandLoop
+4370 INPUT"NUMBER OF UNITS TO FIRE";phaserUnits:IF phaserUnits<=0 THEN commandLoop
 4400 IF energy-phaserUnits<0 THEN showPhaserEnergy
 4410 energy=energy-phaserUnits:IF deviceDamage(7)<0 THEN phaserUnits=phaserUnits*RND(1)
 4450 energyPerKlingon=INT(phaserUnits/klingonsHere):FOR klingonIndex=1 TO 3:IF klingon(klingonIndex,3)<=0 THEN nextKlingonPhaser
@@ -246,7 +246,7 @@
 4690 REM PHOTON TORPEDO CODE BEGINS HERE
 4700 photonTorpedoControl: IF torpedoes<=0 THEN PRINT"ALL PHOTON TORPEDOES EXPENDED":GOTO commandLoop
 4730 IF deviceDamage(5)<0 THEN PRINT"PHOTON TUBES ARE NOT OPERATIONAL":GOTO commandLoop
-4760 askTorpedoCourse: INPUT"PHOTON TORPEDO COURSE (1-9)? ";course:IF course=9 THEN course=1
+4760 askTorpedoCourse: INPUT"PHOTON TORPEDO COURSE (1-9)";course:IF course=9 THEN course=1
 4780 IF course>=1 AND course<9 THEN fireTorpedo
 4790 PRINT"ENSIGN CHEKOV REPORTS,  'INCORRECT COURSE DATA, SIR!'"
 4800 GOTO commandLoop
@@ -277,7 +277,7 @@
 5490 torpedoMissed: PRINT"TORPEDO MISSED":GOSUB klingonsShoot:GOTO commandLoop
 5520 REM SHIELD CONTROL
 5530 shieldControl: IF deviceDamage(7)<0 THEN PRINT"SHIELD CONTROL INOPERABLE":GOTO commandLoop
-5560 PRINT"ENERGY AVAILABLE =";" ";energy+shields;" ";:INPUT"NUMBER OF UNITS TO SHIELDS? ";shieldUnits
+5560 PRINT"ENERGY AVAILABLE =";" ";energy+shields;" ";:INPUT"NUMBER OF UNITS TO SHIELDS";shieldUnits
 5580 IF shieldUnits<0 OR shields=shieldUnits THEN PRINT"<SHIELDS UNCHANGED>":GOTO commandLoop
 5590 IF shieldUnits<=energy+shields THEN setShields
 5600 PRINT"SHIELD CONTROL REPORTS  'THIS IS NOT THE FEDERATION TREASURY.'"
@@ -292,7 +292,7 @@
 5780 PRINT:repairTime=repairTime+repairBonus:IF repairTime>=1 THEN repairTime=.9
 5810 PRINT"TECHNICIANS STANDING BY TO EFFECT REPAIRS TO YOUR SHIP;"
 5820 PRINT"ESTIMATED TIME TO REPAIR:";" ";.01*INT(100*repairTime);" ";"STARDATES"
-5840 INPUT "WILL YOU AUTHORIZE THE REPAIR ORDER (Y/N)? ";answer$
+5840 INPUT "WILL YOU AUTHORIZE THE REPAIR ORDER (Y/N)";answer$
 5860 IF answer$<>"Y" THEN commandLoop
 5870 FOR deviceIndex=1 TO 8:IF deviceDamage(deviceIndex)<0 THEN deviceDamage(deviceIndex)=0
 5890 NEXT deviceIndex:stardate=stardate+repairTime+.1
@@ -321,7 +321,7 @@
 6290 askNewCommander: PRINT:PRINT:IF starbasesLeft=0 THEN endProgram
 6310 PRINT"THE FEDERATION IS IN NEED OF A NEW STARSHIP COMMANDER"
 6320 PRINT"FOR A SIMILAR MISSION -- IF THERE IS A VOLUNTEER,"
-6330 INPUT"LET HIM STEP FORWARD AND ENTER 'AYE'? ";answer$:IF answer$="AYE" THEN restartGame
+6330 INPUT"LET HIM STEP FORWARD AND ENTER 'AYE'";answer$:IF answer$="AYE" THEN restartGame
 6360 endProgram: END
 6370 allKlingonsDestroyed: PRINT"CONGRULATION, CAPTAIN!THEN LAST KLINGON BATTLE CRUISER"
 6380 PRINT"MENACING THE FDERATION HAS BEEN DESTROYED.":PRINT
@@ -351,7 +351,7 @@
 7260 nextScanRow: NEXT displayRow:PRINT borderLine$:RETURN
 7280 REM LIBRARY COMPUTER CODE
 7290 libraryComputer: IF deviceDamage(8)<0 THEN PRINT"COMPUTER DISABLED":GOTO commandLoop
-7320 computerPrompt: INPUT"COMPUTER ACTIVE AND AWAITING COMMAND? ";computerFunction:IF computerFunction<0 THEN commandLoop
+7320 computerPrompt: INPUT"COMPUTER ACTIVE AND AWAITING COMMAND";computerFunction:IF computerFunction<0 THEN commandLoop
 7350 PRINT:computerMode=1:ON computerFunction+1 GOTO cumulativeGalacticRecord,statusReport,torpedoData,starbaseNavData,directionCalculator,galaxyMapSetup
 7360 PRINT"FUNCTIONS AVAILABLE FROM LIBRARY-COMPUTER:"
 7370 PRINT"   0 = CUMULATIVE GALACTIC RECORD"
@@ -395,8 +395,8 @@
 8120 directionFromShip: directionBase=sectorX:deltaX=sectorY:GOTO computeDirection
 8150 directionCalculator: PRINT"DIRECTION/DISTANCE CALCULATOR:"
 8160 PRINT"YOU ARE AT QUADRANT ";" ";quadrantX;" ";",";" ";quadrantY;" ";" SECTOR ";" ";sectorX;" ";",";" ";sectorY;" "
-8170 PRINT"PLEASE ENTER":INPUT"  INITIAL COORDINATES (X,Y)? ";directionBase,deltaX
-8200 INPUT"  FINAL COORDINATES (X,Y)? ";toX,deltaY
+8170 PRINT"PLEASE ENTER":INPUT"  INITIAL COORDINATES (X,Y)";directionBase,deltaX
+8200 INPUT"  FINAL COORDINATES (X,Y)";toX,deltaY
 8220 computeDirection: deltaY=deltaY-deltaX:deltaX=directionBase-toX:IF deltaY<0 THEN directionLeft
 8250 IF deltaX<0 THEN directionDown
 8260 IF deltaY>0 THEN directionBaseOne

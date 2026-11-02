@@ -1566,10 +1566,11 @@ class RuntimeIoMixin:
 
             if self.config.dialect == 'bbc':
                 # Real BBC BASIC: only a trailing ';' suppresses the newline.
-                # A trailing ',' still tabs to the next field (handled above
-                # via has_comma/_print_emit_number_field) but the statement
-                # still ends the line -- PRINT I%, in a loop goes one value
-                # per line; PRINT I%,; (or PRINT I%;) keeps packing the line.
+                # A trailing ',' still tabs to the next field but the
+                # statement still ends the line -- PRINT I%, in a loop goes
+                # one value per line; PRINT I%,; (or PRINT I%;) keeps
+                # packing the line. mini deliberately keeps the more common
+                # BASIC convention below instead of this BBC quirk.
                 suppress_newline = trailing_sep == ';'
             else:
                 suppress_newline = bool(trailing_sep) and trailing_sep != "'"
@@ -1844,15 +1845,8 @@ class RuntimeIoMixin:
     def _emit_input_prompt(self, content: str) -> None:
         self._print_flush_buffer()
         text, _, new_column = self._render_print_content(content, '', self.print_column)
-        if text and self.print_column > 0:
-            # Only break to a fresh line when there's a visible prompt to
-            # show. An empty/suppressed prompt (e.g. INPUT ""; X$ right
-            # after PRINT "label";) must keep reading on the same line —
-            # forcing a newline here would insert a blank line and break
-            # the "label" + typed answer on one row idiom.
-            self._print_program_text('\n', newline=True)
-            self.print_column = 0
-            text, _, new_column = self._render_print_content(content, '', self.print_column)
+        # INPUT prompts continue at the live cursor position in both BBC and
+        # Microsoft BASIC, including after PRINT ...; on the same line.
         self.print_column = new_column
         self._print_program_text(text, newline=False)
         self._flush_program_output()

@@ -3924,7 +3924,8 @@ class RuntimeExecutionMixin:
 
         line_input_match = re.match(r'^LINE\s+INPUT\s+(.+)$', line, re.IGNORECASE)
         if line_input_match:
-            prompt_content, var_tokens = self._parse_input_statement(line_input_match.group(1))
+            input_rest = line_input_match.group(1)
+            prompt_content, var_tokens = self._parse_input_statement(input_rest)
             if len(var_tokens) != 1:
                 self._runtime_error('? LINE INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
@@ -4270,6 +4271,12 @@ class RuntimeExecutionMixin:
             return None
 
         if cmd == 'INPUT':
+            if self.config.dialect in ('mini', 'bbc'):
+                first, _, tail = rest.strip().partition(' ')
+                if first == 'LINE':
+                    return self._execute_keyword_prefixed(
+                        'LINE INPUT ' + tail, line_num, line_nums,
+                        stmt_index, stmt_count, stmt_parts)
             prompt_content, var_tokens = self._parse_input_statement(rest)
             if not var_tokens:
                 if prompt_content and self.config.dialect == 'bbc':
@@ -4284,9 +4291,9 @@ class RuntimeExecutionMixin:
                     return None
                 self._runtime_error('? INPUT error', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
-            if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore'):
+            if prompt_content and self.config.dialect in ('mits', 'mbasic', 'commodore', 'mini'):
                 if self._ms_input_prompt_wants_question(rest):
-                    prompt_content += ';"? "'  # MS: INPUT "P";A$ shows P?
+                    prompt_content += ';"? "'  # MS/mini: INPUT "P";A$ shows P? ("," suppresses it)
             elif prompt_content and self.config.dialect == 'bbc':
                 if self._bbc_input_prompt_wants_question(rest):
                     prompt_content += ';"? "'  # BBC: INPUT "P",A$ / "P";A$ shows P?
@@ -4308,7 +4315,7 @@ class RuntimeExecutionMixin:
                 except ProgramExit:
                     raise
                 self._sync_print_column_after_input(line)
-                if len(var_tokens) == 1:
+                if len(var_tokens) == 1 and self.config.dialect != 'bbc':
                     values = [line]
                 else:
                     values = self._split_input_line_values(line)

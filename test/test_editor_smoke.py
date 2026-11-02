@@ -97,7 +97,7 @@ def test_strip_line_numbers_turns_goto_target_into_label() -> None:
         content = win.text.get('1.0', 'end-1c')
 
         assert '10' not in content
-        assert '40' not in content
+        assert not any(line.lstrip()[:1].isdigit() for line in content.splitlines())
         assert 'GOTO L40' in content
         assert '(L40) PRINT' in content
     finally:
@@ -380,7 +380,7 @@ def test_run_program_bbcsdl_opened_tokenized_bbc_runs_without_save_prompt(tmp_pa
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
             win.open_file()
         assert win.path is None
-        assert win.text.edit_modified() is False
+        assert not win.text.edit_modified()
 
         fake_exe = tmp_path / 'bbcsdl.exe'
         fake_exe.write_text('x')
@@ -492,7 +492,7 @@ def test_run_program_opened_tokenized_bbc_runs_original_file_without_save(tmp_pa
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
             win.open_file()
         assert win.path is None
-        assert win.text.edit_modified() is False
+        assert not win.text.edit_modified()
 
         with mock.patch('tools.editor.messagebox.showinfo') as info, \
              mock.patch.object(win, 'save_file_as') as save_as, \
@@ -523,7 +523,7 @@ def test_run_program_edited_tokenized_bbc_still_asks_to_save(tmp_path) -> None:
         with mock.patch('tools.editor.filedialog.askopenfilename', return_value=race_bbc):
             win.open_file()
         win.text.insert(tk.END, "\n' edited\n")
-        assert win.text.edit_modified() is True
+        assert win.text.edit_modified()
 
         with mock.patch('tools.editor.messagebox.showinfo') as info, \
              mock.patch.object(win, 'save_file_as') as save_as:

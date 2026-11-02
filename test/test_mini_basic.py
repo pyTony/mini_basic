@@ -132,7 +132,6 @@ class MiniBASICTests(unittest.TestCase):
         for line10 in (
             'INPUT "Number: "n',
             'INPUT "Number: " n',
-            'INPUT "Number: ";n',
         ):
             lines = [
                 (10, line10),
@@ -144,6 +143,20 @@ class MiniBASICTests(unittest.TestCase):
                 'Number: 423412',
                 msg=line10,
             )
+
+    def test_input_prompt_with_semicolon_adds_question_mark(self):
+        """mini follows the MBASIC convention (by choice, see test_ms_input_prompt.py):
+        a ';'-attached prompt gets '? ', unlike the glued/space forms above.
+        """
+        lines = [
+            (10, 'INPUT "Number: ";n'),
+            (20, 'PRINT n'),
+            (30, 'END'),
+        ]
+        self.assertEqual(
+            self.run_program(lines, inputs=['423412']),
+            'Number: ? 423412',
+        )
 
     def test_input_multi_numeric_vars(self):
         lines = [
@@ -487,11 +500,12 @@ class MiniBASICTests(unittest.TestCase):
                 if parsed:
                     interp.program[parsed[0]] = parsed[1]
         buf = io.StringIO()
-        with redirect_stdout(buf):
-            interp.run()
+        with patch('builtins.input', return_value=''):
+            with redirect_stdout(buf):
+                interp.run()
         out = buf.getvalue()
         self.assertIn("Finished", out)
-        rows = [r for r in out.splitlines() if r and not r.startswith(("Mandelbrot", "Start", "Finished", "Time:"))]
+        rows = [r for r in out.splitlines() if r and not r.startswith(("Mandelbrot", "Start", "Finished", "Time:", "Done"))]
         self.assertEqual(len(rows), 25)
         self.assertIn("O", "".join(rows))
 

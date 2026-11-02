@@ -27,4 +27,5 @@
 350 Q = TIME
 360 PRINT "Finished"
 370 PRINT "Time: "; Q / 100;" secs."
+375 INPUT "Done",dummy$
 380 END

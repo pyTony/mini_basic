@@ -72,8 +72,7 @@ class InteractiveAnimalTests(unittest.TestCase):
         interp._print_program_text = lambda text, newline=False: emitted.append(text)
         interp.print_column = 25
         interp._emit_input_prompt(prompt)
-        self.assertEqual(emitted[0], '\n')
-        self.assertIn('What animal were you thinking of? ', emitted[1])
+        self.assertIn('What animal were you thinking of? ', emitted[0])
         self.assertNotIn('thinkingof', ''.join(emitted))
         rest_q = interp.program[20].split(None, 1)[1]
         prompt_q, vars_q = interp._parse_input_statement(rest_q)

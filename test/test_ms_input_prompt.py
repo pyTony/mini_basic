@@ -5,8 +5,9 @@ prompt suppresses the question mark; with no prompt it is just ``? ``.
 
 BBC BASIC (real Acorn/SDL BBC BASIC, Tony, 2026-10-31 screenshots) shows
 ``? `` after *both* ``;`` and ``,``-attached prompts -- ``INPUT "P"V$``
-(no separator, glued) is the only form that doesn't. mini keeps the
-original "prompt text only" behaviour unchanged.
+(no separator, glued) is the only form that doesn't. mini keeps its own
+MBASIC-style rule (see test_mini_input_print_mbasic_style.py) -- it only
+happens to agree with BBC on the ';' case.
 """
 from __future__ import annotations
 
@@ -56,21 +57,23 @@ class MsInputPromptTests(unittest.TestCase):
         for dialect in ('mits', 'commodore'):
             self.assertTrue(_prompt_text(dialect, 'INPUT A$').startswith('? '), msg=dialect)
 
+    def test_prompt_after_print_semicolon_continues_same_line(self):
+        for dialect in ('mits', 'commodore', 'mini', 'bbc'):
+            out = _prompt_text(dialect, 'PRINT "ENERGY = 3000 ";:INPUT "UNITS";A$', '50\n')
+            self.assertTrue(out.startswith('ENERGY = 3000 UNITS? '), msg=(dialect, out))
+
     def test_prompt_expression_and_multiple_variables(self):
         for dialect in ('mits', 'commodore'):
             out = _prompt_text(dialect, 'INPUT "X,Y";A,B', '1,2\n')
             self.assertTrue(out.startswith('X,Y? '), msg=(dialect, out))
 
-    def test_mini_keeps_prompt_only(self):
-        out = _prompt_text('mini', 'INPUT "COMMAND";A$')
-        self.assertEqual(out.replace('\n', '').strip(), 'COMMAND')
-
-    def test_bbc_semicolon_and_comma_both_add_question_mark(self):
-        # Real Acorn/SDL BBC BASIC: both forms show "? "; only the glued
-        # "COMMAND"A$ (no separator) form doesn't -- see test_edge_case_bugs.py.
-        for stmt in ('INPUT "COMMAND";A$', 'INPUT "COMMAND",A$'):
-            out = _prompt_text('bbc', stmt)
-            self.assertEqual(out.replace('\n', '').strip(), 'COMMAND?', msg=stmt)
+    def test_mini_and_bbc_agree_semicolon_adds_question_mark(self):
+        # mini (MBASIC rule) and bbc (BBC rule) both add '? ' for ';' --
+        # for different reasons; see test_mini_input_print_mbasic_style.py
+        # for the comma case where they diverge.
+        for dialect in ('mini', 'bbc'):
+            out = _prompt_text(dialect, 'INPUT "COMMAND";A$')
+            self.assertEqual(out.replace('\n', '').strip(), 'COMMAND?', msg=dialect)
 
 
 if __name__ == '__main__':
