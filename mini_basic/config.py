@@ -38,6 +38,7 @@ class InterpreterConfig:
     graphics_width: int = 320
     graphics_height: int = 256
     display_caption: str = 'mini_basic'
+    display_borderless: bool = False
     display_fps_limit: int = 60
     """Pygame present() rate cap; 0 = unlimited (benchmark / fast machines)."""
     hold_display_open: bool = False

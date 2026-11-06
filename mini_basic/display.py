@@ -627,6 +627,7 @@ class PygameDisplay(DisplayBackend):
         scale_locked: bool = False,
         caption: str = 'mini_basic',
         fps_limit: int = 60,
+        borderless: bool = False,
     ) -> None:
         try:
             pygame = import_pygame()
@@ -649,6 +650,8 @@ class PygameDisplay(DisplayBackend):
         self.scale_locked = bool(scale_locked)
         self.scale = self._requested_scale
         self.caption = caption
+        self.borderless = bool(borderless)
+        self._drag_anchor = None
         self.fps_limit = fps_limit
 
         self._mode = 8
@@ -943,6 +946,8 @@ class PygameDisplay(DisplayBackend):
                 message=r'.*forcibly resized by the OS.*',
                 category=RuntimeWarning,
             )
+            if self.borderless:
+                return pygame.display.set_mode(size, pygame.NOFRAME)
             return pygame.display.set_mode(size)
 
     def _erase_cursor_cell(self) -> None:
@@ -2260,6 +2265,30 @@ class PygameDisplay(DisplayBackend):
         self._compose_full = True
         self._dirty = True
 
+    def _handle_window_drag(self, event) -> bool:
+        """Left-drag a borderless window without consuming normal window input."""
+        if not self.borderless:
+            return False
+        pygame = self._pygame
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self._drag_anchor = event.pos
+            return True
+        if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+            self._drag_anchor = None
+            return True
+        if event.type == getattr(pygame, 'WINDOWFOCUSLOST', None):
+            self._drag_anchor = None
+        if event.type == pygame.MOUSEMOTION and self._drag_anchor is not None:
+            if not event.buttons[0]:
+                self._drag_anchor = None
+                return False
+            window = self._window_from_display_module(pygame)
+            x, y = window.position
+            ax, ay = self._drag_anchor
+            window.position = (x + event.pos[0] - ax, y + event.pos[1] - ay)
+            return True
+        return False
+
     def _text_grid_has_flash(self) -> bool:
         """True if any text cell is BBC-flashing (COLOUR 8-15 / 136-143)."""
         grid = getattr(self, '_text', None)
@@ -2382,6 +2411,8 @@ class PygameDisplay(DisplayBackend):
         pygame.event.pump()
         preserved = []
         for event in pygame.event.get():
+            if self._handle_window_drag(event):
+                continue
             if event.type == pygame.QUIT:
                 self._open = False
                 return False
@@ -2417,6 +2448,8 @@ class PygameDisplay(DisplayBackend):
             while self._open:
                 pygame.event.pump()
                 for event in pygame.event.get():
+                    if self._handle_window_drag(event):
+                        continue
                     if event.type == pygame.QUIT:
                         self._open = False
                         return ''
@@ -2654,6 +2687,7 @@ def create_display(
     scale: int = 2,
     scale_locked: bool = False,
     caption: str = 'mini_basic',
+    borderless: bool = False,
     fps_limit: int = 60,
 ) -> DisplayBackend:
     if backend in ('none', 'null'):
@@ -2669,6 +2703,7 @@ def create_display(
             scale=scale,
             scale_locked=scale_locked,
             caption=caption,
+            borderless=borderless,
             fps_limit=max(0, int(fps_limit)),
         )
     raise ValueError(f'unknown display backend: {backend}')

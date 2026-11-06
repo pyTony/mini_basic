@@ -23,6 +23,40 @@ pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
 
 
 class DisplayTests(unittest.TestCase):
+    def test_borderless_cli_enables_pygame(self):
+        from mini_basic.runtime import _parse_main_args
+        config = _parse_main_args(['--borderless', 'cube.bas'])[6]
+        self.assertTrue(config.display_borderless)
+        self.assertEqual(config.display, 'pygame')
+        self.assertTrue(config.hold_display_open)
+
+    def test_borderless_window_flags_and_drag(self):
+        from types import SimpleNamespace
+        from unittest.mock import Mock, patch
+        from mini_basic.display import PygameDisplay
+
+        display = PygameDisplay.__new__(PygameDisplay)
+        pygame = SimpleNamespace(
+            NOFRAME=32, MOUSEBUTTONDOWN=1, MOUSEBUTTONUP=2,
+            MOUSEMOTION=3, WINDOWFOCUSLOST=4, display=Mock(),
+        )
+        display._pygame = pygame
+        display.borderless = True
+        display._drag_anchor = None
+        display._set_display_mode((640, 350))
+        pygame.display.set_mode.assert_called_once_with((640, 350), pygame.NOFRAME)
+        window = SimpleNamespace(position=(100, 200))
+        with patch.object(display, '_window_from_display_module', return_value=window):
+            self.assertTrue(display._handle_window_drag(SimpleNamespace(type=1, button=1, pos=(10, 20))))
+            display._handle_window_drag(SimpleNamespace(type=3, pos=(30, 50), buttons=(1, 0, 0)))
+            self.assertEqual(window.position, (120, 230))
+            display._handle_window_drag(SimpleNamespace(type=2, button=1))
+            self.assertIsNone(display._drag_anchor)
+            display._handle_window_drag(SimpleNamespace(type=3, pos=(70, 90), buttons=(0, 0, 0)))
+            self.assertEqual(window.position, (120, 230))
+            display.borderless = False
+            self.assertFalse(display._handle_window_drag(SimpleNamespace(type=1, button=1, pos=(0, 0))))
+
     def test_desktop_size_uses_largest_display(self):
         pygame = type('P', (), {})()
         pygame.display = type('D', (), {

@@ -1309,6 +1309,13 @@ def _parse_main_args(
             scale_specified = True
             index += 2
             continue
+        if token == '--borderless':
+            config.display_borderless = True
+            config.display = 'pygame'
+            config.display_locked = True
+            config.hold_display_open = True
+            index += 1
+            continue
         if token == '--cols':
             if index + 1 >= len(args):
                 print('? --cols requires a number')

@@ -50,6 +50,10 @@ python -m mini_basic --pygame --dialect bbc basics/jclock.bas
 python -m mini_basic
 ```
 
+Use `--borderless` for a graphics window without a title bar. Left-drag anywhere
+inside the window to move it; press Escape to exit. For example:
+`python -m mini_basic --borderless cube.bas`.
+
 ```python
 from mini_basic import BASICInterpreter, main
 from mini_basic.config import InterpreterConfig

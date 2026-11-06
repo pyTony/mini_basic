@@ -403,6 +403,7 @@ class RuntimeGraphicsMixin:
                     scale=self.config.display_scale,
                     scale_locked=self.config.display_scale_locked,
                     caption=self.config.display_caption,
+                    borderless=self.config.display_borderless,
                     fps_limit=self.config.display_fps_limit,
                 )
             except ImportError as exc:
@@ -457,6 +458,7 @@ class RuntimeGraphicsMixin:
                         scale=self.config.display_scale,
                         scale_locked=self.config.display_scale_locked,
                         caption=self.config.display_caption,
+                        borderless=self.config.display_borderless,
                         fps_limit=self.config.display_fps_limit,
                     )
                 except ImportError:
