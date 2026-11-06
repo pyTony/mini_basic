@@ -36,6 +36,7 @@ from mini_basic.bbc_font import blit_char as blit_mos_char
 from mini_basic.bbc_graphics import BBCGraphics
 from mini_basic.bbc_modes import (
     BBCModeSpec,
+    GW_SCREEN_MODE_BASE,
     TELETEXT_FG_COLOURS,
     TELETEXT_GFX_COLOURS,
     bbc_mode_spec,
@@ -926,6 +927,12 @@ class PygameDisplay(DisplayBackend):
         # the window below native size (see nudge_runtime_scale).
         pw = max(1e-6, scale * par_w)
         ph = max(1e-6, scale * par_h)
+        if self._mode >= GW_SCREEN_MODE_BASE:
+            # PC CRT modes fill 4:3 with rectangular pixels. Keep --scale
+            # relative to framebuffer width rather than multiplying window
+            # size by both integers of a rational aspect such as 5:12.
+            pw /= par_w
+            ph /= par_w
         return int(round(logical_w * pw)), int(round(logical_h * ph))
 
     def _window_client_size(self) -> Tuple[int, int]:

@@ -130,16 +130,17 @@ def bbc_mode_spec(mode: int) -> Optional[BBCModeSpec]:
 GW_SCREEN_MODE_BASE = 1000
 
 GW_SCREEN_MODE_SPECS: Dict[int, BBCModeSpec] = {
+    # Pixel width:height ratios for a 4:3 CRT, not square framebuffer pixels.
     0: BBCModeSpec(0, 0, 80, 25, 8, 16, 1, 1, False),      # text only
-    1: BBCModeSpec(320, 200, 40, 25, 8, 8, 1, 1, True),    # CGA, 4 colours
-    2: BBCModeSpec(640, 200, 80, 25, 8, 8, 1, 1, True),    # CGA, 2 colours
-    7: BBCModeSpec(320, 200, 40, 25, 8, 8, 1, 1, True),    # EGA low-res, 16 colours
-    8: BBCModeSpec(640, 200, 80, 25, 8, 8, 1, 1, True),    # EGA, 16 colours
-    9: BBCModeSpec(640, 350, 80, 25, 8, 14, 1, 1, True),   # EGA hi-res, 16 colours
-    10: BBCModeSpec(640, 350, 80, 25, 8, 14, 1, 1, True),  # EGA, monochrome
+    1: BBCModeSpec(320, 200, 40, 25, 8, 8, 5, 6, True),    # CGA, 4 colours
+    2: BBCModeSpec(640, 200, 80, 25, 8, 8, 5, 12, True),    # CGA, 2 colours
+    7: BBCModeSpec(320, 200, 40, 25, 8, 8, 5, 6, True),    # EGA low-res, 16 colours
+    8: BBCModeSpec(640, 200, 80, 25, 8, 8, 5, 12, True),    # EGA, 16 colours
+    9: BBCModeSpec(640, 350, 80, 25, 8, 14, 35, 48, True),   # EGA hi-res, 16 colours
+    10: BBCModeSpec(640, 350, 80, 25, 8, 14, 35, 48, True),  # EGA, monochrome
     11: BBCModeSpec(640, 480, 80, 30, 8, 16, 1, 1, True),  # VGA, 2 colours
     12: BBCModeSpec(640, 480, 80, 30, 8, 16, 1, 1, True),  # VGA, 16 colours
-    13: BBCModeSpec(320, 200, 40, 25, 8, 8, 1, 1, True),   # VGA, 256 colours
+    13: BBCModeSpec(320, 200, 40, 25, 8, 8, 5, 6, True),   # VGA, 256 colours
 }
 
 

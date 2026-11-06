@@ -42,6 +42,26 @@ def _run(interp: BASICInterpreter, lines) -> str:
 
 
 class GwScreenModeSpecTests(unittest.TestCase):
+    def test_pc_window_aspect_preserves_framebuffer_width(self):
+        from mini_basic.display import PygameDisplay
+        display = PygameDisplay.__new__(PygameDisplay)
+        for mode, width in ((2, 640), (9, 640), (13, 320)):
+            spec = gw_screen_mode_spec(mode)
+            display._mode = GW_SCREEN_MODE_BASE + mode
+            display._par_w, display._par_h = spec.par_w, spec.par_h
+            display.graphics_width = spec.gfx_width
+            display.graphics_height = spec.gfx_height
+            display._plot_enabled = True
+            self.assertEqual(display._window_client_size_at_scale(1), (width, width * 3 // 4))
+            self.assertEqual(display._window_client_size_at_scale(2), (width * 2, width * 3 // 2))
+
+    def test_pc_graphics_modes_have_four_by_three_display_aspect(self):
+        for mode in (1, 2, 7, 8, 9, 10, 11, 12, 13):
+            with self.subTest(mode=mode):
+                spec = gw_screen_mode_spec(mode)
+                self.assertEqual(spec.gfx_width * spec.par_w * 3,
+                                 spec.gfx_height * spec.par_h * 4)
+
     def test_screen_9_is_640x350_16col_ega(self):
         spec = gw_screen_mode_spec(9)
         assert spec is not None
