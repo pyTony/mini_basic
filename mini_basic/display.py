@@ -139,7 +139,7 @@ class DisplayBackend(ABC):
         return
 
     @abstractmethod
-    def set_mode(self, mode: int) -> None:
+    def set_mode(self, mode: int, spec: Optional[BBCModeSpec] = None) -> None:
         ...
 
     @abstractmethod
@@ -301,7 +301,7 @@ class NullDisplay(DisplayBackend):
     def clear(self) -> None:
         return
 
-    def set_mode(self, mode: int) -> None:
+    def set_mode(self, mode: int, spec: Optional[BBCModeSpec] = None) -> None:
         return
 
     def set_text_dimensions(self, cols: int, rows: int) -> None:
@@ -525,7 +525,7 @@ class TerminalDisplay(DisplayBackend):
     def pump_events(self) -> None:
         return
 
-    def set_mode(self, mode: int) -> None:
+    def set_mode(self, mode: int, spec: Optional[BBCModeSpec] = None) -> None:
         return
 
     def set_colour(self, colour: int, *, no_flash: bool = False) -> None:
@@ -1347,9 +1347,9 @@ class PygameDisplay(DisplayBackend):
             self._gfx.gcol_fg = (0, 7)
             self._gfx.gcol_bg = (0, 0)
 
-    def set_mode(self, mode: int) -> None:
+    def set_mode(self, mode: int, spec: Optional[BBCModeSpec] = None) -> None:
         self._mode = int(mode)
-        self._apply_mode_spec(bbc_mode_spec(self._mode))
+        self._apply_mode_spec(spec if spec is not None else bbc_mode_spec(self._mode))
         self.reset_text_colours()
         self._reset_text_grid()
         self._cursor_row = 0

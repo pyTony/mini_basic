@@ -121,6 +121,32 @@ def bbc_mode_spec(mode: int) -> Optional[BBCModeSpec]:
     return BB4W_MODE_SPECS.get(key)
 
 
+# GW-BASIC/QBasic SCREEN n video modes (IBM PC CGA/EGA/VGA; see GW-BASIC
+# User's Guide ch.4 "SCREEN Statement"). Kept separate from BBC_MODE_SPECS/
+# BB4W_MODE_SPECS because the mode numbers collide (e.g. SCREEN 9 is
+# 640x350 16-colour EGA, unrelated to BBC MODE 9's 640x512 text mode) — the
+# interpreter offsets these by GW_SCREEN_MODE_BASE before storing them as
+# the active "mode" so the two numberings never clash.
+GW_SCREEN_MODE_BASE = 1000
+
+GW_SCREEN_MODE_SPECS: Dict[int, BBCModeSpec] = {
+    0: BBCModeSpec(0, 0, 80, 25, 8, 16, 1, 1, False),      # text only
+    1: BBCModeSpec(320, 200, 40, 25, 8, 8, 1, 1, True),    # CGA, 4 colours
+    2: BBCModeSpec(640, 200, 80, 25, 8, 8, 1, 1, True),    # CGA, 2 colours
+    7: BBCModeSpec(320, 200, 40, 25, 8, 8, 1, 1, True),    # EGA low-res, 16 colours
+    8: BBCModeSpec(640, 200, 80, 25, 8, 8, 1, 1, True),    # EGA, 16 colours
+    9: BBCModeSpec(640, 350, 80, 25, 8, 14, 1, 1, True),   # EGA hi-res, 16 colours
+    10: BBCModeSpec(640, 350, 80, 25, 8, 14, 1, 1, True),  # EGA, monochrome
+    11: BBCModeSpec(640, 480, 80, 30, 8, 16, 1, 1, True),  # VGA, 2 colours
+    12: BBCModeSpec(640, 480, 80, 30, 8, 16, 1, 1, True),  # VGA, 16 colours
+    13: BBCModeSpec(320, 200, 40, 25, 8, 8, 1, 1, True),   # VGA, 256 colours
+}
+
+
+def gw_screen_mode_spec(screen: int) -> Optional[BBCModeSpec]:
+    return GW_SCREEN_MODE_SPECS.get(int(screen))
+
+
 # Physical text colour depth per BBC mode (see HELP MODES).
 MODE_TEXT_COLOUR_DEPTH: Dict[int, int] = {
     0: 2,

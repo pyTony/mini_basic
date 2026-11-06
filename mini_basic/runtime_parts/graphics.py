@@ -469,8 +469,9 @@ class RuntimeGraphicsMixin:
                 self._display.begin_run()
             self._display_live = True
             if self._graphics_mode and hasattr(self._display, 'set_mode'):
-                self._apply_bbc_mode(self._graphics_mode)
-                self._display.set_mode(self._graphics_mode)
+                custom_spec = self._custom_mode_spec
+                self._apply_bbc_mode(self._graphics_mode, spec=custom_spec)
+                self._display.set_mode(self._graphics_mode, spec=custom_spec)
 
     def _colour_prefix_for_output(self) -> str:
         if self._display_enabled() and self.text_fg_colour is not None:
@@ -531,6 +532,8 @@ class RuntimeGraphicsMixin:
         return int(code) & 255
 
     def _graphics_plot_enabled(self) -> bool:
+        if self._custom_mode_spec is not None:
+            return self._custom_mode_spec.plot_enabled
         spec = bbc_mode_spec(self._graphics_mode)
         if spec is None:
             return self._graphics_mode != 7
