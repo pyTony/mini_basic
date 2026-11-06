@@ -91,6 +91,7 @@ _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
        
 # BBC Micro MODE specs (text grid, graphics resolution, PAR) — see bbc_modes.py.
+from ..bbc_modes import GW_SCREEN_MODE_BASE, gw_screen_mode_spec
 
 from .helpers import (
     _get_readline_module,
@@ -5533,6 +5534,7 @@ class RuntimeExecutionMixin:
             if rest_strip:
                 try:
                     self._graphics_mode = int(self._eval_numeric(rest_strip))
+                    self._custom_mode_spec = None
                     self._apply_bbc_mode(self._graphics_mode)
                     self._ensure_display()
                     if self._display_enabled():
@@ -5546,6 +5548,64 @@ class RuntimeExecutionMixin:
                 except Exception as exc:
                     self._runtime_error(
                         self._error_message('? MODE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'SCREEN':
+            # GW-BASIC/QBasic SCREEN n: selects a CGA/EGA/VGA video mode.
+            # Not real BBC BASIC — a mini/mbasic extension (see bbc_modes.py
+            # GW_SCREEN_MODE_SPECS; mode numbers are offset to avoid
+            # colliding with BBC's own MODE numbering).
+            if not self._dialect_allows('gw_screen_locate'):
+                self._runtime_error(
+                    '? SCREEN error: not supported in this dialect',
+                    line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
+            self._maybe_auto_enable_pygame_now(announce=False)
+            rest_strip = rest.strip()
+            if rest_strip:
+                try:
+                    args = self._split_args(rest_strip)
+                    screen_num = int(self._eval_numeric(args[0]))
+                    spec = gw_screen_mode_spec(screen_num)
+                    if spec is None:
+                        raise ValueError(f'unsupported SCREEN mode {screen_num}')
+                    self._graphics_mode = GW_SCREEN_MODE_BASE + screen_num
+                    self._custom_mode_spec = spec
+                    self._apply_bbc_mode(self._graphics_mode, spec=spec)
+                    self._ensure_display()
+                    if self._display_enabled():
+                        self._display.set_mode(self._graphics_mode, spec=spec)
+                        self._flush_display()
+                    self.text_fg_colour = 7
+                    self.text_bg_colour = 0
+                    self._bbc_tint_fg = 0
+                    self._bbc_tint_bg = 0
+                    self._last_emitted_fg_colour = None
+                except Exception as exc:
+                    self._runtime_error(
+                        self._error_message('? SCREEN error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
+            return None
+
+        if cmd == 'LOCATE':
+            # GW-BASIC/QBasic LOCATE row[,col]: 1-based text cursor position.
+            if not self._dialect_allows('gw_screen_locate'):
+                self._runtime_error(
+                    '? LOCATE error: not supported in this dialect',
+                    line_num, stmt_index, stmt_count=stmt_count, statement=line)
+                return None
+            try:
+                args = self._split_args(rest.strip())
+                row_arg = args[0].strip() if args else ''
+                col_arg = args[1].strip() if len(args) > 1 else ''
+                row = int(self._eval_numeric(row_arg)) if row_arg else self.text_row + 1
+                col = int(self._eval_numeric(col_arg)) if col_arg else self.text_col + 1
+                self._ensure_display()
+                self._vdu_set_text_cursor(col - 1, row - 1)
+            except ProgramExit:
+                raise
+            except Exception as exc:
+                self._runtime_error(
+                    self._error_message('? LOCATE error', exc), line_num, stmt_index, stmt_count=stmt_count, statement=line)
             return None
 
         if cmd == 'GCOL':
@@ -5658,22 +5718,70 @@ class RuntimeExecutionMixin:
                 return None
             try:
                 rest_strip = rest.strip()
-                to_m = re.match(r'^(.+?)\s+TO\s+(.+)$', rest_strip, re.IGNORECASE)
-                if to_m:
-                    args = self._split_args(to_m.group(1)) + self._split_args(to_m.group(2))
+                if rest_strip.startswith('('):
+                    # GW-BASIC/QBasic: LINE (x1,y1)-(x2,y2)[,colour[,B|BF]]
+                    close1 = self._match_paren(rest_strip, 0)
+                    point1_text = rest_strip[1:close1]
+                    tail = rest_strip[close1 + 1:].lstrip()
+                    if not tail.startswith('-'):
+                        raise ValueError('LINE (x1,y1)-(x2,y2) needs "-"')
+                    tail = tail[1:].lstrip()
+                    if not tail.startswith('('):
+                        raise ValueError('LINE (x1,y1)-(x2,y2) needs second point')
+                    close2 = self._match_paren(tail, 0)
+                    point2_text = tail[1:close2]
+                    trailer = tail[close2 + 1:].lstrip()
+                    trailer = trailer[1:] if trailer.startswith(',') else ''
+                    p1 = self._split_args(point1_text)
+                    p2 = self._split_args(point2_text)
+                    if len(p1) != 2 or len(p2) != 2:
+                        raise ValueError('LINE (x1,y1)-(x2,y2) needs two coordinates per point')
+                    x1 = int(self._eval_numeric(p1[0]))
+                    y1 = int(self._eval_numeric(p1[1]))
+                    x2 = int(self._eval_numeric(p2[0]))
+                    y2 = int(self._eval_numeric(p2[1]))
+                    colour = None
+                    box_kind = None
+                    if trailer.strip():
+                        targs = self._split_args(trailer)
+                        if targs and targs[0].strip():
+                            colour = int(self._eval_numeric(targs[0]))
+                        if len(targs) > 1 and targs[1].strip():
+                            box_kind = targs[1].strip().upper()
+                    self._ensure_display()
+                    if self._display_enabled():
+                        if colour is not None:
+                            self._display.gcol(0, colour)
+                        if box_kind in ('B', 'BF'):
+                            box_x = min(x1, x2)
+                            box_y = min(y1, y2)
+                            box_w = abs(x2 - x1)
+                            box_h = abs(y2 - y1)
+                            if box_kind == 'BF':
+                                self._display.fill_rectangle(box_x, box_y, box_w, box_h)
+                            else:
+                                self._display.draw_rectangle(box_x, box_y, box_w, box_h)
+                        else:
+                            self._display.move_absolute(x1, y1)
+                            self._display.draw_absolute(x2, y2)
+                        self._sync_graphics()
                 else:
-                    args = self._split_args(rest_strip)
-                if len(args) < 4:
-                    raise ValueError('LINE needs x1,y1,x2,y2')
-                x1 = int(self._eval_numeric(args[0]))
-                y1 = int(self._eval_numeric(args[1]))
-                x2 = int(self._eval_numeric(args[2]))
-                y2 = int(self._eval_numeric(args[3]))
-                self._ensure_display()
-                if self._display_enabled():
-                    self._display.move_absolute(x1, y1)
-                    self._display.draw_absolute(x2, y2)
-                    self._sync_graphics()
+                    to_m = re.match(r'^(.+?)\s+TO\s+(.+)$', rest_strip, re.IGNORECASE)
+                    if to_m:
+                        args = self._split_args(to_m.group(1)) + self._split_args(to_m.group(2))
+                    else:
+                        args = self._split_args(rest_strip)
+                    if len(args) < 4:
+                        raise ValueError('LINE needs x1,y1,x2,y2')
+                    x1 = int(self._eval_numeric(args[0]))
+                    y1 = int(self._eval_numeric(args[1]))
+                    x2 = int(self._eval_numeric(args[2]))
+                    y2 = int(self._eval_numeric(args[3]))
+                    self._ensure_display()
+                    if self._display_enabled():
+                        self._display.move_absolute(x1, y1)
+                        self._display.draw_absolute(x2, y2)
+                        self._sync_graphics()
             except ProgramExit:
                 raise
             except Exception as exc:

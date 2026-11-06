@@ -258,6 +258,9 @@ class RuntimeCoreMixin:
         self._text_viewport = None
         self._graphics_viewport = None
         self._graphics_mode = 8
+        # Set by GW-BASIC SCREEN n (offset into GW_SCREEN_MODE_BASE range);
+        # cleared by MODE, which returns to native BBC mode numbering.
+        self._custom_mode_spec: Optional[object] = None
         self.array_storage: Dict[Tuple[str, VarKind], ArrayStorage] = {}
         self.struct_defs: Dict[str, Dict[str, VarKind]] = {}
         self.struct_members: Dict[str, object] = {}  # dotted keys e.g. 'pt.x%' -> value (suffix in key for uniqueness)

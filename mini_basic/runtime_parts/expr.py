@@ -98,7 +98,7 @@ _SYSTEM_VAR_SPEC = SYSTEM_VAR_SPEC
 
        
 # BBC Micro MODE specs (text grid, graphics resolution, PAR) — see bbc_modes.py.
-from mini_basic.bbc_modes import bbc_mode_spec
+from mini_basic.bbc_modes import BBCModeSpec, bbc_mode_spec
 
 from .helpers import (
     _get_readline_module,
@@ -143,8 +143,9 @@ class RuntimeExprMixin:
                 self.config.display_rows,
             )
 
-    def _apply_bbc_mode(self, mode: int) -> None:
-        spec = bbc_mode_spec(mode)
+    def _apply_bbc_mode(self, mode: int, spec: Optional[BBCModeSpec] = None) -> None:
+        if spec is None:
+            spec = bbc_mode_spec(mode)
         if spec is None:
             return
         self._bbc_custom_colours.clear()

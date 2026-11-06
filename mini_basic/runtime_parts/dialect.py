@@ -130,6 +130,10 @@ class RuntimeDialectMixin:
             'colour_two_arg',
         ):
             return dialect == 'mini'
+        if feature == 'gw_screen_locate':
+            # SCREEN/LOCATE are genuine GW-BASIC/MBASIC statements, not BBC
+            # BASIC (which uses MODE and VDU 31/TAB instead).
+            return dialect in ('mini', 'mbasic')
         if feature == 'INSTR':
             return dialect == 'mbasic' or dialect not in self._NUMBERED_GOTO_DIALECTS
         if feature in self._MINI_ONLY_FUNCS or feature == 'mini_only_func':
