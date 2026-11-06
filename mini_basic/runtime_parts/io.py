@@ -17,6 +17,7 @@ import sys
 import time
 
 from ..config import DEFAULT_CONFIG, InterpreterConfig, SYSTEM_VAR_SPEC
+from ..bbc_modes import GW_SCREEN_MODE_BASE
 from ..dialect_hint import DialectHint, parse_comment_dialect_line, split_dialect_hints
 from ..constants import (
     CLI_EXIT_WORDS as _CLI_EXIT_WORDS,
@@ -477,11 +478,13 @@ class RuntimeIoMixin:
                 if not force and plots >= 64:
                     # ~8–12 Hz during plot storms (was 20 Hz full-frame uploads).
                     interval = max(interval, 1.0 / 10.0)
-                # Grid PRINT in graphics modes sets compose_full; the dirty-rect
-                # patch path skips text. Never rate-limit that compose, or hands
-                # (Clock) present first and digital/title text never appears.
+                # GW SCREEN programs clear and redraw without BBC's *REFRESH
+                # controls: CLS/text need composition, but not an immediate flip
+                # of a half-drawn frame. Keep BBC's existing immediate text
+                # composition (Clock's overlays depend on it).
                 compose_full = bool(getattr(self._display, '_compose_full', False))
-                if force or compose_full or (now - self._last_present_time) >= interval:
+                gw_screen = self._graphics_mode >= GW_SCREEN_MODE_BASE
+                if force or (compose_full and not gw_screen) or (now - self._last_present_time) >= interval:
                     self._display.present(force=force or compose_full)
                     self._last_present_time = now
                     if (

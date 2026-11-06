@@ -5750,6 +5750,13 @@ class RuntimeExecutionMixin:
                             box_kind = targs[1].strip().upper()
                     self._ensure_display()
                     if self._display_enabled():
+                        # GW LINE coordinates are framebuffer pixels, with y
+                        # increasing downwards. The shared drawing backend uses
+                        # BBC OS units and a bottom-left origin.
+                        gfx = getattr(self._display, '_gfx', None)
+                        if gfx is not None:
+                            x1, y1 = gfx.from_screen(x1, y1)
+                            x2, y2 = gfx.from_screen(x2, y2)
                         if colour is not None:
                             self._display.gcol(0, colour)
                         if box_kind in ('B', 'BF'):

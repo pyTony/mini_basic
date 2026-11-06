@@ -65,6 +65,27 @@ class GwScreenModeSpecTests(unittest.TestCase):
 
 
 class ScreenStatementTests(unittest.TestCase):
+    def test_text_compose_does_not_bypass_frame_interval(self):
+        """CLS/PRINT dirty composition is distinct from an explicit refresh."""
+        from unittest.mock import Mock, patch
+
+        i = _interp('mini')
+        i._graphics_mode = GW_SCREEN_MODE_BASE + 9
+        display = Mock()
+        display._compose_full = True
+        display._gfx = None
+        display.poll.return_value = True
+        i._display = display
+        i._last_present_time = 10.0
+        with patch.object(i, '_ensure_display'), patch.object(i, '_display_enabled', return_value=True), \
+                patch.object(i, '_check_user_interrupt'), patch.object(i, '_update_mouse_from_display'), \
+                patch('mini_basic.runtime_parts.io.time.monotonic', return_value=10.001):
+            i._flush_display()
+            display.present.assert_not_called()
+            display.poll.assert_called_once()
+            i._flush_display(force=True)
+            display.present.assert_called_once_with(force=True)
+
     def test_screen_9_sets_graphics_dims_and_offsets_mode(self):
         i = _interp('mini')
         out = _run(i, [(10, 'SCREEN 9'), (20, 'END')])
@@ -153,6 +174,51 @@ def _run_pygame_without_shutdown(interp: BASICInterpreter, lines) -> str:
 class LineStatementTests(unittest.TestCase):
     def setUp(self) -> None:
         _require_pygame_dummy()
+
+    def test_gw_line_uses_pixels_from_top_left(self):
+        from mini_basic.display import ensure_no_pygame_leftovers
+
+        i = BASICInterpreter(InterpreterConfig(
+            dialect='mini', display='pygame', hold_display_open=False))
+        try:
+            _run_pygame_without_shutdown(i, [
+                (10, 'SCREEN 9'),
+                (20, 'LINE (300,175)-(340,175),2'),
+                (30, 'LINE (0,0)-(10,0),2'),
+                (40, 'END'),
+            ])
+            pixels = i._display.capture_framebuffer()
+            self.assertEqual(pixels[175][320], 2)
+            self.assertEqual(pixels[0][0], 2)
+            self.assertEqual(pixels[349][0], 0)
+        finally:
+            i._shutdown_display()
+            ensure_no_pygame_leftovers()
+
+    def test_screen_9_first_text_row_is_fully_inside_canvas(self):
+        from mini_basic.display import ensure_no_pygame_leftovers
+
+        i = BASICInterpreter(InterpreterConfig(
+            dialect='mini', display='pygame', hold_display_open=False))
+        try:
+            _run_pygame_without_shutdown(i, [
+                (10, 'SCREEN 9:COLOR 2,0'),
+                (20, 'LOCATE 1,1:PRINT "IBM PC BASIC 3D ENGINE"'),
+                (30, 'LOCATE 2,1:PRINT "IBM PC BASIC 3D ENGINE"'),
+                (40, 'END'),
+            ])
+            d = i._display
+            d.present(force=True)
+            h = d._effective_cell_height()
+            first = d._canvas.subsurface((0, 0, 21 * 8, h))
+            second = d._canvas.subsurface((0, h, 21 * 8, h))
+            self.assertEqual(d._pygame.image.tobytes(first, 'RGB'),
+                             d._pygame.image.tobytes(second, 'RGB'))
+            self.assertGreater(sum(first.get_at((x, y))[1] > 0
+                for y in range(h) for x in range(first.get_width())), 100)
+        finally:
+            i._shutdown_display()
+            ensure_no_pygame_leftovers()
 
     def test_classic_bbc_line_form_still_works(self):
         """Regression: pre-existing LINE x1,y1,x2,y2 / LINE ... TO ... forms."""
