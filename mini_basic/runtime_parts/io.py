@@ -576,6 +576,11 @@ class RuntimeIoMixin:
         self._ensure_display()
 
         if self._display_enabled():
+            if self._graphics_mode >= GW_SCREEN_MODE_BASE and self._refresh_enabled:
+                # Preserve the completed drawing before the next animation
+                # frame erases it. CLS is the drawing boundary here; sampling
+                # only after clearing can repeatedly show an empty frame.
+                self._flush_display(force=True)
             # Always clear the draw buffer; with *REFRESH OFF, display.clear() skips present().
             self._display.clear()
 
@@ -593,7 +598,8 @@ class RuntimeIoMixin:
         if self._display is not None and hasattr(self._display, 'present'):
             try:
                 if getattr(self, '_refresh_enabled', True):
-                    self._display.present(force=True)
+                    if self._graphics_mode < GW_SCREEN_MODE_BASE:
+                        self._display.present(force=True)
             except Exception:
                 pass
     def _display_write_vdu_string(self, text: str) -> None:

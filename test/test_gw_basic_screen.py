@@ -65,6 +65,27 @@ class GwScreenModeSpecTests(unittest.TestCase):
 
 
 class ScreenStatementTests(unittest.TestCase):
+    def test_cls_presents_previous_gw_drawing_before_clearing(self):
+        from unittest.mock import Mock, patch
+
+        i = _interp('mini')
+        i._graphics_mode = GW_SCREEN_MODE_BASE + 9
+        i._program_stdout = io.StringIO()
+        display = Mock()
+        display._compose_full = True
+        display._gfx = None
+        display.poll.return_value = True
+        i._display = display
+        i._last_present_time = 10.0
+        with patch.object(i, '_ensure_display'), patch.object(i, '_display_enabled', return_value=True), \
+                patch.object(i, '_check_user_interrupt'), patch.object(i, '_update_mouse_from_display'), \
+                patch('mini_basic.runtime_parts.io.time.monotonic', return_value=10.001):
+            i._clear_screen()
+        display.clear.assert_called_once()
+        display.present.assert_called_once_with(force=True)
+        calls = [call[0] for call in display.method_calls]
+        self.assertLess(calls.index('present'), calls.index('clear'))
+
     def test_text_compose_does_not_bypass_frame_interval(self):
         """CLS/PRINT dirty composition is distinct from an explicit refresh."""
         from unittest.mock import Mock, patch
