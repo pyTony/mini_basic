@@ -54,6 +54,23 @@ Use `--borderless` for a graphics window without a title bar. Left-drag anywhere
 inside the window to move it; press Escape or Ctrl+Break (Ctrl+Pause) to exit. For example:
 `python -m mini_basic --borderless cube.bas`.
 
+To compare mini_basic with the MBASIC repo's `tests_with_results` reference
+outputs, run:
+
+```powershell
+python test/manual/run_mbasic_reference.py C:/Users/admin/mbasic
+```
+
+The argument can be a checkout or its `basic/dev/tests_with_results` directory.
+The runner uses the `mbasic` dialect, runs each program in a temporary directory,
+and compares output using the upstream runner's `.strip()` rule: internal spaces
+and line breaks must match. Differences, BASIC errors, missing references, and
+timeouts fail the run. It never rewrites reference files. Use
+`--match test_for_next.bas` to select a program, `--timeout 30` for a longer
+per-program limit, or `--dialect mits` to compare that dialect instead.
+This optional compatibility check is separate from the usual smoke-test ladder;
+existing compatibility differences are reported as failures.
+
 ```python
 from mini_basic import BASICInterpreter, main
 from mini_basic.config import InterpreterConfig
