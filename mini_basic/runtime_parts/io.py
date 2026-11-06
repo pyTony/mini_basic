@@ -178,7 +178,7 @@ class RuntimeIoMixin:
                             continue
                         if event.type != pygame_mod.KEYDOWN:
                             continue
-                        if event.key == pygame_mod.K_ESCAPE:
+                        if pygame_exit_key(pygame_mod, event):
                             raise KeyboardInterrupt
                         if event.key in (pygame_mod.K_RETURN, pygame_mod.K_KP_ENTER):
                             self._tee_finish_input_line()
@@ -1627,7 +1627,7 @@ class RuntimeIoMixin:
                     pygame_mod.event.pump()
                     for event in pygame_mod.event.get():
                         if event.type == pygame_mod.KEYDOWN:
-                            if event.key == pygame_mod.K_ESCAPE:
+                            if pygame_exit_key(pygame_mod, event):
                                 return 27
                             try:
                                 from ..display import pygame_keydown_char

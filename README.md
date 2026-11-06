@@ -51,7 +51,7 @@ python -m mini_basic
 ```
 
 Use `--borderless` for a graphics window without a title bar. Left-drag anywhere
-inside the window to move it; press Escape to exit. For example:
+inside the window to move it; press Escape or Ctrl+Break (Ctrl+Pause) to exit. For example:
 `python -m mini_basic --borderless cube.bas`.
 
 ```python

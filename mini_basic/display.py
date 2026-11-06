@@ -69,6 +69,18 @@ BBC_PALETTE: Tuple[Tuple[int, int, int], ...] = (
 )
 
 
+def pygame_exit_key(pygame: object, event: object) -> bool:
+    """Escape and Ctrl+Break (SDL's Ctrl+Pause) interrupt graphics programs."""
+    if event.type != pygame.KEYDOWN:
+        return False
+    if event.key == pygame.K_ESCAPE:
+        return True
+    return (
+        event.key in (getattr(pygame, 'K_BREAK', None), getattr(pygame, 'K_PAUSE', None))
+        and bool(getattr(event, 'mod', 0) & pygame.KMOD_CTRL)
+    )
+
+
 def pygame_keydown_char(pygame: object, event: object) -> Optional[str]:
     unicode = getattr(event, 'unicode', '') or ''
     if unicode and unicode.isprintable():
@@ -2423,7 +2435,7 @@ class PygameDisplay(DisplayBackend):
             if event.type == pygame.QUIT:
                 self._open = False
                 return False
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            if pygame_exit_key(pygame, event):
                 self._open = False
                 return False
             if event.type == pygame.KEYDOWN and (
@@ -2483,7 +2495,7 @@ class PygameDisplay(DisplayBackend):
                         continue
                     if event.type != pygame.KEYDOWN:
                         continue
-                    if event.key == pygame.K_ESCAPE:
+                    if pygame_exit_key(pygame, event):
                         raise KeyboardInterrupt
                     if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
                         self.newline()

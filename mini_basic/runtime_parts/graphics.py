@@ -1029,7 +1029,7 @@ class RuntimeGraphicsMixin:
                     if delta is not None:
                         self._display.nudge_runtime_scale(delta)
                         continue
-                if event.key == pygame_mod.K_ESCAPE:
+                if pygame_exit_key(pygame_mod, event):
                     return '\x1b'
                 try:
                     from ..display import pygame_keydown_char

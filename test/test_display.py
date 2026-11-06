@@ -23,6 +23,16 @@ pytestmark = [pytest.mark.phase2, pytest.mark.graphics]
 
 
 class DisplayTests(unittest.TestCase):
+    def test_ctrl_break_is_a_graphics_exit_key(self):
+        from types import SimpleNamespace
+        from mini_basic.display import pygame_exit_key
+        pygame = SimpleNamespace(KEYDOWN=1, K_ESCAPE=27, K_PAUSE=19, K_BREAK=19, KMOD_CTRL=192)
+        self.assertTrue(pygame_exit_key(pygame, SimpleNamespace(type=1, key=19, mod=64)))
+        self.assertTrue(pygame_exit_key(pygame, SimpleNamespace(type=1, key=19, mod=128)))
+        self.assertTrue(pygame_exit_key(pygame, SimpleNamespace(type=1, key=27, mod=0)))
+        self.assertFalse(pygame_exit_key(pygame, SimpleNamespace(type=1, key=19, mod=0)))
+        self.assertFalse(pygame_exit_key(pygame, SimpleNamespace(type=2, key=19, mod=64)))
+
     def test_borderless_cli_enables_pygame(self):
         from mini_basic.runtime import _parse_main_args
         config = _parse_main_args(['--borderless', 'cube.bas'])[6]
