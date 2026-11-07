@@ -53,3 +53,14 @@ def test_reference_program_writes_are_isolated(tmp_path):
                             capture_output=True, text=True, timeout=15)
     assert result.returncode == 0, result.stdout + result.stderr
     assert not (tmp_path / 'OUT.TXT').exists()
+
+
+def test_handled_error_is_not_a_reference_failure(tmp_path):
+    (tmp_path / 'sample.bas').write_text(
+        '10 ON ERROR GOTO 100\n20 ERROR 5\n30 PRINT "recovered"\n40 END\n100 RESUME NEXT\n',
+        encoding='utf-8',
+    )
+    (tmp_path / 'sample.txt').write_text('recovered\n', encoding='utf-8')
+    result = subprocess.run([sys.executable, str(RUNNER), str(tmp_path)],
+                            capture_output=True, text=True, timeout=15)
+    assert result.returncode == 0, result.stdout + result.stderr

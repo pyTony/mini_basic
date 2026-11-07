@@ -32,6 +32,14 @@ def worker(program: Path, dialect: str) -> int:
                 identifiers_case_sensitive=False,
             ))
             interp.working_dir = str(Path.cwd())
+            emitted_errors = []
+            emit_error = interp._emit_error
+
+            def record_error(message):
+                emitted_errors.append(message)
+                emit_error(message)
+
+            interp._emit_error = record_error
             # CP/M text files may be padded after a Ctrl+Z end-of-file marker.
             source = program.read_text(encoding='utf-8-sig').partition('\x1a')[0]
             for raw in source.splitlines():
@@ -42,8 +50,8 @@ def worker(program: Path, dialect: str) -> int:
                     raise ValueError(f'Expected numbered BASIC line: {raw!r}')
                 interp.set_program_line(int(number), statement)
             interp.run()
-            if interp.error_line_num:
-                error = f'BASIC error at line {interp.error_line_num}'
+            if emitted_errors:
+                error = '; '.join(emitted_errors)
         except Exception as exc:
             error = f'{type(exc).__name__}: {exc}'
     print(json.dumps({'output': output.getvalue(), 'error': error,
