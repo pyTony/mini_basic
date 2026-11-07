@@ -71,6 +71,11 @@ per-program limit, or `--dialect mits` to compare that dialect instead.
 This optional compatibility check is separate from the usual smoke-test ladder;
 existing compatibility differences are reported as failures.
 
+The `mits` and `mbasic` dialects support `TRON` and `TROFF` for classic
+line-number tracing in program output. The separate `TRACE` command retains
+its existing debugging behaviour. Microsoft `STR$` includes the leading sign
+space for nonnegative numbers; mini/BBC string formatting is unchanged.
+
 ```python
 from mini_basic import BASICInterpreter, main
 from mini_basic.config import InterpreterConfig

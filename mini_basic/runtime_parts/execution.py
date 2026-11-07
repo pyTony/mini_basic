@@ -4405,6 +4405,25 @@ class RuntimeExecutionMixin:
                     body_stmt=stmt_index + 1,
                     next_stmt=next_stmt_idx,
                 ))
+                if self.config.dialect in ('mits', 'mbasic') and (
+                    (step > 0 and start > end) or (step < 0 and start < end)
+                ):
+                    # MS FOR tests an exhausted range at its NEXT without
+                    # running the body or incrementing the initial value.
+                    locations = []
+                    parts = []
+                    for target_line in line_nums[idx:self._line_index(next_line, line_nums) + 1]:
+                        for target_index, part in enumerate(self._stmt_parts_for_line(target_line)):
+                            if target_line == line_num and target_index <= stmt_index:
+                                continue
+                            locations.append((target_line, target_index))
+                            parts.append(part)
+                    closing = self._find_matching_next_stmt_index(loop_var, parts, 0)
+                    if closing < 0:
+                        raise ValueError('missing NEXT')
+                    self.stack[-1].skip_initial_increment = True
+                    self.resume_at = locations[closing]
+                    return self.resume_at[0]
                 return None
             except Exception:
                 mismatch = None
@@ -4530,7 +4549,14 @@ class RuntimeExecutionMixin:
 
         if cmd == 'NEXT':
           open_fors = [f.loop_var for f in self.stack if f.kind == 'for']
-          for next_var in self._align_next_vars(self._parse_next_vars(rest), open_fors):
+          next_vars = self._align_next_vars(self._parse_next_vars(rest), open_fors)
+          if self.stack and self.stack[-1].kind == 'for' and self.stack[-1].skip_initial_increment:
+              # NEXT J,I may also close loops in the body we never entered.
+              for index, name in enumerate(next_vars):
+                  if not name or self._loop_var_matches(name, self.stack[-1].loop_var):
+                      next_vars = next_vars[index:]
+                      break
+          for next_var in next_vars:
             # Search the stack for matching FOR (support jumping to outer NEXT, popping abandoned inners)
             frame_index = None
             for idx in range(len(self.stack) - 1, -1, -1):
@@ -4552,7 +4578,11 @@ class RuntimeExecutionMixin:
                 self._runtime_error('? NEXT mismatch', line_num, stmt_index, stmt_count=stmt_count, statement=line)
                 return None
 
-            if frame.is_int:
+            if frame.skip_initial_increment:
+                frame.skip_initial_increment = False
+                current = float(self.int_variables[frame.loop_var] if frame.is_int
+                                else self.variables[frame.loop_var])
+            elif frame.is_int:
                 self.int_variables[frame.loop_var] = self._coerce_int_storage(
                     float(self.int_variables.get(frame.loop_var, 0)) + frame.step
                 )
@@ -6215,6 +6245,12 @@ class RuntimeExecutionMixin:
             self._active_statement = ''
 
     def execute_line(self, line_num: int, statement: str, line_nums: List[int]) -> Optional[int]:
+        resumed_statement = self.resume_at and self.resume_at[0] == line_num and self.resume_at[1] > 0
+        if self._ms_trace_enabled and line_num > 0 and not resumed_statement:
+            self._flush_program_output()
+            out = self._get_program_stdout()
+            out.write(f'[{line_num}]')
+            out.flush()
         if self._should_trace_line(line_num):
             # Same channel as dprint / ? diagnostics — not PRINT/pygame.
             self._emit_trace(f'[{line_num}]')

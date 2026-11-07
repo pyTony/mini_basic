@@ -39,7 +39,9 @@ def test_comma_zones_start_with_sign_space_not_right_justification(dialect):
 
 @pytest.mark.parametrize('dialect', ['mits', 'commodore'])
 def test_strings_and_explicit_using_are_not_padded(dialect):
-    assert run('PRINT "[";STR$(1);"]"', dialect) == '[1]\n'
+    # STR$ itself supplies the sign space; PRINT must not add another one.
+    assert run('PRINT "[";STR$(1);"]"', dialect) == '[ 1]\n'
+    assert run('PRINT "[";STR$(-1);"]"', dialect) == '[-1]\n'
     assert run('PRINT USING "##.##";1.5', dialect) == ' 1.50\n'
 
 

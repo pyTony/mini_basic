@@ -1034,7 +1034,7 @@ class RuntimeExprMixin:
             elif func == 'ARG$':
                 repl = json.dumps(self._program_arg_string(self._eval_numeric(args[0])))
             elif func == 'STR$':
-                repl = json.dumps(self._format_number(self._eval_numeric(args[0])))
+                repl = json.dumps(self._format_str_number(self._eval_numeric(args[0])))
             elif func == 'STR$~':
                 # BBC style: STR$~n gives hex string (uppercase, no 0x).
                 # Positive (incl. bigints): full digits. Negative: 32-bit two's complement.
@@ -1634,6 +1634,13 @@ class RuntimeExprMixin:
             return self._sum_array_value(arg)
         if arg is None:
             raise ValueError(f'{func} requires an argument')
+        # These return numbers but consume binary strings, not numeric args.
+        if func == 'CVI':
+            return self._cvi_value(arg)
+        if func == 'CVS':
+            return self._cvs_value(arg)
+        if func == 'CVD':
+            return self._cvd_value(arg)
         value = self._eval_numeric_builtin_arg(arg)
         # BBC BASIC (SDL2 / BB4W) trig functions use radians by default.
         # SIN/COS/TAN (and their *RAD aliases for compatibility) expect radians.
@@ -1697,12 +1704,6 @@ class RuntimeExprMixin:
                 return math.copysign(float('inf'), float(value))
         if func in ('CDBL', 'DBL', 'FLOAT'):
             return float(value)
-        if func == 'CVI':
-            return self._cvi_value(arg)
-        if func == 'CVS':
-            return self._cvs_value(arg)
-        if func == 'CVD':
-            return self._cvd_value(arg)
         if func == 'LOC':
             return self._loc_value(self._eval_numeric(arg))
         if func == 'LOF':

@@ -147,6 +147,7 @@ class RuntimeCoreMixin:
         self._refresh_enabled = True
         self._wait_statement_executed = False
         self.trace_enabled = False
+        self._ms_trace_enabled = False
         self.timing_enabled = False
         self.trace_max_line: Optional[int] = None
         self.trace_proc = False

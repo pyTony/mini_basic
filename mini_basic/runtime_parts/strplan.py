@@ -296,7 +296,7 @@ class RuntimeStrPlanMixin:
             return lambda: chr(int(num(code_expr)) % 256)
         if func == 'STR':
             value_expr = args[0]
-            return lambda: self._format_number(num(value_expr))
+            return lambda: self._format_str_number(num(value_expr))
         if func == 'SPACE':
             count_expr = args[0]
             return lambda: ' ' * max(0, int(num(count_expr)))

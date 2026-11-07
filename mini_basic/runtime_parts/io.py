@@ -901,6 +901,8 @@ class RuntimeIoMixin:
         return ''
 
     def _materialize_data_item(self, item: DataItem) -> DataItem:
+        if item.quoted:
+            return item
         if item.kind == 'float':
             return item
         if item.kind == 'str':
@@ -1203,8 +1205,18 @@ class RuntimeIoMixin:
     def _decode_print_string_item(self, item: str) -> str:
         return self._decode_bbc_adjacent_string_literals(item.strip())
 
+    def _format_str_number(self, value: float) -> str:
+        text = self._format_number(value)
+        if self.config.dialect in ('mits', 'mbasic', 'commodore') and not text.startswith('-'):
+            return ' ' + text
+        return text
+
     def _is_string_print_item(self, item: str) -> bool:
         item = item.strip()
+        if self.config.dialect in ('mits', 'mbasic', 'commodore') and self._expr_static_kind(item) == 'num':
+            start = item.find('(')
+            if start >= 0 and self._match_paren(item, start) == len(item) - 1:
+                return False
         if '"' not in item and '$' not in item:
             return False
         # Support BBC-style juxtaposition: 1"foo""bar"X$  or  "a" "b" total
@@ -1777,7 +1789,39 @@ class RuntimeIoMixin:
             return None
         return ch
 
+    def _read_microsoft_file_field(self, channel: FileChannel) -> Optional[str]:
+        """Read one comma/newline-delimited field, respecting quoted commas."""
+        chars = []
+        quoted = False
+        started = False
+        while True:
+            ch = self._read_file_char(channel)
+            if ch is None:
+                return ''.join(chars) if started else None
+            if not started and ch in ' \t\r\n':
+                continue
+            if not started and ch == '"':
+                quoted = True
+                started = True
+                continue
+            started = True
+            if ch == '"' and quoted:
+                position = channel.handle.tell()
+                following = self._read_file_char(channel)
+                if following == '"':
+                    chars.append('"')
+                    continue
+                if following is not None:
+                    channel.handle.seek(position)
+                quoted = False
+                continue
+            if not quoted and ch in ',\r\n':
+                return ''.join(chars)
+            chars.append(ch)
+
     def _read_file_value(self, channel: FileChannel, kind: VarKind) -> Optional[str]:
+        if self.config.dialect in ('mits', 'mbasic', 'commodore'):
+            return self._read_microsoft_file_field(channel)
         if kind == 'str':
             chars: List[str] = []
             while True:

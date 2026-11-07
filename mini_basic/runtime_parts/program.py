@@ -2395,7 +2395,7 @@ class RuntimeProgramMixin:
         if not token:
             return DataItem('str', '')
         if token[0] == '"':
-            return DataItem('str', self._decode_string_literal(token))
+            return DataItem('str', self._decode_string_literal(token), quoted=True)
         if re.fullmatch(r'[-+]?\d+\.?\d*', token):
             return DataItem('float', float(token))
         if token.startswith('&'):

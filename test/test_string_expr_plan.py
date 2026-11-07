@@ -68,7 +68,8 @@ class NumericExpressionWithStringsInPrintTests(unittest.TestCase):
                 '40 PRINT CHR$(65+LEN(A$))\n',
                 dialect,
             )
-            self.assertEqual(out.split(), ['abc', 'a2', 'C'], msg=(dialect, err))
+            expected = ['abc', 'a', '2', 'C'] if dialect == 'mits' else ['abc', 'a2', 'C']
+            self.assertEqual(out.split(), expected, msg=(dialect, err))
 
     def test_comparison_operand_numeric_with_string_function(self):
         for dialect in DIALECTS:
@@ -97,9 +98,12 @@ class StringPlanResultsTests(unittest.TestCase):
     def test_results(self):
         for dialect in DIALECTS:
             out, err = _run(self.PROGRAM, dialect)
+            expected = (['ab"c"d 1.5', '10', 'x|baabzzzAA', '||  |', 'abchanged', '1, 2, 3,', '87']
+                        if dialect == 'mits' else
+                        ['ab"c"d1.5', '9', 'x|baabzzzAA', '||  |', 'abchanged', '1,2,3,', '87'])
             self.assertEqual(
                 [line.strip() for line in out.splitlines()],
-                ['ab"c"d1.5', '9', 'x|baabzzzAA', '||  |', 'abchanged', '1,2,3,', '87'],
+                expected,
                 msg=(dialect, err),
             )
             self.assertEqual(err, '', msg=dialect)
@@ -125,7 +129,7 @@ class StringPlanResultsTests(unittest.TestCase):
                 dialect,
             )
             self.assertEqual(
-                out.splitlines(), ['A"B', 'AB', 'xA"By', '5', 'A"B'], msg=(dialect, err),
+                out.splitlines(), ['A"B', 'AB', 'xA"By', ' 5 ' if dialect == 'mits' else '5', 'A"B'], msg=(dialect, err),
             )
 
     def test_mits_two_char_names_share_storage(self):

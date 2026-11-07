@@ -334,6 +334,19 @@ def _h_timing(
     return None
 
 
+def _h_ms_trace(interp: Any, rest: str, *, line_num: int, stmt_index: int,
+                stmt_count: int, statement: str, line_nums: List[int]) -> Optional[int]:
+    cmd, _ = interp._parse_command(statement)
+    if interp.config.dialect not in ('mits', 'mbasic'):
+        interp._runtime_error(f'? {cmd} is not supported in this dialect', line_num, stmt_index)
+        return None
+    if _reject_trailing_args(interp, cmd, rest, line_num=line_num, stmt_index=stmt_index,
+                             stmt_count=stmt_count, statement=statement):
+        return None
+    interp._ms_trace_enabled = cmd == 'TRON'
+    return None
+
+
 def _h_trace(
     interp: Any,
     rest: str,
@@ -576,6 +589,8 @@ SIMPLE_STMT_HANDLERS: Dict[str, SimpleHandler] = {
     'SOUND': _h_sound,
     'ENVELOPE': _h_envelope,
     'TRACE': _h_trace,
+    'TRON': _h_ms_trace,
+    'TROFF': _h_ms_trace,
     'TIMING': _h_timing,
     'LVAR': _h_lvar,
     'WIDTH': _h_width,

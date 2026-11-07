@@ -95,6 +95,7 @@ class DataItem:
 
     kind: VarKind
     value: object
+    quoted: bool = False
 
 
 @dataclass
@@ -236,5 +237,6 @@ class LoopFrame:
         self.for_line = for_line
         self.body_stmt = body_stmt
         self.next_stmt = next_stmt
+        self.skip_initial_increment = False
         # Statement index of WHILE on while_line (WEND jumps back here, not to 0).
         self.while_stmt = while_stmt
