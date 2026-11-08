@@ -4056,7 +4056,13 @@ class RuntimeExprMixin:
             ):
                 values.append(self._eval_string_expr(expr))
             else:
-                values.append(self.eval_expr(expr))
+                value = self.eval_expr(expr)
+                if self._single_print() and isinstance(value, (int, float)) and math.isfinite(value):
+                    # MBASIC converts to six significant digits before USING
+                    # rounds to the field's decimals; double items retain 16.
+                    double = bool(_DOUBLE_ITEM_RE.search(re.sub(r'"[^"]*"?', '""', expr)))
+                    value = float(f'{value:.{16 if double else 6}g}')
+                values.append(value)
         return values
 
     def _update_field_variables(self, file_num: int) -> None:

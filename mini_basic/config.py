@@ -128,7 +128,7 @@ SYSTEM_VAR_SPEC: Dict[str, Dict[str, object]] = {
         'target': 'interpreter',
         'attr': 'print_field_width',
         'kind': 'int',
-        # 0 = no zone pad (single space between comma items); classic default is 10
+        # 0 = tight padding; default is 14 for mits/mbasic, 10 otherwise.
         'min': 0,
         'max': 255,
     },

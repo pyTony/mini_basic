@@ -75,6 +75,10 @@ The `mits` and `mbasic` dialects support `TRON` and `TROFF` for classic
 line-number tracing in program output. The separate `TRACE` command retains
 its existing debugging behaviour. Microsoft `STR$` includes the leading sign
 space for nonnegative numbers; mini/BBC string formatting is unchanged.
+Their default PRINT comma zones are 14 columns (`_print_field_width` overrides
+this). Explicit double items print 16 significant digits, and PRINT USING
+rounds single items to six significant digits before formatting the field.
+These Microsoft formatting rules do not change mini/BBC/Commodore defaults.
 
 ```python
 from mini_basic import BASICInterpreter, main

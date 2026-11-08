@@ -142,6 +142,37 @@ def test_mbasic_tron_troff_trace_goes_to_program_output():
     assert out == '[20][50]back\n[30]'
 
 
+@pytest.mark.parametrize('dialect', ['mits', 'mbasic'])
+def test_ms_print_uses_fourteen_column_zones(dialect):
+    _, out, err = _run(['PRINT "Depth:",1', '_print_field_width=10', 'PRINT "Depth:",1'], dialect)
+    assert not err
+    assert out == 'Depth:         1 \nDepth:     1 \n'
+
+
+@pytest.mark.parametrize('dialect', ['mits', 'mbasic'])
+def test_ms_double_print_has_sixteen_significant_digits(dialect):
+    _, out, err = _run(['A!=3.14', 'PRINT CDBL(A!)'], dialect)
+    assert not err
+    assert out == ' 3.140000104904175 \n'
+    _, out, err = _run(['PRINT CDBL(1.234567890123457E20)'], dialect)
+    assert not err
+    assert out == ' 1.234567890123457D+20 \n'
+
+
+@pytest.mark.parametrize('dialect,expected', [('mits', '12,345.70'), ('mbasic', '12,345.70'),
+                                            ('mini', '12,345.67'), ('bbc', '12,345.67')])
+def test_using_precision_is_dialect_specific(dialect, expected):
+    _, out, err = _run(['PRINT USING "##,###.##";12345.67'], dialect)
+    assert not err
+    assert out == expected + '\n'
+
+
+def test_using_retains_double_precision():
+    _, out, err = _run(['A#=12345.67', 'PRINT USING "##,###.##";A#'])
+    assert not err
+    assert out == '12,345.67\n'
+
+
 def test_mbasic_input_file_reads_fields(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     (tmp_path / 'VALUES.TXT').write_text('"Alice, A",25,1250.5\n"Bob",30,1500.75\n')

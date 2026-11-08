@@ -199,7 +199,7 @@ class RuntimeCoreMixin:
         self.ieee754_binary64 = 1 if _float_platform.is_ieee754_binary64 else 0
         self.save_case = 0
         self.print_column = 0
-        self.print_field_width = 10
+        self.print_field_width = 14 if self.config.dialect in ('mits', 'mbasic') else 10
         self.bbc_at_percent = 0
         self.bbc_page = 0x8000
         self.bbc_lomem = 0x8000

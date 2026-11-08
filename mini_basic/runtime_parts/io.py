@@ -1099,6 +1099,13 @@ class RuntimeIoMixin:
         """BBC-style float text: scientific for large/small magnitudes."""
         if not math.isfinite(value):
             return str(value).upper()
+        if self.config.dialect in ('mits', 'mbasic') and getattr(self, '_print_double', False):
+            text = f'{value:.16G}'.replace('E', 'D')
+            if text.startswith('0.'):
+                return text[1:]
+            if text.startswith('-0.'):
+                return '-' + text[2:]
+            return text
         # bbc: @%=&90A default is G9 (PRINT PI → 3.14159265). Others: 15
         # significant digits, so 0.1+0.2 prints 0.3, not float64 noise.
         sig_digits = 9 if (self.config.dialect == 'bbc' and not self.bbc_at_percent) else 15

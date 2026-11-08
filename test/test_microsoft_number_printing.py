@@ -34,7 +34,8 @@ def test_words_arrays_comparisons_and_repeated_print(dialect):
 
 @pytest.mark.parametrize('dialect', ['mits', 'commodore'])
 def test_comma_zones_start_with_sign_space_not_right_justification(dialect):
-    assert run('PRINT 1,2', dialect) == ' 1         2 \n'
+    expected = ' 1 ' + (' ' * (11 if dialect == 'mits' else 7)) + ' 2 \n'
+    assert run('PRINT 1,2', dialect) == expected
 
 
 @pytest.mark.parametrize('dialect', ['mits', 'commodore'])
