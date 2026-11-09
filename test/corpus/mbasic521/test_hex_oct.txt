@@ -1,0 +1,46 @@
+Testing HEX$ and OCT$
+=====================
+
+Test 1: HEX$ conversion
+HEX$(10) =A(expected: A)
+HEX$(15) =F(expected: F)
+HEX$(16) =10(expected: 10)
+HEX$(255) =FF(expected: FF)
+HEX$(256) =100(expected: 100)
+
+Test 2: OCT$ conversion
+OCT$(8) =10(expected: 10)
+OCT$(10) =12(expected: 12)
+OCT$(64) =100(expected: 100)
+OCT$(255) =377(expected: 377)
+
+Test 3: HEX$ with larger numbers
+HEX$(1000) =3E8
+HEX$(4095) =FFF(expected: FFF)
+HEX$(65535) =FFFF(expected: FFFF)
+
+Test 4: OCT$ with larger numbers
+OCT$(100) =144
+OCT$(511) =777(expected: 777)
+OCT$(512) =1000(expected: 1000)
+
+Test 5: HEX$ with special values
+HEX$(0) =0(expected: 0)
+HEX$(1) =1(expected: 1)
+HEX$(128) =80(expected: 80)
+HEX$(1024) =400(expected: 400)
+
+Test 6: OCT$ with special values
+OCT$(0) =0(expected: 0)
+OCT$(1) =1(expected: 1)
+OCT$(7) =7(expected: 7)
+OCT$(9) =11(expected: 11)
+
+Test 7: HEX$/OCT$ in expressions
+Value in hex: 2A
+Value in oct: 52
+
+Test 8: Common hex values
+0,1,2,3,4,5,6,7,8,9,A,B,C,D,E,F
+
+HEX$ and OCT$ tests complete!

@@ -1,0 +1,34 @@
+Testing MID$ Assignment
+=======================
+
+Test 1: Replace middle characters
+Original: HELLO WORLD
+After MID$(A$, 7, 5) = "BASIC":
+Result: HELLO BASIC
+
+Test 2: Replace from start
+Original: 12345678
+After MID$(B$, 1, 3) = "ABC":
+Result: ABC45678
+
+Test 3: Replace near end
+Original: ABCDEFGH
+After MID$(C$, 6, 3) = "XYZ":
+Result: ABCDEXYZ
+
+Test 4: Short replacement
+Original: 1234567890
+After MID$(D$, 3, 5) = "AB" (2 chars):
+Result: 12AB567890
+
+Test 5: Long replacement (truncated)
+Original: AAAAAAAAAA
+After MID$(E$, 3, 3) = "BCDEFGH":
+Result: AABCDAAAAA
+
+Test 6: Single character
+Original: TESTING
+After changing pos 1 and 4:
+Result: BESKING
+
+MID$ assignment tests complete!

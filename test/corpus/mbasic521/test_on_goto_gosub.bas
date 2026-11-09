@@ -1,0 +1,125 @@
+10 REM Test ON GOTO and ON GOSUB
+20 PRINT "Testing ON GOTO and ON GOSUB"
+30 PRINT "============================="
+40 PRINT
+50 REM Test 1: ON GOTO with value 1
+60 PRINT "Test 1: ON 1 GOTO (jump to first line)"
+70 X = 1
+80 ON X GOTO 1000, 2000, 3000
+90 PRINT "ERROR: Should not reach here"
+100 GOTO 200
+110 REM
+1000 PRINT "Jumped to line 1000 (X=1)"
+1010 GOTO 200
+1020 REM
+2000 PRINT "ERROR: Jumped to line 2000"
+2010 GOTO 200
+2020 REM
+3000 PRINT "ERROR: Jumped to line 3000"
+3010 GOTO 200
+3020 REM
+200 REM Test 2: ON GOTO with value 2
+210 PRINT
+220 PRINT "Test 2: ON 2 GOTO (jump to second line)"
+230 Y = 2
+240 ON Y GOTO 1100, 2100, 3100
+250 PRINT "ERROR: Should not reach here"
+260 GOTO 300
+270 REM
+1100 PRINT "ERROR: Jumped to line 1100"
+1110 GOTO 300
+1120 REM
+2100 PRINT "Jumped to line 2100 (Y=2)"
+2110 GOTO 300
+2120 REM
+3100 PRINT "ERROR: Jumped to line 3100"
+3110 GOTO 300
+3120 REM
+300 REM Test 3: ON GOTO with value 3
+310 PRINT
+320 PRINT "Test 3: ON 3 GOTO (jump to third line)"
+330 Z = 3
+340 ON Z GOTO 1200, 2200, 3200
+350 PRINT "ERROR: Should not reach here"
+360 GOTO 400
+370 REM
+1200 PRINT "ERROR: Jumped to line 1200"
+1210 GOTO 400
+1220 REM
+2200 PRINT "ERROR: Jumped to line 2200"
+2210 GOTO 400
+2220 REM
+3200 PRINT "Jumped to line 3200 (Z=3)"
+3210 GOTO 400
+3220 REM
+400 REM Test 4: ON GOTO with value 0 (no jump)
+410 PRINT
+420 PRINT "Test 4: ON 0 GOTO (no jump, continue)"
+430 W = 0
+440 ON W GOTO 1300, 2300, 3300
+450 PRINT "Continued to next line (W=0)"
+460 GOTO 500
+470 REM
+1300 PRINT "ERROR: Jumped to line 1300"
+1310 GOTO 500
+1320 REM
+2300 PRINT "ERROR: Jumped to line 2300"
+2310 GOTO 500
+2320 REM
+3300 PRINT "ERROR: Jumped to line 3300"
+3310 GOTO 500
+3320 REM
+500 REM Test 5: ON GOSUB with value 1
+510 PRINT
+520 PRINT "Test 5: ON 1 GOSUB (call first subroutine)"
+530 A = 1
+540 ON A GOSUB 5000, 6000, 7000
+550 PRINT "Returned from subroutine"
+560 GOTO 600
+570 REM
+5000 PRINT "In subroutine 5000 (A=1)"
+5010 RETURN
+5020 REM
+6000 PRINT "ERROR: In subroutine 6000"
+6010 RETURN
+6020 REM
+7000 PRINT "ERROR: In subroutine 7000"
+7010 RETURN
+7020 REM
+600 REM Test 6: ON GOSUB with value 2
+610 PRINT
+620 PRINT "Test 6: ON 2 GOSUB (call second subroutine)"
+630 B = 2
+640 ON B GOSUB 5100, 6100, 7100
+650 PRINT "Returned from subroutine"
+660 GOTO 700
+670 REM
+5100 PRINT "ERROR: In subroutine 5100"
+5110 RETURN
+5120 REM
+6100 PRINT "In subroutine 6100 (B=2)"
+6110 RETURN
+6120 REM
+7100 PRINT "ERROR: In subroutine 7100"
+7110 RETURN
+7120 REM
+700 REM Test 7: ON GOSUB with expression
+710 PRINT
+720 PRINT "Test 7: ON with expression (2+1=3)"
+730 C = 2
+740 ON C + 1 GOSUB 5200, 6200, 7200
+750 PRINT "Returned from subroutine"
+760 GOTO 800
+770 REM
+5200 PRINT "ERROR: In subroutine 5200"
+5210 RETURN
+5220 REM
+6200 PRINT "ERROR: In subroutine 6200"
+6210 RETURN
+6220 REM
+7200 PRINT "In subroutine 7200 (C+1=3)"
+7210 RETURN
+7220 REM
+800 PRINT
+810 PRINT "ON GOTO/GOSUB tests complete!"
+820 END

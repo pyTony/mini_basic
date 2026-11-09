@@ -1,0 +1,55 @@
+Testing Math Functions
+======================
+
+Test 1: ABS
+  ABS(-10) = 10 
+  ABS(10) = 10 
+  PASS: ABS works
+
+Test 2: SGN
+  SGN(-5) =-1 
+  SGN(0) = 0 
+  SGN(5) = 1 
+  PASS: SGN works
+
+Test 3: INT
+  INT(10.9) = 10 
+  INT(-10.9) =-11 
+  PASS: INT works
+
+Test 4: FIX
+  FIX(10.9) = 10 
+  FIX(-10.9) =-10 
+  PASS: FIX works
+
+Test 5: SQR
+  SQR(16) = 4 
+  SQR(25) = 5 
+  PASS: SQR works
+
+Test 6: Exponentiation (^)
+  2 ^ 3 = 8 
+  5 ^ 2 = 25 
+  PASS: ^ works
+
+Test 7: Trigonometric functions
+  SIN(0) = 0 
+  COS(0) = 1 
+  TAN(0) = 0 
+  PASS: Trig functions work
+
+Test 8: EXP and LOG
+  EXP(0) = 1 
+  LOG(1) = 0 
+  PASS: EXP and LOG work
+
+Test 9: ATN
+  ATN(0) = 0 
+  PASS: ATN works
+
+Test 10: CINT
+  CINT(10.4) = 10 
+  CINT(10.6) = 11 
+  PASS: CINT works
+
+All math function tests complete!

@@ -1,0 +1,33 @@
+Testing File I/O
+================
+
+Test 1: Writing to file
+File written successfully
+
+Test 2: Reading from file
+Read: Line 1: Hello from MBASIC
+Read: Line 2: Testing file output
+Read: Line 3: Numbers: 10  20  30 
+
+Test 3: Appending to file
+Appended to file
+
+Test 4: Reading all lines
+Line 1 : Line 1: Hello from MBASIC
+Line 2 : Line 2: Testing file output
+Line 3 : Line 3: Numbers: 10  20  30 
+Line 4 : Line 4: Appended line
+
+Test 5: WRITE# with delimiters
+Data written with WRITE#
+
+Test 6: INPUT# reading delimited data
+Name:"Alice"Age: 25 Salary: 1250.5 
+Name:"Bob"Age: 30 Salary: 1500.75 
+
+Test 7: EOF function
+Total lines read: 4 
+
+Test files deleted
+
+File I/O tests complete!

@@ -1,0 +1,21 @@
+Testing DEF Type Statement Parsing
+===================================
+
+DEFINT i-k parsed successfully
+DEFSNG a-c parsed successfully
+DEFDBL d-f parsed successfully
+DEFSTR s parsed successfully
+
+Explicit % suffix forces integer:
+i% = 10.9 becomes 11 
+j% = 20.7 becomes 21 
+
+String variables with $ suffix:
+nm$ =MBASIC
+version$ =5.21
+
+Case insensitivity test:
+Set a=100, then A=200
+a now equals 200 (should be 200)
+
+DEF statement parsing test complete!

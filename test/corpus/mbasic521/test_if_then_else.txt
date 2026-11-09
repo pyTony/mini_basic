@@ -1,0 +1,35 @@
+Testing IF/THEN/ELSE
+===================
+
+Test 1: Simple IF/THEN
+  PASS: A equals 10
+
+Test 2: IF/THEN/ELSE
+  PASS: B > 15
+  PASS: B not < 15
+
+Test 3: Comparison operators
+  PASS: 5 < 10
+  PASS: 5 <= 5
+  PASS: 5 >= 5
+  PASS: 5 <> 10
+
+Test 4: String comparisons
+  PASS: String equality
+  PASS: String inequality
+  PASS: HELLO < WORLD (alphabetically)
+
+Test 5: Logical AND
+  PASS: 10 < 15 < 20
+
+Test 6: Logical OR
+  PASS: D is 5 or 10
+
+Test 7: NOT operator
+  PASS: NOT 0 is true
+  FAIL: NOT 1 should be false
+
+Test 8: Nested IF
+  PASS: Nested IF works (20 < 25 < 30)
+
+All IF/THEN/ELSE tests complete!

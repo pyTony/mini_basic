@@ -1,0 +1,28 @@
+Testing DIM and Arrays
+======================
+
+Test 1: 1D Array
+  A(0) = 10 
+  A(2) = 30 
+  A(5) = 60 
+  PASS: 1D array works
+
+Test 2: 2D Array
+  B(0,0) = 1 
+  B(1,1) = 5 
+  B(2,2) = 9 
+  B(3,0) = 13 
+  PASS: 2D array works
+
+Test 3: String Array
+  C$(0) =RED
+  C$(2) =BLUE
+  PASS: String array works
+
+Test 4: Array with FOR loop
+  D(0) = 0 
+  D(2) = 20 
+  D(4) = 40 
+  PASS: FOR loop with array works
+
+All array tests complete!

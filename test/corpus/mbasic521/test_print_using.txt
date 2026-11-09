@@ -1,0 +1,44 @@
+Testing PRINT USING
+===================
+
+Test 1: Basic number formatting
+ 42
+12345
+
+Test 2: Decimal formatting
+ 3.14
+123.46
+
+Test 3: Currency formatting
+$ 99.95
+$1234.56
+
+Test 4: Comma separators
+1,234
+12,345.70
+
+Test 5: Sign formatting
+ +42
+ -42
+
+Test 6: String first character (!)
+H
+Name: W
+
+Test 7: Fixed-width strings
+HELLO 
+TEST
+
+Test 8: Multiple values
+ 10  20  30
+Name: Alice    Age: 25
+
+Test 9: Exponential notation
+ 1.23E+04
+ 1.23E-03
+
+Test 10: Overflow handling
+%12345
+%123.46
+
+PRINT USING tests complete!
